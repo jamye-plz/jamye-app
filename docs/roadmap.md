@@ -1,11 +1,11 @@
 # jamye-app 그린필드 로드맵
 
-- 상태: 확정됨 — 사용자 승인 완료, Ultrawork `PLAN_GATE` 상태 반영 대기
+- 상태: 확정됨 — M1 명령 게이트·Ultrawork SHIP 통과, local commit 승인
 - 세션: `20260822-200158`
 - 결정권자: 사용자
 - 실행 조정자: 주 에이전트
 - 대상: iOS·Android React Native 앱의 첫 offline-first 채팅 수직 절편
-- 최종 수정일: 2026-08-22
+- 최종 수정일: 2026-08-24
 
 ## 1. 이 문서의 역할
 
@@ -140,7 +140,13 @@
 - bootstrap contract는 실제 server release가 아님을 명시
 - 기존 PWA, `jamye-server`, homelab, store console은 이 저장소 작업에서 변경하지 않음
 
-SDK·React Native·Node·JDK·Android SDK/NDK의 정확한 version은 아직 확정된 값이 아니다. 에이전트가 Expo·React Native·Bun·EAS의 공식 자료와 확인일을 기록하고, 사용자가 조합을 승인한 뒤 flake와 scaffold에 고정한다.
+M1 toolchain baseline은 2026-08-23 사용자 승인으로 확정됐다. Expo SDK 57,
+React Native 0.86.2, React 19.2.3, Bun 1.3.13, Node.js 22.23.2 LTS,
+Azul Zulu OpenJDK 17.0.19, CocoaPods 1.16.2, Android command-line tools 21.0,
+platform-tools 37.0.1, Platform 36, Build Tools 36.0.0을 사용한다. NDK는 포함하지 않는다.
+단일 `nixpkgs-unstable` 입력을 사용하며, 사용자 생성 `flake.lock`이 고정한
+`391b592eb44808b3bd0cb80bb71b63a5a118b8bb`을 정확한 Nix snapshot으로 사용한다. 공식
+근거와 lock 검증 기록은 `docs/research/mobile-baseline.md`를 SSOT로 사용한다.
 
 ### 4.2 보류
 
@@ -237,29 +243,34 @@ M8 문서·실기기 확인·첫 수직 절편 종료
 - `nix/dev-shell.nix`, `nix/android-sdk.nix` 작성
 - 사용자가 승인한 Bun, Node, JDK, Android CLI toolchain과 CocoaPods를 고정
 - NDK·Watchman·Maestro는 scaffold 또는 해당 검증 단계가 필요성을 증명한 뒤 별도 승인으로 추가
-- `JAVA_HOME`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `ANDROID_NDK_ROOT`, `DEVELOPER_DIR` 등 비밀이 아닌 환경 변수 정의
+- `JAVA_HOME`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `DEVELOPER_DIR` 등 비밀이 아닌 환경 변수 정의; NDK를 포함하지 않으므로 `ANDROID_NDK_ROOT`는 설정하지 않음
 - 외부 Xcode·Android Studio 상태를 읽기만 하는 진단 script 작성
 
 사용자 직접 실행:
 
-- 공식 근거를 바탕으로 version 조합 승인
-- flake input 고정
-- `nix develop` 진입
-- Android SDK license 동의
-- Xcode·Android Studio·simulator·emulator 설치
-- 각 tool version 확인 명령
+- 공식 근거를 바탕으로 version 조합 승인 — 2026-08-23 완료
+- Android SDK license를 Nix 구성의 `android_sdk.accept_license = true`로 declarative하게 수락 — 2026-08-23 완료; read-only Nix SDK에 쓰는 `sdkmanager --licenses` 명령은 사용하지 않음
+- 아직 커밋되지 않은 새 Nix 파일도 포함하도록 `nix flake lock path:.`로 flake input 고정 — 2026-08-23 완료
+- 같은 이유로 `nix develop path:.`로 devShell 진입 — 2026-08-23 완료
+- Xcode·Android Studio·simulator·emulator 설치 — 2026-08-24 완료
+- 각 tool version 확인 명령 — 최종 진단의 exact-version 검사로 2026-08-24 완료
+- devShell 안에서 `./tools/diagnostics/toolchain-check.sh` 실행 — `23 passed, 0 failed`
+- repository root에서 `nix flake check path:.` 실행 — `flake_check_exit=0`
 
 결정 게이트:
 
 - `aarch64-darwin` 단일 지원으로 시작
 - Nix SDK를 CLI build의 authoritative SDK로 사용
+- Android SDK license acceptance는 사용자 결정으로 승인하고 flake에 declarative하게 기록
+- NDK는 M1에서 제외하며 `ANDROID_NDK_ROOT`를 설정하지 않음
 - 비밀값이나 signing material을 devShell에 넣지 않음
 
 완료 증거:
 
 - 깨끗한 shell에서 요구 도구의 version과 경로 확인
-- `nix flake check path:.` 통과
-- Xcode가 없거나 잘못된 경우 진단이 이해 가능한 메시지로 실패
+- declarative license acceptance가 적용된 composed Android SDK가 성공적으로 realize됨
+- `nix flake check path:.`가 host GUI 상태와 독립적으로 flake output을 검증하며 통과
+- devShell 안에서 별도로 실행한 read-only 진단이 Xcode 또는 Android Studio가 없거나 잘못된 경우 이해 가능한 메시지로 실패
 - 공식 출처·확인일·승인된 version이 flake 및 이후 scaffold와 일치
 - product-intent 문서가 지정 참고자료 전부와 각 산출 의도를 추적하고 source code 복사를 포함하지 않음
 - scaffold 전 workspace baseline이 현재 Git·lockfile·toolchain 상태와 일치
@@ -558,9 +569,12 @@ M8 문서·실기기 확인·첫 수직 절편 종료
 | D-007 | SQLite가 채팅과 outbox의 유일한 화면 원본 | 승인됨 |
 | D-008 | 실제 server artifact가 나오기 전 명시적 bootstrap contract 사용 | 승인 대기 |
 | D-009 | production identifier와 link domain | 보류 |
-| D-010 | exact Expo/RN/Bun/JDK/Android version | M1 공식 근거 확인 뒤 승인 |
+| D-010 | exact Expo/RN/Bun/JDK/Android version | 2026-08-23 승인됨 |
 | D-011 | 이번 product scope는 offline-first 채팅에 한정하고 완성형 OAuth와 모든 비채팅 기능은 backlog로 이동 | 승인됨 |
 
 ## 12. 현재 게이트
 
-현재 위치는 M0 `PLAN_GATE`다. 사용자의 문서 승인은 완료됐지만, 사용자가 Ultrawork gate-state 명령을 직접 실행해 상태를 반영하기 전에는 M1 파일을 만들거나 설치·scaffold·build 명령을 실행하지 않는다.
+M1의 사용자 실행 명령 게이트, REFINE 후 최종 진단, VERIFY·REFINE·SHIP 검토가 통과했고
+사용자가 M1 파일의 local commit을 승인했다. 이 commit으로 M1 산출물을 닫되, M2 시작은
+사용자가 별도로 승인한다. 그 전에는 Expo scaffold, dependency install, native build를
+실행하지 않는다.

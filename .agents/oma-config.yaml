@@ -104,7 +104,8 @@ agents:
   eval:
     model: anthropic/claude-sonnet-5
   orchestrator:
-    model: anthropic/claude-opus-5
+    model: openai/gpt-5.6-sol
+    effort: max
     memory: local
   architecture:
     model: anthropic/claude-fable-5
@@ -121,11 +122,11 @@ agents:
     effort: high
     memory: local
   frontend:
-    model: openai/gpt-5.6-terra
+    model: anthropic/claude-sonnet-5
     effort: high
     memory: local
   mobile:
-    model: openai/gpt-5.6-terra
+    model: anthropic/claude-sonnet-5
     effort: high
     memory: local
   db:
