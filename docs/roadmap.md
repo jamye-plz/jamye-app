@@ -1,11 +1,12 @@
 # jamye-app 그린필드 로드맵
 
-- 상태: 확정됨 — M1 명령 게이트·Ultrawork SHIP 통과, local commit 승인
-- 세션: `20260822-200158`
+- 상태: 확정됨 — M2 완료 승인; local commit과 M3 시작은 별도 게이트
+- 로드맵 기준 세션: `20260822-200158`
+- 현재 M2 세션: `20260824-183223`
 - 결정권자: 사용자
 - 실행 조정자: 주 에이전트
 - 대상: iOS·Android React Native 앱의 첫 offline-first 채팅 수직 절편
-- 최종 수정일: 2026-08-24
+- 최종 수정일: 2026-08-25
 
 ## 1. 이 문서의 역할
 
@@ -303,7 +304,12 @@ M8 문서·실기기 확인·첫 수직 절편 종료
 - `package-lock.json`, Yarn·pnpm lockfile이 없음
 - `bun.lock`과 `packageManager` 일치
 - Expo doctor와 TypeScript 기본 검사 통과
+- 사용자가 Expo Go를 iOS Simulator와 ADB Android target에서 실행해 default template을 확인;
+  Development Build 또는 native build 증거와 구분
 - template 선택과 package manager 근거가 ADR에 기록됨
+- M2가 새로 작성한 비-template 실행 application/domain 로직이 없는 bootstrap에만 적용되는
+  품질 증거 유예와 M3 강제 이관 조건이
+  ADR 0003에 기록됨; M2 lint와 coverage는 PASS가 아니라 미측정으로 유지
 
 ### M3. 앱 기반 구조와 품질 경계
 
@@ -319,6 +325,9 @@ M8 문서·실기기 확인·첫 수직 절편 종료
 - TypeScript strict와 SQLite chat-state 소유권 guard; TanStack Query·Zustand는 실제 소유 state가 생길 때만 추가
 - 모든 screen/component가 HTTP client를 직접 import하지 못하게 하는 architecture check
 - semantic design tokens와 dark mode 기반
+- 실제로 작동하는 lint·format 설정과 M3 작성 실행 로직을 위한 의미 있는 test/coverage harness
+- coverage denominator와 generated/template 제외 사유를 선언적으로 기록하고 빈 test suite,
+  `passWithNoTests`, generated template 전용 test로 품질 조건을 우회하지 않는 guard
 - README의 development client 재생성 조건
 - `ios/`, `android/`를 CNG 생성물로 ignore하고 직접 수정·commit하지 않는 검증 script
 - Expo Router 외 별도 navigation stack과 UI framework가 추가되지 않았음을 dependency/import check로 확인
@@ -329,12 +338,17 @@ M8 문서·실기기 확인·첫 수직 절편 종료
 - simulator/emulator용 development identifier 승인
 - native config 변경 후 development client build
 - doctor, typecheck, lint, format 검사
+- M3 test와 coverage 측정
 
 완료 증거:
 
 - route가 DB·HTTP·WebSocket을 직접 import하지 않음
 - 환경의 비밀값과 message body가 로그 redaction test를 통과
 - 잘못된 환경값이 시작 시 명확하게 실패
+- lint가 실제 exit `0`으로 통과
+- M3가 작성한 실행 가능한 application 로직을 포함한 aggregate coverage가 실제 측정값으로
+  80% 이상이며 denominator와 제외 사유가 repository에 기록됨
+- M2 품질 증거 유예가 M3 이후로 연장되지 않음
 - tracked `ios/`, `android/` 파일이나 생성물 직접 수정이 없음
 - 별도 navigation stack·UI framework dependency가 없음
 
@@ -530,7 +544,13 @@ M8 문서·실기기 확인·첫 수직 절편 종료
 - 실행 가능한 필수 자동 검사를 단순히 `미실행`으로 남긴 채 마일스톤을 완료하지 않는다.
 - 실패·경고를 숨기거나 성공으로 바꾸지 않았다.
 - production, legacy, remote 상태를 변경하지 않았다.
-- 사용자가 다음 마일스톤 진행을 승인했다.
+- 사용자가 해당 마일스톤 완료를 승인했다. 다음 마일스톤 시작은 별도 승인이다.
+
+M2에는 사용자가 승인한 1회성 bootstrap 품질 증거 유예가 적용된다. 이는 M2가 새로 작성한
+비-template 실행 가능한 application/domain 로직이 없다는 검증된 조건에만 성립하며 lint와 coverage를 PASS로
+간주하지 않는다. 미측정 증거는 ADR 0003의 조건대로 바로 다음 M3에 강제 이관되고, M3 이후
+다른 마일스톤에는 재사용하거나 자동 연장할 수 없다. 전역 Ultrawork 품질 기준은 변경되지
+않는다.
 
 중요 명령의 redacted 출력과 판정은 `docs/evidence/<milestone>.md`에 남긴다. 환경의 비밀값과 message body 등 민감값은 원문 그대로 기록하지 않는다.
 
@@ -571,10 +591,15 @@ M8 문서·실기기 확인·첫 수직 절편 종료
 | D-009 | production identifier와 link domain | 보류 |
 | D-010 | exact Expo/RN/Bun/JDK/Android version | 2026-08-23 승인됨 |
 | D-011 | 이번 product scope는 offline-first 채팅에 한정하고 완성형 OAuth와 모든 비채팅 기능은 backlog로 이동 | 승인됨 |
+| D-012 | M2가 새로 작성한 비-template 실행 application/domain 로직이 없는 bootstrap의 lint·coverage를 미측정으로 유지하고 M3에 실제 lint·test·coverage 80% 조건을 한 번만 강제 이관 | 2026-08-25 승인됨 |
 
 ## 12. 현재 게이트
 
-M1의 사용자 실행 명령 게이트, REFINE 후 최종 진단, VERIFY·REFINE·SHIP 검토가 통과했고
-사용자가 M1 파일의 local commit을 승인했다. 이 commit으로 M1 산출물을 닫되, M2 시작은
-사용자가 별도로 승인한다. 그 전에는 Expo scaffold, dependency install, native build를
-실행하지 않는다.
+M2의 scaffold·Bun install·Expo doctor·TypeScript 검증과 독립 VERIFY·REFINE·SHIP 검토가
+통과했다. 사용자는 Expo Go를 iOS Simulator와 ADB Android target에서 확인했고,
+`G-M2-SHIP-REMEDIATION governance`로 ADR 0003의 M2 전용 품질 증거 유예와 M3 강제 이관을
+승인했다. Governance scope, quality/eligibility, documentation/cascade의 세 fresh 독립 검토와
+targeted remediation 재검토는 모두 PASS했고 CRITICAL/HIGH/MEDIUM/LOW finding이 0개다.
+사용자는 2026-08-25에 `G-M2-FINAL approve_completion`으로 M2 완료를 승인했다.
+M2 local commit과 M3 시작은 완료 결정에서 자동으로 파생되지 않는 별도 사용자 게이트이며,
+Development Build와 native build는 아직 승인되거나 실행되지 않았다.
