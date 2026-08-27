@@ -1,4 +1,6 @@
 import {
+  APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
+  APPROVED_RECOVERY_FILE_SHA256,
   checkArchitecture,
   classifyTutorialAssetReferencesInText,
   isAuthorizedWorkingTreePath,
@@ -53,66 +55,22 @@ const MEANINGFUL_TEST_PATHS = [
   "tests/features/development-fixture-screen.test.tsx",
   "tests/app/thin-routes.test.tsx",
   "tests/quality/check-architecture.test.ts",
-];
-
-const FORMAT_SCOPE_MAIN_OPERANDS = [
-  "app.config.ts",
-  "eslint.config.js",
-  "jest.config.js",
-  "package.json",
-  "src/app/_layout.tsx",
-  "src/app/index.tsx",
-  "src/core/config",
-  "src/core/logging",
-  "src/core/errors",
-  "src/core/providers",
-  "src/core/theme",
-  "src/features/development-fixture",
-  "src/shared/ui",
-  "tests",
-  "tools/quality",
-  "README.md",
-  "docs/adr/0004-m3-app-foundation-and-preference-deferral.md",
-];
-
-const FORMAT_SCOPE_FINAL_DOCS_OPERANDS = ["docs/evidence/M3.md"];
-
-const FORMAT_SCOPE_MAIN_EFFECTIVE_FILES = [
-  "app.config.ts",
-  "eslint.config.js",
-  "jest.config.js",
-  "package.json",
-  "src/app/_layout.tsx",
-  "src/app/index.tsx",
-  "src/core/config/expo-base-config.json",
-  "src/core/config/public-env.ts",
-  "src/core/logging/logger.ts",
-  "src/core/errors/app-error-boundary.tsx",
-  "src/core/providers/app-providers.tsx",
-  "src/core/theme/tokens.ts",
-  "src/core/theme/theme-provider.tsx",
-  "src/features/development-fixture/model/local-fixture.ts",
-  "src/features/development-fixture/ui/development-fixture-screen.tsx",
-  "src/shared/ui/app-screen.tsx",
-  "src/shared/ui/app-text.tsx",
-  ...MEANINGFUL_TEST_PATHS,
-  "tools/quality/check-architecture.cjs",
-  "README.md",
-  "docs/adr/0004-m3-app-foundation-and-preference-deferral.md",
+  "tests/quality/development-workflow.test.ts",
+  "tests/quality/nix-avd.test.ts",
 ];
 
 const APPROVED_DEPENDENCIES = {
-  expo: "~57.0.16",
-  "expo-constants": "~57.0.14",
-  "expo-dev-client": "~57.0.15",
+  expo: "~57.0.17",
+  "expo-constants": "~57.0.15",
+  "expo-dev-client": "~57.0.16",
   "expo-font": "~57.0.1",
-  "expo-linking": "~57.0.7",
-  "expo-router": "~57.0.16",
+  "expo-linking": "~57.0.8",
+  "expo-router": "~57.0.17",
   "expo-splash-screen": "~57.0.8",
-  "expo-system-ui": "~57.0.2",
+  "expo-system-ui": "~57.0.3",
   react: "19.2.3",
   "react-dom": "19.2.3",
-  "react-native": "0.86.2",
+  "react-native": "0.86.3",
   "react-native-gesture-handler": "~2.32.0",
   "react-native-reanimated": "4.5.1",
   "react-native-safe-area-context": "~5.7.0",
@@ -126,16 +84,16 @@ const APPROVED_DEV_DEPENDENCIES = {
   "@types/jest": "29.5.14",
   "@types/react": "~19.2.2",
   eslint: "^9.39.5",
-  "eslint-config-expo": "~57.0.1",
+  "eslint-config-expo": "~57.0.2",
   "expo-doctor": "^1.20.3",
   jest: "~29.7.0",
-  "jest-expo": "~57.0.4",
+  "jest-expo": "~57.0.5",
   prettier: "^3.9.6",
   typescript: "~6.0.3",
 };
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "12877cc4c28921b793f86eb734412ead753751852fdb384e1c05d8b3014f1eb5";
+  "6293cd852d889a51adaa80728433371d5557e956c03c72f8d650319a462c0032";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -208,9 +166,19 @@ const COVERAGE_OUT_OF_DENOMINATOR_RATIONALE = [
       "Runner configuration rather than application/runtime behavior; its exact structure is mechanically checked and bun run test/test:coverage execute it.",
   },
   {
+    path: "tools/quality/jest-env.cjs",
+    rationale:
+      "Jest-only dotenv bootstrap rather than bundled application/runtime behavior; its exact globalSetup path is mechanically checked and every Jest run executes it before suite environments are created.",
+  },
+  {
     path: "tools/quality/check-architecture.cjs",
     rationale:
       "Repository/dependency/native/generated/script/config-binding anti-bypass checker rather than application/runtime behavior; its pure exports are fixture-tested and bun run check:architecture executes the same implementation, but checker tests do not inflate application coverage.",
+  },
+  {
+    path: "tools/android/nix-avd.cjs",
+    rationale:
+      "Local native-toolchain workflow code rather than bundled application/runtime behavior; its pure contract helpers are fixture-tested without inflating application coverage.",
   },
 ];
 
@@ -268,15 +236,37 @@ function buildValidRepositorySnapshot() {
   return {
     packageJson: {
       scripts: {
-        lint: "eslint app.config.ts eslint.config.js jest.config.js src tests tools/quality",
-        "format:check":
-          "prettier --check app.config.ts eslint.config.js jest.config.js package.json src/app/_layout.tsx src/app/index.tsx src/core/config src/core/logging src/core/errors src/core/providers src/core/theme src/features/development-fixture src/shared/ui tests tools/quality README.md docs/adr/0004-m3-app-foundation-and-preference-deferral.md",
-        "format:check:final-docs": "prettier --check docs/evidence/M3.md",
+        typecheck: "tsc --noEmit",
+        lint: 'eslint "*.{js,cjs,mjs,ts,tsx}" src tests tools',
+        "format:check": "prettier --check .",
+        "format:write": "prettier --write",
         test: "jest",
+        "test:watch": "jest --watch",
         "test:coverage": "jest --coverage --runInBand",
-        "check:architecture": "node tools/quality/check-architecture.cjs",
-        ios: "expo run:ios",
-        android: "expo run:android",
+        "check:architecture": "bun tools/quality/check-architecture.cjs",
+        "check:code":
+          "bun run typecheck && bun run lint && bun run format:check && bun run check:architecture && bun run test:coverage",
+        "deps:install:frozen": "bun install --frozen-lockfile",
+        "toolchain:flake": "nix flake check path:.",
+        "toolchain:check": "./tools/diagnostics/toolchain-check.sh",
+        "toolchain:check:native":
+          "./tools/diagnostics/toolchain-check.sh --native-build",
+        "check:toolchain": "bun run toolchain:flake && bun run toolchain:check",
+        "android:gradle:stop": "./android/gradlew --stop",
+        "android:avd:verify": "bun tools/android/nix-avd.cjs verify",
+        "android:avd:create": "bun tools/android/nix-avd.cjs create",
+        "android:avd:reconcile": "bun tools/android/nix-avd.cjs reconcile",
+        "android:avd:start": "bun tools/android/nix-avd.cjs start",
+        "android:avd:stop": "bun tools/android/nix-avd.cjs stop",
+        "expo:install:check": "CI=1 expo install --check",
+        "expo:doctor": "expo-doctor",
+        "check:expo": "bun run expo:install:check && bun run expo:doctor",
+        "expo:start": "expo start --dev-client",
+        "expo:prebuild:clean": "expo prebuild --clean",
+        "expo:run:ios": "expo run:ios --no-bundler",
+        "expo:run:android": "expo run:android --no-bundler",
+        check:
+          "bun run check:code && bun run check:expo && bun run check:toolchain",
       },
       dependencies: clone(APPROVED_DEPENDENCIES),
       devDependencies: clone(APPROVED_DEV_DEPENDENCIES),
@@ -290,6 +280,8 @@ function buildValidRepositorySnapshot() {
     jest: {
       preset: "jest-expo",
       roots: ["<rootDir>/tests"],
+      globalSetup: "<rootDir>/tools/quality/jest-env.cjs",
+      setupFiles: [] as string[],
       passWithNoTests: false,
       coverageDirectory: "<rootDir>/coverage",
       collectCoverageFrom: [
@@ -354,10 +346,65 @@ function buildValidRepositorySnapshot() {
       pinnedBase: clone(PINNED_BASE),
       resolvedDevelopment,
     },
-    formatScopes: {
-      mainOperands: clone(FORMAT_SCOPE_MAIN_OPERANDS),
-      finalDocsOperands: clone(FORMAT_SCOPE_FINAL_DOCS_OPERANDS),
-      mainEffectiveFiles: clone(FORMAT_SCOPE_MAIN_EFFECTIVE_FILES),
+    nativeToolchain: {
+      avdSpec: {
+        schemaVersion: 1,
+        name: "jamye_pixel_9_api_36",
+        device: "pixel_9",
+        systemImage: {
+          api: "36.1",
+          extensionLevel: "20",
+          isBaseSdk: "true",
+          type: "google_apis_playstore",
+          abi: "arm64-v8a",
+          revision: "4",
+        },
+        emulator: {
+          packageVersion: "37.1.11",
+          runtimeVersion: "37.1.11.0",
+          buildId: "15917651",
+        },
+        skin: {
+          repository:
+            "https://android.googlesource.com/platform/tools/adt/idea",
+          commit: "ffa01542c9913977fa2cb8e518b49b8de0c05c9e",
+          path: "artwork/resources/device-art-resources/pixel_9",
+          files: {
+            layout: {
+              sourceHash: "sha256-lKlH/xWX/XP7F57YOUCxcjcoWNZuTTL3+wFOmBPZZvw=",
+              contentSha256:
+                "fd024b14e9d7c38042be3d2bd4dad0e93fb3d6cfe0e1884a1d15d23063103e4a",
+            },
+            "back.webp": {
+              sourceHash: "sha256-BSNKszMH1hrnQKtJ9KdZSkg+rMVfTVUM9zfFM8KjIZw=",
+              contentSha256:
+                "d8ed1bcf314de2c293ee7ba7744349fa9233d24d47798189f9660369cae16f2d",
+            },
+            "mask.webp": {
+              sourceHash: "sha256-FvaY99G9szIkcHWH67XtOQtcKVhOUabeuckgHwuzcwg=",
+              contentSha256:
+                "6f4fb00c5147da694c4d0b3c45c0b580db94b81b77528985b6f30e4c944f1ac4",
+            },
+          },
+        },
+        hardware: {
+          "PlayStore.enabled": "true",
+          "disk.dataPartition.size": "10G",
+          "fastboot.forceColdBoot": "no",
+          "fastboot.forceFastBoot": "yes",
+          "hw.camera.back": "virtualscene",
+          "hw.camera.front": "emulated",
+          "hw.cpu.ncore": "4",
+          "hw.device.name": "pixel_9",
+          "hw.lcd.density": "420",
+          "hw.lcd.height": "2424",
+          "hw.lcd.width": "1080",
+          "hw.ramSize": "2048",
+          "sdcard.size": "512M",
+          "skin.name": "pixel_9",
+          "vm.heapSize": "228",
+        },
+      },
     },
     generatedOutputs: {
       trackedPaths: [] as string[],
@@ -400,6 +447,18 @@ describe("checkArchitecture (M3 quality_contract pure policy validator)", () => 
   test("denies passWithNoTests=true (jest-execution)", () => {
     const snapshot = buildValidRepositorySnapshot();
     snapshot.jest.passWithNoTests = true;
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "jest-execution",
+    );
+  });
+
+  test("denies moving the project dotenv loader into suite setupFiles (jest-execution)", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.jest.globalSetup = "<rootDir>/tools/quality/late-jest-env.cjs";
+    snapshot.jest.setupFiles = ["<rootDir>/tools/quality/jest-env.cjs"];
 
     const result: CheckResult = checkArchitecture(snapshot);
 
@@ -483,6 +542,41 @@ describe("checkArchitecture (M3 quality_contract pure policy validator)", () => 
     );
   });
 
+  test("denies drift in the Nix-owned Pixel 9 AVD contract (nix-native-toolchain)", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.nativeToolchain.avdSpec.hardware["hw.ramSize"] = "4096";
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "nix-native-toolchain",
+    );
+  });
+
+  test("denies an unpinned Pixel 9 skin source (nix-native-toolchain)", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.nativeToolchain.avdSpec.skin.commit = "main";
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "nix-native-toolchain",
+    );
+  });
+
+  test("denies a user-SDK path in the Nix AVD specification (nix-native-toolchain)", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    (snapshot.nativeToolchain.avdSpec.hardware as Record<string, string>)[
+      "skin.path"
+    ] = "/Users/example/Library/Android/sdk/skins/pixel_9";
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "nix-native-toolchain",
+    );
+  });
+
   test("ignores only the standalone checker policy declaration for the deleted tutorial asset", () => {
     const tutorialAssetPath = ["assets", "images", "tutorial-web.png"].join(
       "/",
@@ -509,9 +603,55 @@ describe("checkArchitecture (M3 quality_contract pure policy validator)", () => 
     });
   });
 
-  test("allows only the exact approved TSC recovery path in the working-tree overlay", () => {
-    expect(isAuthorizedWorkingTreePath("tsconfig.json")).toBe(true);
+  test("allows only the exact hash-bound approved recovery paths in the working-tree overlay", () => {
+    expect(APPROVED_RECOVERY_FILE_SHA256).toEqual({
+      "tsconfig.json":
+        "b3fcbc507af0df8008ffae41c5132e2bafceb650f6f55347d7492e0d8f98e3c0",
+    });
+    expect(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256).toEqual({
+      "nix/android-avd-spec.json":
+        "c5a803ccc0b587752f308101b68c00619116c3285e0d96ea2b342f0c3f58a845",
+      "nix/android-sdk.nix":
+        "3b93574941b8cb3b1445a187c0cb1f2b65d80174eff94151d70fbd46f0224d58",
+      "nix/dev-shell.nix":
+        "27b22586b36e90e2cc35695ac29bcde55b018c1c73005eb9ef9962780536883a",
+      "nix/toolchain-versions.nix":
+        "a274f777e185929711a1dee2acbd665c538a494490246ebfbfaa1a5fba1b1d5c",
+      "tools/diagnostics/toolchain-check.sh":
+        "ade2efe2b149d926d83a91dbca5725280bd5e72a84f7a27a7bd0b9d1c20bbc7d",
+    });
+
+    for (const path of [
+      ...Object.keys(APPROVED_RECOVERY_FILE_SHA256),
+      ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
+    ]) {
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    }
+
     expect(isAuthorizedWorkingTreePath("tsconfig.recovery.json")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("nix/dev-shell.cc.nix")).toBe(false);
+    expect(
+      isAuthorizedWorkingTreePath("tools/diagnostics/toolchain-check.local.sh"),
+    ).toBe(false);
+  });
+
+  test("allows the approved project-document format migration but not accepted evidence", () => {
+    for (const path of [
+      "docs/adr/0001-expo-sdk-57-default-template.md",
+      "docs/adr/0002-bun-only-package-management.md",
+      "docs/adr/0003-m2-bootstrap-quality-evidence-deferment.md",
+      "docs/plans/work/001-jamye-app-greenfield.md",
+      "docs/product-intent.md",
+      "docs/research/workspace-baseline.md",
+      "docs/roadmap.md",
+    ]) {
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    }
+
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M1.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M2.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("AGENTS.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("CLAUDE.md")).toBe(false);
   });
 
   test("denies a tracked generated/native output path (generated-native-output)", () => {

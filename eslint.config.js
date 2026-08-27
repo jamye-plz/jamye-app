@@ -13,6 +13,7 @@ const SCREEN_AND_COMPONENT_FILES = [
   "src/shared/ui/**/*.ts",
   "src/shared/ui/**/*.tsx",
 ];
+const NODE_COMMONJS_TOOL_FILES = ["tools/**/*.cjs"];
 
 const FORBIDDEN_TRANSPORT_GLOBALS = [
   {
@@ -245,6 +246,12 @@ const localRestrictionsPlugin = {
 
 module.exports = defineConfig([
   ...expoConfig,
+  {
+    files: NODE_COMMONJS_TOOL_FILES,
+    languageOptions: {
+      globals: { __dirname: "readonly" },
+    },
+  },
   {
     files: TRANSPORT_ENFORCED_FILES,
     linterOptions: { noInlineConfig: true },

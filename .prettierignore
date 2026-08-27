@@ -1,0 +1,30 @@
+# Dependencies, generated output, and local state
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/
+coverage/
+expo-env.d.ts
+
+# Embedded agent/runtime assets are not jamye-app source
+.agents/
+.claude/
+.codex/
+.serena/
+.antigravitycli/
+.qwen/
+.migration-backup/
+AGENTS.md
+CLAUDE.md
+.mcp.json
+
+# Exported image/icon assets are managed by their source tools
+assets/
+
+# Hash-bound recovery config stays byte-for-byte stable
+tsconfig.json
+
+# Accepted milestone evidence is immutable
+docs/evidence/

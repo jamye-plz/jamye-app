@@ -32,11 +32,11 @@ production identifier·signing·store 제출은 후속 backlog다. 자세한 경
 
 | 항목                    | 값                  |
 | ----------------------- | ------------------- |
-| Expo                    | `~57.0.16`          |
-| React Native            | `0.86.2`            |
+| Expo                    | `~57.0.17`          |
+| React Native            | `0.86.3`            |
 | React                   | `19.2.3`            |
-| Expo Router             | `~57.0.16`          |
-| Expo Development Client | `~57.0.15`          |
+| Expo Router             | `~57.0.17`          |
+| Expo Development Client | `~57.0.16`          |
 | TypeScript              | `~6.0.3`            |
 | package manager         | Bun `1.3.13`        |
 | route root              | `src/app/`          |
@@ -75,28 +75,119 @@ CLI 개발 환경의 진입점은 repository root의 Nix flake다.
 nix develop path:.
 ```
 
-devShell은 Bun, Node.js, JDK, CocoaPods와 Nix-managed Android build SDK를 고정한다.
-Xcode·iOS Simulator와 Android Studio·AVD는 사용자가 호스트에 설치한다. Android build
-SDK의 원본은 `ANDROID_HOME`과 `ANDROID_SDK_ROOT`가 가리키는 Nix SDK이며, Android
-Studio가 관리하는 SDK는 Emulator/AVD에만 사용한다. 정확한 버전과 검증 명령은
+devShell 진입 뒤 사용하는 정식 Bun script, 상태 변경 범위와 표준 검증 순서는
+[`docs/development-workflow.md`](docs/development-workflow.md)에 있다.
+
+devShell은 Bun, Node.js, JDK, CocoaPods와 Android CLI·build SDK·Emulator·system image를
+고정한다. Android 실행 도구의 원본은 `ANDROID_HOME`과 `ANDROID_SDK_ROOT`가 가리키는
+동일한 Nix store SDK다. AVD와 Gradle처럼 쓰기가 필요한 상태만 repository와 Nix store
+밖의 프로젝트 전용 XDG 경로에 둔다.
+
+| 책임                                                      | 권위 원본                                                             |
+| --------------------------------------------------------- | --------------------------------------------------------------------- |
+| Android CLI, build SDK, Emulator, Google Play ARM64 image | locked Nixpkgs composition                                            |
+| Pixel 9 exterior skin                                     | pinned official AOSP Android Studio device-art commit and file hashes |
+| AVD identity와 hardware                                   | [`nix/android-avd-spec.json`](nix/android-avd-spec.json)              |
+| AVD state                                                 | `${XDG_STATE_HOME:-$HOME/.local/state}/jamye-app/android`             |
+| Gradle state                                              | `${XDG_CACHE_HOME:-$HOME/.cache}/jamye-app/gradle`                    |
+| Xcode, Apple clang, iOS Simulator runtime/device          | host Xcode selected and checked inside devShell                       |
+
+Xcode와 iOS Simulator는 Apple이 배포하는 호스트 자산이라 Nix store에서 공급하지 않는다.
+대신 devShell이 `DEVELOPER_DIR`를 고정하고 `SDKROOT`를 비우며 `/usr/bin/clang`,
+`/usr/bin/xcrun`과 XcodeDefault toolchain을 진단한다. 따라서 iOS 명령도 devShell에서
+실행하되 Apple SDK를 Nix libc++와 섞지 않는다. 정확한 버전과 근거는
 [`docs/research/mobile-baseline.md`](docs/research/mobile-baseline.md)에 있다.
 
-Watchman, Maestro, NDK는 현재 devShell에 포함하지 않았다. 필요성이 생기는 마일스톤에서
-근거와 설치 주체를 다시 결정한다.
+### Nix-owned Android AVD
+
+Project AVD는 `jamye_pixel_9_api_36` 하나다. Pixel 9, Google Play ARM64, API 36.1
+extension 20, system-image revision 4, Emulator package 37.1.11과 관찰한 display·memory·camera
+hardware를 JSON SSOT에 고정한다. Nix SDK는 app compile용 Platform 36과 이 AVD용 image
+Platform 36.1을 함께 제공한다. `composeAndroidPackages`가 배포하지 않는 Pixel 9 외형
+스킨은 [공식 AOSP Android Studio device-art의 고정 커밋](https://android.googlesource.com/platform/tools/adt/idea/+/ffa01542c9913977fa2cb8e518b49b8de0c05c9e/artwork/resources/device-art-resources/pixel_9/)에서
+세 파일을 각각 가져온다. Nix가 Gitiles 응답 해시와 디코딩된 파일 해시를 모두 검증한 뒤
+composed SDK의 `skins/pixel_9`에 합성한다.
+
+AVD `config.ini`에는 composed SDK의 매번 달라지는 absolute store 경로 대신
+`skin.path=skins/pixel_9`를 기록한다. Emulator는 이를 현재 `ANDROID_SDK_ROOT` 기준으로
+해석하고, project verifier는 실행 전에 active SDK의 symlink 대상과 세 파일의 content hash를
+검증한다. 따라서 CMake·NDK·Build Tools처럼 skin과 무관한 SDK component 변경만으로는 AVD
+reconcile이 필요하지 않다.
+
+다음 명령은 모두 새 `nix develop path:.` session에서 실행한다. `verify`와 기본 diagnostic은
+project/AVD state를 바꾸지 않는다. Strict diagnostic은 연결 target을 열거하면서 Nix ADB
+server를 시작할 수 있지만 package를 설치하거나 AVD/project file을 쓰지 않는다. `create`는
+project state에 AVD가 완전히 없을 때만 한 번 만들며 partial state를 덮어쓰거나 `--force`로
+교체하지 않는다. `reconcile`은 complete project AVD가 정지된 경우에만 active Nix SDK의
+선언 소유 config/pointer key를 다시 쓰며 userdata·snapshot과 그 밖의 INI key를 보존한다.
+Missing·partial·running AVD는 변경하지 않고 실패한다. `start`는 foreign user-SDK Emulator가
+하나라도 실행 중이면 재사용하지 않고 실패한다.
+
+```sh
+bun run toolchain:check
+# Existing project AVD:
+bun run android:avd:verify
+# First initialization only; use this instead when verify reports that no AVD exists:
+bun run android:avd:create
+# Existing stopped AVD only; use this when verify reports declarative config drift:
+bun run android:avd:reconcile
+bun run android:avd:start
+bun run android:gradle:stop
+bun run toolchain:check:native
+# Stop exactly one matching project AVD without deleting its state:
+bun run android:avd:stop
+```
+
+AVD 생성·reconcile·실행, strict preflight와 native build는 각각 사용자 승인 명령 게이트다.
+위 절차가 문서에 있다는 사실만으로 생성이나 검증 성공을 주장하지 않는다. `start`가 PID와
+log 경로를 출력한 뒤 Android가 boot를 마칠 때까지 기다리고 strict preflight를 실행한다.
+
+### Android Studio와 user SDK의 검사 경계
+
+Android Studio는 선택적인 편집·검사 UI이고 CLI build authority가 아니다.
+
+- JS/TS 편집에는 repository root를 연다. Gradle 구조를 볼 때만 clean prebuild 뒤 생성된
+  `jamye-app/android`를 Android Studio project로 연다.
+- Studio의 user SDK와 Device Manager는 별도 실험용으로 유지할 수 있지만 project AVD
+  `jamye_pixel_9_api_36`를 만들거나 수정하지 않는다. Nix store SDK를 Studio SDK Manager의
+  쓰기 대상으로 지정하지 않는다.
+- Studio에 포함된 Pixel 9 device-art와 user SDK skin은 화면 비교에만 사용할 수 있다. Project
+  skin의 원본은 JSON SSOT에 고정한 AOSP commit과 해시이며 Studio 설치 경로나 user SDK
+  파일을 Nix SDK에 복사하지 않는다.
+- Studio가 만든 `android/local.properties`, Gradle JVM override 또는 IDE Gradle daemon은
+  CNG 원본이 아니다. Studio를 완전히 종료한 뒤 clean prebuild로 generated project를 다시
+  만들거나, 별도 승인된 정확한 cleanup을 수행해야 strict preflight가 통과한다.
+- user-SDK Emulator와 Nix-owned Emulator를 같은 이름으로 동시에 실행하지 않는다. Project
+  실행·ADB·build 증거는 devShell의 Nix 도구로만 수집한다. Strict preflight는 이미 실행 중인
+  ADB server의 실제 executable도 Nix SDK 소유인지 확인한다.
+
+즉 Android Studio에서는 generated native code와 Gradle model을 읽을 수 있지만, 그 session의
+SDK 선택·AVD·Run 결과를 재현 가능한 project build 증거로 사용하지 않는다.
+
+Watchman과 Maestro는 현재 devShell에 포함하지 않았다. Android NDK는 첫 M3 Android native
+build가 요구한 exact side-by-side revision `27.1.12297006`을 Nix SDK에 포함한다. Gradle이나
+`sdkmanager`가 read-only Nix store에 component를 설치하게 두지 않는다. 같은 이유로
+Build Tools는 app/RN 계약의 `36.0.0`과 build-tools override가 없는 Android library에 적용되는
+AGP 8.12 기본값 `35.0.0`을 함께 공급한다. Native module configuration이 실제로 요구한
+CMake `3.22.1`도 같은 immutable SDK에서 공급한다. `ANDROID_NDK_HOME`/`ANDROID_NDK_ROOT`,
+`CMAKE_VERSION`, `cmake.dir`로 host 또는 writable SDK를 우회하지 않는다.
 
 ## 로컬 환경 변수
 
-로컬 기본값은 `.env.example`에 공개돼 있다. 필요하면 `.env.local`로 복사하되 명령 예시에는
-두 값을 명시해 어떤 config를 평가하는지 드러낸다.
+로컬 기본값은 `.env.example`에 공개돼 있다. 최초 한 번 ignored `.env`로 복사한다. Package
+script는 app 환경값을 반복해서 붙이지 않는다. Expo CLI는 app/native 명령에서 dotenv를
+로드하고, Jest는 `jest.config.js#globalSetup`의 `tools/quality/jest-env.cjs`에서 고정된 Node의
+`process.loadEnvFile`로 suite 환경 생성 전에 `.env`를 로드한다. `test`, `test:watch`,
+`test:coverage`는 모두 직접 Jest 명령을 사용하면서 같은 환경 계약을 공유한다.
 
 ```sh
-cp .env.example .env.local
+cp .env.example .env
 ```
 
 - `APP_VARIANT=development`는 development app config를 선택한다.
 - `EXPO_PUBLIC_APP_MODE=local-fixture`는 local fixture 화면만 허용한다.
 - 모든 `EXPO_PUBLIC_*` 값은 앱 bundle에 포함될 수 있는 **공개 값**이다.
-- Token, credential, private endpoint, 사용자 데이터 같은 비밀은 `.env.example`,
+- Token, credential, private endpoint, 사용자 데이터 같은 비밀은 `.env.example`, `.env`,
   `.env.local` 또는 `EXPO_PUBLIC_*`에 넣지 않는다.
 
 현재 mode에는 production server, auth 또는 session 연결이 없다.
@@ -108,22 +199,22 @@ devShell의 Bun은 모두 `1.3.13`이어야 한다.
 
 ```sh
 bun --version
-bun install
+bun run deps:install:frozen
 ```
 
-Expo가 호환 version을 선택해야 하는 dependency는 두 environment 값을 붙여 설치하고,
-설치 결과를 별도 검토한다.
+Expo가 호환 version을 선택해야 하는 dependency는 별도 승인된 package만 설치하고 결과를
+검토한다. Application 환경은 `.env`에서 로드한다.
 
 ```sh
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bunx expo install <package>
-CI=1 APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bunx expo install --check
+bunx expo install <approved-package>
+bun run expo:install:check
 ```
 
 Dependency resolution이 끝난 뒤 그 dependency를 사용하는 구현을 시작하기 전에는 사용자가
 별도로 승인한 다음 명령으로 lock 재현성을 확인한다.
 
 ```sh
-CI=1 APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bun install --frozen-lockfile
+bun run deps:install:frozen
 ```
 
 이 검사는 `package.json`과 `bun.lock`을 실행 전후 byte-for-byte 동일하게 유지해야 한다.
@@ -146,20 +237,20 @@ Lifecycle script가 필요하다는 실제 실패 근거와 사용자 승인 없
 Expo Go가 아니라 `expo-dev-client`가 포함된 Development Build를 기준으로 개발한다. 네
 명령의 책임은 서로 다르다.
 
-| 단계                  | Expo subcommand            | 의미                                                                     |
-| --------------------- | -------------------------- | ------------------------------------------------------------------------ |
-| Metro 시작            | `start --dev-client`       | 이미 호환되는 Development Build에 JS bundle 제공                         |
-| native 재생성         | `prebuild --clean`         | app config·config plugin·native dependency에서 `ios/`, `android/` 재생성 |
-| iOS build/install     | `run:ios --no-bundler`     | 별도 Metro 없이 Simulator용 Development Build compile/install            |
-| Android build/install | `run:android --no-bundler` | 별도 Metro 없이 Emulator용 Development Build compile/install             |
+| 단계                  | 정식 script           | 의미                                                                     |
+| --------------------- | --------------------- | ------------------------------------------------------------------------ |
+| Metro 시작            | `expo:start`          | 이미 호환되는 Development Build에 JS bundle 제공                         |
+| native 재생성         | `expo:prebuild:clean` | app config·config plugin·native dependency에서 `ios/`, `android/` 재생성 |
+| iOS build/install     | `expo:run:ios`        | 별도 Metro 없이 Simulator용 Development Build compile/install            |
+| Android build/install | `expo:run:android`    | 별도 Metro 없이 Emulator용 Development Build compile/install             |
 
 Repository root에서 사용하는 실제 명령은 다음과 같다.
 
 ```sh
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bunx expo start --dev-client
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bunx expo prebuild --clean
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bunx expo run:ios --no-bundler
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bunx expo run:android --no-bundler
+bun run expo:start
+bun run expo:prebuild:clean
+bun run expo:run:ios
+bun run expo:run:android
 ```
 
 JS/TS만 변경했고 native dependency, config plugin, native app-config field가 바뀌지 않았다면
@@ -211,21 +302,34 @@ SQLite, 작은 KV, memory state 중 하나를 선택할 때는 사용자 범위,
 목록 자체는 PASS 증거가 아니다.
 
 ```sh
-CI=1 APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bunx expo install --check
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bunx --no-install expo-doctor
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bunx tsc --noEmit
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bun run lint
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bun run format:check
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bun run check:architecture
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bun run test
-APP_VARIANT=development EXPO_PUBLIC_APP_MODE=local-fixture bun run test:coverage
+bun run typecheck
+bun run lint
+bun run format:check
+bun run check:architecture
+bun run test
+bun run test:coverage
+bun run check:expo
+bun run check:toolchain
 ```
+
+일상 code gate는 `bun run check:code`, dependency나 native 상태를 바꾸지 않는 전체 검사는
+`bun run check`를 사용한다. Formatting 복구, AVD lifecycle, prebuild와 build의 상세한 승인
+경계는 [개발 명령과 검증 절차](docs/development-workflow.md)를 따른다.
+
+Lint는 root JS/TS 파일과 `src`, `tests`, 전체 `tools`를 검사한다. Generated native tree,
+cache, coverage와 agent 지원 자산은 application lint 범위에 넣지 않는다.
+
+Prettier는 `prettier --check .`로 project-owned code와 product/development 문서를 함께
+검사한다. Generated·embedded agent·exported asset, root agent instruction인 `AGENTS.md`와
+`CLAUDE.md`, hash-bound recovery config는 `.prettierignore`가 관리하며, `docs/**`에서는
+확정된 `docs/evidence/`만 제외한다. Write는 check에서 확인된 경로만 명시적으로 전달한다.
 
 Jest와 `jest-expo`가 유일한 test runner다. Application coverage denominator는 정확히
 `app.config.ts`와 `src/**/*.{ts,tsx}`이고, 실행 로직이 없는 내부 declaration
 `src/**/*.d.ts`만 negative glob으로 제외한다. `eslint.config.js`, `jest.config.js`,
-`tools/quality/check-architecture.cjs`는 runner/checker config라 application denominator 밖에
-있으며 checker test가 application coverage를 부풀리지 않는다.
+`tools/quality/check-architecture.cjs`와 `tools/android/nix-avd.cjs`는 repository/native
+workflow tooling이라 application denominator 밖에 있으며 helper test가 application coverage를
+부풀리지 않는다.
 
 Global coverage threshold는 statements, branches, functions, lines 각각 80% 이상이다.
 Coverage output은 local ignored `/coverage/`에 생성하며 commit하지 않는다.

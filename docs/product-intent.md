@@ -29,18 +29,18 @@ fixture 대화방 하나로 채팅의 신뢰성만 검증한다.
 
 ## 2. 필수 참고자료 확인표
 
-| 참고자료 | 이번 문서에 남긴 의도 |
-|---|---|
-| `docs/product/vision-and-scope.md` | 주제는 대화를 여는 시드이고 제품의 본체는 친한 사람끼리 이어 가는 대화라는 의미 |
-| `docs/product/features.md` | 실시간 대화, history, optimistic send, `client_msg_id` 멱등성 |
-| `docs/product/design-context.md` | scroll anchor, IME, keyboard settled state, safe area, 접근성, 절제된 파스텔 분위기 |
-| `DESIGN.md` | 대화 폭, bubble, composer, 상태 표현에 필요한 semantic design 값 |
-| `docs/architecture/api-contract.md` | 기존 transport 자체가 아니라 멱등 전송, canonical 확인, history gap 복구라는 불변 조건 |
-| `frontend/src/routes/` | 기존 제품의 채팅 진입 구조와 장기적으로 여러 방이 존재한다는 근거 |
-| `frontend/src/lib/components/ChatRoom.svelte` | 메시지 목록, connection state, optimistic reconciliation, reconnect 시 history 보존, scroll anchor |
-| `frontend/src/lib/components/ChatComposer.svelte` | IME-safe 입력, multiline 성장, 명시적 전송 control, 접근성 이름 |
-| `frontend/src/lib/api/` | UI와 transport를 분리해야 한다는 경계 및 기존 history/retry 의도 |
-| `frontend/tests/` | spacing, reconnect recovery, semantic size, route focus 회귀 의도 |
+| 참고자료                                          | 이번 문서에 남긴 의도                                                                              |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `docs/product/vision-and-scope.md`                | 주제는 대화를 여는 시드이고 제품의 본체는 친한 사람끼리 이어 가는 대화라는 의미                    |
+| `docs/product/features.md`                        | 실시간 대화, history, optimistic send, `client_msg_id` 멱등성                                      |
+| `docs/product/design-context.md`                  | scroll anchor, IME, keyboard settled state, safe area, 접근성, 절제된 파스텔 분위기                |
+| `DESIGN.md`                                       | 대화 폭, bubble, composer, 상태 표현에 필요한 semantic design 값                                   |
+| `docs/architecture/api-contract.md`               | 기존 transport 자체가 아니라 멱등 전송, canonical 확인, history gap 복구라는 불변 조건             |
+| `frontend/src/routes/`                            | 기존 제품의 채팅 진입 구조와 장기적으로 여러 방이 존재한다는 근거                                  |
+| `frontend/src/lib/components/ChatRoom.svelte`     | 메시지 목록, connection state, optimistic reconciliation, reconnect 시 history 보존, scroll anchor |
+| `frontend/src/lib/components/ChatComposer.svelte` | IME-safe 입력, multiline 성장, 명시적 전송 control, 접근성 이름                                    |
+| `frontend/src/lib/api/`                           | UI와 transport를 분리해야 한다는 경계 및 기존 history/retry 의도                                   |
+| `frontend/tests/`                                 | spacing, reconnect recovery, semantic size, route focus 회귀 의도                                  |
 
 확인한 inventory는 route 파일 15개, API 파일 8개, test 파일 8개다. 각 범주의 현재 범위와
 backlog 구분은 §7에 기록했다.
@@ -136,29 +136,29 @@ React Native의 semantic token과 platform API로 다시 표현한다.
 
 ### 4.2 대화 목록
 
-| 의미 | 보존할 값 |
-|---|---:|
-| 읽기 좋은 대화 column의 최대 폭 | 720px 상당, 작은 화면에서는 가용 폭 전체 사용 |
-| message 본문 | 최소 16px, line height 1.55 |
-| bubble 기본 모서리 | 20px |
-| 방향을 보조하는 한쪽 모서리 | 8px |
-| bubble 최대 폭 | mobile 78%, 넓은 화면 66% |
-| 같은 발신자 연속 message 간격 | 4px |
-| 발신자 또는 minute group 변경 간격 | 12px |
-| timestamp | 13px, 같은 minute run마다 한 번 |
+| 의미                               |                                     보존할 값 |
+| ---------------------------------- | --------------------------------------------: |
+| 읽기 좋은 대화 column의 최대 폭    | 720px 상당, 작은 화면에서는 가용 폭 전체 사용 |
+| message 본문                       |                   최소 16px, line height 1.55 |
+| bubble 기본 모서리                 |                                          20px |
+| 방향을 보조하는 한쪽 모서리        |                                           8px |
+| bubble 최대 폭                     |                     mobile 78%, 넓은 화면 66% |
+| 같은 발신자 연속 message 간격      |                                           4px |
+| 발신자 또는 minute group 변경 간격 |                                          12px |
+| timestamp                          |               13px, 같은 minute run마다 한 번 |
 
 방향은 정렬, 모서리, 접근성 정보로 함께 전달한다. 새 메시지의 appearance 효과가 있더라도
 상태 반영과 scroll anchor를 지연하지 않으며 reduce motion에서는 즉시 표시한다.
 
 ### 4.3 composer와 control
 
-| 의미 | 보존할 값 |
-|---|---:|
-| textarea 최소 높이 | 48px |
-| textarea 성장 상한 | 120px 상당, dynamic text에 맞게 의미 기반으로 조정 |
-| 입력 field 모서리 | 16px |
-| icon button 최소 hit target | 44×44px |
-| 짧은 press feedback | 최대 150ms, layout 이동 없음 |
+| 의미                        |                                          보존할 값 |
+| --------------------------- | -------------------------------------------------: |
+| textarea 최소 높이          |                                               48px |
+| textarea 성장 상한          | 120px 상당, dynamic text에 맞게 의미 기반으로 조정 |
+| 입력 field 모서리           |                                               16px |
+| icon button 최소 hit target |                                            44×44px |
+| 짧은 press feedback         |                       최대 150ms, layout 이동 없음 |
 
 현재 slice에는 text input과 send button만 있다. media, microphone, recording state는
 composer에 자리만 예약하거나 skeleton을 만들지 않고 backlog로 남긴다. composer는 bottom
@@ -180,22 +180,22 @@ safe area를 소유하고 마지막 message를 가리지 않아야 한다.
 아래 문자열은 기존 제품 copy의 후보 목록이다. 최종 상태 문구는 M5 UI 제안에서 맥락과
 접근성 announcement를 함께 검토한다.
 
-| 문자열 | 용도 | 출처 |
-|---|---|---|
-| `연결됨` | steady connection state | `ChatRoom.svelte` |
-| `다시 연결하는 중` | reconnect state | `ChatRoom.svelte` |
-| `연결 중` | initial connection state | `ChatRoom.svelte` |
-| `연결이 끊겼어요` | disconnected state | `ChatRoom.svelte` |
-| `다시 시도` | reconnect retry action | `ChatRoom.svelte` |
-| `이전 메시지 불러오는 중...` | older history loading | `ChatRoom.svelte` |
-| `불러오는 중...` | initial loading | `ChatRoom.svelte` |
-| `첫 메시지를 남겨보세요` | empty conversation | `ChatRoom.svelte` |
-| `전송 중` | pending message | `ChatRoom.svelte` |
-| `채팅 메시지` | message region accessibility name | `ChatRoom.svelte` |
-| `메시지 입력...` | composer placeholder | `ChatComposer.svelte` |
-| `메시지 입력` | input accessibility name | `ChatComposer.svelte` |
-| `메시지 보내기` | send button accessibility name | `ChatComposer.svelte` |
-| `뒤로 가기` | navigation accessibility name | `ChatRoom.svelte` |
+| 문자열                       | 용도                              | 출처                  |
+| ---------------------------- | --------------------------------- | --------------------- |
+| `연결됨`                     | steady connection state           | `ChatRoom.svelte`     |
+| `다시 연결하는 중`           | reconnect state                   | `ChatRoom.svelte`     |
+| `연결 중`                    | initial connection state          | `ChatRoom.svelte`     |
+| `연결이 끊겼어요`            | disconnected state                | `ChatRoom.svelte`     |
+| `다시 시도`                  | reconnect retry action            | `ChatRoom.svelte`     |
+| `이전 메시지 불러오는 중...` | older history loading             | `ChatRoom.svelte`     |
+| `불러오는 중...`             | initial loading                   | `ChatRoom.svelte`     |
+| `첫 메시지를 남겨보세요`     | empty conversation                | `ChatRoom.svelte`     |
+| `전송 중`                    | pending message                   | `ChatRoom.svelte`     |
+| `채팅 메시지`                | message region accessibility name | `ChatRoom.svelte`     |
+| `메시지 입력...`             | composer placeholder              | `ChatComposer.svelte` |
+| `메시지 입력`                | input accessibility name          | `ChatComposer.svelte` |
+| `메시지 보내기`              | send button accessibility name    | `ChatComposer.svelte` |
+| `뒤로 가기`                  | navigation accessibility name     | `ChatRoom.svelte`     |
 
 기존 PWA에서 연결 단절을 전송 실패로 안내하던 문구는 offline outbox 동작과 맞지 않으므로
 그대로 재사용하지 않는다. offline 저장, permanent failure, retry 대기 상태의 새 문구는
@@ -203,14 +203,14 @@ safe area를 소유하고 마지막 message를 가리지 않아야 한다.
 
 ## 6. 기존 구현과 test에서 가져올 회귀 의도
 
-| 기존 근거 | 새 앱에 번역할 회귀 의도 |
-|---|---|
-| `ChatRoom.svelte` | 목록을 비우지 않는 reconnect, optimistic reconciliation, loading·empty·connection 상태, scroll anchor |
-| `ChatComposer.svelte` | IME 조합 보존, multiline growth, 명시적 send action, 접근성 이름 |
-| `chat-room-spacing.test.mjs` | 같은 발신자와 새 group의 간격 차이가 design 값과 일치 |
-| `chat-socket-reconnect.test.mjs` | 중복 reconnect 방지, event 중복 허용, gap recovery, dispose 뒤 stale result 차단 |
-| `design-size-tokens.test.mjs` | conversation과 composer 크기가 semantic token의 단일 원천을 사용 |
-| `layout-focus.test.mjs` | route 진입 시 예측 가능한 main heading focus와 back navigation |
+| 기존 근거                        | 새 앱에 번역할 회귀 의도                                                                              |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `ChatRoom.svelte`                | 목록을 비우지 않는 reconnect, optimistic reconciliation, loading·empty·connection 상태, scroll anchor |
+| `ChatComposer.svelte`            | IME 조합 보존, multiline growth, 명시적 send action, 접근성 이름                                      |
+| `chat-room-spacing.test.mjs`     | 같은 발신자와 새 group의 간격 차이가 design 값과 일치                                                 |
+| `chat-socket-reconnect.test.mjs` | 중복 reconnect 방지, event 중복 허용, gap recovery, dispose 뒤 stale result 차단                      |
+| `design-size-tokens.test.mjs`    | conversation과 composer 크기가 semantic token의 단일 원천을 사용                                      |
+| `layout-focus.test.mjs`          | route 진입 시 예측 가능한 main heading focus와 back navigation                                        |
 
 기존 `frontend/src/lib/api/`의 직접적인 browser transport 코드는 복사하지 않는다. 새 앱의
 screen과 component는 HTTP client를 import하지 않고 repository와 sync boundary만 사용한다.

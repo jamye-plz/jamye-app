@@ -18,15 +18,36 @@
  */
 
 const EXACT_PACKAGE_SCRIPTS = Object.freeze({
-  lint: "eslint app.config.ts eslint.config.js jest.config.js src tests tools/quality",
-  "format:check":
-    "prettier --check app.config.ts eslint.config.js jest.config.js package.json src/app/_layout.tsx src/app/index.tsx src/core/config src/core/logging src/core/errors src/core/providers src/core/theme src/features/development-fixture src/shared/ui tests tools/quality README.md docs/adr/0004-m3-app-foundation-and-preference-deferral.md",
-  "format:check:final-docs": "prettier --check docs/evidence/M3.md",
+  typecheck: "tsc --noEmit",
+  lint: 'eslint "*.{js,cjs,mjs,ts,tsx}" src tests tools',
+  "format:check": "prettier --check .",
+  "format:write": "prettier --write",
   test: "jest",
+  "test:watch": "jest --watch",
   "test:coverage": "jest --coverage --runInBand",
-  "check:architecture": "node tools/quality/check-architecture.cjs",
-  ios: "expo run:ios",
-  android: "expo run:android",
+  "check:architecture": "bun tools/quality/check-architecture.cjs",
+  "check:code":
+    "bun run typecheck && bun run lint && bun run format:check && bun run check:architecture && bun run test:coverage",
+  "deps:install:frozen": "bun install --frozen-lockfile",
+  "toolchain:flake": "nix flake check path:.",
+  "toolchain:check": "./tools/diagnostics/toolchain-check.sh",
+  "toolchain:check:native":
+    "./tools/diagnostics/toolchain-check.sh --native-build",
+  "check:toolchain": "bun run toolchain:flake && bun run toolchain:check",
+  "android:gradle:stop": "./android/gradlew --stop",
+  "android:avd:verify": "bun tools/android/nix-avd.cjs verify",
+  "android:avd:create": "bun tools/android/nix-avd.cjs create",
+  "android:avd:reconcile": "bun tools/android/nix-avd.cjs reconcile",
+  "android:avd:start": "bun tools/android/nix-avd.cjs start",
+  "android:avd:stop": "bun tools/android/nix-avd.cjs stop",
+  "expo:install:check": "CI=1 expo install --check",
+  "expo:doctor": "expo-doctor",
+  "check:expo": "bun run expo:install:check && bun run expo:doctor",
+  "expo:start": "expo start --dev-client",
+  "expo:prebuild:clean": "expo prebuild --clean",
+  "expo:run:ios": "expo run:ios --no-bundler",
+  "expo:run:android": "expo run:android --no-bundler",
+  check: "bun run check:code && bun run check:expo && bun run check:toolchain",
 });
 
 const COVERAGE_POSITIVE_DENOMINATOR = Object.freeze([
@@ -46,6 +67,7 @@ const GLOBAL_COVERAGE_THRESHOLD = Object.freeze({
 });
 const JEST_PRESET = "jest-expo";
 const JEST_ROOTS = Object.freeze(["<rootDir>/tests"]);
+const JEST_GLOBAL_SETUP = "<rootDir>/tools/quality/jest-env.cjs";
 const JEST_COVERAGE_DIRECTORY = "<rootDir>/coverage";
 const COVERAGE_DECLARATION_RATIONALE =
   "Type declarations contain no executable branches; this covers preserved src/types/expo.d.ts only.";
@@ -61,9 +83,19 @@ const COVERAGE_OUT_OF_DENOMINATOR_RATIONALE = Object.freeze([
       "Runner configuration rather than application/runtime behavior; its exact structure is mechanically checked and bun run test/test:coverage execute it.",
   }),
   Object.freeze({
+    path: "tools/quality/jest-env.cjs",
+    rationale:
+      "Jest-only dotenv bootstrap rather than bundled application/runtime behavior; its exact globalSetup path is mechanically checked and every Jest run executes it before suite environments are created.",
+  }),
+  Object.freeze({
     path: "tools/quality/check-architecture.cjs",
     rationale:
       "Repository/dependency/native/generated/script/config-binding anti-bypass checker rather than application/runtime behavior; its pure exports are fixture-tested and bun run check:architecture executes the same implementation, but checker tests do not inflate application coverage.",
+  }),
+  Object.freeze({
+    path: "tools/android/nix-avd.cjs",
+    rationale:
+      "Local native-toolchain workflow code rather than bundled application/runtime behavior; its pure contract helpers are fixture-tested without inflating application coverage.",
   }),
 ]);
 
@@ -76,6 +108,8 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
   "tests/features/development-fixture-screen.test.tsx",
   "tests/app/thin-routes.test.tsx",
   "tests/quality/check-architecture.test.ts",
+  "tests/quality/development-workflow.test.ts",
+  "tests/quality/nix-avd.test.ts",
 ]);
 
 const REQUIRED_TRANSPORT_GLOBS = Object.freeze([
@@ -164,33 +198,12 @@ const OPTIONAL_GENERATED_OUTPUT_CLASSIFICATIONS = Object.freeze([
   "androidDir",
 ]);
 
-const FORMAT_SCOPE_MAIN_OPERANDS = Object.freeze([
+const M3_AUTHORED_FILES = Object.freeze([
   "app.config.ts",
   "eslint.config.js",
   "jest.config.js",
   "package.json",
-  "src/app/_layout.tsx",
-  "src/app/index.tsx",
-  "src/core/config",
-  "src/core/logging",
-  "src/core/errors",
-  "src/core/providers",
-  "src/core/theme",
-  "src/features/development-fixture",
-  "src/shared/ui",
-  "tests",
-  "tools/quality",
-  "README.md",
-  "docs/adr/0004-m3-app-foundation-and-preference-deferral.md",
-]);
-
-const FORMAT_SCOPE_FINAL_DOCS_OPERANDS = Object.freeze(["docs/evidence/M3.md"]);
-
-const FORMAT_SCOPE_MAIN_EFFECTIVE_FILES = Object.freeze([
-  "app.config.ts",
-  "eslint.config.js",
-  "jest.config.js",
-  "package.json",
+  "nix/android-avd-spec.json",
   "src/app/_layout.tsx",
   "src/app/index.tsx",
   "src/core/config/expo-base-config.json",
@@ -205,23 +218,37 @@ const FORMAT_SCOPE_MAIN_EFFECTIVE_FILES = Object.freeze([
   "src/shared/ui/app-screen.tsx",
   "src/shared/ui/app-text.tsx",
   ...MEANINGFUL_TEST_PATHS,
+  "tools/android/nix-avd.cjs",
   "tools/quality/check-architecture.cjs",
+  "tools/quality/jest-env.cjs",
   "README.md",
+  "docs/development-workflow.md",
   "docs/adr/0004-m3-app-foundation-and-preference-deferral.md",
+  "docs/research/mobile-baseline.md",
+]);
+
+const AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS = Object.freeze([
+  "docs/adr/0001-expo-sdk-57-default-template.md",
+  "docs/adr/0002-bun-only-package-management.md",
+  "docs/adr/0003-m2-bootstrap-quality-evidence-deferment.md",
+  "docs/plans/work/001-jamye-app-greenfield.md",
+  "docs/product-intent.md",
+  "docs/research/workspace-baseline.md",
+  "docs/roadmap.md",
 ]);
 
 const APPROVED_DEPENDENCIES = Object.freeze({
-  expo: "~57.0.16",
-  "expo-constants": "~57.0.14",
-  "expo-dev-client": "~57.0.15",
+  expo: "~57.0.17",
+  "expo-constants": "~57.0.15",
+  "expo-dev-client": "~57.0.16",
   "expo-font": "~57.0.1",
-  "expo-linking": "~57.0.7",
-  "expo-router": "~57.0.16",
+  "expo-linking": "~57.0.8",
+  "expo-router": "~57.0.17",
   "expo-splash-screen": "~57.0.8",
-  "expo-system-ui": "~57.0.2",
+  "expo-system-ui": "~57.0.3",
   react: "19.2.3",
   "react-dom": "19.2.3",
-  "react-native": "0.86.2",
+  "react-native": "0.86.3",
   "react-native-gesture-handler": "~2.32.0",
   "react-native-reanimated": "4.5.1",
   "react-native-safe-area-context": "~5.7.0",
@@ -235,10 +262,10 @@ const APPROVED_DEV_DEPENDENCIES = Object.freeze({
   "@types/jest": "29.5.14",
   "@types/react": "~19.2.2",
   eslint: "^9.39.5",
-  "eslint-config-expo": "~57.0.1",
+  "eslint-config-expo": "~57.0.2",
   "expo-doctor": "^1.20.3",
   jest: "~29.7.0",
-  "jest-expo": "~57.0.4",
+  "jest-expo": "~57.0.5",
   prettier: "^3.9.6",
   typescript: "~6.0.3",
 });
@@ -262,7 +289,7 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "12877cc4c28921b793f86eb734412ead753751852fdb384e1c05d8b3014f1eb5";
+  "6293cd852d889a51adaa80728433371d5557e956c03c72f8d650319a462c0032";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -281,6 +308,64 @@ const APPROVED_PREBUILD_ANDROID_PERMISSIONS = Object.freeze([
   "android.permission.WRITE_EXTERNAL_STORAGE",
   "android.permission.INTERNET",
 ]);
+
+const APPROVED_NIX_AVD_IDENTITY = Object.freeze({
+  schemaVersion: 1,
+  name: "jamye_pixel_9_api_36",
+  device: "pixel_9",
+  systemImage: Object.freeze({
+    api: "36.1",
+    extensionLevel: "20",
+    isBaseSdk: "true",
+    type: "google_apis_playstore",
+    abi: "arm64-v8a",
+    revision: "4",
+  }),
+  emulator: Object.freeze({
+    packageVersion: "37.1.11",
+    runtimeVersion: "37.1.11.0",
+    buildId: "15917651",
+  }),
+  skin: Object.freeze({
+    repository: "https://android.googlesource.com/platform/tools/adt/idea",
+    commit: "ffa01542c9913977fa2cb8e518b49b8de0c05c9e",
+    path: "artwork/resources/device-art-resources/pixel_9",
+    files: Object.freeze({
+      layout: Object.freeze({
+        sourceHash: "sha256-lKlH/xWX/XP7F57YOUCxcjcoWNZuTTL3+wFOmBPZZvw=",
+        contentSha256:
+          "fd024b14e9d7c38042be3d2bd4dad0e93fb3d6cfe0e1884a1d15d23063103e4a",
+      }),
+      "back.webp": Object.freeze({
+        sourceHash: "sha256-BSNKszMH1hrnQKtJ9KdZSkg+rMVfTVUM9zfFM8KjIZw=",
+        contentSha256:
+          "d8ed1bcf314de2c293ee7ba7744349fa9233d24d47798189f9660369cae16f2d",
+      }),
+      "mask.webp": Object.freeze({
+        sourceHash: "sha256-FvaY99G9szIkcHWH67XtOQtcKVhOUabeuckgHwuzcwg=",
+        contentSha256:
+          "6f4fb00c5147da694c4d0b3c45c0b580db94b81b77528985b6f30e4c944f1ac4",
+      }),
+    }),
+  }),
+  hardware: Object.freeze({
+    "PlayStore.enabled": "true",
+    "disk.dataPartition.size": "10G",
+    "fastboot.forceColdBoot": "no",
+    "fastboot.forceFastBoot": "yes",
+    "hw.camera.back": "virtualscene",
+    "hw.camera.front": "emulated",
+    "hw.cpu.ncore": "4",
+    "hw.device.name": "pixel_9",
+    "hw.lcd.density": "420",
+    "hw.lcd.height": "2424",
+    "hw.lcd.width": "1080",
+    "hw.ramSize": "2048",
+    "sdcard.size": "512M",
+    "skin.name": "pixel_9",
+    "vm.heapSize": "228",
+  }),
+});
 
 const APPROVED_EXPO_BASE = Object.freeze({
   version: "1.0.0",
@@ -407,39 +492,43 @@ const APPROVED_RECOVERY_FILE_SHA256 = Object.freeze({
   "tsconfig.json":
     "b3fcbc507af0df8008ffae41c5132e2bafceb650f6f55347d7492e0d8f98e3c0",
 });
+const APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256 = Object.freeze({
+  "nix/android-avd-spec.json":
+    "c5a803ccc0b587752f308101b68c00619116c3285e0d96ea2b342f0c3f58a845",
+  "nix/android-sdk.nix":
+    "3b93574941b8cb3b1445a187c0cb1f2b65d80174eff94151d70fbd46f0224d58",
+  "nix/dev-shell.nix":
+    "27b22586b36e90e2cc35695ac29bcde55b018c1c73005eb9ef9962780536883a",
+  "nix/toolchain-versions.nix":
+    "a274f777e185929711a1dee2acbd665c538a494490246ebfbfaa1a5fba1b1d5c",
+  "tools/diagnostics/toolchain-check.sh":
+    "ade2efe2b149d926d83a91dbca5725280bd5e72a84f7a27a7bd0b9d1c20bbc7d",
+});
 const APPROVED_GITIGNORE_SHA256 =
-  "6883c1a58109dd965438a530c4bb477960be71708255d4c96b8dd0652d586566";
-const PRETTIER_SUPPORTED_EXTENSIONS = Object.freeze(
-  new Set([
-    ".js",
-    ".cjs",
-    ".mjs",
-    ".jsx",
-    ".ts",
-    ".cts",
-    ".mts",
-    ".tsx",
-    ".json",
-    ".json5",
-    ".jsonc",
-    ".md",
-    ".mdx",
-    ".css",
-    ".scss",
-    ".less",
-    ".html",
-    ".htm",
-    ".vue",
-    ".yaml",
-    ".yml",
-    ".graphql",
-    ".gql",
-    ".hbs",
-    ".handlebars",
-    ".svg",
-    ".xml",
-  ]),
-);
+  "0aa63a4c56f5349c2e711a1c9e8bc660a87352b67cc202285ddb9f8a048cdbe8";
+const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
+  "node_modules/",
+  ".expo/",
+  "dist/",
+  "web-build/",
+  "android/",
+  "ios/",
+  "coverage/",
+  "expo-env.d.ts",
+  ".agents/",
+  ".claude/",
+  ".codex/",
+  ".serena/",
+  ".antigravitycli/",
+  ".qwen/",
+  ".migration-backup/",
+  "AGENTS.md",
+  "CLAUDE.md",
+  ".mcp.json",
+  "assets/",
+  "tsconfig.json",
+  "docs/evidence/",
+]);
 const RESERVED_DEFERRED_PATHS = Object.freeze([
   "app",
   "src/store",
@@ -462,18 +551,20 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "app.config.ts",
   ".env.example",
   ".gitignore",
+  ".prettierignore",
   "eslint.config.js",
   "jest.config.js",
   "package.json",
   "bun.lock",
-  ...FORMAT_SCOPE_MAIN_EFFECTIVE_FILES.filter(
+  ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
+  ...M3_AUTHORED_FILES.filter(
     (file) =>
       file !== "app.config.ts" &&
       file !== "eslint.config.js" &&
       file !== "jest.config.js" &&
       file !== "package.json",
   ),
-  "docs/roadmap.md",
+  ...AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS,
   "docs/evidence/M3.md",
 ]);
 
@@ -520,8 +611,11 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
 const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
   ".env.example",
   ".gitignore",
+  ".prettierignore",
   "bun.lock",
-  ...FORMAT_SCOPE_MAIN_EFFECTIVE_FILES,
+  ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
+  ...M3_AUTHORED_FILES,
+  ...AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS,
 ]);
 
 const TUTORIAL_ASSET_PATH = AUTHORIZED_DELETE_PATHS.find((relativePath) =>
@@ -668,60 +762,6 @@ function checkExactScripts(snapshot, violations) {
       );
     }
   }
-
-  const formatScopes = isPlainObject(snapshot && snapshot.formatScopes)
-    ? snapshot.formatScopes
-    : {};
-  const mainOperands = Array.isArray(formatScopes.mainOperands)
-    ? formatScopes.mainOperands
-    : [];
-  const mainEffectiveFiles = Array.isArray(formatScopes.mainEffectiveFiles)
-    ? formatScopes.mainEffectiveFiles
-    : [];
-  const finalDocsOperands = Array.isArray(formatScopes.finalDocsOperands)
-    ? formatScopes.finalDocsOperands
-    : [];
-
-  if (!sameStringSet(mainOperands, FORMAT_SCOPE_MAIN_OPERANDS)) {
-    pushViolation(
-      violations,
-      "exact-scripts",
-      "format:check main scope operands do not exactly equal quality_contract.format_scopes.main.",
-    );
-  }
-
-  if (!sameStringSet(finalDocsOperands, FORMAT_SCOPE_FINAL_DOCS_OPERANDS)) {
-    pushViolation(
-      violations,
-      "exact-scripts",
-      "format:check:final-docs scope operands do not exactly equal quality_contract.format_scopes.final_docs.",
-    );
-  }
-
-  if (!sameStringSet(mainEffectiveFiles, FORMAT_SCOPE_MAIN_EFFECTIVE_FILES)) {
-    pushViolation(
-      violations,
-      "exact-scripts",
-      "format:check main scope effective-file expansion does not exactly equal the Q0/I1/I2/I3/D1-owned file set.",
-    );
-  }
-
-  const overlapsFinalDocs = mainEffectiveFiles.some((file) =>
-    finalDocsOperands.includes(file),
-  );
-  const includesExcludedPath = mainEffectiveFiles.some(
-    (file) =>
-      file === "src/types/expo.d.ts" ||
-      file === "docs/evidence/M1.md" ||
-      file === "docs/evidence/M2.md",
-  );
-  if (overlapsFinalDocs || includesExcludedPath) {
-    pushViolation(
-      violations,
-      "exact-scripts",
-      "format:check main scope must be disjoint from the final-docs scope and must exclude src/types/expo.d.ts and M1/M2 evidence docs.",
-    );
-  }
 }
 
 function checkJestExecution(snapshot, violations) {
@@ -742,6 +782,25 @@ function checkJestExecution(snapshot, violations) {
       violations,
       "jest-execution",
       "jest roots must contain exactly <rootDir>/tests.",
+    );
+  }
+
+  if (jestConfig.globalSetup !== JEST_GLOBAL_SETUP) {
+    pushViolation(
+      violations,
+      "jest-execution",
+      "jest globalSetup must be exactly the project dotenv loader.",
+    );
+  }
+
+  if (
+    Array.isArray(jestConfig.setupFiles) &&
+    jestConfig.setupFiles.length > 0
+  ) {
+    pushViolation(
+      violations,
+      "jest-execution",
+      "project setupFiles must stay empty; dotenv loading belongs in globalSetup before suite process.env copies are created.",
     );
   }
 
@@ -1316,6 +1375,60 @@ function checkExpoBasePreservation(snapshot, violations) {
   }
 }
 
+function selectNativeAvdIdentity(avdSpec) {
+  const hardware = isPlainObject(avdSpec && avdSpec.hardware)
+    ? avdSpec.hardware
+    : {};
+  return {
+    schemaVersion: avdSpec && avdSpec.schemaVersion,
+    name: avdSpec && avdSpec.name,
+    device: avdSpec && avdSpec.device,
+    systemImage: isPlainObject(avdSpec && avdSpec.systemImage)
+      ? avdSpec.systemImage
+      : {},
+    emulator: isPlainObject(avdSpec && avdSpec.emulator)
+      ? avdSpec.emulator
+      : {},
+    skin: isPlainObject(avdSpec && avdSpec.skin) ? avdSpec.skin : {},
+    hardware: Object.fromEntries(
+      Object.keys(APPROVED_NIX_AVD_IDENTITY.hardware).map((key) => [
+        key,
+        hardware[key],
+      ]),
+    ),
+  };
+}
+
+function checkNixNativeToolchain(snapshot, violations) {
+  const avdSpec =
+    snapshot &&
+    isPlainObject(snapshot.nativeToolchain) &&
+    isPlainObject(snapshot.nativeToolchain.avdSpec)
+      ? snapshot.nativeToolchain.avdSpec
+      : {};
+
+  if (!deepEqual(selectNativeAvdIdentity(avdSpec), APPROVED_NIX_AVD_IDENTITY)) {
+    pushViolation(
+      violations,
+      "nix-native-toolchain",
+      "The Nix-owned Android AVD identity, image, Emulator, pinned Pixel 9 skin, or critical hardware differs from the approved specification.",
+    );
+  }
+
+  const serializedSpec = JSON.stringify(avdSpec);
+  if (
+    serializedSpec.includes("/Users/") ||
+    serializedSpec.includes("Library/Android/sdk") ||
+    serializedSpec.includes(".android/avd")
+  ) {
+    pushViolation(
+      violations,
+      "nix-native-toolchain",
+      "The Android AVD specification must not embed a user-SDK or user-state path.",
+    );
+  }
+}
+
 function checkGeneratedNativeOutput(snapshot, violations) {
   const trackedPaths = Array.isArray(
     snapshot &&
@@ -1451,6 +1564,7 @@ function checkArchitecture(snapshot) {
   checkDependencyAndLockfile(snapshot, violations);
   checkLintTransportBinding(snapshot, violations);
   checkExpoBasePreservation(snapshot, violations);
+  checkNixNativeToolchain(snapshot, violations);
   checkGeneratedNativeOutput(snapshot, violations);
   checkVariantAndSecurity(snapshot, violations);
   checkSingleTestRunner(snapshot, violations);
@@ -1461,7 +1575,7 @@ function checkArchitecture(snapshot) {
 // ---------------------------------------------------------------------------
 // CLI-only: live repository snapshot construction and extra live checks.
 // Nothing below this line executes unless this file is invoked directly
-// (`node tools/quality/check-architecture.cjs`, i.e. bun run check:architecture).
+// (`bun tools/quality/check-architecture.cjs`, i.e. bun run check:architecture).
 // ---------------------------------------------------------------------------
 
 function buildLiveSnapshot(
@@ -1511,6 +1625,10 @@ function buildLiveSnapshot(
   const pinnedBase = fs.existsSync(expoBaseConfigPath)
     ? JSON.parse(fs.readFileSync(expoBaseConfigPath, "utf8"))
     : {};
+  const nativeAvdSpecPath = path.join(root, "nix/android-avd-spec.json");
+  const nativeAvdSpec = fs.existsSync(nativeAvdSpecPath)
+    ? JSON.parse(fs.readFileSync(nativeAvdSpecPath, "utf8"))
+    : {};
 
   const generatedTrackedPaths = gitTrackedPaths.filter((trackedPath) =>
     GENERATED_OUTPUT_TRACKED_ROOTS.some(
@@ -1536,15 +1654,6 @@ function buildLiveSnapshot(
   const hasVitestConfig = vitestConfigCandidates.some((candidate) =>
     fs.existsSync(path.join(root, candidate)),
   );
-
-  const formatScopeViolations = [];
-  const mainEffectiveFiles = [
-    ...new Set(
-      FORMAT_SCOPE_MAIN_OPERANDS.flatMap((operand) =>
-        expandFormatOperand(root, operand, { fs, path }, formatScopeViolations),
-      ),
-    ),
-  ];
 
   const easJsonPresent = fs.existsSync(path.join(root, "eas.json"));
   const bunLockSha256 = computeFileSha256(
@@ -1610,6 +1719,8 @@ function buildLiveSnapshot(
     jest: {
       preset: jestConfig.preset,
       roots: jestConfig.roots,
+      globalSetup: jestConfig.globalSetup,
+      setupFiles: jestConfig.setupFiles,
       passWithNoTests: jestConfig.passWithNoTests,
       coverageDirectory: jestConfig.coverageDirectory,
       collectCoverageFrom: jestConfig.collectCoverageFrom,
@@ -1634,18 +1745,13 @@ function buildLiveSnapshot(
       resolvedDevelopment:
         expoResolution && expoResolution.ok ? expoResolution.config : {},
     },
-    formatScopes: {
-      mainOperands: FORMAT_SCOPE_MAIN_OPERANDS,
-      finalDocsOperands: FORMAT_SCOPE_FINAL_DOCS_OPERANDS,
-      mainEffectiveFiles,
-    },
+    nativeToolchain: { avdSpec: nativeAvdSpec },
     generatedOutputs: {
       trackedPaths: generatedTrackedPaths,
       inheritedClassification,
       keystoreFiles,
     },
     testRunnerDependencies: { hasVitest, hasVitestConfig },
-    _formatScopeViolations: formatScopeViolations,
     _testInventoryViolations: testInventoryViolations,
   };
 }
@@ -1994,6 +2100,7 @@ function captureAuthoredFileState({ fs, path, crypto }, root) {
     ...new Set([
       ...AUTHORIZED_CREATE_OR_REPLACE_PATHS,
       ...AUTHORIZED_DELETE_PATHS,
+      ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
       ...Object.keys(M1_M2_EVIDENCE_BASELINE_SHA256),
     ]),
   ].sort();
@@ -2084,68 +2191,6 @@ function discoverTestFiles(root, { fs, path }, violations) {
             supportedTestExtensionPattern.test(entryRelative) &&
             !entryRelative.endsWith(".d.ts"));
         if (isJestTest) results.push(entryRelative);
-      }
-    }
-  }
-  return results.sort();
-}
-
-function expandFormatOperand(root, operand, { fs, path }, violations) {
-  const fullPath = path.join(root, operand);
-  let stat;
-  try {
-    stat = fs.lstatSync(fullPath);
-  } catch {
-    pushViolation(
-      violations,
-      "format-scope",
-      `format:check operand does not exist on disk: ${operand}.`,
-    );
-    return [];
-  }
-  if (stat.isSymbolicLink()) {
-    pushViolation(
-      violations,
-      "format-scope",
-      `format:check operand ${operand} must not be a symlink (no symlink escape).`,
-    );
-    return [];
-  }
-  if (stat.isFile()) {
-    return PRETTIER_SUPPORTED_EXTENSIONS.has(
-      path.extname(operand).toLowerCase(),
-    )
-      ? [operand]
-      : [];
-  }
-  if (!stat.isDirectory()) return [];
-
-  const results = [];
-  const stack = [operand];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    const currentFull = path.join(root, current);
-    for (const entryName of fs.readdirSync(currentFull).sort()) {
-      const entryRelative = `${current}/${entryName}`;
-      const entryFull = path.join(root, entryRelative);
-      const entryStat = fs.lstatSync(entryFull);
-      if (entryStat.isSymbolicLink()) {
-        pushViolation(
-          violations,
-          "format-scope",
-          `format:check effective file ${entryRelative} must not be a symlink (no symlink escape).`,
-        );
-        continue;
-      }
-      if (entryStat.isDirectory()) {
-        stack.push(entryRelative);
-      } else if (
-        entryStat.isFile() &&
-        PRETTIER_SUPPORTED_EXTENSIONS.has(
-          path.extname(entryRelative).toLowerCase(),
-        )
-      ) {
-        results.push(entryRelative);
       }
     }
   }
@@ -2340,7 +2385,7 @@ function runExtraLiveChecks(root, { fs, path, crypto }, liveSnapshot) {
     pushViolation(
       violations,
       "ignored-generated-output",
-      `.gitignore must equal the approved M3-Q0 one-line /coverage/ append (sha256 ${APPROVED_GITIGNORE_SHA256}).`,
+      `.gitignore must equal the approved generated-output and local-dotenv policy (sha256 ${APPROVED_GITIGNORE_SHA256}).`,
     );
   }
   for (const requiredEntry of [
@@ -2362,6 +2407,22 @@ function runExtraLiveChecks(root, { fs, path, crypto }, liveSnapshot) {
         `.gitignore is missing the required entry ${requiredEntry}.`,
       );
     }
+  }
+
+  const prettierIgnorePath = path.join(root, ".prettierignore");
+  const prettierIgnoreEntries = fs.existsSync(prettierIgnorePath)
+    ? fs
+        .readFileSync(prettierIgnorePath, "utf8")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !line.startsWith("#"))
+    : [];
+  if (!sameStringSet(prettierIgnoreEntries, APPROVED_PRETTIER_IGNORE_ENTRIES)) {
+    pushViolation(
+      violations,
+      "format-scope",
+      ".prettierignore must equal the approved generated/runtime/config exclusions plus docs/evidence/; every other project document stays in format:check.",
+    );
   }
 
   const rawPackageJsonPath = path.join(root, "package.json");
@@ -2481,7 +2542,23 @@ function runExtraLiveChecks(root, { fs, path, crypto }, liveSnapshot) {
       pushViolation(
         violations,
         "working-tree-allowlist",
-        `${relativePath} must equal the exact user-approved TSC recovery (sha256 ${approvedSha256}).`,
+        `${relativePath} must equal its exact user-approved recovery content (sha256 ${approvedSha256}).`,
+      );
+    }
+  }
+
+  for (const [relativePath, approvedSha256] of Object.entries(
+    APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
+  )) {
+    const actualSha256 = computeFileSha256(
+      { fs, crypto },
+      path.join(root, relativePath),
+    );
+    if (actualSha256 !== approvedSha256) {
+      pushViolation(
+        violations,
+        "nix-native-toolchain",
+        `${relativePath} must equal the approved Nix native-toolchain content (sha256 ${approvedSha256}).`,
       );
     }
   }
@@ -2588,9 +2665,7 @@ function main() {
     expoResolution,
     eslintIntrospection,
   });
-  const formatScopeViolations = liveSnapshot._formatScopeViolations || [];
   const testInventoryViolations = liveSnapshot._testInventoryViolations || [];
-  delete liveSnapshot._formatScopeViolations;
   delete liveSnapshot._testInventoryViolations;
 
   const policyResult = checkArchitecture(liveSnapshot);
@@ -2607,7 +2682,6 @@ function main() {
       ...policyResult.violations,
       ...extraViolations,
       ...workingTreeViolations,
-      ...formatScopeViolations,
       ...testInventoryViolations,
     ],
   };
@@ -2636,6 +2710,8 @@ module.exports = {
   checkArchitecture,
   classifyTutorialAssetReferencesInText,
   isAuthorizedWorkingTreePath,
+  APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
+  APPROVED_RECOVERY_FILE_SHA256,
   EXACT_PACKAGE_SCRIPTS,
   COVERAGE_COLLECT_FROM,
   GLOBAL_COVERAGE_THRESHOLD,

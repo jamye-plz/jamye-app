@@ -6,6 +6,23 @@
 - 범위: Expo/React Native/Bun/Node/JDK/CocoaPods/Android SDK의 M1 devShell 기준선
 - 원칙: 버전 정보는 Expo, React Native, Node.js, Bun, Android Developers, Nixpkgs의 공식 자료만 사용한다.
 
+> 2026-08-27 M3 보완: 아래 M1 조사 기록의 version 선택과 당시 실행 증거는 보존하되,
+> Android Studio/user-SDK Emulator를 실행 주체로 둔 §5.2와 후보 A의 제외 범위는 더 이상
+> 현재 운영 계약이 아니다. 사용자가 승인한 Nix native-toolchain redesign은 같은 locked
+> Nixpkgs에서 Emulator·Google Play ARM64 image를 공급하고, 고정한 공식 AOSP Android Studio
+> device-art에서 Pixel 9 skin을 공급한다. Project AVD의 mutable state만 XDG 경로에
+> 격리한다. 첫 Android native build는 Expo/RN Gradle 계약이 NDK `27.1.12297006`을 요구함을
+> 확인했지만 당시 Nix SDK에는 NDK가 없어, Gradle의 read-only Nix store 자동 설치가
+> 실패했다. 사용자가 승인한 후속 복구는 이 exact NDK도 같은 composition에 추가한다. NDK
+> 복구 뒤 retry에서는 `:expo` library가 AGP 8.12 기본 Build Tools 35.0.0을 선택했지만 Nix
+> SDK에는 app/RN 기본값 36.0.0만 있어 같은 자동 설치 실패가 발생했다. 사용자가 승인한
+> Candidate A는 app 기본값 36.0.0을 유지하면서 35.0.0도 같은 immutable composition에
+> 추가한다. 다음 retry는 `react-native-worklets`와 `react-native-screens` native configuration이
+> 요구한 CMake 3.22.1이 없어 같은 자동 설치 경로에서 실패했다. 사용자가 승인한 후속
+> Candidate A는 실제 build graph가 선택한 exact CMake 3.22.1도 immutable composition에
+> 추가한다. 이 보완 구현의 Nix realization과 Android build retry는 후속 사용자 명령 게이트가
+> 통과해야 증거가 된다.
+
 이 문서는 버전을 자동으로 확정하지 않는다. 아래 후보 A는 2026-08-23 사용자가 명시적으로
 승인했다. 같은 날 Android 공식 문서의 최신 상태를 다시 확인한 뒤 사용자는 이전의 두
 snapshot 구성을 단일 `nixpkgs-unstable` 입력으로 단순화하고 Android platform-tools만
@@ -25,21 +42,24 @@ reference는 Node.js **22.13.x 이상**, Android `compileSdkVersion`/`targetSdkV
 
 M1의 승인 후보는 다음과 같다.
 
-| 구성 요소 | 승인 후보 | 선택 이유 |
-|---|---:|---|
-| Expo SDK | [57](https://docs.expo.dev/versions/latest/) | 현재 공식 stable SDK |
-| `expo` template declaration | [`~57.0.9`](https://github.com/expo/expo/blob/main/templates/expo-template-default/package.json) | SDK 57 default template의 현재 선언 |
-| React Native | [0.86.2](https://expo.dev/changelog/sdk-57) | `expo@57.0.9`가 메모리 회귀를 해결하며 올린 patch |
-| React | [19.2.3](https://github.com/expo/expo/blob/main/templates/expo-template-default/package.json) | SDK 57 default template의 대응 버전 |
-| Bun | [1.3.13](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/by-name/bu/bun/package.nix) | locked revision에서 확인했으며 devShell assertion으로 정확성을 강제 |
-| Node.js | [22.23.2 LTS](https://nodejs.org/en/blog/release/v22.23.2) | Expo/RN 최소 조건을 만족하며 devShell assertion으로 정확성을 강제 |
-| JDK | [Azul Zulu OpenJDK 17.0.19, Zulu 17.66.19](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/compilers/zulu/17.nix) | RN 0.86이 권고하는 Zulu JDK 17이며 devShell assertion으로 정확성을 강제 |
-| CocoaPods | [1.16.2](https://docs.expo.dev/build-reference/infrastructure/) | EAS SDK 57 iOS image와 일치하며 devShell assertion으로 정확성을 강제 |
-| Android command-line tools | [21.0](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/mobile/androidenv/repo.json) | locked revision의 Android metadata에서 확인한 명시 버전 |
-| Android platform-tools | [37.0.1](https://developer.android.com/tools/releases/platform-tools) | Android 공식 문서의 현재 stable revision이며 Nixpkgs metadata에도 존재 |
-| Android SDK Platform | [36](https://docs.expo.dev/versions/latest/) | Expo SDK 57의 compile/target API와 일치 |
-| Android Build Tools | [36.0.0](https://developer.android.com/tools/releases/build-tools) | Expo SDK 57 공식 예시 및 Android 공식 문서와 일치 |
-| Android NDK | 포함하지 않음 | M1 확정 제외 범위 |
+| 구성 요소                   |                                                                                                                                                                            승인 후보 | 선택 이유                                                               |
+| --------------------------- | -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | ----------------------------------------------------------------------- |
+| Expo SDK                    |                                                                                                                                         [57](https://docs.expo.dev/versions/latest/) | 현재 공식 stable SDK                                                    |
+| `expo` template declaration |                                                                                     [`~57.0.9`](https://github.com/expo/expo/blob/main/templates/expo-template-default/package.json) | SDK 57 default template의 현재 선언                                     |
+| React Native                |                                                                                                                                          [0.86.2](https://expo.dev/changelog/sdk-57) | `expo@57.0.9`가 메모리 회귀를 해결하며 올린 patch                       |
+| React                       |                                                                                        [19.2.3](https://github.com/expo/expo/blob/main/templates/expo-template-default/package.json) | SDK 57 default template의 대응 버전                                     |
+| Bun                         |                                                             [1.3.13](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/by-name/bu/bun/package.nix) | locked revision에서 확인했으며 devShell assertion으로 정확성을 강제     |
+| Node.js                     |                                                                                                                           [22.23.2 LTS](https://nodejs.org/en/blog/release/v22.23.2) | Expo/RN 최소 조건을 만족하며 devShell assertion으로 정확성을 강제       |
+| JDK                         |                    [Azul Zulu OpenJDK 17.0.19, Zulu 17.66.19](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/compilers/zulu/17.nix) | RN 0.86이 권고하는 Zulu JDK 17이며 devShell assertion으로 정확성을 강제 |
+| CocoaPods                   |                                                                                                                      [1.16.2](https://docs.expo.dev/build-reference/infrastructure/) | EAS SDK 57 iOS image와 일치하며 devShell assertion으로 정확성을 강제    |
+| Android command-line tools  |                                                  [21.0](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/mobile/androidenv/repo.json) | locked revision의 Android metadata에서 확인한 명시 버전                 |
+| Android platform-tools      |                                                                                                                [37.0.1](https://developer.android.com/tools/releases/platform-tools) | Android 공식 문서의 현재 stable revision이며 Nixpkgs metadata에도 존재  |
+| Android SDK Platform        |                                                                                                                                         [36](https://docs.expo.dev/versions/latest/) | Expo SDK 57의 compile/target API와 일치                                 |
+| Android Build Tools         | [36.0.0](https://developer.android.com/tools/releases/build-tools) app/RN default / [35.0.0](https://developer.android.com/build/releases/agp-8-12-0-release-notes) AGP 8.12 default | 앱의 최신 계약을 유지하면서 override 없는 library의 AGP 기본값도 공급   |
+| Android CMake               |                                                                                                  [3.22.1](https://developer.android.com/studio/projects/install-ndk#default-version) | M3 native module configuration이 실제 선택한 exact revision             |
+| Android Emulator            |  [37.1.11 package](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/mobile/androidenv/repo.json) / 37.1.11.0 runtime / build 15917651 | M3 redesign에서 observed Pixel 9 AVD와 exact pin                        |
+| Android system image        |  [API 36.1 extension 20, Google Play ARM64, revision 4](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/mobile/androidenv/repo.json) | M3 redesign의 project AVD runtime                                       |
+| Android NDK                 |                                         [27.1.12297006](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/mobile/androidenv/repo.json) | M3 native build가 요구한 exact side-by-side revision                    |
 
 Nix source는 하나만 사용한다.
 
@@ -182,6 +202,13 @@ home으로 설정한다.
   Build Tools 36.0.0 예시를 제공한다.
 - [Android 16 SDK setup](https://developer.android.com/about/versions/16/setup-sdk)는
   Android 16/API 36과 compile/target 36의 관계를 확인한다.
+- [AGP 8.12 release note](https://developer.android.com/build/releases/agp-8-12-0-release-notes)는
+  default SDK Build Tools를 35.0.0으로 명시한다. 따라서 build-tools override가 없는 Android
+  library도 immutable Nix SDK 안에서 해결되어야 한다.
+- [Android NDK/CMake 설치 문서](https://developer.android.com/studio/projects/install-ndk)는
+  AGP 4.2 이상이 project가 요구하는 NDK와 CMake가 없으면 SDK component를 자동 설치할 수
+  있다고 설명한다. Immutable Nix SDK에서는 이 fallback이 실패하므로 실제 build graph가
+  선택한 CMake 3.22.1을 composition에 미리 포함한다.
 - RN 0.86의 generic environment guide에는 Platform 35와 Build Tools 36.0.0이 적혀
   있지만, Expo framework project에는 Expo SDK 57의 더 구체적인 compile/target 36
   요구를 따른다.
@@ -199,32 +226,66 @@ tools package가 여러 version을 나란히 설치하고 특정 version에 의�
 [`repo.json`](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/mobile/androidenv/repo.json)에서
 확인했다. 같은 revision은 user-run `flake.lock`에 고정됐다.
 
-승인된 Nix composition은 다음만 포함한다.
+M3 보완 뒤 승인된 Nix composition은 다음을 포함한다.
 
-| `composeAndroidPackages` 항목 | 값 |
-|---|---:|
-| `cmdLineToolsVersion` | `21.0` |
-| `platformToolsVersion` | `37.0.1` |
-| `platformVersions` | `[ "36" ]` |
-| `buildToolsVersions` | `[ "36.0.0" ]` |
-| `toolsVersion` | `null` (obsolete package 제외) |
-| `includeNDK` | `false` |
-| `includeCmake` | `false` |
-| system image/emulator | M1 Nix composition에는 포함하지 않음 |
+| `composeAndroidPackages` 항목         |                                                값 |
+| ------------------------------------- | ------------------------------------------------: |
+| `cmdLineToolsVersion`                 |                                            `21.0` |
+| `platformToolsVersion`                |                                          `37.0.1` |
+| `platformVersions`                    |                                 `[ "36" "36.1" ]` |
+| `buildToolsVersions`                  |                           `[ "36.0.0" "35.0.0" ]` |
+| `toolsVersion`                        |                    `null` (obsolete package 제외) |
+| `includeNDK` / `ndkVersions`          |                    `true` / `[ "27.1.12297006" ]` |
+| `includeCmake` / `cmakeVersions`      |                           `true` / `[ "3.22.1" ]` |
+| `includeEmulator` / `emulatorVersion` |                                `true` / `37.1.11` |
+| `includeSystemImages`                 |                                            `true` |
+| `systemImageTypes` / `abiVersions`    | `[ "google_apis_playstore" ]` / `[ "arm64-v8a" ]` |
 
 [Android Platform Tools release note](https://developer.android.com/tools/releases/platform-tools)는
 37.0.1을 2026-07 stable release로 기록하고 최근 platform-tools가 이전 Android version과
 호환된다고 설명한다. Platform-tools revision은 `adb` 같은 host tool의 revision이며 앱의
 compile/target API 36을 37로 바꾸지 않는다. 앱의 build API는 별도 component인 Platform
-36과 Build Tools 36.0.0으로 계속 고정한다.
+36과 Build Tools 36.0.0으로 계속 고정한다. AGP 8.12가 override 없는 library에 선택하는
+Build Tools 35.0.0은 보조 component로 함께 공급할 뿐 앱의 기본 build-tools 계약을 낮추지
+않는다.
 
-Android Studio GUI와 AVD는 사용자가 시스템 installer/device manager로 준비한다. 그러나
-devShell 안의 CLI build에서 authoritative `ANDROID_HOME`/`ANDROID_SDK_ROOT`는 위 Nix SDK를
-가리키며, Android Studio가 별도로 관리하는 SDK를 build source로 섞지 않는다.
-composed SDK는 실행 파일을 derivation 최상위 `bin`에 모두 노출하지 않으므로 devShell은
-`$ANDROID_SDK_ROOT/cmdline-tools/21.0/bin`과 `$ANDROID_SDK_ROOT/platform-tools`만
-`PATH` 앞쪽에 명시적으로 연결한다. Android Studio 관리 emulator는 이 `PATH`에 넣지 않고,
-진단 script가 기본 설치 경로를 절대경로로 읽기만 한다.
+Native dependency build가 선택한 CMake 3.22.1도 보조 component가 아니라 재현 가능한 native
+build input이다. Gradle의 component 자동 설치, `CMAKE_VERSION`, `cmake.dir`, user SDK 또는
+writable SDK overlay에 의존하지 않는다. React Native source-build 경로에 선언된 다른 CMake
+기본값은 현재 prebuilt React Native build graph가 요청하지 않았으므로 이번 composition에
+추가하지 않는다.
+
+Locked Nixpkgs의
+[`composeAndroidPackages` source](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/mobile/androidenv/compose-android-packages.nix)는
+`platformVersions` 각각에 대해 요청한 system-image type과 ABI를 선택한다. 따라서 Platform
+36은 app compile/target 계약을 유지하고 Platform 36.1은 exact AVD image를 공급한다.
+
+`composeAndroidPackages`는 Android Studio device skin을 선택하거나 설치하는 입력을
+제공하지 않는다. Pixel 9 exterior skin은 공식 AOSP
+[Android Studio device-art repository의 고정 커밋](https://android.googlesource.com/platform/tools/adt/idea/+/ffa01542c9913977fa2cb8e518b49b8de0c05c9e/artwork/resources/device-art-resources/pixel_9/)에서
+`layout`, `back.webp`, `mask.webp`를 파일별로 가져온다. Gitiles의 base64 응답 SRI와 디코딩된
+content SHA-256을 모두 SSOT에 기록해 Nix evaluation/build가 host Android Studio와 user SDK
+설치 상태에 의존하지 않게 한다.
+
+`nix/android-avd-spec.json`은 기존 `jamye_pixel_9_api_36`에서 관찰한 Pixel 9, API 36.1
+extension 20, Google Play ARM64 revision 4, Emulator 37.1.11.0 build 15917651과 hardware
+값의 SSOT다. Tool과 image는 Nix store에 두고, Android 공식
+[environment variable 계약](https://developer.android.com/tools/variables)에 따라 AVD와
+Gradle의 writable state는 project 전용 XDG root에 둔다. Project tool은 Nix
+[`avdmanager`](https://developer.android.com/tools/avdmanager)로 이 exact AVD만 만들고
+검증한다. [AOSP Emulator의 AVD path contract](https://android.googlesource.com/platform/external/qemu/+/42074e5e184aed78dee0efb14d7376325516c070/android/avd/info.c)에
+따라 `skin.path`는
+SDK-relative `skins/pixel_9`로 기록한다. Project verifier는 active SDK entry의 실제 Nix store
+대상과 pinned file hash를 별도로 검증하므로, skin과 무관한 composition 변경으로 SDK store
+output 경로만 바뀌어도 AVD config를 다시 쓰지 않는다. 기존 absolute path 또는 다른 선언
+drift는 project `reconcile`이 정지된 AVD의 선언 소유 config/pointer key만 갱신하고
+userdata·snapshot과 비소유 INI key를 보존한다. Missing·partial·running AVD는 자동 복구하지
+않는다.
+
+Android Studio와 user SDK는 generated `android/`의 Gradle/native output을 읽는 선택적
+검사 환경이다. CLI build, `adb`, project AVD와 Emulator의 authority는 아니며 Studio가 만든
+`local.properties`, Gradle JVM override 또는 daemon은 strict native-build preflight에서
+거부한다. DevShell `PATH`에는 command-line tools, platform-tools와 Nix Emulator만 넣는다.
 
 ### 5.3 라이선스 게이트 교정 — 2026-08-23 승인·반영
 
@@ -243,8 +304,10 @@ flake에 `android_sdk.accept_license = true`를 기록하고 composed SDK가 성
 realize되는 것을 acceptance evidence로 삼는다. `sdkmanager --licenses`로 Nix store에
 쓰는 gate는 machine plan에서 제거했다.
 
-또한 NDK가 M1에서 제외되므로 `ANDROID_NDK_ROOT`를 설정하지 않는다. 처음 plan의
-상충하던 설정 요구는 사용자 승인에 따라 제거했다.
+또한 NDK가 M1에서 제외됐으므로 당시 `ANDROID_NDK_ROOT`를 설정하지 않았다. M3 native build가
+NDK 필요성을 증명한 뒤에도 별도 root override를 도입하지 않는다. Exact side-by-side NDK는
+composed `ANDROID_SDK_ROOT` 아래에서 공급하고 devShell은 상속된 `ANDROID_NDK_HOME`과
+`ANDROID_NDK_ROOT`를 제거한다.
 
 ## 6. Host 관찰값과 candidate 적합성
 
@@ -259,10 +322,11 @@ Expo의 SDK 57 EAS iOS image도 공식
 [build infrastructure 문서](https://docs.expo.dev/build-reference/infrastructure/)에서 macOS
 26.5.2, Xcode 26.6, Bun 1.3.14, Node 22.23.1, CocoaPods 1.16.2를 사용한다. 따라서 현재
 Xcode는 Expo 최소 26.4를 만족하고 EAS SDK 57 image와도 일치한다. 이후 사용자가 Android
-Studio와 ARM64 API 36 AVD를 설치했다. 2026-08-24 최종 host diagnostic은 Xcode,
-Simulator, Android Studio, Emulator/AVD, Nix 도구와 composed SDK를 포함한 23개 검사를
-모두 통과했다. 최초 관찰 문서는 당시 상태를 보존하며, 현재 판정은
-[M1 실행 증거](../evidence/M1.md)를 따른다.
+Studio와 ARM64 API 36 AVD를 설치했다. 2026-08-24 최종 M1 host diagnostic은 당시
+Android Studio/user-SDK Emulator 관찰을 포함한 23개 검사를 모두 통과했다. 이 결과는
+historical M1 증거이며 2026-08-27 Nix-owned Emulator/AVD 계약의 실행 증거로 재사용하지
+않는다. 최초 관찰 문서는 당시 상태를 보존하고, 새 계약은 fresh devShell의 보완 diagnostic과
+후속 native gate로 별도 검증한다.
 
 ## 7. 승인 후보와 열린 선택
 
@@ -275,7 +339,10 @@ Simulator, Android Studio, Emulator/AVD, Nix 도구와 composed SDK를 포함한
   얻고 exact-version assertion으로 승인 조합을 강제한다.
 - Android SDK도 같은 locked revision에서 조합하되 license/unfree 설정은 Android 전용
   import에만 격리한다.
-- NDK, Watchman, Maestro, Android emulator/system image를 M1 devShell에 넣지 않는다.
+- M1 당시에는 NDK, Watchman, Maestro, Android Emulator/system image를 devShell에 넣지
+  않았다. M3는 먼저 Emulator/system image를 Nix authority로 승격했고, 첫 native build가
+  요구한 NDK `27.1.12297006`과 native module configuration이 요구한 CMake `3.22.1`도 후속
+  복구에서 같은 composition으로 승격한다. Watchman과 Maestro는 계속 제외한다.
 - production signing, store 제출, EAS 외부 resource를 만들지 않는다.
 
 ### 비교 기준 — EAS default parity (승인 후보 아님)
@@ -297,6 +364,24 @@ source가 필요하다. M1 devShell의 단순성과 검토 가능성을 위해 �
    set과 Android 전용 package set으로 각각 import한다.
 4. Android platform-tools만 37.0.1로 교정하고, Platform/API 36과 Build Tools 36.0.0은
    그대로 유지한다.
+
+2026-08-27 사용자는 첫 Android native build가 확인한 NDK `27.1.12297006`을 writable SDK
+overlay나 user SDK 대신 locked Nix composition에 추가하는 복구 후보 A를 승인했다. 이 결정은
+NDK root 환경 변수를 추가하지 않고 side-by-side SDK resolution을 유지한다.
+
+같은 날 사용자는 NDK 추가로 composed SDK store path가 바뀌어 strict preflight가 기존 AVD의
+`skin.path`를 거부한 후속 복구 후보 A도 승인했다. 이 결정은 AVD 삭제 대신 guarded
+`reconcile`을 추가해 선언 소유 field만 수렴시키고 mutable emulator data를 보존한다.
+
+같은 날 사용자는 AGP 8.12 기본 Build Tools 35.0.0과, 그 다음 build graph가 실제 선택한
+CMake 3.22.1을 차례로 immutable Nix SDK에 추가하는 복구 후보 A를 승인했다. 두 결정 모두
+generated Gradle override나 writable/user SDK fallback 없이 필요한 exact component를 Nix
+composition이 공급한다.
+
+같은 날 사용자는 composed SDK의 absolute store output 경로를 AVD `skin.path`에 저장하던
+계약을 SDK-relative `skins/pixel_9`로 바꾸는 계획과 구현을 승인했다. Active SDK의 skin
+symlink 대상과 content hash 검증은 유지하며, 현재 absolute path는 guarded one-time
+`reconcile`로 전환한다.
 
 마지막 두 항목이 앞선 snapshot 선택을 대체한다. `flake.nix`에는 branch reference를 두고,
 사용자가 생성한 `flake.lock`이 exact revision을 고정했다. lock, `nix develop`, host
@@ -326,5 +411,6 @@ Metro를 실행하지 않으므로 Watchman을 devShell에 넣지 않는다. M2 
 이 문서와 [M1 실행 증거](../evidence/M1.md)가 아직 보장하지 않는 것:
 
 - 아직 Expo scaffold나 `bun install`로 Bun/Metro compatibility를 검증하지 않았다.
-- Android Studio/AVD 존재는 검증했지만 Android native build는 아직 검증하지 않았다.
+- Historical user-SDK AVD 존재는 검증했지만 새 Nix-owned AVD의 creation/start와 Android
+  native build는 아직 후속 사용자 게이트가 필요하다.
 - 아직 production signing, credential, EAS project, store resource를 만들지 않았다.

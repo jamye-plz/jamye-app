@@ -49,12 +49,12 @@
 
 ### 2.1 역할
 
-| 역할 | 책임 |
-|---|---|
-| 사용자 | 제품·아키텍처 결정, 중요 명령 실행, 결과 확인, 마일스톤 승인 |
-| 주 에이전트 | 선택지와 권고안 설명, 작업 분배, 파일 변경 통합, 결과 해석 |
-| 구현 에이전트 | 승인된 범위 안의 코드·테스트·문서 작성 |
-| 독립 리뷰 에이전트 | 계획·구현을 새 맥락에서 읽고 누락·위험·과설계를 검토 |
+| 역할               | 책임                                                         |
+| ------------------ | ------------------------------------------------------------ |
+| 사용자             | 제품·아키텍처 결정, 중요 명령 실행, 결과 확인, 마일스톤 승인 |
+| 주 에이전트        | 선택지와 권고안 설명, 작업 분배, 파일 변경 통합, 결과 해석   |
+| 구현 에이전트      | 승인된 범위 안의 코드·테스트·문서 작성                       |
+| 독립 리뷰 에이전트 | 계획·구현을 새 맥락에서 읽고 누락·위험·과설계를 검토         |
 
 ### 2.2 에이전트가 자율적으로 할 수 있는 일
 
@@ -148,6 +148,11 @@ platform-tools 37.0.1, Platform 36, Build Tools 36.0.0을 사용한다. NDK는 �
 단일 `nixpkgs-unstable` 입력을 사용하며, 사용자 생성 `flake.lock`이 고정한
 `391b592eb44808b3bd0cb80bb71b63a5a118b8bb`을 정확한 Nix snapshot으로 사용한다. 공식
 근거와 lock 검증 기록은 `docs/research/mobile-baseline.md`를 SSOT로 사용한다.
+
+M3 종료 전 Expo compatibility refresh에서는 SDK 57 line을 유지하면서 현재 application
+dependency를 Expo 57.0.17과 React Native 0.86.3으로 갱신했다. M1의 당시 조사값은 위 기록과
+research 문서에 보존하고, 현재 exact package 선언과 resolution은 `package.json`과
+`bun.lock`을 권위 원본으로 사용한다.
 
 ### 4.2 보류
 
@@ -519,18 +524,18 @@ M8 문서·실기기 확인·첫 수직 절편 종료
 
 ## 7. 요구사항 추적
 
-| ID | 요구 영역 | 주 마일스톤·작업 | 핵심 증거 |
-|---|---|---|---|
-| R-ENV | 공식 stable 조합, Bun, Nix devShell | M1 | 공식 출처·확인일, user-approved version, flake check |
-| R-INTENT | 기존 PWA에서 제품·카피·token·회귀 의도만 추출 | M1 | `docs/product-intent.md`, no-copy review |
-| R-CNG | Development Build, Router, CNG, native 생성물 경계 | M2–M3 | doctor, dependency/import guard, tracked-native check |
-| R-DATA | SQLite migration·source of truth·atomic outbox | M4–M6 | migration·transaction·restart tests |
-| R-CONTRACT | lock provenance·generation·runtime validation·CI drift | M4 | checksum, fixtures, local CI drift failure |
-| R-CHAT | fixture 대화방, IME, anchor, 접근성 | M5 | component tests와 양 플랫폼 수동 기록 |
-| R-SYNC | retry, canonical apply, realtime gap recovery | M6 | offline/restart/dedupe/delta tests |
-| R-NATIVE | iOS·Android Development Build와 E2E | M7–M8 | 사용자 실행 출력과 checklist |
-| R-BACKLOG | OAuth, group/topic, media, notification/push 등 비채팅 기능 제외 | §4.3 | named backlog와 후속 scope 승인 |
-| R-NIX-BUILD | debug·unsigned CLI 산출물 패키징 | 후속 N1 | 별도 승인된 reproducible build evidence |
+| ID          | 요구 영역                                                        | 주 마일스톤·작업 | 핵심 증거                                             |
+| ----------- | ---------------------------------------------------------------- | ---------------- | ----------------------------------------------------- |
+| R-ENV       | 공식 stable 조합, Bun, Nix devShell                              | M1               | 공식 출처·확인일, user-approved version, flake check  |
+| R-INTENT    | 기존 PWA에서 제품·카피·token·회귀 의도만 추출                    | M1               | `docs/product-intent.md`, no-copy review              |
+| R-CNG       | Development Build, Router, CNG, native 생성물 경계               | M2–M3            | doctor, dependency/import guard, tracked-native check |
+| R-DATA      | SQLite migration·source of truth·atomic outbox                   | M4–M6            | migration·transaction·restart tests                   |
+| R-CONTRACT  | lock provenance·generation·runtime validation·CI drift           | M4               | checksum, fixtures, local CI drift failure            |
+| R-CHAT      | fixture 대화방, IME, anchor, 접근성                              | M5               | component tests와 양 플랫폼 수동 기록                 |
+| R-SYNC      | retry, canonical apply, realtime gap recovery                    | M6               | offline/restart/dedupe/delta tests                    |
+| R-NATIVE    | iOS·Android Development Build와 E2E                              | M7–M8            | 사용자 실행 출력과 checklist                          |
+| R-BACKLOG   | OAuth, group/topic, media, notification/push 등 비채팅 기능 제외 | §4.3             | named backlog와 후속 scope 승인                       |
+| R-NIX-BUILD | debug·unsigned CLI 산출물 패키징                                 | 후속 N1          | 별도 승인된 reproducible build evidence               |
 
 ## 8. 마일스톤 공통 완료 규칙
 
@@ -556,15 +561,15 @@ M2에는 사용자가 승인한 1회성 bootstrap 품질 증거 유예가 적용
 
 ## 9. 위험과 대응
 
-| 위험 | 영향 | 대응 | 소유자 |
-|---|---|---|---|
-| Xcode·Android toolchain 설치 지연 | native 검증 지연 | M1에서 조기 진단, 앱 로직 작업과 분리 | 사용자 |
-| Nix Android dependency closure 누락 | 후속 N1 offline build 실패 | vertical slice와 분리하고 작은 debug APK derivation부터 검증 | 에이전트 제안, 사용자 승인 |
-| iOS host Xcode의 비순수성 | 후속 N1 재현성 제한 | spike 뒤 derivation 또는 flake app을 명시적으로 선택 | 공동 결정 |
-| bootstrap contract가 실제 서버처럼 굳어짐 | 통합 시 재작업 | `status=bootstrap`, production gate, 교체 조건 명시 | 사용자 승인 |
-| SQLite와 Query cache 소유권 중복 | 데이터 불일치 | message import boundary와 architecture test | 에이전트 |
-| 에이전트가 범위를 앞서감 | 이해·통제 상실 | 마일스톤 승인, scope allowlist, 독립 리뷰 | 주 에이전트 |
-| 사용자가 명령 목적을 모름 | 검증이 형식화됨 | 모든 중요 명령에 명령 카드 제공 | 주 에이전트 |
+| 위험                                      | 영향                       | 대응                                                         | 소유자                     |
+| ----------------------------------------- | -------------------------- | ------------------------------------------------------------ | -------------------------- |
+| Xcode·Android toolchain 설치 지연         | native 검증 지연           | M1에서 조기 진단, 앱 로직 작업과 분리                        | 사용자                     |
+| Nix Android dependency closure 누락       | 후속 N1 offline build 실패 | vertical slice와 분리하고 작은 debug APK derivation부터 검증 | 에이전트 제안, 사용자 승인 |
+| iOS host Xcode의 비순수성                 | 후속 N1 재현성 제한        | spike 뒤 derivation 또는 flake app을 명시적으로 선택         | 공동 결정                  |
+| bootstrap contract가 실제 서버처럼 굳어짐 | 통합 시 재작업             | `status=bootstrap`, production gate, 교체 조건 명시          | 사용자 승인                |
+| SQLite와 Query cache 소유권 중복          | 데이터 불일치              | message import boundary와 architecture test                  | 에이전트                   |
+| 에이전트가 범위를 앞서감                  | 이해·통제 상실             | 마일스톤 승인, scope allowlist, 독립 리뷰                    | 주 에이전트                |
+| 사용자가 명령 목적을 모름                 | 검증이 형식화됨            | 모든 중요 명령에 명령 카드 제공                              | 주 에이전트                |
 
 ## 10. 에이전트 운영 방식
 
@@ -578,19 +583,19 @@ M2에는 사용자가 승인한 1회성 bootstrap 품질 증거 유예가 적용
 
 ## 11. 결정 기록
 
-| ID | 결정 | 상태 |
-|---|---|---|
-| D-001 | 별도 `jamye-app` 저장소에서 React Native + Expo Development Build 사용 | 승인됨 |
-| D-002 | JavaScript package manager는 Bun 하나만 사용 | 승인됨 |
-| D-003 | Nix devShell을 개발 환경의 기본 진입점으로 사용 | 승인됨 |
-| D-004 | CLI debug·unsigned 산출물의 Nix 패키징은 M8 뒤 별도 N1 트랙에서 수행 | 계획 승인 대기 |
-| D-005 | production signing과 store 제출은 사용자가 직접 수행 | 승인됨 |
-| D-006 | homelab과 모바일 앱 배포를 연결하지 않음 | 승인됨 |
-| D-007 | SQLite가 채팅과 outbox의 유일한 화면 원본 | 승인됨 |
-| D-008 | 실제 server artifact가 나오기 전 명시적 bootstrap contract 사용 | 승인 대기 |
-| D-009 | production identifier와 link domain | 보류 |
-| D-010 | exact Expo/RN/Bun/JDK/Android version | 2026-08-23 승인됨 |
-| D-011 | 이번 product scope는 offline-first 채팅에 한정하고 완성형 OAuth와 모든 비채팅 기능은 backlog로 이동 | 승인됨 |
+| ID    | 결정                                                                                                                                                                       | 상태              |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| D-001 | 별도 `jamye-app` 저장소에서 React Native + Expo Development Build 사용                                                                                                     | 승인됨            |
+| D-002 | JavaScript package manager는 Bun 하나만 사용                                                                                                                               | 승인됨            |
+| D-003 | Nix devShell을 개발 환경의 기본 진입점으로 사용                                                                                                                            | 승인됨            |
+| D-004 | CLI debug·unsigned 산출물의 Nix 패키징은 M8 뒤 별도 N1 트랙에서 수행                                                                                                       | 계획 승인 대기    |
+| D-005 | production signing과 store 제출은 사용자가 직접 수행                                                                                                                       | 승인됨            |
+| D-006 | homelab과 모바일 앱 배포를 연결하지 않음                                                                                                                                   | 승인됨            |
+| D-007 | SQLite가 채팅과 outbox의 유일한 화면 원본                                                                                                                                  | 승인됨            |
+| D-008 | 실제 server artifact가 나오기 전 명시적 bootstrap contract 사용                                                                                                            | 승인 대기         |
+| D-009 | production identifier와 link domain                                                                                                                                        | 보류              |
+| D-010 | exact Expo/RN/Bun/JDK/Android version                                                                                                                                      | 2026-08-23 승인됨 |
+| D-011 | 이번 product scope는 offline-first 채팅에 한정하고 완성형 OAuth와 모든 비채팅 기능은 backlog로 이동                                                                        | 승인됨            |
 | D-012 | M2가 새로 작성한 비-template 실행 application/domain 로직이 없는 bootstrap의 lint·coverage를 미측정으로 유지하고 M3에 실제 lint·test·coverage 80% 조건을 한 번만 강제 이관 | 2026-08-25 승인됨 |
 
 ## 12. 현재 게이트

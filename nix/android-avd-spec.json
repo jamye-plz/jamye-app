@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "name": "jamye_pixel_9_api_36",
+  "device": "pixel_9",
+  "systemImage": {
+    "api": "36.1",
+    "extensionLevel": "20",
+    "isBaseSdk": "true",
+    "type": "google_apis_playstore",
+    "abi": "arm64-v8a",
+    "revision": "4"
+  },
+  "emulator": {
+    "packageVersion": "37.1.11",
+    "runtimeVersion": "37.1.11.0",
+    "buildId": "15917651"
+  },
+  "skin": {
+    "repository": "https://android.googlesource.com/platform/tools/adt/idea",
+    "commit": "ffa01542c9913977fa2cb8e518b49b8de0c05c9e",
+    "path": "artwork/resources/device-art-resources/pixel_9",
+    "files": {
+      "layout": {
+        "sourceHash": "sha256-lKlH/xWX/XP7F57YOUCxcjcoWNZuTTL3+wFOmBPZZvw=",
+        "contentSha256": "fd024b14e9d7c38042be3d2bd4dad0e93fb3d6cfe0e1884a1d15d23063103e4a"
+      },
+      "back.webp": {
+        "sourceHash": "sha256-BSNKszMH1hrnQKtJ9KdZSkg+rMVfTVUM9zfFM8KjIZw=",
+        "contentSha256": "d8ed1bcf314de2c293ee7ba7744349fa9233d24d47798189f9660369cae16f2d"
+      },
+      "mask.webp": {
+        "sourceHash": "sha256-FvaY99G9szIkcHWH67XtOQtcKVhOUabeuckgHwuzcwg=",
+        "contentSha256": "6f4fb00c5147da694c4d0b3c45c0b580db94b81b77528985b6f30e4c944f1ac4"
+      }
+    }
+  },
+  "hardware": {
+    "PlayStore.enabled": "true",
+    "disk.dataPartition.size": "10G",
+    "emulator.dev.xr.glasses_display": "monocular_right",
+    "fastboot.chosenSnapshotFile": "",
+    "fastboot.forceChosenSnapshotBoot": "no",
+    "fastboot.forceColdBoot": "no",
+    "fastboot.forceFastBoot": "yes",
+    "hw.accelerometer": "yes",
+    "hw.arc": "false",
+    "hw.audioInput": "yes",
+    "hw.battery": "yes",
+    "hw.camera.back": "virtualscene",
+    "hw.camera.front": "emulated",
+    "hw.cpu.arch": "arm64",
+    "hw.cpu.ncore": "4",
+    "hw.dPad": "no",
+    "hw.device.manufacturer": "Google",
+    "hw.device.name": "pixel_9",
+    "hw.gps": "yes",
+    "hw.gpu.enabled": "yes",
+    "hw.gpu.mode": "auto",
+    "hw.gyroscope": "yes",
+    "hw.initialOrientation": "portrait",
+    "hw.keyboard": "yes",
+    "hw.lcd.density": "420",
+    "hw.lcd.height": "2424",
+    "hw.lcd.width": "1080",
+    "hw.mainKeys": "no",
+    "hw.ramSize": "2048",
+    "hw.sdCard": "yes",
+    "hw.sensors.light": "yes",
+    "hw.sensors.magnetic_field": "yes",
+    "hw.sensors.orientation": "yes",
+    "hw.sensors.pressure": "yes",
+    "hw.sensors.proximity": "yes",
+    "hw.trackBall": "no",
+    "runtime.network.latency": "none",
+    "runtime.network.speed": "full",
+    "sdcard.size": "512M",
+    "showDeviceFrame": "yes",
+    "skin.dynamic": "yes",
+    "skin.name": "pixel_9",
+    "tag.display": "Google Play",
+    "tag.displaynames": "Google Play",
+    "tag.id": "google_apis_playstore",
+    "tag.ids": "google_apis_playstore",
+    "vm.heapSize": "228"
+  }
+}

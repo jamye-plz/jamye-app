@@ -33,16 +33,16 @@ repository에 무덮어쓰기 방식으로 통합한다. 생성된 nested `.git`
 
 2026-08-24의 승인된 attempt-01 결과는 다음과 같다.
 
-| 항목 | 실제 생성 값 |
-|---|---|
-| template selector | `default@sdk-57` |
-| Expo | `~57.0.16` |
-| React Native | `0.86.2` |
-| React | `19.2.3` |
-| Expo Router | `~57.0.16` |
-| TypeScript | `~6.0.3` |
-| entry | `expo-router/entry` |
-| route root | `src/app/` |
+| 항목              | 실제 생성 값        |
+| ----------------- | ------------------- |
+| template selector | `default@sdk-57`    |
+| Expo              | `~57.0.16`          |
+| React Native      | `0.86.2`            |
+| React             | `19.2.3`            |
+| Expo Router       | `~57.0.16`          |
+| TypeScript        | `~6.0.3`            |
+| entry             | `expo-router/entry` |
+| route root        | `src/app/`          |
 
 Route는 `src/app/_layout.tsx`, `src/app/index.tsx`, `src/app/explore.tsx`이며 M2에서 이동하거나
 재구성하지 않는다. TypeScript alias `@/*`는 `./src/*`를 가리킨다. Native tab 기준선은

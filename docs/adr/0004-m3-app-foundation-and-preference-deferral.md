@@ -2,6 +2,7 @@
 
 - 상태: Accepted
 - 결정일: 2026-08-26
+- 결정 보완일: 2026-08-27
 - 적용 마일스톤: M3 이후
 - 대체하는 결정: 없음
 
@@ -61,6 +62,93 @@ graph TD
   IOS --> IOSBuild[iOS Simulator Development Build]
   Android --> AndroidBuild[Android Emulator Development Build]
 ```
+
+### Nix가 native CLI toolchain과 Android AVD 계약을 소유한다
+
+Native 실행의 재현성은 generated project와 별도로 관리한다. Locked Nixpkgs composition이
+Bun, Node.js, JDK, CocoaPods뿐 아니라 Android command-line tools, platform-tools, Platform
+36, Build Tools 36.0.0과 35.0.0, CMake 3.22.1, NDK 27.1.12297006, Emulator 37.1.11,
+Google Play ARM64 system image API 36.1 extension 20 revision 4를 공급한다. Nixpkgs의
+`composeAndroidPackages`는 `platformVersions`에 지정한 platform별 system image를 선택하므로
+compile용 36과 AVD image용 36.1을 같은 immutable SDK에 둔다.
+
+첫 M3 Android native build는 generated Gradle 계약의 `ndkVersion`이 `27.1.12297006`임을
+확인했다. 당시 Nix composition이 NDK를 제외해 Gradle이 이를 read-only Nix store에 자동
+설치하려다 실패했으므로, 이 exact side-by-side revision을 Nix SDK input으로 승격한다.
+Writable SDK overlay나 user-SDK NDK는 허용하지 않는다. DevShell은 상속된
+`ANDROID_NDK_HOME`과 `ANDROID_NDK_ROOT`를 제거하고 diagnostic은 Nix SDK 안의 NDK metadata와
+CMake toolchain file을 검증한다.
+
+NDK 복구 뒤 Android build retry는 app/RN이 명시한 Build Tools 36.0.0과 별개로,
+`buildToolsVersion`을 override하지 않은 `:expo` Android library가 AGP 8.12 기본값 35.0.0을
+선택함을 확인했다. 당시 composition에는 36.0.0만 있어 Gradle이 35.0.0을 read-only Nix
+store에 자동 설치하려다 실패했다. App 기본값은 36.0.0으로 유지하되 AGP 기본값 35.0.0도
+immutable SDK input으로 추가한다. Writable SDK overlay나 generated Gradle override는 도입하지
+않는다.
+
+Build Tools 복구 뒤 retry는 `:react-native-worklets`와 `:react-native-screens`의 native
+configuration까지 진행한 다음 CMake 3.22.1 부재로 실패했다. 두 module은 CMake version을
+직접 override하지 않았고 AGP가 3.22.1을 선택했지만, 당시 composition은
+`includeCmake = false`여서 Gradle이 read-only Nix store에 이를 자동 설치하려 했다. 실제
+build graph가 요구한 exact 3.22.1을 immutable SDK input으로 승격한다. `CMAKE_VERSION`,
+`cmake.dir`, user SDK 또는 writable SDK overlay는 사용하지 않는다. React Native source-build
+경로의 다른 기본 CMake version은 이번 prebuilt React Native build가 요구하지 않았으므로
+추가하지 않는다.
+
+Pixel 9 외형 skin은 `composeAndroidPackages`의 component가 아니다. 따라서 공식 AOSP
+Android Studio device-art repository의 commit을 고정하고 `layout`, `back.webp`, `mask.webp`
+Gitiles 응답과 디코딩 결과의 해시를 JSON SSOT에 함께 기록한다. Nix derivation이 이 세
+파일을 검증해 composed SDK의 `skins/pixel_9`에 합성한다. Host Android Studio 또는 user SDK
+경로는 build input이 아니다.
+
+[`nix/android-avd-spec.json`](../../nix/android-avd-spec.json)이 project AVD 이름, device,
+image, Emulator build와 관찰한 hardware의 SSOT다. AVD tool은 이 파일에서
+`jamye_pixel_9_api_36`만 생성·검증·reconcile·시작하고 임의 이름·경로, delete, wipe 또는 force
+replace를 허용하지 않는다. Tool binary와 image는 Nix store에 남기고 mutable state는 다음처럼
+분리한다.
+
+| 상태                        | 격리 경로                                                      |
+| --------------------------- | -------------------------------------------------------------- |
+| Android user, Emulator, AVD | `${XDG_STATE_HOME:-$HOME/.local/state}/jamye-app/android` 아래 |
+| Gradle                      | `${XDG_CACHE_HOME:-$HOME/.cache}/jamye-app/gradle`             |
+
+이 경계는 Android가 `ANDROID_USER_HOME`, `ANDROID_EMULATOR_HOME`과
+`ANDROID_AVD_HOME`으로 preference·Emulator config·AVD data의 위치를 분리하는 공식 계약을
+따른다. `avdmanager`는 Nix SDK가 제공한 exact device와 package로 AVD를 만들고, 생성 뒤
+owned hardware key를 SSOT와 맞춘다.
+
+Project-owned AVD CJS 도구는 devShell이 고정한 Bun으로 실행한다. Node.js는 Expo tooling의
+호환 runtime으로 계속 제공하지만 AVD verify/create/reconcile/start의 canonical runner는
+아니다. AVD의 `skin.path`는 Android Emulator가 현재 SDK root를 기준으로 해석하는
+`skins/pixel_9` 상대경로로 기록한다. Project verifier는 active SDK entry가 `/nix/store`의
+고정 skin derivation으로 해석되고 pinned content hash를 만족하는지 별도로 검증한다. 따라서
+skin과 무관한 Nix SDK composition 변경으로 바깥 store output 경로만 달라져도 AVD config는
+drift하지 않는다.
+
+기존 absolute `skin.path` 또는 다른 선언 field가 남은 complete AVD는 정지 상태에서 한 번
+`reconcile`할 수 있다. 이 명령은 JSON SSOT가 소유한 config와 pointer key만 갱신하고
+userdata·snapshot·그 밖의 INI key는 보존하며, missing·partial·running AVD는 거부한다. Nix
+SDK asset은 요청 경로가 active SDK 아래이고 실제 대상이 `/nix/store` 안에 있으며 기대한 파일
+종류와 실행 권한을 만족할 때 `symlinkJoin` 링크를 허용한다. 반대로 mutable AVD state와 config는
+symlink를 허용하지 않는다.
+
+iOS에는 대응하는 완전 Nix 공급을 주장하지 않는다. Xcode, Apple SDK와 Simulator runtime은
+host Xcode가 소유한다. DevShell은 `DEVELOPER_DIR`, `/usr/bin/clang`, `/usr/bin/xcrun`과
+XcodeDefault clang을 검증하고 Nix compiler/SDK include injection을 차단해 모든 iOS CLI
+호출이 같은 선택 경계를 따르게 한다.
+
+Android Studio와 user SDK는 편집·검사용 비권위 도구다. Generated `android/`를 열어 Gradle
+model이나 native output을 검사할 수 있지만 Studio가 만든 `local.properties`, Gradle JVM
+override, daemon 또는 user-SDK AVD를 CLI build source로 받아들이지 않는다. Strict
+`--native-build` diagnostic은 Studio가 닫혔는지, foreign Gradle daemon·generated override가
+없는지, AVD·실행 중인 Emulator·ADB server가 Nix 소유인지, exact target이 boot를 완료했는지
+확인한다.
+
+근거는 [Nixpkgs Android composition source](https://github.com/NixOS/nixpkgs/blob/391b592eb44808b3bd0cb80bb71b63a5a118b8bb/pkgs/development/mobile/androidenv/compose-android-packages.nix),
+[공식 AOSP Pixel 9 device-art](https://android.googlesource.com/platform/tools/adt/idea/+/ffa01542c9913977fa2cb8e518b49b8de0c05c9e/artwork/resources/device-art-resources/pixel_9/),
+[AOSP Emulator의 SDK-relative skin path 계약](https://android.googlesource.com/platform/external/qemu/+/42074e5e184aed78dee0efb14d7376325516c070/android/avd/info.c),
+[Android environment variable 문서](https://developer.android.com/tools/variables)와
+[`avdmanager` 문서](https://developer.android.com/tools/avdmanager)다.
 
 ### Active module boundary와 local fixture
 
@@ -138,6 +226,8 @@ application/runtime 코드가 아니어서 denominator 밖에 둔다.
 - `jest.config.js`: test runner configuration이며 exact 구조와 실행 결과를 별도로 검증한다.
 - `tools/quality/check-architecture.cjs`: repository invariant checker이며 pure export를 fixture로
   test하되 application coverage numerator를 부풀리지 않는다.
+- `tools/android/nix-avd.cjs`: local native-toolchain workflow이며 pure contract helper를
+  fixture로 test하되 bundled application coverage numerator를 부풀리지 않는다.
 
 Tests도 application denominator에 넣지 않는다. Jest는 `tests/`만 test root로 사용하며
 `passWithNoTests`를 허용하지 않는다. Global statements, branches, functions, lines는 모두 80%
@@ -180,6 +270,19 @@ CNG 원본과 generated file을 동시에 수정하는 두 ownership model이 �
 - System dark mode를 제공하면서 preference persistence와 state library 선택 비용을 미룬다.
 - Jest 하나가 Expo-native component와 aggregate application coverage를 측정한다.
 - Native dependency/config 변경은 양 플랫폼 clean regeneration/rebuild 비용을 발생시킨다.
+- Android CLI, Emulator와 AVD 계약은 Nix/JSON SSOT에서 재현되고 writable state는 XDG
+  project root에 격리된다.
+- Android NDK 27.1.12297006은 같은 immutable SDK에서 공급되며 Gradle의 component 자동
+  설치나 host NDK override를 요구하지 않는다.
+- Android Build Tools 36.0.0은 app/RN 기본값으로 유지하고, AGP 8.12 기본값 35.0.0도 같은
+  immutable SDK에서 공급해 library module의 component 자동 설치를 차단한다.
+- Android CMake 3.22.1은 실제 native module configuration이 선택한 exact revision으로 같은
+  immutable SDK에서 공급해 CMake component 자동 설치를 차단한다.
+- AVD `skin.path`는 SDK-relative `skins/pixel_9`로 유지해 skin과 무관한 composed SDK store
+  hash 변경이 mutable AVD rewrite로 전파되지 않게 한다.
+- Strict preflight는 active SDK launcher가 해석되는 정확한 Nix Emulator package root만
+  runtime QEMU origin으로 허용하고, Emulator console의 CRLF를 정규화한 뒤 AVD 이름을 비교한다.
+- Android Studio/user SDK는 검사 편의성을 제공하지만 native build authority가 아니다.
 - M3만으로 chat/data/E2E, production readiness, native build 또는 runtime 성공을 보장하지 않는다.
 
 ## 후속 검증
@@ -194,6 +297,9 @@ CNG 원본과 generated file을 동시에 수정하는 두 ownership model이 �
   architecture checker와 aggregate coverage run으로 검증한다.
 - Native dependency/config 변경 뒤 ignored CNG output을 clean regenerate하고 양 플랫폼
   Development Build를 다시 만든다.
+- Fresh devShell에서 두 Build Tools revision, exact CMake executable/metadata와 NDK metadata,
+  native diagnostic, AVD verify/create/reconcile/start gate를 수행하고 Android build 직전
+  `--native-build` strict preflight로 foreign IDE/SDK state를 차단한다.
 - Build/install과 별도로 현재 Metro bundle을 사용하는 두 session·세 runtime 관찰을 수행한다.
 
 위 항목은 실행 절차다. 이 ADR은 품질 command, prebuild, iOS/Android build 또는 runtime
@@ -207,6 +313,11 @@ CNG 원본과 generated file을 동시에 수정하는 두 ownership model이 �
 - `eslint.config.js`
 - `jest.config.js`
 - `tools/quality/check-architecture.cjs`
+- `nix/android-avd-spec.json`
+- `nix/android-sdk.nix`
+- `nix/dev-shell.nix`
+- `tools/android/nix-avd.cjs`
+- `tools/diagnostics/toolchain-check.sh`
 - [`README.md`](../../README.md)
 - [`docs/roadmap.md`](../roadmap.md)
 - M3 PLAN approval과 `G-M3-DEPENDENCY-INSTALL`
