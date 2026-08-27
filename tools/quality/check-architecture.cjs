@@ -505,7 +505,16 @@ const APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256 = Object.freeze({
     "ade2efe2b149d926d83a91dbca5725280bd5e72a84f7a27a7bd0b9d1c20bbc7d",
 });
 const APPROVED_GITIGNORE_SHA256 =
-  "0aa63a4c56f5349c2e711a1c9e8bc660a87352b67cc202285ddb9f8a048cdbe8";
+  "967a27fc61a32a7709c95e12d8bbf1d17758fd8bde69b95f606e41d7086d231b";
+const REQUIRED_GITIGNORE_ENTRIES = Object.freeze([
+  "/coverage/",
+  "/ios",
+  "/android",
+  ".expo/",
+  "expo-env.d.ts",
+  "node_modules/",
+  "docs/generated/",
+]);
 const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   "node_modules/",
   ".expo/",
@@ -2388,14 +2397,7 @@ function runExtraLiveChecks(root, { fs, path, crypto }, liveSnapshot) {
       `.gitignore must equal the approved generated-output and local-dotenv policy (sha256 ${APPROVED_GITIGNORE_SHA256}).`,
     );
   }
-  for (const requiredEntry of [
-    "/coverage/",
-    "/ios",
-    "/android",
-    ".expo/",
-    "expo-env.d.ts",
-    "node_modules/",
-  ]) {
+  for (const requiredEntry of REQUIRED_GITIGNORE_ENTRIES) {
     if (
       !gitignoreContents
         .split("\n")
@@ -2712,6 +2714,8 @@ module.exports = {
   isAuthorizedWorkingTreePath,
   APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
   APPROVED_RECOVERY_FILE_SHA256,
+  APPROVED_GITIGNORE_SHA256,
+  REQUIRED_GITIGNORE_ENTRIES,
   EXACT_PACKAGE_SCRIPTS,
   COVERAGE_COLLECT_FROM,
   GLOBAL_COVERAGE_THRESHOLD,

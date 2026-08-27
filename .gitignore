@@ -54,3 +54,6 @@ example
 /ios
 /android
 /coverage/
+
+# oma docs generated artifacts
+docs/generated/

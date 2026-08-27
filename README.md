@@ -8,7 +8,8 @@
 environment validation, Error Boundary, system light/dark theme, redacted local logger,
 deterministic local fixture가 구현돼 있다. 아래 명령은 실행 절차이며 현재 품질 검사, native
 build 또는 runtime 성공을 뜻하지 않는다. 실제로 관찰한 결과만
-[`docs/evidence/`](docs/evidence/)에 별도로 기록한다.
+[`docs/evidence/`](docs/evidence/)에 별도로 기록한다. 현재 M3의 품질·native build·fixture
+smoke 결과는 [M3 실행 증거](docs/evidence/M3.md)에 있다.
 
 ## 현재 범위
 

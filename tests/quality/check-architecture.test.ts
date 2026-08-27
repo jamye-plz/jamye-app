@@ -1,6 +1,8 @@
 import {
+  APPROVED_GITIGNORE_SHA256,
   APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
   APPROVED_RECOVERY_FILE_SHA256,
+  REQUIRED_GITIGNORE_ENTRIES,
   checkArchitecture,
   classifyTutorialAssetReferencesInText,
   isAuthorizedWorkingTreePath,
@@ -432,6 +434,34 @@ describe("checkArchitecture (M3 quality_contract pure policy validator)", () => 
       buildValidRepositorySnapshot(),
     );
     expect(result.violations).toEqual([]);
+  });
+
+  test("binds the approved gitignore to generated documentation output", () => {
+    const { createHash } = jest.requireActual("node:crypto") as {
+      createHash(algorithm: "sha256"): {
+        update(value: string): {
+          digest(encoding: "hex"): string;
+        };
+      };
+    };
+    const { readFileSync } = jest.requireActual("node:fs") as {
+      readFileSync(path: string, encoding: "utf8"): string;
+    };
+    const gitignoreContents = readFileSync(
+      `${process.cwd()}/.gitignore`,
+      "utf8",
+    );
+    const gitignoreEntries = gitignoreContents
+      .split("\n")
+      .map((line) => line.trim());
+
+    expect(REQUIRED_GITIGNORE_ENTRIES).toContain("docs/generated/");
+    expect(gitignoreEntries).toEqual(
+      expect.arrayContaining([...REQUIRED_GITIGNORE_ENTRIES]),
+    );
+    expect(createHash("sha256").update(gitignoreContents).digest("hex")).toBe(
+      APPROVED_GITIGNORE_SHA256,
+    );
   });
 
   test("denies a success-forcing recursive format:check script (exact-scripts)", () => {
