@@ -1,12 +1,12 @@
 # jamye-app 그린필드 로드맵
 
-- 상태: M3 완료 — 종료 감사 PASS 및 사용자 최종 승인 완료
+- 상태: M4 완료 — 종료 감사·커밋 완료 및 사용자 최종 승인 완료
 - 로드맵 기준 세션: `20260822-200158`
-- 현재 단계: M3 완료; M4 시작 전 별도 승인 대기
+- 현재 단계: M4 완료; M5 Ultrawork 시작 승인
 - 결정권자: 사용자
 - 실행 조정자: 주 에이전트
 - 대상: iOS·Android React Native 앱의 첫 offline-first 채팅 수직 절편
-- 최종 수정일: 2026-08-28
+- 최종 수정일: 2026-08-31
 
 ## 1. 이 문서의 역할
 
@@ -44,6 +44,12 @@
 - 그 밖의 모든 비채팅 제품 기능
 
 현재 chat transport는 **인증 없는 로컬 deterministic fixture transport**만 사용하며, 이를 production server 연결이나 로그인으로 표시하지 않는다.
+
+실제 `jamye-server` API·PostgreSQL 연동과 배포된 server contract의 전달·수신은 이번 M0~M8
+수직 절편 범위에 포함하지 않는다. `jamye-server`가 완성·배포될 때 확정된 OpenAPI와 realtime
+schema를 version·source commit·checksum이 고정된 artifact로 발행할 책임은 server 프로젝트가
+별도로 계획한다. `jamye-app`이 그 artifact를 받아 bootstrap contract를 교체하고 실제 transport를
+호출하는 작업도 후속 로드맵과 사용자 승인을 거친다.
 
 ## 2. 협업 원칙
 
@@ -139,6 +145,7 @@
 - TanStack Query는 이후 request/response state에 사용하되 채팅 메시지 원본과 경쟁시키지 않고, Zustand는 현재 slice에 필요한 작은 UI state만 담당
 - 인증 없는 로컬 deterministic fixture transport로 채팅을 검증하며 production server 연결이나 인증을 표현하지 않음
 - bootstrap contract는 실제 server release가 아님을 명시
+- 실제 `jamye-server` API·PostgreSQL 연동과 배포 contract 수신은 이번 M0~M8 범위 밖이며, server artifact 발행과 app import는 각 저장소의 별도 후속 계획·승인을 요구
 - 기존 PWA, `jamye-server`, homelab, store console은 이 저장소 작업에서 변경하지 않음
 
 M1 toolchain baseline은 2026-08-23 사용자 승인으로 확정됐다. Expo SDK 57,
@@ -159,6 +166,7 @@ research 문서에 보존하고, 현재 exact package 선언과 resolution은 `p
 - production bundle ID와 Android package name
 - universal link와 app link domain
 - 실제 `jamye-server` contract tag·commit
+- 배포된 server OpenAPI·realtime artifact의 전달 위치와 `jamye-app` import 절차
 - production OAuth credential
 - production push credential과 provider 운영 설정
 - App Store·Play Store release 절차
@@ -367,6 +375,11 @@ M7의 완성된 채팅 E2E나 실기기 acceptance를 완료한 것으로 보지
 
 목표는 로컬 데이터 원본과 wire contract를 구현 전에 차례로 고정하는 것이다. 원 프롬프트의 순서대로 첫 database schema·migration을 먼저 승인하고, 이어 bootstrap contract와 생성 type을 고정한다.
 
+현재 판정은 종료 감사 PASS다. 사용자는 2026-08-31에 M4 완료와 closure commit을 승인했고,
+SQLite·bootstrap contract 기반은 `298aacec7dd61a31c2fdc196e0ca7b47093c91fd`에 보존됐다. 실제
+명령·native smoke·품질 결과와 범위 밖 항목은 [M4 실행 증거](evidence/M4.md)를 기준으로 한다.
+이 기반은 chat UI나 실제 server integration을 완료한 것으로 보지 않는다.
+
 에이전트 작업 — database:
 
 - deterministic migration과 `PRAGMA user_version`
@@ -404,6 +417,10 @@ M7의 완성된 채팅 E2E나 실기기 acceptance를 완료한 것으로 보지
 
 목표는 test fixture 대화방을 SQLite에서 읽고, 한국어 입력을 안전하게 pending message로 저장하는 것이다.
 
+사용자는 2026-08-31에 M5 Ultrawork 시작을 승인했다. 이 승인은 PLAN부터 시작하는 범위 승인이고,
+구현·품질·native 결과나 마일스톤 완료를 미리 승인한 것이 아니다. M5는 실제 chat list와 composer를
+SQLite repository에 연결하지만 network processor나 실제 server 호출은 만들지 않는다.
+
 에이전트 작업:
 
 - SQLite 구독 기반 virtualized chat list
@@ -436,6 +453,10 @@ M7의 완성된 채팅 E2E나 실기기 acceptance를 완료한 것으로 보지
 ### M6. Offline outbox와 realtime/delta 복구
 
 목표는 오프라인 전송 의도를 앱 재시작 뒤에도 보존하고 canonical event 하나로 수렴시키는 것이다.
+
+이 마일스톤의 transport는 인증 없는 deterministic local fixture다. 실제 `jamye-server` API나
+PostgreSQL에 연결하지 않으며, server 배포 artifact 수신·production endpoint·auth를 M6 완료로
+간주하지 않는다.
 
 에이전트 작업:
 
@@ -536,7 +557,7 @@ M7의 완성된 채팅 E2E나 실기기 acceptance를 완료한 것으로 보지
 | R-INTENT    | 기존 PWA에서 제품·카피·token·회귀 의도만 추출                    | M1               | `docs/product-intent.md`, no-copy review              |
 | R-CNG       | Development Build, Router, CNG, native 생성물 경계               | M2–M3            | doctor, dependency/import guard, tracked-native check |
 | R-DATA      | SQLite migration·source of truth·atomic outbox                   | M4–M6            | migration·transaction·restart tests                   |
-| R-CONTRACT  | lock provenance·generation·runtime validation·CI drift           | M4               | checksum, fixtures, local CI drift failure            |
+| R-CONTRACT  | local bootstrap lock·generation·runtime validation·CI drift      | M4               | checksum, fixtures, local CI drift failure            |
 | R-CHAT      | fixture 대화방, IME, anchor, 접근성                              | M5               | component tests와 양 플랫폼 수동 기록                 |
 | R-SYNC      | retry, canonical apply, realtime gap recovery                    | M6               | offline/restart/dedupe/delta tests                    |
 | R-NATIVE    | iOS·Android Development Build와 E2E                              | M7–M8            | 사용자 실행 출력과 checklist                          |
@@ -573,6 +594,7 @@ M2에는 사용자가 승인한 1회성 bootstrap 품질 증거 유예가 적용
 | Nix Android dependency closure 누락       | 후속 N1 offline build 실패 | vertical slice와 분리하고 작은 debug APK derivation부터 검증 | 에이전트 제안, 사용자 승인 |
 | iOS host Xcode의 비순수성                 | 후속 N1 재현성 제한        | spike 뒤 derivation 또는 flake app을 명시적으로 선택         | 공동 결정                  |
 | bootstrap contract가 실제 서버처럼 굳어짐 | 통합 시 재작업             | `status=bootstrap`, production gate, 교체 조건 명시          | 사용자 승인                |
+| 실제 server integration이 M5/M6에 유입됨  | 범위·의존성 조기 확대      | fixture-only gate와 server/app 후속 로드맵 분리              | 사용자                     |
 | SQLite와 Query cache 소유권 중복          | 데이터 불일치              | message import boundary와 architecture test                  | 에이전트                   |
 | 에이전트가 범위를 앞서감                  | 이해·통제 상실             | 마일스톤 승인, scope allowlist, 독립 리뷰                    | 주 에이전트                |
 | 사용자가 명령 목적을 모름                 | 검증이 형식화됨            | 모든 중요 명령에 명령 카드 제공                              | 주 에이전트                |
@@ -598,19 +620,22 @@ M2에는 사용자가 승인한 1회성 bootstrap 품질 증거 유예가 적용
 | D-005 | production signing과 store 제출은 사용자가 직접 수행                                                                                                                       | 승인됨            |
 | D-006 | homelab과 모바일 앱 배포를 연결하지 않음                                                                                                                                   | 승인됨            |
 | D-007 | SQLite가 채팅과 outbox의 유일한 화면 원본                                                                                                                                  | 승인됨            |
-| D-008 | 실제 server artifact가 나오기 전 명시적 bootstrap contract 사용                                                                                                            | 승인 대기         |
+| D-008 | 실제 server artifact가 나오기 전 명시적 bootstrap contract 사용                                                                                                            | 2026-08-31 승인됨 |
 | D-009 | production identifier와 link domain                                                                                                                                        | 보류              |
 | D-010 | exact Expo/RN/Bun/JDK/Android version                                                                                                                                      | 2026-08-23 승인됨 |
 | D-011 | 이번 product scope는 offline-first 채팅에 한정하고 완성형 OAuth와 모든 비채팅 기능은 backlog로 이동                                                                        | 승인됨            |
 | D-012 | M2가 새로 작성한 비-template 실행 application/domain 로직이 없는 bootstrap의 lint·coverage를 미측정으로 유지하고 M3에 실제 lint·test·coverage 80% 조건을 한 번만 강제 이관 | 2026-08-25 승인됨 |
+| D-013 | 실제 `jamye-server` integration은 M0~M8 범위 밖에 두고, server의 배포 contract 발행과 app의 contract 수신·호출은 각 저장소의 별도 후속 계획으로 결정                       | 2026-08-31 승인됨 |
 
 ## 12. 현재 게이트
 
-M2의 scaffold·Bun install·Expo doctor·TypeScript 검증과 독립 VERIFY·REFINE·SHIP 검토가
-통과했다. 사용자는 Expo Go를 iOS Simulator와 ADB Android target에서 확인했고,
-`G-M2-SHIP-REMEDIATION governance`로 ADR 0003의 M2 전용 품질 증거 유예와 M3 강제 이관을
-승인했다. Governance scope, quality/eligibility, documentation/cascade의 세 fresh 독립 검토와
-targeted remediation 재검토는 모두 PASS했고 CRITICAL/HIGH/MEDIUM/LOW finding이 0개다.
-사용자는 2026-08-25에 `G-M2-FINAL approve_completion`으로 M2 완료를 승인했다.
-M2 local commit과 M3 시작은 완료 결정에서 자동으로 파생되지 않는 별도 사용자 게이트이며,
-Development Build와 native build는 아직 승인되거나 실행되지 않았다.
+M4의 SQLite migration·repository, `bootstrap.v2` contract generation·validation, dependency,
+architecture, aggregate coverage와 양 플랫폼 Development Build/runtime smoke가 각각 승인된
+명령 게이트에서 PASS했다. VERIFY·REFINE·SHIP 종료 감사와 exact closure commit도 완료됐으며,
+현재 기준 commit은 `298aacec7dd61a31c2fdc196e0ca7b47093c91fd`다. 상세 실행 결과는
+[M4 실행 증거](evidence/M4.md)에 있다.
+
+사용자는 2026-08-31에 M5 Ultrawork 시작을 승인했다. 다음 활성 게이트는 M5 PLAN이며, 실제
+chat list·composer·SQLite local write와 양 플랫폼 UI 검증 범위를 먼저 고정한다. M5는 network
+dispatch를 구현하지 않고 M6도 deterministic local fixture transport만 사용한다. 실제
+`jamye-server` integration과 배포 contract 전달·수신은 이번 M0~M8 완료 조건이 아니다.
