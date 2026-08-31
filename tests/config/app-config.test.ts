@@ -27,6 +27,8 @@ const PINNED_BASE = {
         imageWidth: 76,
       },
     ],
+    "expo-sqlite",
+    "expo-font",
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
 };

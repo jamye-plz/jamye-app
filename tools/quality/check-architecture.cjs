@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Single repository-invariant checker for the M3 quality_contract.
+ * Single repository-invariant checker for the M3/M4 quality_contract.
  *
  * checkArchitecture(snapshot) is a pure validator: given a plain-data
  * repository snapshot it returns { violations: [{ category, message }] }
@@ -11,10 +11,10 @@
  * Expo config) and calls the same pure function, then performs a small set
  * of additional live-only checks that have no equivalent in the pure
  * snapshot shape (file existence, tracked/ignored classification, and the
- * ESLint flat-config route/screen overrides). It never opens or scans
- * app.config.ts or any src TS/TSX file for transport calls, identifiers,
- * imports, requires, comments, or directives — that enforcement belongs
- * solely to the configured ESLint pass (quality_contract.transport_enforcement).
+ * ESLint flat-config route/screen overrides). It does not duplicate ESLint's
+ * transport syntax enforcement. The M4 live snapshot only inventories the
+ * approved database/contract files and extracts CREATE TABLE declarations from
+ * the numbered migration registry so repository ownership stays semantic.
  */
 
 const EXACT_PACKAGE_SCRIPTS = Object.freeze({
@@ -99,7 +99,7 @@ const COVERAGE_OUT_OF_DENOMINATOR_RATIONALE = Object.freeze([
   }),
 ]);
 
-const MEANINGFUL_TEST_PATHS = Object.freeze([
+const M3_TEST_PATHS = Object.freeze([
   "tests/config/app-config.test.ts",
   "tests/core/public-env.test.ts",
   "tests/core/logger.test.ts",
@@ -110,6 +110,19 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
   "tests/quality/check-architecture.test.ts",
   "tests/quality/development-workflow.test.ts",
   "tests/quality/nix-avd.test.ts",
+]);
+
+const M4_TEST_PATHS = Object.freeze([
+  "tests/contracts/bootstrap-sources.test.ts",
+  "tests/contracts/contract-tooling.test.ts",
+  "tests/contracts/validate-wire.test.ts",
+  "tests/core/database/migrations.test.ts",
+  "tests/core/database/repository.test.ts",
+]);
+
+const MEANINGFUL_TEST_PATHS = Object.freeze([
+  ...M3_TEST_PATHS,
+  ...M4_TEST_PATHS,
 ]);
 
 const REQUIRED_TRANSPORT_GLOBS = Object.freeze([
@@ -163,7 +176,6 @@ const DIRECT_DEPENDENCY_DENYLIST = Object.freeze([
   "jotai",
   "mobx",
   "recoil",
-  "expo-sqlite",
   "react-native-sqlite-storage",
   "realm",
   "@nozbe/watermelondb",
@@ -217,7 +229,7 @@ const M3_AUTHORED_FILES = Object.freeze([
   "src/features/development-fixture/ui/development-fixture-screen.tsx",
   "src/shared/ui/app-screen.tsx",
   "src/shared/ui/app-text.tsx",
-  ...MEANINGFUL_TEST_PATHS,
+  ...M3_TEST_PATHS,
   "tools/android/nix-avd.cjs",
   "tools/quality/check-architecture.cjs",
   "tools/quality/jest-env.cjs",
@@ -226,6 +238,75 @@ const M3_AUTHORED_FILES = Object.freeze([
   "docs/adr/0004-m3-app-foundation-and-preference-deferral.md",
   "docs/research/mobile-baseline.md",
 ]);
+
+const M4_DATABASE_SOURCE_FILES = Object.freeze([
+  "src/core/database/migrate.ts",
+  "src/core/database/migrations/001-initial-schema.ts",
+  "src/core/database/migrations/index.ts",
+  "src/core/database/open-database.ts",
+  "src/core/database/repositories/database-repository.ts",
+  "src/core/database/types.ts",
+]);
+
+const M4_CONTRACT_SOURCE_FILES = Object.freeze([
+  "src/core/contracts/canonical-json.ts",
+  "src/core/contracts/generated/bootstrap-api.ts",
+  "src/core/contracts/index.ts",
+  "src/core/contracts/map-message-event.ts",
+  "src/core/contracts/validate-wire.ts",
+]);
+
+const M4_BOOTSTRAP_CONTRACT_FILES = Object.freeze([
+  "contracts/bootstrap/contract.lock",
+  "contracts/bootstrap/fixtures/conversation-delta.response.json",
+  "contracts/bootstrap/fixtures/invalid/breaking-required-type-without-version-bump.json",
+  "contracts/bootstrap/fixtures/invalid/message-upsert.missing-required.json",
+  "contracts/bootstrap/fixtures/message-command.request.json",
+  "contracts/bootstrap/fixtures/message-command.response.json",
+  "contracts/bootstrap/fixtures/message-upsert.optional-field.json",
+  "contracts/bootstrap/fixtures/unknown-event.json",
+  "contracts/bootstrap/manifest.json",
+  "contracts/bootstrap/openapi.json",
+  "contracts/bootstrap/realtime-event.schema.json",
+]);
+
+const M4_CONTRACT_TOOL_FILES = Object.freeze([
+  "tools/contracts/check-bootstrap-contract.mjs",
+  "tools/contracts/generate-bootstrap-contract.mjs",
+]);
+
+const M4_AUTHORED_FILES = Object.freeze([
+  ...M4_DATABASE_SOURCE_FILES,
+  ...M4_CONTRACT_SOURCE_FILES,
+  ...M4_BOOTSTRAP_CONTRACT_FILES,
+  ...M4_CONTRACT_TOOL_FILES,
+  ...M4_TEST_PATHS,
+]);
+
+const APPROVED_M4_DATABASE_TABLES = Object.freeze([
+  "applied_events",
+  "conversations",
+  "messages",
+  "outbox_commands",
+  "sync_cursors",
+]);
+
+const APPROVED_M4_CONTRACT_FILE_SHA256 = Object.freeze({
+  "contracts/bootstrap/openapi.json":
+    "f094ab786dfa9f753e0e154ddb5f83e7b3e9ce2907c62151c13cb9fbc10162bb",
+  "contracts/bootstrap/realtime-event.schema.json":
+    "c81d97b0453041e0e21aafc2f40fcb5cfcce1b9d4f8df609f004ceed69f50f12",
+  "contracts/bootstrap/manifest.json":
+    "ae4b2421afeb6b43a961f5ffc2485d40a4130f3d9d5e3edd852349748dbc78b3",
+  "contracts/bootstrap/contract.lock":
+    "cc9659b0ebe525809f6cee2e13ed69f2e85c1138a6bd8d16ebff75ae1dd81906",
+  "src/core/contracts/generated/bootstrap-api.ts":
+    "3e201d893114b00ccbaf03db6a52abc70f688e72c03a2d90ff8dff9d8f1a9d78",
+  "tools/contracts/generate-bootstrap-contract.mjs":
+    "a26fd30829a12000b2cf91e770983338385f19a58ed185f0a6519ef806841a1b",
+  "tools/contracts/check-bootstrap-contract.mjs":
+    "17e6642ac570dab65f7f7aabf1d40f4eeb01a0f13392d8a7bcb1b78fa205dea9",
+});
 
 const AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS = Object.freeze([
   "docs/adr/0001-expo-sdk-57-default-template.md",
@@ -238,13 +319,15 @@ const AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS = Object.freeze([
 ]);
 
 const APPROVED_DEPENDENCIES = Object.freeze({
-  expo: "~57.0.17",
-  "expo-constants": "~57.0.15",
+  ajv: "8.20.0",
+  expo: "~57.0.18",
+  "expo-constants": "~57.0.16",
   "expo-dev-client": "~57.0.16",
-  "expo-font": "~57.0.1",
+  "expo-font": "~57.0.2",
   "expo-linking": "~57.0.8",
   "expo-router": "~57.0.17",
   "expo-splash-screen": "~57.0.8",
+  "expo-sqlite": "~57.0.2",
   "expo-system-ui": "~57.0.3",
   react: "19.2.3",
   "react-dom": "19.2.3",
@@ -266,6 +349,7 @@ const APPROVED_DEV_DEPENDENCIES = Object.freeze({
   "expo-doctor": "^1.20.3",
   jest: "~29.7.0",
   "jest-expo": "~57.0.5",
+  "openapi-typescript": "7.13.0",
   prettier: "^3.9.6",
   typescript: "~6.0.3",
 });
@@ -289,7 +373,7 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "6293cd852d889a51adaa80728433371d5557e956c03c72f8d650319a462c0032";
+  "501fadc1c082e46ef9ebfbe7805a51351261cfcd0569a3ce43e12ffc782ef845";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -396,6 +480,8 @@ const APPROVED_EXPO_BASE = Object.freeze({
         imageWidth: 76,
       }),
     ]),
+    "expo-sqlite",
+    "expo-font",
   ]),
   experiments: Object.freeze({ typedRoutes: true, reactCompiler: true }),
 });
@@ -491,6 +577,8 @@ const M1_M2_EVIDENCE_BASELINE_SHA256 = Object.freeze({
 const APPROVED_RECOVERY_FILE_SHA256 = Object.freeze({
   "tsconfig.json":
     "b3fcbc507af0df8008ffae41c5132e2bafceb650f6f55347d7492e0d8f98e3c0",
+  ".serena/project.yml":
+    "00427f142657314a6d58843d332fb5fcbc52b295634a895610fa38dd3118660b",
 });
 const APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256 = Object.freeze({
   "nix/android-avd-spec.json":
@@ -536,6 +624,9 @@ const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   ".mcp.json",
   "assets/",
   "tsconfig.json",
+  "contracts/bootstrap/openapi.json",
+  "contracts/bootstrap/realtime-event.schema.json",
+  "src/core/contracts/generated/",
   "docs/evidence/",
 ]);
 const RESERVED_DEFERRED_PATHS = Object.freeze([
@@ -546,8 +637,6 @@ const RESERVED_DEFERRED_PATHS = Object.freeze([
   "src/routes",
   "src/router",
   "src/core/auth",
-  "src/core/contracts",
-  "src/core/database",
   "src/core/network",
   "src/core/platform",
   "src/core/push",
@@ -574,7 +663,9 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
       file !== "package.json",
   ),
   ...AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS,
+  ...M4_AUTHORED_FILES,
   "docs/evidence/M3.md",
+  "docs/evidence/M4.md",
 ]);
 
 const APPROVED_RECOVERY_CREATE_OR_REPLACE_PATHS = Object.freeze(
@@ -624,6 +715,7 @@ const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
   "bun.lock",
   ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
   ...M3_AUTHORED_FILES,
+  ...M4_AUTHORED_FILES,
   ...AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS,
 ]);
 
@@ -985,7 +1077,7 @@ function checkDependencyAndLockfile(snapshot, violations) {
     pushViolation(
       violations,
       "dependency-and-lockfile",
-      "package.json /dependencies must exactly equal the approved G-M3-DEPENDENCY-INSTALL map.",
+      "package.json /dependencies must exactly equal the approved M3/M4 dependency map.",
     );
   }
 
@@ -1000,7 +1092,7 @@ function checkDependencyAndLockfile(snapshot, violations) {
     pushViolation(
       violations,
       "dependency-and-lockfile",
-      "package.json /devDependencies must exactly equal the approved G-M3-DEPENDENCY-INSTALL map.",
+      "package.json /devDependencies must exactly equal the approved M3/M4 dependency map.",
     );
   }
 
@@ -1018,7 +1110,59 @@ function checkDependencyAndLockfile(snapshot, violations) {
     pushViolation(
       violations,
       "dependency-and-lockfile",
-      "bun.lock sha256 does not equal the approved G-M3-DEPENDENCY-INSTALL/G-M3-FROZEN-LOCKFILE hash.",
+      "bun.lock sha256 does not equal the approved frozen M4 dependency lock hash.",
+    );
+  }
+}
+
+function checkM4Foundation(snapshot, violations) {
+  const m4 = isPlainObject(snapshot && snapshot.m4) ? snapshot.m4 : {};
+  const sourceInventory = isPlainObject(m4.sourceInventory)
+    ? m4.sourceInventory
+    : {};
+
+  if (
+    !sameStringSet(sourceInventory.database, M4_DATABASE_SOURCE_FILES) ||
+    !sameStringSet(sourceInventory.bootstrap, M4_BOOTSTRAP_CONTRACT_FILES) ||
+    !sameStringSet(sourceInventory.tools, M4_CONTRACT_TOOL_FILES)
+  ) {
+    pushViolation(
+      violations,
+      "m4-source-ownership",
+      "M4 database, bootstrap-contract, and contract-tool inventories must exactly equal the approved authored paths.",
+    );
+  }
+
+  if (!sameStringSet(sourceInventory.contracts, M4_CONTRACT_SOURCE_FILES)) {
+    pushViolation(
+      violations,
+      "no-manual-rest-dto",
+      "src/core/contracts must contain exactly the approved mapper/validator sources plus the sole generated bootstrap-api.ts; hand-maintained duplicate REST DTO files are forbidden.",
+    );
+  }
+
+  if (!sameStringSet(m4.databaseTables, APPROVED_M4_DATABASE_TABLES)) {
+    pushViolation(
+      violations,
+      "m4-five-table-schema",
+      "The numbered SQLite migrations must declare exactly conversations, messages, outbox_commands, applied_events, and sync_cursors.",
+    );
+  }
+
+  if (!deepEqual(m4.contractFileSha256, APPROVED_M4_CONTRACT_FILE_SHA256)) {
+    pushViolation(
+      violations,
+      "contract-generated-ownership",
+      "Bootstrap sources, generator/checker, manifest, lock, and generated TypeScript must equal their approved SHA-256 ownership map.",
+    );
+  }
+
+  const contractCheck = isPlainObject(m4.contractCheck) ? m4.contractCheck : {};
+  if (contractCheck.status !== "ok") {
+    pushViolation(
+      violations,
+      "contract-generated-drift",
+      `The non-mutating bootstrap contract checker must report status=ok${typeof contractCheck.reason === "string" ? ` (${contractCheck.reason})` : ""}.`,
     );
   }
 }
@@ -1534,7 +1678,7 @@ function checkVariantAndSecurity(snapshot, violations) {
     pushViolation(
       violations,
       "variant-and-security",
-      `Reserved M4+ or second-navigation-owner path(s) must remain absent: ${reservedPathsPresent.join(", ")}.`,
+      `Deferred auth/network/push/realtime/sync/storage or second-navigation-owner path(s) must remain absent: ${reservedPathsPresent.join(", ")}.`,
     );
   }
 }
@@ -1571,6 +1715,7 @@ function checkArchitecture(snapshot) {
   checkCoverageContract(snapshot, violations);
   checkMeaningfulInventory(snapshot, violations);
   checkDependencyAndLockfile(snapshot, violations);
+  checkM4Foundation(snapshot, violations);
   checkLintTransportBinding(snapshot, violations);
   checkExpoBasePreservation(snapshot, violations);
   checkNixNativeToolchain(snapshot, violations);
@@ -1586,6 +1731,94 @@ function checkArchitecture(snapshot) {
 // Nothing below this line executes unless this file is invoked directly
 // (`bun tools/quality/check-architecture.cjs`, i.e. bun run check:architecture).
 // ---------------------------------------------------------------------------
+
+function listFilesUnder(root, { fs, path }, relativeRoot) {
+  const absoluteRoot = path.join(root, relativeRoot);
+  if (!fs.existsSync(absoluteRoot)) return [];
+
+  const results = [];
+  const stack = [relativeRoot];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const entries = fs
+      .readdirSync(path.join(root, current), { withFileTypes: true })
+      .sort((left, right) => left.name.localeCompare(right.name));
+
+    for (const entry of entries) {
+      const relativePath = path.join(current, entry.name).replaceAll("\\", "/");
+      if (entry.isDirectory()) {
+        stack.push(relativePath);
+      } else {
+        results.push(relativePath);
+      }
+    }
+  }
+
+  return results.sort();
+}
+
+function discoverM4DatabaseTables(root, { fs, path }) {
+  const migrationFiles = listFilesUnder(
+    root,
+    { fs, path },
+    "src/core/database/migrations",
+  ).filter((relativePath) => relativePath.endsWith(".ts"));
+  const tableNames = [];
+
+  for (const relativePath of migrationFiles) {
+    const contents = fs.readFileSync(path.join(root, relativePath), "utf8");
+    const declarations = contents.matchAll(
+      /\bCREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+([a-z][a-z0-9_]*)\b/gi,
+    );
+    for (const declaration of declarations) {
+      tableNames.push(declaration[1].toLowerCase());
+    }
+  }
+
+  return tableNames.sort();
+}
+
+function parseBootstrapContractCheckOutput(output) {
+  const lines = String(output || "")
+    .trim()
+    .split("\n")
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) return null;
+
+  try {
+    const parsed = JSON.parse(lines[lines.length - 1]);
+    return isPlainObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function runBootstrapContractCheck(root, { execFileSync, path }) {
+  const scriptPath = path.join(
+    root,
+    "tools/contracts/check-bootstrap-contract.mjs",
+  );
+  try {
+    const output = execFileSync(process.execPath, [scriptPath], {
+      cwd: root,
+      encoding: "utf8",
+      shell: false,
+    });
+    return (
+      parseBootstrapContractCheckOutput(output) || {
+        reason: "checker-produced-no-json-result",
+        status: "error",
+      }
+    );
+  } catch (error) {
+    return (
+      parseBootstrapContractCheckOutput(error && error.stdout) || {
+        reason: error && error.message ? error.message : String(error),
+        status: "error",
+      }
+    );
+  }
+}
 
 function buildLiveSnapshot(
   root,
@@ -1669,6 +1902,23 @@ function buildLiveSnapshot(
     { fs, crypto },
     path.join(root, "bun.lock"),
   );
+  const contractFileSha256 = Object.fromEntries(
+    Object.keys(APPROVED_M4_CONTRACT_FILE_SHA256).map((relativePath) => [
+      relativePath,
+      computeFileSha256({ fs, crypto }, path.join(root, relativePath)),
+    ]),
+  );
+  const m4SourceInventory = {
+    bootstrap: listFilesUnder(root, { fs, path }, "contracts/bootstrap"),
+    contracts: listFilesUnder(root, { fs, path }, "src/core/contracts"),
+    database: listFilesUnder(root, { fs, path }, "src/core/database"),
+    tools: listFilesUnder(root, { fs, path }, "tools/contracts"),
+  };
+  const databaseTables = discoverM4DatabaseTables(root, { fs, path });
+  const contractCheck = runBootstrapContractCheck(root, {
+    execFileSync,
+    path,
+  });
 
   const inheritedClassification = {
     nodeModules: classifyInheritedOutput(
@@ -1746,6 +1996,12 @@ function buildLiveSnapshot(
     testInventory,
     repositoryLockfiles,
     bunLockSha256,
+    m4: {
+      contractCheck,
+      contractFileSha256,
+      databaseTables,
+      sourceInventory: m4SourceInventory,
+    },
     easJsonPresent,
     reservedPathsPresent,
     eslintConfig: eslintIntrospection,
@@ -2714,12 +2970,15 @@ module.exports = {
   isAuthorizedWorkingTreePath,
   APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
   APPROVED_RECOVERY_FILE_SHA256,
+  APPROVED_M4_CONTRACT_FILE_SHA256,
+  APPROVED_M4_DATABASE_TABLES,
   APPROVED_GITIGNORE_SHA256,
   REQUIRED_GITIGNORE_ENTRIES,
   EXACT_PACKAGE_SCRIPTS,
   COVERAGE_COLLECT_FROM,
   GLOBAL_COVERAGE_THRESHOLD,
   MEANINGFUL_TEST_PATHS,
+  M4_AUTHORED_FILES,
   REQUIRED_TRANSPORT_GLOBS,
   FOREIGN_LOCKFILES,
 };

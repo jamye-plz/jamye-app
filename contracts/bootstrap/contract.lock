@@ -1,0 +1,19 @@
+{
+  "breaking_shape_sha256": "1534ebec10cf5e8d12545f6e4ffaed797b91f39aae494175830c2e55d0cf2385",
+  "contract_sha256": "a08c35edbb77fd0b8ddb7bc474fda23a45706e993afc1cd605d961dfb5d4f178",
+  "contract_version": "bootstrap.v2",
+  "fixture_hashes": {
+    "conversation-delta.response.json": "311b34d7a644b084259d285f6d511dbac81c6a9dc020e6e1dc455b3b961a16b9",
+    "invalid/breaking-required-type-without-version-bump.json": "9f087be7e4fcd365bb41ad4cb89ae0bb548d534b0328f6ec184e6b3da60adf93",
+    "invalid/message-upsert.missing-required.json": "dba1443dccddf61215a80c9300abe55f77bf3319009c9ec79b20391aab99cd26",
+    "message-command.request.json": "8bd5cb03e6e2564581facdb69fed5210bb7e75b27a863de75b935f17a80f7b48",
+    "message-command.response.json": "792c1016b59dfcfa71898cdefe18bc6f82a0a6ce9af6a9c72a0060a61a06248c",
+    "message-upsert.optional-field.json": "f409b9e009bbe44c649ee057bd7054cc68906b39d0a9576ae7f97b0b3c0561d4",
+    "unknown-event.json": "4611fb811963db6205627774f49a5f63861f26a171a0f8e13b7620586ca0d92b"
+  },
+  "manifest_sha256": "ae4b2421afeb6b43a961f5ffc2485d40a4130f3d9d5e3edd852349748dbc78b3",
+  "source_hashes": {
+    "openapi.json": "9ad4df2032425297a5f265f0b2a60d98a632d9454b287f804589a3191773a6a5",
+    "realtime-event.schema.json": "0fb9b629a5cc7ad5d2313a96995e2d16cbf10a4bba3ed722a381089ba6f2d945"
+  }
+}

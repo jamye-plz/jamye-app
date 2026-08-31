@@ -4,18 +4,19 @@
 기계적으로 옮기지 않는다. 첫 수직 절편은 한 대화방의 메시지를 SQLite에서 읽고,
 오프라인 전송 의도를 보존한 뒤 재연결 시 canonical event와 동기화하는 데 집중한다.
 
-현재 저장소에는 Expo SDK 57 기준선과 M3의 Development Build/CNG 앱 기반, strict
-environment validation, Error Boundary, system light/dark theme, redacted local logger,
-deterministic local fixture가 구현돼 있다. 아래 명령은 실행 절차이며 현재 품질 검사, native
-build 또는 runtime 성공을 뜻하지 않는다. 실제로 관찰한 결과만
-[`docs/evidence/`](docs/evidence/)에 별도로 기록한다. 현재 M3의 품질·native build·fixture
-smoke 결과는 [M3 실행 증거](docs/evidence/M3.md)에 있다.
+현재 저장소에는 Expo SDK 57와 M3의 Development Build/CNG 앱 기반 위에 M4의 local SQLite
+migration/repository와 validated bootstrap contract 경계가 구현돼 있다. 아래 명령은 실행
+절차이며 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제로 관찰한
+결과만 [`docs/evidence/`](docs/evidence/)에 별도로 기록한다. M3의 앱 기반 증거는
+[M3 실행 증거](docs/evidence/M3.md), 현재 M4 종료 감사 후보는
+[M4 실행 증거](docs/evidence/M4.md)에 있다.
 
 ## 현재 범위
 
-M3는 **로컬 Development Build/CNG/foundation/fixture smoke 기반**만 다룬다. 화면의
-`local-fixture` 데이터는 메모리에 고정된 개발용 데이터이며 production server에 연결되지
-않는다. M3에는 채팅, SQLite, outbox, realtime, server contract 또는 자동 E2E 계약이 없다.
+M4는 **로컬 SQLite persistence와 unbound bootstrap contract foundation**까지 다룬다. 화면의
+`local-fixture` 데이터는 계속 메모리에 고정돼 있고 M4 repository나 production server에
+연결되지 않는다. 다섯-table schema에 outbox와 sync 상태를 모델링하지만 network dispatch,
+realtime/delta 실행, auth, chat UI 또는 자동 E2E는 아직 없다.
 
 전체 로드맵의 제품 범위는 한 대화방의 offline-first 텍스트 채팅과 복구다.
 
@@ -29,11 +30,32 @@ production identifier·signing·store 제출은 후속 backlog다. 자세한 경
 [`docs/roadmap.md`](docs/roadmap.md)와
 [`docs/product-intent.md`](docs/product-intent.md)를 기준으로 한다.
 
+## M4 local bootstrap contract
+
+M4의 local bootstrap wire contract는 `status = bootstrap`,
+`contract_version = bootstrap.v2`이다. 이 상태에서는 실제 production host나 active
+transport를 정의하지 않는다. `contract.lock`은 canonical source/fixture checksum과 breaking
+shape를 기록하며, `server_tag = null`, `server_commit = null`은 아직 server에 bind되지 않은
+local provenance(`unbound`)라는 의도적인 표시다.
+
+이 bootstrap은 다음 조건을 **모두 충족한 뒤에만** 대체할 수 있다.
+
+1. 별도 승인된 source가 non-bootstrap production contract version과 authenticated source
+   ownership(인증된 source ownership)을 제공한다.
+2. non-null `server_tag`와 `server_commit`, 그리고 approved auth/endpoint scope가 별도
+   결정으로 승인된다.
+3. types, fixtures, manifest, `contract.lock`을 regenerate(재생성)하고 compatibility review
+   (호환성 검토)를 통과한다.
+4. M6 integration decision이 해당 contract의 실제 invocation을 별도로 승인한다.
+
+그 전까지 unknown event의 `request_delta`는 local recovery result일 뿐이며 HTTP, WebSocket,
+auth 실행을 뜻하지 않는다.
+
 ## 고정 기준선
 
 | 항목                    | 값                  |
 | ----------------------- | ------------------- |
-| Expo                    | `~57.0.17`          |
+| Expo                    | `~57.0.18`          |
 | React Native            | `0.86.3`            |
 | React                   | `19.2.3`            |
 | Expo Router             | `~57.0.17`          |
@@ -57,9 +79,11 @@ Development variant의 simulator/emulator 식별자는 다음 네 값으로만 �
 실패한다. Production identifier는 open decision이다.
 
 `src/core/config/expo-base-config.json`은 SDK 57 template에서 보존한 non-identity Expo
-설정의 단일 base fragment다. `app.config.ts`는 이 JSON 전체에서 development identity와
-`['expo-dev-client', { addGeneratedScheme: true }]`만 더한다. 이 generated scheme은 개발
-launcher 연결용일 뿐 공개 custom scheme, universal link 또는 app link 계약이 아니다.
+설정에 M4의 option-free native plugin인 `expo-sqlite`, `expo-font`를 그 순서로 등록한
+단일 base fragment다. 두 plugin에는 option이나 font asset path를 넣지 않는다. `app.config.ts`는
+이 JSON 전체에서 development identity와 `['expo-dev-client', { addGeneratedScheme: true }]`만
+더한다. 이 generated scheme은 개발 launcher 연결용일 뿐 공개 custom scheme, universal link
+또는 app link 계약이 아니다.
 
 결정 근거는 다음 ADR에 있다.
 

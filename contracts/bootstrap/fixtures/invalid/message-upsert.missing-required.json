@@ -1,0 +1,13 @@
+{
+  "conversation_id": "fixture-conversation",
+  "cursor": "cursor-1",
+  "event_id": "event-message-invalid-1",
+  "payload": {
+    "client_msg_id": "client-message-invalid-1",
+    "created_at_ms": 100,
+    "message_id": "message-invalid-1",
+    "sender_id": "fixture-sender"
+  },
+  "server_sequence": 1,
+  "type": "message.upsert"
+}

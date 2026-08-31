@@ -1,0 +1,10 @@
+{
+  "conversation_id": "fixture-conversation",
+  "cursor": "cursor-2",
+  "event_id": "event-unknown-1",
+  "payload": {
+    "reason": "fixture"
+  },
+  "server_sequence": 2,
+  "type": "message.redacted"
+}

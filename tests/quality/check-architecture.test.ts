@@ -1,7 +1,10 @@
 import {
   APPROVED_GITIGNORE_SHA256,
+  APPROVED_M4_CONTRACT_FILE_SHA256,
+  APPROVED_M4_DATABASE_TABLES,
   APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
   APPROVED_RECOVERY_FILE_SHA256,
+  M4_AUTHORED_FILES,
   REQUIRED_GITIGNORE_ENTRIES,
   checkArchitecture,
   classifyTutorialAssetReferencesInText,
@@ -10,7 +13,7 @@ import {
 
 type Violation = { category: string; message: string };
 type CheckResult = { violations: Violation[] };
-type ExpoConfigPlugin = string | [string, Record<string, unknown>];
+type ExpoConfigPlugin = string | [string] | [string, Record<string, unknown>];
 
 const PINNED_BASE = {
   version: "1.0.0",
@@ -38,6 +41,8 @@ const PINNED_BASE = {
         imageWidth: 76,
       },
     ],
+    "expo-sqlite",
+    "expo-font",
   ] as ExpoConfigPlugin[],
   experiments: { typedRoutes: true, reactCompiler: true },
 };
@@ -59,16 +64,23 @@ const MEANINGFUL_TEST_PATHS = [
   "tests/quality/check-architecture.test.ts",
   "tests/quality/development-workflow.test.ts",
   "tests/quality/nix-avd.test.ts",
+  "tests/contracts/bootstrap-sources.test.ts",
+  "tests/contracts/contract-tooling.test.ts",
+  "tests/contracts/validate-wire.test.ts",
+  "tests/core/database/migrations.test.ts",
+  "tests/core/database/repository.test.ts",
 ];
 
 const APPROVED_DEPENDENCIES = {
-  expo: "~57.0.17",
-  "expo-constants": "~57.0.15",
+  ajv: "8.20.0",
+  expo: "~57.0.18",
+  "expo-constants": "~57.0.16",
   "expo-dev-client": "~57.0.16",
-  "expo-font": "~57.0.1",
+  "expo-font": "~57.0.2",
   "expo-linking": "~57.0.8",
   "expo-router": "~57.0.17",
   "expo-splash-screen": "~57.0.8",
+  "expo-sqlite": "~57.0.2",
   "expo-system-ui": "~57.0.3",
   react: "19.2.3",
   "react-dom": "19.2.3",
@@ -90,12 +102,13 @@ const APPROVED_DEV_DEPENDENCIES = {
   "expo-doctor": "^1.20.3",
   jest: "~29.7.0",
   "jest-expo": "~57.0.5",
+  "openapi-typescript": "7.13.0",
   prettier: "^3.9.6",
   typescript: "~6.0.3",
 };
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "6293cd852d889a51adaa80728433371d5557e956c03c72f8d650319a462c0032";
+  "501fadc1c082e46ef9ebfbe7805a51351261cfcd0569a3ce43e12ffc782ef845";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -211,6 +224,19 @@ const REQUIRED_ROUTE_CORE_PATTERNS = [
   "**/core/logging/**",
 ];
 
+const M4_DATABASE_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
+  path.startsWith("src/core/database/"),
+);
+const M4_CONTRACT_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
+  path.startsWith("src/core/contracts/"),
+);
+const M4_BOOTSTRAP_CONTRACT_FILES = M4_AUTHORED_FILES.filter((path: string) =>
+  path.startsWith("contracts/bootstrap/"),
+);
+const M4_CONTRACT_TOOL_FILES = M4_AUTHORED_FILES.filter((path: string) =>
+  path.startsWith("tools/contracts/"),
+);
+
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
@@ -304,6 +330,20 @@ function buildValidRepositorySnapshot() {
     testInventory: clone(MEANINGFUL_TEST_PATHS),
     repositoryLockfiles: ["bun.lock"],
     bunLockSha256: APPROVED_BUN_LOCK_SHA256,
+    m4: {
+      contractCheck: { status: "ok" },
+      contractFileSha256: clone(APPROVED_M4_CONTRACT_FILE_SHA256) as Record<
+        string,
+        string
+      >,
+      databaseTables: clone(APPROVED_M4_DATABASE_TABLES) as string[],
+      sourceInventory: {
+        bootstrap: clone(M4_BOOTSTRAP_CONTRACT_FILES),
+        contracts: clone(M4_CONTRACT_SOURCE_FILES),
+        database: clone(M4_DATABASE_SOURCE_FILES),
+        tools: clone(M4_CONTRACT_TOOL_FILES),
+      },
+    },
     easJsonPresent: false,
     eslintConfig: {
       usesExpoFlatConfig: true,
@@ -428,7 +468,7 @@ function buildValidRepositorySnapshot() {
   };
 }
 
-describe("checkArchitecture (M3 quality_contract pure policy validator)", () => {
+describe("checkArchitecture (M3/M4 quality_contract pure policy validator)", () => {
   test("accepts the canonical valid repository snapshot with zero violations", () => {
     const result: CheckResult = checkArchitecture(
       buildValidRepositorySnapshot(),
@@ -527,6 +567,105 @@ describe("checkArchitecture (M3 quality_contract pure policy validator)", () => 
 
     expect(result.violations.map((v) => v.category)).toContain(
       "dependency-and-lockfile",
+    );
+  });
+
+  test("denies missing or drifted M4 dependency pins (dependency-and-lockfile)", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    delete (snapshot.packageJson.dependencies as Record<string, string>).ajv;
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "dependency-and-lockfile",
+    );
+  });
+
+  test("denies SQLite plugin options beyond the approved option-free registration", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    (snapshot.expoBase.pinnedBase.plugins as ExpoConfigPlugin[])[2] = [
+      "expo-sqlite",
+      { enableFTS: true },
+    ];
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "expo-base-preservation",
+    );
+  });
+
+  test("denies Expo Font plugin options beyond the approved option-free registration", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    (snapshot.expoBase.pinnedBase.plugins as ExpoConfigPlugin[])[3] = [
+      "expo-font",
+      { fonts: ["./assets/fonts/unapproved.ttf"] },
+    ];
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "expo-base-preservation",
+    );
+  });
+
+  test("denies removal of the required option-free Expo Font plugin", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    (snapshot.expoBase.pinnedBase.plugins as ExpoConfigPlugin[]).splice(3, 1);
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "expo-base-preservation",
+    );
+  });
+
+  test("denies migration table drift beyond the exact approved five-table schema", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m4.databaseTables.push("schema_versions");
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m4-five-table-schema",
+    );
+  });
+
+  test("no-manual-rest-dto denies a hand-maintained REST DTO beside generated output", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m4.sourceInventory.contracts.push(
+      "src/core/contracts/bootstrap-rest-dto.ts",
+    );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "no-manual-rest-dto",
+    );
+  });
+
+  test("denies generated contract hash drift or a non-ok deterministic checker result", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m4.contractFileSha256[
+      "src/core/contracts/generated/bootstrap-api.ts"
+    ] = "0".repeat(64);
+    snapshot.m4.contractCheck.status = "drift";
+
+    const result: CheckResult = checkArchitecture(snapshot);
+    const categories = result.violations.map((v) => v.category);
+
+    expect(categories).toContain("contract-generated-ownership");
+    expect(categories).toContain("contract-generated-drift");
+  });
+
+  test("denies deferred M6 realtime ownership during the M4 boundary", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.reservedPathsPresent.push("src/core/realtime");
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "variant-and-security",
     );
   });
 
@@ -637,6 +776,8 @@ describe("checkArchitecture (M3 quality_contract pure policy validator)", () => 
     expect(APPROVED_RECOVERY_FILE_SHA256).toEqual({
       "tsconfig.json":
         "b3fcbc507af0df8008ffae41c5132e2bafceb650f6f55347d7492e0d8f98e3c0",
+      ".serena/project.yml":
+        "00427f142657314a6d58843d332fb5fcbc52b295634a895610fa38dd3118660b",
     });
     expect(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256).toEqual({
       "nix/android-avd-spec.json":
@@ -665,7 +806,20 @@ describe("checkArchitecture (M3 quality_contract pure policy validator)", () => 
     ).toBe(false);
   });
 
-  test("allows the approved project-document format migration but not accepted evidence", () => {
+  test("allows every exact M4 authored path and rejects adjacent contract DTOs", () => {
+    for (const path of M4_AUTHORED_FILES) {
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    }
+
+    expect(
+      isAuthorizedWorkingTreePath("src/core/contracts/bootstrap-rest-dto.ts"),
+    ).toBe(false);
+    expect(
+      isAuthorizedWorkingTreePath("src/core/database/retry-dispatcher.ts"),
+    ).toBe(false);
+  });
+
+  test("allows the approved project-document migration and M3/M4 evidence only", () => {
     for (const path of [
       "docs/adr/0001-expo-sdk-57-default-template.md",
       "docs/adr/0002-bun-only-package-management.md",
@@ -680,6 +834,9 @@ describe("checkArchitecture (M3 quality_contract pure policy validator)", () => 
 
     expect(isAuthorizedWorkingTreePath("docs/evidence/M1.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M2.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M3.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M4.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M5.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("AGENTS.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("CLAUDE.md")).toBe(false);
   });

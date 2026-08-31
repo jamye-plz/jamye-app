@@ -26,5 +26,10 @@ assets/
 # Hash-bound recovery config stays byte-for-byte stable
 tsconfig.json
 
+# Canonical contract sources and deterministic generated output own their bytes
+contracts/bootstrap/openapi.json
+contracts/bootstrap/realtime-event.schema.json
+src/core/contracts/generated/
+
 # Accepted milestone evidence is immutable
 docs/evidence/

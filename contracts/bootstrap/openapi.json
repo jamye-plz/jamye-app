@@ -1,0 +1,201 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Jamye local bootstrap contract",
+    "version": "bootstrap.v2"
+  },
+  "paths": {
+    "/bootstrap/v1/conversations/{conversation_id}/messages": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Jamye-Contract-Version",
+            "required": true,
+            "schema": {
+              "const": "bootstrap.v2",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "body": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "client_msg_id": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "client_msg_id",
+                  "body"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checkpoint": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "cursor": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "server_sequence": {
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "cursor",
+                        "server_sequence"
+                      ],
+                      "type": "object"
+                    },
+                    "event": {
+                      "$ref": "./realtime-event.schema.json#/$defs/realtimeEvent"
+                    }
+                  },
+                  "required": [
+                    "event",
+                    "checkpoint"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Canonical message event and checkpoint"
+          },
+          "400": {
+            "description": "Invalid local bootstrap request"
+          },
+          "409": {
+            "description": "Bootstrap contract version mismatch"
+          }
+        }
+      }
+    },
+    "/bootstrap/v1/conversations/{conversation_id}/events": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Jamye-Contract-Version",
+            "required": true,
+            "schema": {
+              "const": "bootstrap.v2",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checkpoint": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "cursor": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "server_sequence": {
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "cursor",
+                        "server_sequence"
+                      ],
+                      "type": "object"
+                    },
+                    "events": {
+                      "items": {
+                        "$ref": "./realtime-event.schema.json#/$defs/realtimeEvent"
+                      },
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "events",
+                    "checkpoint",
+                    "has_more"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Canonical event delta and checkpoint"
+          },
+          "400": {
+            "description": "Invalid local bootstrap query"
+          },
+          "409": {
+            "description": "Bootstrap contract version mismatch"
+          }
+        }
+      }
+    }
+  }
+}

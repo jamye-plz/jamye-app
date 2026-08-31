@@ -1,0 +1,13 @@
+{
+  "contract_version": "bootstrap.v2",
+  "fixtures_sha256": "98b5f95de6d0deb843b70fbcd00863d8772580dece36c9b1fb0f7b2eb34e2b02",
+  "generator_identity": "openapi-typescript@7.13.0",
+  "realtime_schema_sha256": "0fb9b629a5cc7ad5d2313a96995e2d16cbf10a4bba3ed722a381089ba6f2d945",
+  "server_commit": null,
+  "server_provenance_status": "unbound-local-bootstrap",
+  "server_tag": null,
+  "source_kind": "repository-local-bootstrap",
+  "source_sha256": "9ad4df2032425297a5f265f0b2a60d98a632d9454b287f804589a3191773a6a5",
+  "status": "bootstrap",
+  "validator_identity": "ajv@8.20.0"
+}

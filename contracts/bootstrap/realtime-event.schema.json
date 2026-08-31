@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "baseEnvelope": {
+      "additionalProperties": true,
+      "properties": {
+        "conversation_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "cursor": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "event_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "payload": {
+          "type": "object"
+        },
+        "server_sequence": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "type": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "type",
+        "conversation_id",
+        "server_sequence",
+        "cursor",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "messageUpsertPayload": {
+      "additionalProperties": true,
+      "properties": {
+        "body": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "client_msg_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at_ms": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "message_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sender_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "client_msg_id",
+        "sender_id",
+        "body",
+        "created_at_ms"
+      ],
+      "type": "object"
+    },
+    "realtimeEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/baseEnvelope"
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "message.upsert"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/messageUpsertPayload"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$ref": "#/$defs/realtimeEvent"
+}
