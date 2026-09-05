@@ -1,0 +1,9 @@
+# Native keyboard progress coordination
+
+Accepted on 2026-09-05: use react-native-keyboard-controller@1.21.9 as the shared native keyboard progress authority. KeyboardProvider owns the app-level native lifecycle; both platform ChatKeyboardFrame implementations derive safe-area-adjusted overlap; ChatMessageList uses UI-thread shared values for continuous anchoring; committed-message reveal waits for persistence and settled content layout; ChatComposer preserves focus and does not dismiss the keyboard.
+
+User-run static/native evidence is green: focused and aggregate tests, clean prebuild, iOS build, and Android build. The Android APK contains KeyboardControllerPackage, built and installed APK hashes match, SQLite fingerprint was preserved, and cold launch succeeded. Runtime closure passed after a clean Metro restart and one newly committed local send on each platform. User-confirmed manual observation verifies smooth native-speed keyboard/list motion, exact latest-message placement above the composer, preserved keyboard focus after send, and correct behavior on both iOS and Android. Stable database captures show one new message and one matching queued outbox command per platform, with integrity and foreign-key checks passing.
+
+Durable ADR: `.agents/results/architecture/adr-native-keyboard-progress-coordination.md`.
+
+QA SCM audit on 2026-09-05: reviewed the full HEAD-relative M5 working tree and user-supplied native/runtime evidence. No introduced CRITICAL, HIGH, or MEDIUM security, performance, accessibility, correctness, or code-quality issue was found. The only commit-packaging note is to exclude the untracked .serena memory artifact. `bun audit` reports pre-existing advisories in decode-uri-component@0.2.2, image-size@1.2.1, and uuid@7.0.3; they are unchanged from HEAD and should be handled in a separate Expo/Metro dependency-baseline update.
