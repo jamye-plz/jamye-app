@@ -4,26 +4,30 @@
 기계적으로 옮기지 않는다. 첫 수직 절편은 한 대화방의 메시지를 SQLite에서 읽고,
 오프라인 전송 의도를 보존한 뒤 재연결 시 canonical event와 동기화하는 데 집중한다.
 
-현재 저장소에는 Expo SDK 57와 M3의 Development Build/CNG 앱 기반 위에 M4의 local SQLite
-migration/repository와 validated bootstrap contract 경계가 구현돼 있다. 아래 명령은 실행
-절차이며 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제로 관찰한
-결과만 [`docs/evidence/`](docs/evidence/)에 별도로 기록한다. M3의 앱 기반 증거는
-[M3 실행 증거](docs/evidence/M3.md), 현재 M4 종료 감사 후보는
-[M4 실행 증거](docs/evidence/M4.md)에 있다.
+현재 저장소에는 Expo SDK 57 Development Build/CNG 기반, M4의 local SQLite·bootstrap
+contract, M5의 SQLite 기반 로컬 채팅 읽기·쓰기가 구현돼 있다. 아래 명령은 실행 절차이며
+그 자체로 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제 관찰 결과는
+각 마일스톤 증거에 기록한다: [M3](docs/evidence/M3.md),
+[M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md).
 
 ## 현재 범위
 
-M4는 **로컬 SQLite persistence와 unbound bootstrap contract foundation**까지 다룬다. 화면의
-`local-fixture` 데이터는 계속 메모리에 고정돼 있고 M4 repository나 production server에
-연결되지 않는다. 다섯-table schema에 outbox와 sync 상태를 모델링하지만 network dispatch,
-realtime/delta 실행, auth, chat UI 또는 자동 E2E는 아직 없다.
+M5는 **인증 없는 fixture 대화방 하나의 로컬 채팅 읽기·쓰기**까지 완료했다. 화면은 SQLite를
+유일한 메시지 원본으로 읽고, 전송 시 pending message와 queued outbox command를 하나의
+exclusive transaction에 기록한다. 실패 재시도는 기존 identity와 command를 재사용한다.
+양 플랫폼 composer는 한국어 조합을 보존하며, native keyboard progress에 맞춰 최신 메시지와
+입력창을 함께 이동하고 전송 뒤에도 keyboard focus를 유지한다.
+
+Network dispatch, realtime/delta 실행, reconnect/restart 수렴, auth와 production server 연결은
+M6 이후 범위다. M5의 queued outbox는 전송 의도를 로컬에 보존할 뿐 네트워크 전송 성공을
+뜻하지 않는다. 자동 mobile E2E와 실기기 acceptance도 아직 완료하지 않았다.
 
 전체 로드맵의 제품 범위는 한 대화방의 offline-first 텍스트 채팅과 복구다.
 
-- M4: bootstrap contract와 SQLite
-- M5: 로컬 채팅 읽기·쓰기
-- M6: offline outbox와 realtime/delta 복구
-- M7: 완성된 채팅 흐름의 E2E와 양 플랫폼 native acceptance
+- M4: bootstrap contract와 SQLite — 완료
+- M5: 로컬 채팅 읽기·쓰기 — 완료
+- M6: offline outbox와 realtime/delta 복구 — 시작 전
+- M7: 완성된 채팅 흐름의 E2E와 양 플랫폼 native acceptance — 시작 전
 
 완성형 카카오·구글·애플 OAuth, 그룹·초대·주제 관리, 미디어·STT, production push,
 production identifier·signing·store 제출은 후속 backlog다. 자세한 경계는
@@ -60,6 +64,7 @@ auth 실행을 뜻하지 않는다.
 | React                   | `19.2.3`            |
 | Expo Router             | `~57.0.19`          |
 | Expo Development Client | `~57.0.18`          |
+| Keyboard Controller     | `1.21.9`            |
 | TypeScript              | `~6.0.3`            |
 | package manager         | Bun `1.3.13`        |
 | route root              | `src/app/`          |
@@ -292,34 +297,43 @@ Build를 모두 다시 build/install해야 한다. 이 절차는 qualifying chan
 source-controlled 원본으로 취급하지 않는다.
 
 `run:ios --no-bundler`와 `run:android --no-bundler`가 앱을 자동 install/open하더라도 이는
-build/install 결과일 뿐 fixture, startup validation, theme 또는 runtime smoke 증거가 아니다.
-Runtime 판정은 별도의 두 Metro session에서 현재 bundle임을 확인하는 세 관찰, 즉 invalid
-iOS startup, 같은 iOS client의 valid recovery, valid Android fixture가 모두 있어야 한다.
-이 문서는 그 관찰이 수행됐거나 통과했다고 주장하지 않는다.
+build/install 결과일 뿐 현재 JavaScript bundle의 runtime 동작 증거가 아니다. Native module인
+`react-native-keyboard-controller`를 추가한 M5에서는 clean prebuild, 양 플랫폼 rebuild/install,
+새 Metro bundle 재진입과 사용자 수동 관찰을 별도 게이트로 수행했다. 구체적인 실행 결과와
+미실행 범위는 [M5 실행 증거](docs/evidence/M5.md)에만 기록한다.
 
-## M3 구조와 상태 경계
+## M5 구조와 상태 경계
 
 ```text
 src/app/                          얇은 Expo Router route와 root composition
 src/core/config/                  Expo base config와 공개 environment validation
 src/core/logging/                 structured redacted local logging
 src/core/errors/                  root Error Boundary와 recovery UI
-src/core/providers/               실제 root provider composition
+src/core/database/                SQLite open·migration·repository lifecycle
+src/core/providers/               theme·database·keyboard·runtime provider composition
 src/core/theme/                   semantic light/dark token과 system theme provider
-src/features/development-fixture/ deterministic in-memory fixture model과 화면
+src/features/chat/model/          fixture identity, send policy, message-window 계산
+src/features/chat/ui/             native list, row, composer, platform keyboard adapter
+src/features/chat/                repository 구독 기반 conversation hook
 src/shared/ui/                    native screen/text primitive
 ```
 
-- Route는 feature UI와 root provider만 조합한다.
-- `AppProviders`는 startup environment를 검증하고 하나의 active theme provider를 제공한다.
+- Route는 chat screen과 root provider만 조합하고 persistence 구현을 직접 import하지 않는다.
+- `AppProviders`는 startup environment를 검증하고 theme, database, native keyboard controller와
+  runtime dependency를 조합한다.
+- Chat screen과 UI는 유일하게 허용된 repository port를 통해 SQLite 상태를 읽고 쓴다.
+- Local send는 pending message와 outbox command를 하나의 exclusive transaction으로 commit한
+  뒤에만 화면에 공개한다.
+- Chat list는 prepend anchor와 committed local target reveal을 조정하고, keyboard 진행 중에는
+  UI-thread scroll을 사용한다.
 - Theme는 React Native `useColorScheme()`만 따르며 저장 preference나 state library가 없다.
-- Local fixture는 production server, HTTP, WebSocket, storage 또는 auth를 사용하지 않는다.
+- Local fixture는 production server, HTTP, WebSocket 또는 auth를 사용하지 않는다.
 - ESLint가 `app.config.ts`와 모든 `src` TS/TSX에서 직접 transport를 금지하고, route와 UI
   계층에는 더 좁은 import 경계를 적용한다.
 
-Preference가 실제 제품 기능으로 등장하기 전까지 state owner와 persistence를 선택하지 않는다.
-SQLite, 작은 KV, memory state 중 하나를 선택할 때는 사용자 범위, logout 정리, migration과
-복구 요구를 별도 ADR에서 결정한다.
+M6는 이 경계를 유지한 채 deterministic local fixture transport, persistent outbox processor와
+canonical event/delta recovery를 별도 승인 후 추가한다. 실제 `jamye-server`, credential,
+session/token, OAuth와 production endpoint는 이번 수직 절편의 계약이 아니다.
 
 ## 품질 명령과 coverage 계약
 

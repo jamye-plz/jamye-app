@@ -1,12 +1,12 @@
 # jamye-app 그린필드 로드맵
 
-- 상태: M4 완료 — 종료 감사·커밋 완료 및 사용자 최종 승인 완료
+- 상태: M5 완료 — 구현·품질·양 플랫폼 local-send/keyboard native/runtime 검증 및 사용자 수용 완료
 - 로드맵 기준 세션: `20260822-200158`
-- 현재 단계: M4 완료; M5 Ultrawork 시작 승인
+- 현재 단계: M5 종료 evidence 작성·검증 완료; M6 시작 전
 - 결정권자: 사용자
 - 실행 조정자: 주 에이전트
 - 대상: iOS·Android React Native 앱의 첫 offline-first 채팅 수직 절편
-- 최종 수정일: 2026-08-31
+- 최종 수정일: 2026-09-05
 
 ## 1. 이 문서의 역할
 
@@ -156,8 +156,10 @@ platform-tools 37.0.1, Platform 36, Build Tools 36.0.0을 사용한다. NDK는 �
 `391b592eb44808b3bd0cb80bb71b63a5a118b8bb`을 정확한 Nix snapshot으로 사용한다. 공식
 근거와 lock 검증 기록은 `docs/research/mobile-baseline.md`를 SSOT로 사용한다.
 
-M3 종료 전 Expo compatibility refresh에서는 SDK 57 line을 유지하면서 현재 application
-dependency를 Expo 57.0.17과 React Native 0.86.3으로 갱신했다. M1의 당시 조사값은 위 기록과
+M3 종료 전 Expo compatibility refresh에서는 SDK 57 line을 유지하면서 application
+dependency를 Expo 57.0.17과 React Native 0.86.3으로 갱신했다. M5 native keyboard 작업에서
+같은 SDK line의 Expo 57.0.20, Expo Router 57.0.19, Expo Dev Client 57.0.18과
+`react-native-keyboard-controller` 1.21.9로 다시 고정했다. M1의 당시 조사값은 위 기록과
 research 문서에 보존하고, 현재 exact package 선언과 resolution은 `package.json`과
 `bun.lock`을 권위 원본으로 사용한다.
 
@@ -417,9 +419,15 @@ SQLite·bootstrap contract 기반은 `298aacec7dd61a31c2fdc196e0ca7b47093c91fd`�
 
 목표는 test fixture 대화방을 SQLite에서 읽고, 한국어 입력을 안전하게 pending message로 저장하는 것이다.
 
-사용자는 2026-08-31에 M5 Ultrawork 시작을 승인했다. 이 승인은 PLAN부터 시작하는 범위 승인이고,
-구현·품질·native 결과나 마일스톤 완료를 미리 승인한 것이 아니다. M5는 실제 chat list와 composer를
-SQLite repository에 연결하지만 network processor나 실제 server 호출은 만들지 않는다.
+사용자는 2026-08-31에 M5 Ultrawork 시작을 승인했고 2026-09-05에 iOS·Android의 최종
+keyboard/list 동작과 local send를 직접 확인했다. 현재 판정은 M5 완료다. 실제 chat list와
+composer는 SQLite repository에 연결됐고 network processor나 실제 server 호출은 만들지
+않았다. 명령·native build/runtime·수동 관찰·미실행 항목은 [M5 실행 증거](evidence/M5.md)를
+기준으로 한다.
+
+이 수용은 Simulator/Emulator의 local-send와 keyboard/list 기능에 한정한다. 실제
+VoiceOver/TalkBack, 200% text, reduce motion과 물리 기기 checklist는 실행하지 않았으며 M8
+또는 별도 device acceptance에서 `PASS | FAIL | BLOCKED`로 기록한다.
 
 에이전트 작업:
 
@@ -626,16 +634,26 @@ M2에는 사용자가 승인한 1회성 bootstrap 품질 증거 유예가 적용
 | D-011 | 이번 product scope는 offline-first 채팅에 한정하고 완성형 OAuth와 모든 비채팅 기능은 backlog로 이동                                                                        | 승인됨            |
 | D-012 | M2가 새로 작성한 비-template 실행 application/domain 로직이 없는 bootstrap의 lint·coverage를 미측정으로 유지하고 M3에 실제 lint·test·coverage 80% 조건을 한 번만 강제 이관 | 2026-08-25 승인됨 |
 | D-013 | 실제 `jamye-server` integration은 M0~M8 범위 밖에 두고, server의 배포 contract 발행과 app의 contract 수신·호출은 각 저장소의 별도 후속 계획으로 결정                       | 2026-08-31 승인됨 |
+| D-014 | iOS·Android 모두 native keyboard progress를 단일 animation authority로 사용하고, composer와 latest message를 같은 프레임에서 이동하며 전송 후 focus를 유지                 | 2026-09-05 승인됨 |
+| D-015 | Expo Router 57.0.19의 initial-link mount race는 exact Bun dependency patch와 SHA-256 architecture guard로 고정하고 upstream 교체 시 별도 재검증                            | 2026-09-05 승인됨 |
 
 ## 12. 현재 게이트
 
-M4의 SQLite migration·repository, `bootstrap.v2` contract generation·validation, dependency,
-architecture, aggregate coverage와 양 플랫폼 Development Build/runtime smoke가 각각 승인된
-명령 게이트에서 PASS했다. VERIFY·REFINE·SHIP 종료 감사와 exact closure commit도 완료됐으며,
-현재 기준 commit은 `298aacec7dd61a31c2fdc196e0ca7b47093c91fd`다. 상세 실행 결과는
-[M4 실행 증거](evidence/M4.md)에 있다.
+M5의 SQLite-only conversation read, atomic pending message/outbox write, stable retry identity,
+virtualized prepend anchor, Korean IME-safe composer와 native keyboard-progress coordination이
+구현됐다. 최종 aggregate는 20 suites·193 tests와 네 global coverage threshold, dependency,
+architecture, Expo Doctor 21/21을 모두 통과했다. Clean prebuild 뒤 iPhone 17 Simulator와
+`jamye_pixel_9_api_36` Emulator를 rebuild/install했고, 각 플랫폼에서 신규 local send가 message와
+outbox에 정확히 한 쌍씩 commit된 runtime database 증거와 사용자의 UI 수용을 확보했다. 전체
+판정과 미실행 항목은 [M5 실행 증거](evidence/M5.md)에 있다.
 
-사용자는 2026-08-31에 M5 Ultrawork 시작을 승인했다. 다음 활성 게이트는 M5 PLAN이며, 실제
-chat list·composer·SQLite local write와 양 플랫폼 UI 검증 범위를 먼저 고정한다. M5는 network
-dispatch를 구현하지 않고 M6도 deterministic local fixture transport만 사용한다. 실제
-`jamye-server` integration과 배포 contract 전달·수신은 이번 M0~M8 완료 조건이 아니다.
+M5 구현은 local commit `2915793`, native keyboard 조정 Serena memory는 `ee87da8`에 보존돼
+있다. M5 종료 문서와 evidence의 commit·push는 별도 SCM 승인 전까지 local working tree에
+남긴다. 다음 제품 게이트는 M6 PLAN이며 아직 시작하지 않았다. M6도 인증 없는 deterministic
+local fixture transport만 사용하고, 실제 `jamye-server` integration·auth·production endpoint는
+별도 후속 계획과 승인이 필요하다.
+
+M5 완료는 production deployment readiness를 뜻하지 않는다. 기존 transitive dependency
+advisory 4개(High 2, Moderate 2), production variant·signing·backend/auth와 물리 기기/접근성
+checklist가 남아 있으므로 production 판정은 **NOT READY**다. Dependency 변경과 release 준비는
+별도 승인 게이트에서 처리한다.

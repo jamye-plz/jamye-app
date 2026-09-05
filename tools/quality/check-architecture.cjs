@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Single repository-invariant checker for the M3/M4 quality_contract.
+ * Single repository-invariant checker for the M3/M4/M5 quality_contract.
  *
  * checkArchitecture(snapshot) is a pure validator: given a plain-data
  * repository snapshot it returns { violations: [{ category, message }] }
@@ -331,9 +331,7 @@ const M5_DESIGN_ARTIFACT_PATHS = Object.freeze([
   "DESIGN.md",
 ]);
 
-const M5_REQUIRED_PRE_QUALITY_PATHS = Object.freeze(
-  M5_AUTHORED_FILES.filter((file) => file !== "docs/evidence/M5.md"),
-);
+const M5_REQUIRED_PRE_QUALITY_PATHS = M5_AUTHORED_FILES;
 
 const ACTIVE_M3_AUTHORED_FILES = Object.freeze(
   M3_AUTHORED_FILES.filter(
@@ -1315,7 +1313,7 @@ function checkM5Foundation(snapshot, violations) {
     pushViolation(
       violations,
       "m5-authored-inventory",
-      "M5 authored, test, and active pre-quality inventories must exactly equal the approved local-chat scope; M5 evidence remains authorized but deferred until its evidence gate.",
+      "M5 authored, test, and final pre-quality inventories must exactly equal the approved local-chat scope; closure evidence is required after G-M5-EVIDENCE.",
     );
   }
 

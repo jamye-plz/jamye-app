@@ -463,9 +463,7 @@ function buildValidRepositorySnapshot() {
       historicalM3TestPaths: clone(M3_TEST_PATHS),
       retiredPlaceholderPaths: clone(M5_RETIRED_PLACEHOLDER_PATHS),
       testPaths: clone(M5_TEST_PATHS),
-      requiredPreQualityPaths: M5_AUTHORED_FILES.filter(
-        (path) => path !== "docs/evidence/M5.md",
-      ),
+      requiredPreQualityPaths: clone(M5_AUTHORED_FILES),
       meaningfulTestPaths: clone(ACTIVE_MEANINGFUL_TEST_PATHS),
     },
     easJsonPresent: false,
@@ -625,7 +623,7 @@ function buildValidRepositorySnapshot() {
   };
 }
 
-describe("checkArchitecture (M3/M4 quality_contract pure policy validator)", () => {
+describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", () => {
   test("accepts the canonical valid repository snapshot with zero violations", () => {
     const result: CheckResult = checkArchitecture(
       buildValidRepositorySnapshot(),
@@ -1233,9 +1231,12 @@ describe("checkArchitecture (M3/M4 quality_contract pure policy validator)", () 
     );
   });
 
-  test("denies prematurely requiring M5 evidence before the evidence gate", () => {
+  test("denies omitting M5 evidence after the evidence gate", () => {
     const snapshot = buildValidRepositorySnapshot();
-    snapshot.m5.requiredPreQualityPaths.push("docs/evidence/M5.md");
+    snapshot.m5.requiredPreQualityPaths =
+      snapshot.m5.requiredPreQualityPaths.filter(
+        (path) => path !== "docs/evidence/M5.md",
+      );
 
     const result: CheckResult = checkArchitecture(snapshot);
 

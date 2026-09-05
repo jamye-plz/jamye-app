@@ -52,8 +52,11 @@ EXPO_PUBLIC_APP_MODE=local-fixture
 | Node.js               | 22.23.2              | `nix/toolchain-versions.nix`                                |
 | JDK                   | 17.0.19              | `nix/toolchain-versions.nix`                                |
 | CocoaPods             | 1.16.2               | `nix/toolchain-versions.nix`                                |
-| Expo                  | 57.0.17              | `package.json`, `bun.lock`                                  |
+| Expo                  | 57.0.20              | `package.json`, `bun.lock`                                  |
+| Expo Router           | 57.0.19              | `package.json`, `bun.lock`                                  |
+| Expo Dev Client       | 57.0.18              | `package.json`, `bun.lock`                                  |
 | React Native          | 0.86.3               | `package.json`, `bun.lock`                                  |
+| Keyboard Controller   | 1.21.9               | `package.json`, `bun.lock`                                  |
 | TypeScript            | 6.0.3                | `package.json`, `bun.lock`                                  |
 | ESLint                | 9.39.5               | `package.json`, `bun.lock`                                  |
 | Prettier              | 3.9.6                | `package.json`, `bun.lock`                                  |
@@ -100,8 +103,8 @@ application code가 아니므로 `eslint .`로 끌어들이지 않는다.
 README와 `docs/**`의 product/development 문서도 같은 서식 계약에 포함한다. CNG output,
 dependency, agent/runtime bundle, root agent instruction인 `AGENTS.md`와 `CLAUDE.md`, exported
 asset과 hash-bound recovery config는 `.prettierignore`에서 제외한다. `docs/**`의 문서 예외는
-승인 후 확정되는 `docs/evidence/**`뿐이며 M1, M2, 향후 M3 evidence 모두 일반 format 검사에서
-제외한다.
+승인 후 확정되는 `docs/evidence/**`뿐이며 M1부터 현재 M5까지의 evidence도 일반 format 검사에서
+제외한다. Evidence의 서식 제외는 내용·reference 검증 제외를 뜻하지 않는다.
 
 Formatting은 검사 후 확인된 파일만 고친다. `format:write`는 일부러 target을 내장하지 않은
 `prettier --write`이며 반드시 `-- <files...>`를 붙인다. 경로 없이 실행하거나 저장소 전체에
@@ -199,7 +202,8 @@ bun run toolchain:check:native
 | `bun run expo:run:android`    | build       | Emulator APK build/install/open, Metro 미포함     |
 
 `expo:prebuild:clean`, 양 플랫폼 build와 runtime smoke는 각각 별도 사용자 승인 게이트다. 명령이
-script로 존재한다는 사실은 실행 승인이나 성공 증거가 아니다.
+script로 존재한다는 사실은 실행 승인이나 성공 증거가 아니다. 마일스톤별 실제 결과와 미실행
+항목은 `docs/evidence/<milestone>.md`에서만 판정한다.
 
 JS/TS만 변경하고 native dependency, config plugin, native app-config field가 바뀌지 않았다면
 기존 Development Build와 Metro를 재사용한다.
@@ -208,7 +212,9 @@ JS/TS만 변경하고 native dependency, config plugin, native app-config field�
 bun run expo:start
 ```
 
-Native-affecting 변경이 승인된 경우의 전체 순서는 다음과 같다.
+Native-affecting 변경이 승인된 경우의 전체 순서는 다음과 같다. M5의
+`react-native-keyboard-controller`처럼 native code를 포함한 dependency를 추가·변경했다면 기존
+Development Build 재사용만으로 완료하지 않는다.
 
 ```sh
 bun run expo:prebuild:clean
@@ -223,7 +229,29 @@ bun run expo:start
 
 `expo:start`는 terminal을 점유하므로 종료할 때 `Ctrl-C`를 사용한다. `expo:run:*`가 앱을 자동으로
 열어도 build/install 증거일 뿐이다. Metro에 연결한 뒤 iOS Simulator와 Android Emulator에서
-현재 fixture 화면을 각각 직접 확인해야 runtime smoke가 완료된다.
+현재 화면을 각각 직접 확인해야 runtime smoke가 완료된다. Keyboard 관련 변경은 composer와
+latest message가 keyboard 진행률에 맞춰 함께 이동하는지, 전송 후 focus와 최신 committed
+message가 유지되는지도 두 플랫폼에서 따로 관찰한다.
+
+### 6.1 Production release / rollback preflight — future gate
+
+아래 checklist는 M5 실행 증거가 아니라 향후 production release 승인을 위한 필수 template다.
+각 항목의 owner, 실행 시각, 결과와 복구 근거가 채워지기 전에는 production 배포를 승인하지
+않는다.
+
+- [ ] Dependency 변경을 별도 승인하고 `bun audit`의 미수용 Critical/High finding이 없음을 기록한다.
+- [ ] Production signing과 runtime secret을 source control 밖에 준비하고, `EXPO_PUBLIC_*`에
+      secret이 들어가지 않았음을 검사한다.
+- [ ] 암호화된 SQLite backup/restore의 owner와 보관 위치를 정하고 실제 restore 성공 증거를 남긴다.
+- [ ] Migration version, forward compatibility, rollback/downgrade 결정을 기록하고 전후
+      `integrity_check`, foreign-key violation, row count와 canonical fingerprint를 비교한다.
+- [ ] Rollback trigger와 실행 owner를 지정하고, 별도 승인된 migration 계획이 없으면 사용자
+      SQLite와 queued outbox를 보존한다.
+- [ ] Rollback 뒤 package/lock hash, native autolinking, 양 플랫폼 app launch, data integrity,
+      monitoring/error reporting과 release health를 확인한다.
+
+M5에서는 이 production checklist를 실행하지 않았다. M5의 local rollback 경계와 미실행
+항목은 `docs/evidence/M5.md`에 기록한다.
 
 ## 7. 표준 검사 순서
 

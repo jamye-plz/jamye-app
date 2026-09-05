@@ -227,6 +227,7 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 - Verify system status-bar content remains legible against the active light or dark canvas on both platforms.
 - Shared components own copy, semantics, tokens, and the lower-boundary anchor rule. Platform wrappers expose native keyboard progress and normalize settled safe-area overlap.
 - Native acceptance on both platforms is required for keyboard, IME, anchor, dark mode, large text, and screen-reader behavior.
+- The M5 Simulator/Emulator acceptance recorded so far covers keyboard, IME, anchor, and light/dark behavior. VoiceOver/TalkBack, 200% text, reduced motion, and physical-device checks remain `NOT RUN` for M8 or a separately approved device-acceptance gate.
 
 ## 9. Agent Prompt Guide
 
