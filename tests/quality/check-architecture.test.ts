@@ -1,8 +1,10 @@
 import {
+  APPROVED_DEPENDENCY_PATCH_FILE_SHA256,
   APPROVED_GITIGNORE_SHA256,
   APPROVED_M4_CONTRACT_FILE_SHA256,
   APPROVED_M4_DATABASE_TABLES,
   APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
+  APPROVED_PATCHED_DEPENDENCIES,
   APPROVED_RECOVERY_FILE_SHA256,
   M4_AUTHORED_FILES,
   REQUIRED_GITIGNORE_ENTRIES,
@@ -53,7 +55,7 @@ const PREBUILD_ANDROID_PERMISSIONS = [
   "android.permission.INTERNET",
 ];
 
-const MEANINGFUL_TEST_PATHS = [
+const M3_TEST_PATHS = [
   "tests/config/app-config.test.ts",
   "tests/core/public-env.test.ts",
   "tests/core/logger.test.ts",
@@ -64,6 +66,9 @@ const MEANINGFUL_TEST_PATHS = [
   "tests/quality/check-architecture.test.ts",
   "tests/quality/development-workflow.test.ts",
   "tests/quality/nix-avd.test.ts",
+];
+
+const M4_TEST_PATHS = [
   "tests/contracts/bootstrap-sources.test.ts",
   "tests/contracts/contract-tooling.test.ts",
   "tests/contracts/validate-wire.test.ts",
@@ -71,14 +76,113 @@ const MEANINGFUL_TEST_PATHS = [
   "tests/core/database/repository.test.ts",
 ];
 
+const M5_RETIRED_PLACEHOLDER_PATHS = [
+  "src/features/development-fixture/model/local-fixture.ts",
+  "src/features/development-fixture/ui/development-fixture-screen.tsx",
+  "tests/features/development-fixture-screen.test.tsx",
+];
+
+const M5_TEST_PATHS = [
+  "tests/core/database/repository.test.ts",
+  "tests/core/app-providers.test.tsx",
+  "tests/core/database/database-provider.test.tsx",
+  "tests/features/chat/chat-send.test.ts",
+  "tests/app/thin-routes.test.tsx",
+  "tests/features/chat/chat-message-window.test.ts",
+  "tests/features/chat/chat-conversation.test.tsx",
+  "tests/features/chat/chat-composer.test.tsx",
+  "tests/features/chat/chat-accessibility.test.tsx",
+  "tests/quality/check-architecture.test.ts",
+];
+
+const M5_AUTHORED_FILES = [
+  "src/core/database/types.ts",
+  "src/core/database/repositories/database-repository.ts",
+  "src/core/database/database-provider.tsx",
+  "src/core/providers/app-providers.tsx",
+  "src/features/chat/model/chat-fixture.ts",
+  "src/features/chat/model/chat-send.ts",
+  "src/app/index.tsx",
+  "src/core/theme/tokens.ts",
+  "src/features/chat/model/chat-message-window.ts",
+  "src/features/chat/use-chat-conversation.ts",
+  "src/features/chat/ui/chat-screen.tsx",
+  "src/features/chat/ui/chat-message-list.tsx",
+  "src/features/chat/ui/chat-message-row.tsx",
+  "src/features/chat/ui/chat-composer.tsx",
+  "src/features/chat/ui/chat-keyboard-frame.ios.tsx",
+  "src/features/chat/ui/chat-keyboard-frame.android.tsx",
+  "eslint.config.js",
+  "tools/quality/check-architecture.cjs",
+  "README.md",
+  "docs/evidence/M5.md",
+  ...M5_TEST_PATHS,
+];
+
+const M5_FEATURE_DATA_FILES = [
+  "src/features/chat/model/**/*.ts",
+  "src/features/chat/use-*.ts",
+];
+const M5_FEATURE_DATA_DATABASE_PATTERNS = [
+  "**/core/database/open-database",
+  "**/core/database/migrate",
+  "**/core/database/migrations",
+  "**/core/database/migrations/**",
+  "**/core/database/types",
+  "**/core/database/database-provider",
+];
+const M5_REPOSITORY_PORT_PATTERN =
+  "**/core/database/repositories/database-repository";
+
+const ACTIVE_MEANINGFUL_TEST_PATHS = [
+  ...M3_TEST_PATHS.filter(
+    (path) => path !== "tests/features/development-fixture-screen.test.tsx",
+  ),
+  ...M4_TEST_PATHS,
+  ...M5_TEST_PATHS.filter(
+    (path, index, paths) => paths.indexOf(path) === index,
+  ),
+].filter((path, index, paths) => paths.indexOf(path) === index);
+
+const MEANINGFUL_TEST_PATHS = ACTIVE_MEANINGFUL_TEST_PATHS;
+
+const M3_AUTHORED_FILES = [
+  "app.config.ts",
+  "eslint.config.js",
+  "jest.config.js",
+  "package.json",
+  "nix/android-avd-spec.json",
+  "src/app/_layout.tsx",
+  "src/app/index.tsx",
+  "src/core/config/expo-base-config.json",
+  "src/core/config/public-env.ts",
+  "src/core/logging/logger.ts",
+  "src/core/errors/app-error-boundary.tsx",
+  "src/core/providers/app-providers.tsx",
+  "src/core/theme/tokens.ts",
+  "src/core/theme/theme-provider.tsx",
+  "src/features/development-fixture/model/local-fixture.ts",
+  "src/features/development-fixture/ui/development-fixture-screen.tsx",
+  "src/shared/ui/app-screen.tsx",
+  "src/shared/ui/app-text.tsx",
+  ...M3_TEST_PATHS,
+  "tools/android/nix-avd.cjs",
+  "tools/quality/check-architecture.cjs",
+  "tools/quality/jest-env.cjs",
+  "README.md",
+  "docs/development-workflow.md",
+  "docs/adr/0004-m3-app-foundation-and-preference-deferral.md",
+  "docs/research/mobile-baseline.md",
+];
+
 const APPROVED_DEPENDENCIES = {
   ajv: "8.20.0",
-  expo: "~57.0.18",
-  "expo-constants": "~57.0.16",
-  "expo-dev-client": "~57.0.16",
-  "expo-font": "~57.0.2",
-  "expo-linking": "~57.0.8",
-  "expo-router": "~57.0.17",
+  expo: "~57.0.20",
+  "expo-constants": "~57.0.17",
+  "expo-dev-client": "~57.0.18",
+  "expo-font": "~57.0.3",
+  "expo-linking": "~57.0.9",
+  "expo-router": "~57.0.19",
   "expo-splash-screen": "~57.0.8",
   "expo-sqlite": "~57.0.2",
   "expo-system-ui": "~57.0.3",
@@ -86,6 +190,7 @@ const APPROVED_DEPENDENCIES = {
   "react-dom": "19.2.3",
   "react-native": "0.86.3",
   "react-native-gesture-handler": "~2.32.0",
+  "react-native-keyboard-controller": "1.21.9",
   "react-native-reanimated": "4.5.1",
   "react-native-safe-area-context": "~5.7.0",
   "react-native-screens": "~4.26.0",
@@ -108,7 +213,7 @@ const APPROVED_DEV_DEPENDENCIES = {
 };
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "501fadc1c082e46ef9ebfbe7805a51351261cfcd0569a3ce43e12ffc782ef845";
+  "80325d7c7118115dccc2dc2db671b0ec88b28a320fb88dc03d2eab1bef54de65";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -119,6 +224,7 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "scripts",
   "private",
   "packageManager",
+  "patchedDependencies",
 ];
 
 const REQUIRED_TRANSPORT_GLOBAL_NAMES = [
@@ -227,6 +333,10 @@ const REQUIRED_ROUTE_CORE_PATTERNS = [
 const M4_DATABASE_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
   path.startsWith("src/core/database/"),
 );
+const ACTIVE_DATABASE_SOURCE_FILES = [
+  ...M4_DATABASE_SOURCE_FILES,
+  "src/core/database/database-provider.tsx",
+];
 const M4_CONTRACT_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
   path.startsWith("src/core/contracts/"),
 );
@@ -298,6 +408,7 @@ function buildValidRepositorySnapshot() {
       },
       dependencies: clone(APPROVED_DEPENDENCIES),
       devDependencies: clone(APPROVED_DEV_DEPENDENCIES),
+      patchedDependencies: clone(APPROVED_PATCHED_DEPENDENCIES),
       name: "template",
       main: "expo-router/entry",
       version: "1.0.0",
@@ -330,6 +441,7 @@ function buildValidRepositorySnapshot() {
     testInventory: clone(MEANINGFUL_TEST_PATHS),
     repositoryLockfiles: ["bun.lock"],
     bunLockSha256: APPROVED_BUN_LOCK_SHA256,
+    dependencyPatchFileSha256: clone(APPROVED_DEPENDENCY_PATCH_FILE_SHA256),
     m4: {
       contractCheck: { status: "ok" },
       contractFileSha256: clone(APPROVED_M4_CONTRACT_FILE_SHA256) as Record<
@@ -340,9 +452,21 @@ function buildValidRepositorySnapshot() {
       sourceInventory: {
         bootstrap: clone(M4_BOOTSTRAP_CONTRACT_FILES),
         contracts: clone(M4_CONTRACT_SOURCE_FILES),
-        database: clone(M4_DATABASE_SOURCE_FILES),
+        database: clone(ACTIVE_DATABASE_SOURCE_FILES),
         tools: clone(M4_CONTRACT_TOOL_FILES),
       },
+    },
+    m5: {
+      authoredFiles: clone(M5_AUTHORED_FILES),
+      authorizedDeletePaths: clone(M5_RETIRED_PLACEHOLDER_PATHS),
+      historicalM3AuthoredFiles: clone(M3_AUTHORED_FILES),
+      historicalM3TestPaths: clone(M3_TEST_PATHS),
+      retiredPlaceholderPaths: clone(M5_RETIRED_PLACEHOLDER_PATHS),
+      testPaths: clone(M5_TEST_PATHS),
+      requiredPreQualityPaths: M5_AUTHORED_FILES.filter(
+        (path) => path !== "docs/evidence/M5.md",
+      ),
+      meaningfulTestPaths: clone(ACTIVE_MEANINGFUL_TEST_PATHS),
     },
     easJsonPresent: false,
     eslintConfig: {
@@ -361,13 +485,23 @@ function buildValidRepositorySnapshot() {
         staticImportModules: [
           ...clone(REQUIRED_TRANSPORT_MODULES),
           ...clone(REQUIRED_SCREEN_HTTP_CLIENT_MODULES),
+          ...clone(REQUIRED_ROUTE_PERSISTENCE_MODULES),
         ],
         requireOrDynamicImportModules: [
           ...clone(REQUIRED_TRANSPORT_MODULES),
           ...clone(REQUIRED_SCREEN_HTTP_CLIENT_MODULES),
+          ...clone(REQUIRED_ROUTE_PERSISTENCE_MODULES),
         ],
-        staticImportPatterns: clone(REQUIRED_SCREEN_CORE_PATTERNS),
-        requireOrDynamicImportPatterns: clone(REQUIRED_SCREEN_CORE_PATTERNS),
+        staticImportPatterns: [
+          ...clone(REQUIRED_SCREEN_CORE_PATTERNS),
+          "**/core/database",
+          "**/core/database/**",
+        ],
+        requireOrDynamicImportPatterns: [
+          ...clone(REQUIRED_SCREEN_CORE_PATTERNS),
+          "**/core/database",
+          "**/core/database/**",
+        ],
       },
       routeOverride: {
         files: clone(REQUIRED_ROUTE_FILES_GLOBS),
@@ -382,6 +516,29 @@ function buildValidRepositorySnapshot() {
         ],
         staticImportPatterns: clone(REQUIRED_ROUTE_CORE_PATTERNS),
         requireOrDynamicImportPatterns: clone(REQUIRED_ROUTE_CORE_PATTERNS),
+      },
+      m5FeatureDataOverride: {
+        files: clone(M5_FEATURE_DATA_FILES),
+        requireRuleEnabled: true,
+        staticImportModules: [
+          ...clone(REQUIRED_TRANSPORT_MODULES),
+          ...clone(REQUIRED_SCREEN_HTTP_CLIENT_MODULES),
+          ...clone(REQUIRED_ROUTE_PERSISTENCE_MODULES),
+        ],
+        requireOrDynamicImportModules: [
+          ...clone(REQUIRED_TRANSPORT_MODULES),
+          ...clone(REQUIRED_SCREEN_HTTP_CLIENT_MODULES),
+          ...clone(REQUIRED_ROUTE_PERSISTENCE_MODULES),
+        ],
+        staticImportPatterns: [
+          ...clone(REQUIRED_SCREEN_CORE_PATTERNS),
+          ...clone(M5_FEATURE_DATA_DATABASE_PATTERNS),
+        ],
+        requireOrDynamicImportPatterns: [
+          ...clone(REQUIRED_SCREEN_CORE_PATTERNS),
+          ...clone(M5_FEATURE_DATA_DATABASE_PATTERNS),
+        ],
+        allowedDatabaseImportPatterns: [M5_REPOSITORY_PORT_PATTERN],
       },
     },
     expoBase: {
@@ -570,9 +727,117 @@ describe("checkArchitecture (M3/M4 quality_contract pure policy validator)", () 
     );
   });
 
-  test("denies missing or drifted M4 dependency pins (dependency-and-lockfile)", () => {
+  test("denies missing or drifted approved dependency pins (dependency-and-lockfile)", () => {
     const snapshot = buildValidRepositorySnapshot();
     delete (snapshot.packageJson.dependencies as Record<string, string>).ajv;
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "dependency-and-lockfile",
+    );
+  });
+
+  test("denies a missing native keyboard controller dependency pin", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    delete (snapshot.packageJson.dependencies as Record<string, string>)[
+      "react-native-keyboard-controller"
+    ];
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "dependency-and-lockfile",
+    );
+  });
+
+  test("denies a stale Expo compatibility pin after baseline promotion", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    (snapshot.packageJson.dependencies as Record<string, string>).expo =
+      "~57.0.19";
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "dependency-and-lockfile",
+    );
+  });
+
+  test("denies a stale Expo Router compatibility pin after baseline promotion", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    (snapshot.packageJson.dependencies as Record<string, string>)[
+      "expo-router"
+    ] = "~57.0.18";
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "dependency-and-lockfile",
+    );
+  });
+
+  test("denies a missing or redirected Expo Router dependency patch", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    delete (snapshot.packageJson.patchedDependencies as Record<string, string>)[
+      "expo-router@57.0.19"
+    ];
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "dependency-and-lockfile",
+    );
+  });
+
+  test("denies Expo Router dependency patch content drift", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    (snapshot.dependencyPatchFileSha256 as Record<string, string>)[
+      "patches/expo-router@57.0.19.patch"
+    ] = "0".repeat(64);
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "dependency-and-lockfile",
+    );
+  });
+
+  test("defers Expo Router initial-link state until NavigationContainer mounts", () => {
+    const { readFileSync } = jest.requireActual("node:fs") as {
+      readFileSync(path: string, encoding: "utf8"): string;
+    };
+    const source = readFileSync(
+      `${process.cwd()}/node_modules/expo-router/build/fork/NavigationContainer.js`,
+      "utf8",
+    );
+    const stateDeclaration = source.indexOf(
+      "const [lastUnhandledLink, setLastUnhandledLink]",
+    );
+    const mountedRefDeclaration = source.indexOf(
+      "const hasMountedRef = react_1.default.useRef(false);",
+    );
+    const pendingRefDeclaration = source.indexOf(
+      "const pendingUnhandledLinkRef = react_1.default.useRef(null);",
+    );
+    const linkingCall = source.indexOf("const { getInitialState }");
+
+    expect(stateDeclaration).toBeGreaterThan(-1);
+    expect(mountedRefDeclaration).toBeGreaterThan(stateDeclaration);
+    expect(pendingRefDeclaration).toBeGreaterThan(mountedRefDeclaration);
+    expect(linkingCall).toBeGreaterThan(pendingRefDeclaration);
+    expect(source).toMatch(
+      /const onUnhandledLinking = react_1\.default\.useCallback\(\(path\) => \{[\s\S]*?if \(hasMountedRef\.current\) \{[\s\S]*?setLastUnhandledLink\(path\);[\s\S]*?return;[\s\S]*?\}[\s\S]*?pendingUnhandledLinkRef\.current = \{ path \};[\s\S]*?\}, \[\]\);/,
+    );
+    expect(source).toMatch(
+      /react_1\.default\.useEffect\(\(\) => \{[\s\S]*?hasMountedRef\.current = true;[\s\S]*?const pendingUnhandledLink = pendingUnhandledLinkRef\.current;[\s\S]*?pendingUnhandledLinkRef\.current = null;[\s\S]*?if \(pendingUnhandledLink !== null\) \{[\s\S]*?setLastUnhandledLink\(pendingUnhandledLink\.path\);[\s\S]*?\}[\s\S]*?return \(\) => \{[\s\S]*?hasMountedRef\.current = false;[\s\S]*?pendingUnhandledLinkRef\.current = null;[\s\S]*?\};[\s\S]*?\}, \[\]\);/,
+    );
+    expect(source).toContain("}, onUnhandledLinking);");
+    expect(source).not.toContain("}, setLastUnhandledLink);");
+  });
+
+  test("denies frozen dependency lock hash drift after baseline promotion", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.bunLockSha256 = "0".repeat(64);
 
     const result: CheckResult = checkArchitecture(snapshot);
 
@@ -773,6 +1038,13 @@ describe("checkArchitecture (M3/M4 quality_contract pure policy validator)", () 
   });
 
   test("allows only the exact hash-bound approved recovery paths in the working-tree overlay", () => {
+    expect(APPROVED_PATCHED_DEPENDENCIES).toEqual({
+      "expo-router@57.0.19": "patches/expo-router@57.0.19.patch",
+    });
+    expect(APPROVED_DEPENDENCY_PATCH_FILE_SHA256).toEqual({
+      "patches/expo-router@57.0.19.patch":
+        "ffa1618df41558ac3b01d8f3c430927676e751fd36251f89571d64347846b3e5",
+    });
     expect(APPROVED_RECOVERY_FILE_SHA256).toEqual({
       "tsconfig.json":
         "b3fcbc507af0df8008ffae41c5132e2bafceb650f6f55347d7492e0d8f98e3c0",
@@ -793,6 +1065,7 @@ describe("checkArchitecture (M3/M4 quality_contract pure policy validator)", () 
     });
 
     for (const path of [
+      ...Object.keys(APPROVED_DEPENDENCY_PATCH_FILE_SHA256),
       ...Object.keys(APPROVED_RECOVERY_FILE_SHA256),
       ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
     ]) {
@@ -800,6 +1073,9 @@ describe("checkArchitecture (M3/M4 quality_contract pure policy validator)", () 
     }
 
     expect(isAuthorizedWorkingTreePath("tsconfig.recovery.json")).toBe(false);
+    expect(
+      isAuthorizedWorkingTreePath("patches/expo-router@57.0.20.patch"),
+    ).toBe(false);
     expect(isAuthorizedWorkingTreePath("nix/dev-shell.cc.nix")).toBe(false);
     expect(
       isAuthorizedWorkingTreePath("tools/diagnostics/toolchain-check.local.sh"),
@@ -819,7 +1095,306 @@ describe("checkArchitecture (M3/M4 quality_contract pure policy validator)", () 
     ).toBe(false);
   });
 
-  test("allows the approved project-document migration and M3/M4 evidence only", () => {
+  test("authorizes the exact M5 ownership inventory and rejects adjacent chat paths", () => {
+    for (const path of M5_AUTHORED_FILES) {
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    }
+    for (const path of M5_RETIRED_PLACEHOLDER_PATHS) {
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    }
+    for (const path of [".design-context.md", "DESIGN.md"]) {
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    }
+
+    expect(
+      isAuthorizedWorkingTreePath("src/features/chat/model/message-store.ts"),
+    ).toBe(false);
+    expect(
+      isAuthorizedWorkingTreePath("tests/features/chat/chat-realtime.test.ts"),
+    ).toBe(false);
+    expect(isAuthorizedWorkingTreePath("DESIGN.local.md")).toBe(false);
+    expect(
+      isAuthorizedWorkingTreePath(
+        "src/features/development-fixture/model/legacy-fixture.ts",
+      ),
+    ).toBe(false);
+  });
+
+  test("denies a missing M5 authored inventory path", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.authoredFiles = snapshot.m5.authoredFiles.filter(
+      (path) => path !== "src/features/chat/ui/chat-composer.tsx",
+    );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-authored-inventory",
+    );
+  });
+
+  test("denies a live-derived adjacent unplanned M5 chat source path", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.authoredFiles.push("src/features/chat/model/message-store.ts");
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-authored-inventory",
+    );
+  });
+
+  test("denies a live-derived adjacent unplanned M5 chat test path", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.testPaths.push("tests/features/chat/chat-realtime.test.ts");
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-authored-inventory",
+    );
+  });
+
+  test("denies mutation of M3 authored-file historical identity", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.historicalM3AuthoredFiles =
+      snapshot.m5.historicalM3AuthoredFiles.filter(
+        (path) => path !== "src/core/providers/app-providers.tsx",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-historical-identity",
+    );
+  });
+
+  test("denies mutation of M3 test-path historical identity", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.historicalM3TestPaths =
+      snapshot.m5.historicalM3TestPaths.filter(
+        (path) => path !== "tests/core/app-providers.test.tsx",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-historical-identity",
+    );
+  });
+
+  test("denies a retired placeholder omitted from delete authorization", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.authorizedDeletePaths.pop();
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-retired-placeholder-transition",
+    );
+  });
+
+  test("denies a retired placeholder that remains pre-quality required", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.requiredPreQualityPaths.push(
+      "tests/features/development-fixture-screen.test.tsx",
+    );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-retired-placeholder-transition",
+    );
+  });
+
+  test("denies a retired placeholder that remains meaningful after transition", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.meaningfulTestPaths.push(
+      "tests/features/development-fixture-screen.test.tsx",
+    );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-retired-placeholder-transition",
+    );
+  });
+
+  test("denies an M5 test missing from the active meaningful inventory", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.meaningfulTestPaths = snapshot.m5.meaningfulTestPaths.filter(
+      (path) => path !== "tests/features/chat/chat-accessibility.test.tsx",
+    );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-authored-inventory",
+    );
+  });
+
+  test("denies prematurely requiring M5 evidence before the evidence gate", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m5.requiredPreQualityPaths.push("docs/evidence/M5.md");
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-authored-inventory",
+    );
+  });
+
+  test("denies an M5 feature-data static-import rule that permits a database internal", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.m5FeatureDataOverride.staticImportPatterns =
+      snapshot.eslintConfig.m5FeatureDataOverride.staticImportPatterns.filter(
+        (pattern: string) => pattern !== "**/core/database/database-provider",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-lint-feature-data-boundary",
+    );
+  });
+
+  test("denies an M5 feature-data require/dynamic-import rule that permits a database internal", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.m5FeatureDataOverride.requireOrDynamicImportPatterns =
+      snapshot.eslintConfig.m5FeatureDataOverride.requireOrDynamicImportPatterns.filter(
+        (pattern: string) => pattern !== "**/core/database/database-provider",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-lint-feature-data-boundary",
+    );
+  });
+
+  test("denies an M5 feature-data boundary without the sole repository port", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.m5FeatureDataOverride.allowedDatabaseImportPatterns =
+      [];
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-lint-feature-data-boundary",
+    );
+  });
+
+  test("denies an M5 screen static-import rule that permits persistence", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.screenOverride.staticImportModules =
+      snapshot.eslintConfig.screenOverride.staticImportModules.filter(
+        (moduleName: string) => moduleName !== "expo-sqlite",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-lint-route-ui-persistence",
+    );
+  });
+
+  test("denies an M5 screen require/dynamic-import rule that permits persistence", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.screenOverride.requireOrDynamicImportModules =
+      snapshot.eslintConfig.screenOverride.requireOrDynamicImportModules.filter(
+        (moduleName: string) => moduleName !== "expo-sqlite",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-lint-route-ui-persistence",
+    );
+  });
+
+  test("denies an M5 screen static-import rule that permits database implementation", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.screenOverride.staticImportPatterns =
+      snapshot.eslintConfig.screenOverride.staticImportPatterns.filter(
+        (pattern: string) => pattern !== "**/core/database/**",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-lint-route-ui-persistence",
+    );
+  });
+
+  test("denies an M5 screen require/dynamic-import rule that permits database implementation", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.screenOverride.requireOrDynamicImportPatterns =
+      snapshot.eslintConfig.screenOverride.requireOrDynamicImportPatterns.filter(
+        (pattern: string) => pattern !== "**/core/database/**",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-lint-route-ui-persistence",
+    );
+  });
+
+  test("denies an M5 route require/dynamic-import rule that permits database implementation", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.routeOverride.requireOrDynamicImportPatterns =
+      snapshot.eslintConfig.routeOverride.requireOrDynamicImportPatterns.filter(
+        (pattern: string) => pattern !== "**/core/database/**",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-lint-route-ui-persistence",
+    );
+  });
+
+  test("denies widening the sole M5 repository port allowlist", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.m5FeatureDataOverride.allowedDatabaseImportPatterns.push(
+      "**/core/database/database-provider",
+    );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m5-lint-feature-data-boundary",
+    );
+  });
+
+  test("preserves the M4 database and contract ownership checks alongside M5", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m4.sourceInventory.database.pop();
+    snapshot.m4.contractFileSha256[
+      "src/core/contracts/generated/bootstrap-api.ts"
+    ] = "0".repeat(64);
+
+    const result: CheckResult = checkArchitecture(snapshot);
+    const categories = result.violations.map((v) => v.category);
+
+    expect(categories).toContain("m4-source-ownership");
+    expect(categories).toContain("contract-generated-ownership");
+  });
+
+  test("denies an adjacent database source beyond the sole M5 provider extension", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m4.sourceInventory.database.push(
+      "src/core/database/realtime-bridge.ts",
+    );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m4-source-ownership",
+    );
+  });
+
+  test("allows the approved project-document migration and M3/M4/M5 evidence", () => {
     for (const path of [
       "docs/adr/0001-expo-sdk-57-default-template.md",
       "docs/adr/0002-bun-only-package-management.md",
@@ -836,7 +1411,7 @@ describe("checkArchitecture (M3/M4 quality_contract pure policy validator)", () 
     expect(isAuthorizedWorkingTreePath("docs/evidence/M2.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M3.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M4.md")).toBe(true);
-    expect(isAuthorizedWorkingTreePath("docs/evidence/M5.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M5.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("AGENTS.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("CLAUDE.md")).toBe(false);
   });

@@ -47,6 +47,30 @@ export const appControl = {
   standardHeight: 48,
 } as const;
 
+export const appChatLayout = {
+  compactBubbleMaxWidth: 0.78,
+  conversationMaxWidth: 720,
+  wideBubbleMaxWidth: 0.66,
+} as const;
+
+export const appChatMessage = {
+  bubbleRadius: 20,
+  directionalRadius: 8,
+  fontSize: 16,
+  groupGap: 12,
+  lineHeight: 24.8,
+  sameSenderGap: 4,
+  timestampFontSize: 13,
+} as const;
+
+export const appChatComposer = {
+  borderRadius: 16,
+  controlSize: 44,
+  maxHeight: 120,
+  minHeight: 48,
+  pressFeedbackDurationMs: 150,
+} as const;
+
 export const appTypography = {
   title: {
     fontSize: 24,

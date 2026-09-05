@@ -120,11 +120,6 @@ const M4_TEST_PATHS = Object.freeze([
   "tests/core/database/repository.test.ts",
 ]);
 
-const MEANINGFUL_TEST_PATHS = Object.freeze([
-  ...M3_TEST_PATHS,
-  ...M4_TEST_PATHS,
-]);
-
 const REQUIRED_TRANSPORT_GLOBS = Object.freeze([
   "app.config.ts",
   "src/**/*.ts",
@@ -283,6 +278,76 @@ const M4_AUTHORED_FILES = Object.freeze([
   ...M4_TEST_PATHS,
 ]);
 
+const M5_RETIRED_PLACEHOLDER_PATHS = Object.freeze([
+  "src/features/development-fixture/model/local-fixture.ts",
+  "src/features/development-fixture/ui/development-fixture-screen.tsx",
+  "tests/features/development-fixture-screen.test.tsx",
+]);
+
+const M5_TEST_PATHS = Object.freeze([
+  "tests/core/database/repository.test.ts",
+  "tests/core/app-providers.test.tsx",
+  "tests/core/database/database-provider.test.tsx",
+  "tests/features/chat/chat-send.test.ts",
+  "tests/app/thin-routes.test.tsx",
+  "tests/features/chat/chat-message-window.test.ts",
+  "tests/features/chat/chat-conversation.test.tsx",
+  "tests/features/chat/chat-composer.test.tsx",
+  "tests/features/chat/chat-accessibility.test.tsx",
+  "tests/quality/check-architecture.test.ts",
+]);
+
+const M5_AUTHORED_FILES = Object.freeze([
+  "src/core/database/types.ts",
+  "src/core/database/repositories/database-repository.ts",
+  "src/core/database/database-provider.tsx",
+  "src/core/providers/app-providers.tsx",
+  "src/features/chat/model/chat-fixture.ts",
+  "src/features/chat/model/chat-send.ts",
+  "src/app/index.tsx",
+  "src/core/theme/tokens.ts",
+  "src/features/chat/model/chat-message-window.ts",
+  "src/features/chat/use-chat-conversation.ts",
+  "src/features/chat/ui/chat-screen.tsx",
+  "src/features/chat/ui/chat-message-list.tsx",
+  "src/features/chat/ui/chat-message-row.tsx",
+  "src/features/chat/ui/chat-composer.tsx",
+  "src/features/chat/ui/chat-keyboard-frame.ios.tsx",
+  "src/features/chat/ui/chat-keyboard-frame.android.tsx",
+  "eslint.config.js",
+  "tools/quality/check-architecture.cjs",
+  "README.md",
+  "docs/evidence/M5.md",
+  ...M5_TEST_PATHS,
+]);
+
+const ACTIVE_DATABASE_SOURCE_FILES = Object.freeze([
+  ...M4_DATABASE_SOURCE_FILES,
+  "src/core/database/database-provider.tsx",
+]);
+
+const M5_DESIGN_ARTIFACT_PATHS = Object.freeze([
+  ".design-context.md",
+  "DESIGN.md",
+]);
+
+const M5_REQUIRED_PRE_QUALITY_PATHS = Object.freeze(
+  M5_AUTHORED_FILES.filter((file) => file !== "docs/evidence/M5.md"),
+);
+
+const ACTIVE_M3_AUTHORED_FILES = Object.freeze(
+  M3_AUTHORED_FILES.filter(
+    (file) => !M5_RETIRED_PLACEHOLDER_PATHS.includes(file),
+  ),
+);
+const ACTIVE_M3_TEST_PATHS = Object.freeze(
+  M3_TEST_PATHS.filter((file) => !M5_RETIRED_PLACEHOLDER_PATHS.includes(file)),
+);
+
+const MEANINGFUL_TEST_PATHS = Object.freeze([
+  ...new Set([...ACTIVE_M3_TEST_PATHS, ...M4_TEST_PATHS, ...M5_TEST_PATHS]),
+]);
+
 const APPROVED_M4_DATABASE_TABLES = Object.freeze([
   "applied_events",
   "conversations",
@@ -320,12 +385,12 @@ const AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS = Object.freeze([
 
 const APPROVED_DEPENDENCIES = Object.freeze({
   ajv: "8.20.0",
-  expo: "~57.0.18",
-  "expo-constants": "~57.0.16",
-  "expo-dev-client": "~57.0.16",
-  "expo-font": "~57.0.2",
-  "expo-linking": "~57.0.8",
-  "expo-router": "~57.0.17",
+  expo: "~57.0.20",
+  "expo-constants": "~57.0.17",
+  "expo-dev-client": "~57.0.18",
+  "expo-font": "~57.0.3",
+  "expo-linking": "~57.0.9",
+  "expo-router": "~57.0.19",
   "expo-splash-screen": "~57.0.8",
   "expo-sqlite": "~57.0.2",
   "expo-system-ui": "~57.0.3",
@@ -333,6 +398,7 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   "react-dom": "19.2.3",
   "react-native": "0.86.3",
   "react-native-gesture-handler": "~2.32.0",
+  "react-native-keyboard-controller": "1.21.9",
   "react-native-reanimated": "4.5.1",
   "react-native-safe-area-context": "~5.7.0",
   "react-native-screens": "~4.26.0",
@@ -361,6 +427,13 @@ const APPROVED_MANIFEST_POINTERS = Object.freeze({
   private: true,
   packageManager: "bun@1.3.13",
 });
+const APPROVED_PATCHED_DEPENDENCIES = Object.freeze({
+  "expo-router@57.0.19": "patches/expo-router@57.0.19.patch",
+});
+const APPROVED_DEPENDENCY_PATCH_FILE_SHA256 = Object.freeze({
+  "patches/expo-router@57.0.19.patch":
+    "ffa1618df41558ac3b01d8f3c430927676e751fd36251f89571d64347846b3e5",
+});
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
   "name",
   "main",
@@ -370,10 +443,11 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
   "scripts",
   "private",
   "packageManager",
+  "patchedDependencies",
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "501fadc1c082e46ef9ebfbe7805a51351261cfcd0569a3ce43e12ffc782ef845";
+  "80325d7c7118115dccc2dc2db671b0ec88b28a320fb88dc03d2eab1bef54de65";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -568,6 +642,32 @@ const REQUIRED_ROUTE_CORE_PATTERNS = Object.freeze([
   "**/core/logging/**",
 ]);
 
+const M5_FEATURE_DATA_FILES = Object.freeze([
+  "src/features/chat/model/**/*.ts",
+  "src/features/chat/use-*.ts",
+]);
+const M5_FEATURE_DATA_DATABASE_PATTERNS = Object.freeze([
+  "**/core/database/open-database",
+  "**/core/database/migrate",
+  "**/core/database/migrations",
+  "**/core/database/migrations/**",
+  "**/core/database/types",
+  "**/core/database/database-provider",
+]);
+const M5_REPOSITORY_PORT_PATTERN =
+  "**/core/database/repositories/database-repository";
+const M5_SCREEN_CORE_PATTERNS = Object.freeze([
+  ...REQUIRED_SCREEN_CORE_PATTERNS,
+  "**/core/database",
+  "**/core/database/**",
+]);
+const M5_SCREEN_RESTRICTED_MODULES = Object.freeze([
+  ...REQUIRED_TRANSPORT_MODULES,
+  ...REQUIRED_SCREEN_HTTP_CLIENT_MODULES,
+  ...REQUIRED_ROUTE_PERSISTENCE_MODULES,
+]);
+const M5_FEATURE_DATA_RESTRICTED_MODULES = M5_SCREEN_RESTRICTED_MODULES;
+
 const M1_M2_EVIDENCE_BASELINE_SHA256 = Object.freeze({
   "docs/evidence/M1.md":
     "2aa66c84e771663443aa177b069fcaf35305614f88b06667aa54d50f884b344d",
@@ -654,16 +754,20 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "jest.config.js",
   "package.json",
   "bun.lock",
+  ...Object.keys(APPROVED_DEPENDENCY_PATCH_FILE_SHA256),
   ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
   ...M3_AUTHORED_FILES.filter(
     (file) =>
       file !== "app.config.ts" &&
       file !== "eslint.config.js" &&
       file !== "jest.config.js" &&
-      file !== "package.json",
+      file !== "package.json" &&
+      !M5_RETIRED_PLACEHOLDER_PATHS.includes(file),
   ),
   ...AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS,
   ...M4_AUTHORED_FILES,
+  ...M5_AUTHORED_FILES,
+  ...M5_DESIGN_ARTIFACT_PATHS,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -706,6 +810,7 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
   "assets/images/tabIcons/home@2x.png",
   "assets/images/tabIcons/home@3x.png",
   "assets/images/tutorial-web.png",
+  ...M5_RETIRED_PLACEHOLDER_PATHS,
 ]);
 
 const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
@@ -714,8 +819,10 @@ const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
   ".prettierignore",
   "bun.lock",
   ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
-  ...M3_AUTHORED_FILES,
+  ...ACTIVE_M3_AUTHORED_FILES,
   ...M4_AUTHORED_FILES,
+  ...M5_REQUIRED_PRE_QUALITY_PATHS,
+  ...M5_DESIGN_ARTIFACT_PATHS,
   ...AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS,
 ]);
 
@@ -1077,7 +1184,7 @@ function checkDependencyAndLockfile(snapshot, violations) {
     pushViolation(
       violations,
       "dependency-and-lockfile",
-      "package.json /dependencies must exactly equal the approved M3/M4 dependency map.",
+      "package.json /dependencies must exactly equal the approved dependency baseline.",
     );
   }
 
@@ -1092,7 +1199,22 @@ function checkDependencyAndLockfile(snapshot, violations) {
     pushViolation(
       violations,
       "dependency-and-lockfile",
-      "package.json /devDependencies must exactly equal the approved M3/M4 dependency map.",
+      "package.json /devDependencies must exactly equal the approved dependency baseline.",
+    );
+  }
+
+  if (
+    !deepEqual(
+      isPlainObject(packageJson.patchedDependencies)
+        ? packageJson.patchedDependencies
+        : {},
+      APPROVED_PATCHED_DEPENDENCIES,
+    )
+  ) {
+    pushViolation(
+      violations,
+      "dependency-and-lockfile",
+      "package.json /patchedDependencies must exactly bind the approved dependency patch.",
     );
   }
 
@@ -1110,7 +1232,22 @@ function checkDependencyAndLockfile(snapshot, violations) {
     pushViolation(
       violations,
       "dependency-and-lockfile",
-      "bun.lock sha256 does not equal the approved frozen M4 dependency lock hash.",
+      "bun.lock sha256 does not equal the approved frozen dependency lock hash.",
+    );
+  }
+
+  if (
+    !deepEqual(
+      isPlainObject(snapshot && snapshot.dependencyPatchFileSha256)
+        ? snapshot.dependencyPatchFileSha256
+        : {},
+      APPROVED_DEPENDENCY_PATCH_FILE_SHA256,
+    )
+  ) {
+    pushViolation(
+      violations,
+      "dependency-and-lockfile",
+      "Dependency patch sha256 map must exactly equal the approved patch ownership baseline.",
     );
   }
 }
@@ -1122,14 +1259,14 @@ function checkM4Foundation(snapshot, violations) {
     : {};
 
   if (
-    !sameStringSet(sourceInventory.database, M4_DATABASE_SOURCE_FILES) ||
+    !sameStringSet(sourceInventory.database, ACTIVE_DATABASE_SOURCE_FILES) ||
     !sameStringSet(sourceInventory.bootstrap, M4_BOOTSTRAP_CONTRACT_FILES) ||
     !sameStringSet(sourceInventory.tools, M4_CONTRACT_TOOL_FILES)
   ) {
     pushViolation(
       violations,
       "m4-source-ownership",
-      "M4 database, bootstrap-contract, and contract-tool inventories must exactly equal the approved authored paths.",
+      "M4 database, bootstrap-contract, and contract-tool inventories must exactly equal the approved M4 baseline plus the sole M5 database-provider extension.",
     );
   }
 
@@ -1167,6 +1304,62 @@ function checkM4Foundation(snapshot, violations) {
   }
 }
 
+function checkM5Foundation(snapshot, violations) {
+  const m5 = isPlainObject(snapshot && snapshot.m5) ? snapshot.m5 : {};
+
+  if (
+    !sameStringSet(m5.authoredFiles, M5_AUTHORED_FILES) ||
+    !sameStringSet(m5.testPaths, M5_TEST_PATHS) ||
+    !sameStringSet(m5.requiredPreQualityPaths, M5_REQUIRED_PRE_QUALITY_PATHS)
+  ) {
+    pushViolation(
+      violations,
+      "m5-authored-inventory",
+      "M5 authored, test, and active pre-quality inventories must exactly equal the approved local-chat scope; M5 evidence remains authorized but deferred until its evidence gate.",
+    );
+  }
+
+  if (
+    !sameStringSet(m5.historicalM3AuthoredFiles, M3_AUTHORED_FILES) ||
+    !sameStringSet(m5.historicalM3TestPaths, M3_TEST_PATHS)
+  ) {
+    pushViolation(
+      violations,
+      "m5-historical-identity",
+      "M3_AUTHORED_FILES and M3_TEST_PATHS must remain unchanged historical inventories during the M5 transition.",
+    );
+  }
+
+  if (
+    !sameStringSet(m5.authorizedDeletePaths, M5_RETIRED_PLACEHOLDER_PATHS) ||
+    !sameStringSet(m5.retiredPlaceholderPaths, M5_RETIRED_PLACEHOLDER_PATHS) ||
+    M5_RETIRED_PLACEHOLDER_PATHS.some((file) =>
+      Array.isArray(m5.requiredPreQualityPaths)
+        ? m5.requiredPreQualityPaths.includes(file)
+        : false,
+    ) ||
+    M5_RETIRED_PLACEHOLDER_PATHS.some((file) =>
+      Array.isArray(m5.meaningfulTestPaths)
+        ? m5.meaningfulTestPaths.includes(file)
+        : false,
+    )
+  ) {
+    pushViolation(
+      violations,
+      "m5-retired-placeholder-transition",
+      "Exactly the three development-fixture placeholders must be delete-authorized and absent from active pre-quality and meaningful-test inventories.",
+    );
+  }
+
+  if (!sameStringSet(m5.meaningfulTestPaths, MEANINGFUL_TEST_PATHS)) {
+    pushViolation(
+      violations,
+      "m5-authored-inventory",
+      "The active meaningful-test inventory must retain active M3/M4 coverage and include every exact M5 test while excluding the retired fixture test.",
+    );
+  }
+}
+
 function checkLintTransportBinding(snapshot, violations) {
   const eslintConfig = isPlainObject(snapshot && snapshot.eslintConfig)
     ? snapshot.eslintConfig
@@ -1179,7 +1372,6 @@ function checkLintTransportBinding(snapshot, violations) {
       "eslint.config.js must consume the official Expo flat config (eslint-config-expo/flat).",
     );
   }
-
   if (
     !sameStringSet(
       eslintConfig.transportEnforcedGlobs,
@@ -1192,7 +1384,6 @@ function checkLintTransportBinding(snapshot, violations) {
       "eslint.config.js transport-enforced scope must exactly equal app.config.ts, src/**/*.ts, and src/**/*.tsx.",
     );
   }
-
   if (eslintConfig.forbidsCoverageIgnoreDirectives !== true) {
     pushViolation(
       violations,
@@ -1200,7 +1391,6 @@ function checkLintTransportBinding(snapshot, violations) {
       "eslint.config.js must reject Istanbul/c8/v8 coverage-ignore directives across the transport-enforced scope.",
     );
   }
-
   if (eslintConfig.preventsInlineRuleBypass !== true) {
     pushViolation(
       violations,
@@ -1208,7 +1398,6 @@ function checkLintTransportBinding(snapshot, violations) {
       "eslint.config.js must set linterOptions.noInlineConfig=true across the transport-enforced scope.",
     );
   }
-
   if (
     !sameStringSet(
       eslintConfig.restrictedGlobalNames,
@@ -1221,7 +1410,6 @@ function checkLintTransportBinding(snapshot, violations) {
       "eslint.config.js must restrict the exact transport global identifier set.",
     );
   }
-
   if (
     !sameStringSet(
       eslintConfig.restrictedPropertyPaths,
@@ -1234,7 +1422,6 @@ function checkLintTransportBinding(snapshot, violations) {
       "eslint.config.js must restrict global.fetch, globalThis.fetch, and window.fetch.",
     );
   }
-
   if (
     !sameStringSet(
       eslintConfig.staticImportModules,
@@ -1251,83 +1438,50 @@ function checkLintTransportBinding(snapshot, violations) {
       "eslint.config.js must restrict the exact transport module set for static import, require, and dynamic import.",
     );
   }
-
   if (eslintConfig.hasBypassOrIgnoreState !== false) {
     pushViolation(
       violations,
       "lint-transport-binding",
-      "eslint.config.js transport, screen, and route enforcement entries must not declare ignores or disable required rules.",
+      "eslint.config.js transport, feature-data, screen, and route enforcement entries must not declare ignores or disable required rules.",
     );
   }
 
   const screenOverride = isPlainObject(eslintConfig.screenOverride)
     ? eslintConfig.screenOverride
     : {};
-  if (!sameStringSet(screenOverride.files, REQUIRED_SCREEN_FILES_GLOBS)) {
-    pushViolation(
-      violations,
-      "lint-transport-binding",
-      "eslint.config.js screen/component override files must exactly equal the required UI globs.",
-    );
-  }
-  if (screenOverride.requireRuleEnabled !== true) {
-    pushViolation(
-      violations,
-      "lint-transport-binding",
-      "eslint.config.js screen/component override must enable local/no-restricted-transport-require without bypass.",
-    );
-  }
   if (
-    !sameStringSet(screenOverride.staticImportModules, [
-      ...REQUIRED_TRANSPORT_MODULES,
-      ...REQUIRED_SCREEN_HTTP_CLIENT_MODULES,
-    ]) ||
-    !sameStringSet(screenOverride.requireOrDynamicImportModules, [
-      ...REQUIRED_TRANSPORT_MODULES,
-      ...REQUIRED_SCREEN_HTTP_CLIENT_MODULES,
-    ])
-  ) {
-    pushViolation(
-      violations,
-      "lint-transport-binding",
-      "eslint.config.js screen/component override must restrict the exact transport and HTTP-client module set.",
-    );
-  }
-  if (
+    !sameStringSet(screenOverride.files, REQUIRED_SCREEN_FILES_GLOBS) ||
+    screenOverride.requireRuleEnabled !== true ||
+    !sameStringSet(
+      screenOverride.staticImportModules,
+      M5_SCREEN_RESTRICTED_MODULES,
+    ) ||
+    !sameStringSet(
+      screenOverride.requireOrDynamicImportModules,
+      M5_SCREEN_RESTRICTED_MODULES,
+    ) ||
     !sameStringSet(
       screenOverride.staticImportPatterns,
-      REQUIRED_SCREEN_CORE_PATTERNS,
+      M5_SCREEN_CORE_PATTERNS,
     ) ||
     !sameStringSet(
       screenOverride.requireOrDynamicImportPatterns,
-      REQUIRED_SCREEN_CORE_PATTERNS,
+      M5_SCREEN_CORE_PATTERNS,
     )
   ) {
     pushViolation(
       violations,
-      "lint-transport-binding",
-      "eslint.config.js screen/component override must reject core HTTP/network import and require/dynamic-import patterns.",
+      "m5-lint-route-ui-persistence",
+      "eslint.config.js screen/component override must reject transport, HTTP, persistence, and direct database implementations through static, require, and dynamic imports.",
     );
   }
 
   const routeOverride = isPlainObject(eslintConfig.routeOverride)
     ? eslintConfig.routeOverride
     : {};
-  if (!sameStringSet(routeOverride.files, REQUIRED_ROUTE_FILES_GLOBS)) {
-    pushViolation(
-      violations,
-      "lint-transport-binding",
-      "eslint.config.js route override files must exactly equal the required route globs.",
-    );
-  }
-  if (routeOverride.requireRuleEnabled !== true) {
-    pushViolation(
-      violations,
-      "lint-transport-binding",
-      "eslint.config.js route override must enable local/no-restricted-transport-require without bypass.",
-    );
-  }
   if (
+    !sameStringSet(routeOverride.files, REQUIRED_ROUTE_FILES_GLOBS) ||
+    routeOverride.requireRuleEnabled !== true ||
     !sameStringSet(routeOverride.staticImportModules, [
       ...REQUIRED_TRANSPORT_MODULES,
       ...REQUIRED_ROUTE_PERSISTENCE_MODULES,
@@ -1335,15 +1489,7 @@ function checkLintTransportBinding(snapshot, violations) {
     !sameStringSet(routeOverride.requireOrDynamicImportModules, [
       ...REQUIRED_TRANSPORT_MODULES,
       ...REQUIRED_ROUTE_PERSISTENCE_MODULES,
-    ])
-  ) {
-    pushViolation(
-      violations,
-      "lint-transport-binding",
-      "eslint.config.js route override must restrict the exact transport and persistence module set.",
-    );
-  }
-  if (
+    ]) ||
     !sameStringSet(
       routeOverride.staticImportPatterns,
       REQUIRED_ROUTE_CORE_PATTERNS,
@@ -1355,8 +1501,45 @@ function checkLintTransportBinding(snapshot, violations) {
   ) {
     pushViolation(
       violations,
-      "lint-transport-binding",
-      "eslint.config.js route override must reject database/realtime/auth/storage/logger/persistence import and require/dynamic-import patterns.",
+      "m5-lint-route-ui-persistence",
+      "eslint.config.js route override must retain its exact transport, persistence, and database implementation boundary for static, require, and dynamic imports.",
+    );
+  }
+
+  const featureDataOverride = isPlainObject(eslintConfig.m5FeatureDataOverride)
+    ? eslintConfig.m5FeatureDataOverride
+    : {};
+  const expectedFeaturePatterns = [
+    ...REQUIRED_SCREEN_CORE_PATTERNS,
+    ...M5_FEATURE_DATA_DATABASE_PATTERNS,
+  ];
+  if (
+    !sameStringSet(featureDataOverride.files, M5_FEATURE_DATA_FILES) ||
+    featureDataOverride.requireRuleEnabled !== true ||
+    !sameStringSet(
+      featureDataOverride.staticImportModules,
+      M5_FEATURE_DATA_RESTRICTED_MODULES,
+    ) ||
+    !sameStringSet(
+      featureDataOverride.requireOrDynamicImportModules,
+      M5_FEATURE_DATA_RESTRICTED_MODULES,
+    ) ||
+    !sameStringSet(
+      featureDataOverride.staticImportPatterns,
+      expectedFeaturePatterns,
+    ) ||
+    !sameStringSet(
+      featureDataOverride.requireOrDynamicImportPatterns,
+      expectedFeaturePatterns,
+    ) ||
+    !sameStringSet(featureDataOverride.allowedDatabaseImportPatterns, [
+      M5_REPOSITORY_PORT_PATTERN,
+    ])
+  ) {
+    pushViolation(
+      violations,
+      "m5-lint-feature-data-boundary",
+      "M5 chat feature data must use the sole typed repository port while static, require, and dynamic imports reject transport, HTTP, persistence, and direct database implementation paths.",
     );
   }
 }
@@ -1716,6 +1899,7 @@ function checkArchitecture(snapshot) {
   checkMeaningfulInventory(snapshot, violations);
   checkDependencyAndLockfile(snapshot, violations);
   checkM4Foundation(snapshot, violations);
+  checkM5Foundation(snapshot, violations);
   checkLintTransportBinding(snapshot, violations);
   checkExpoBasePreservation(snapshot, violations);
   checkNixNativeToolchain(snapshot, violations);
@@ -1755,6 +1939,30 @@ function listFilesUnder(root, { fs, path }, relativeRoot) {
   }
 
   return results.sort();
+}
+
+function discoverM5AuthoredInventory(root, { fs, path }) {
+  const retainedM5Paths = M5_AUTHORED_FILES.filter(
+    (relativePath) => !relativePath.startsWith("src/features/chat/"),
+  );
+  const chatSourcePaths = listFilesUnder(
+    root,
+    { fs, path },
+    "src/features/chat",
+  );
+  return [...retainedM5Paths, ...chatSourcePaths].sort();
+}
+
+function discoverM5TestInventory(root, { fs, path }) {
+  const retainedM5Paths = M5_TEST_PATHS.filter(
+    (relativePath) => !relativePath.startsWith("tests/features/chat/"),
+  );
+  const chatTestPaths = listFilesUnder(
+    root,
+    { fs, path },
+    "tests/features/chat",
+  );
+  return [...retainedM5Paths, ...chatTestPaths].sort();
 }
 
 function discoverM4DatabaseTables(root, { fs, path }) {
@@ -1902,6 +2110,12 @@ function buildLiveSnapshot(
     { fs, crypto },
     path.join(root, "bun.lock"),
   );
+  const dependencyPatchFileSha256 = Object.fromEntries(
+    Object.keys(APPROVED_DEPENDENCY_PATCH_FILE_SHA256).map((relativePath) => [
+      relativePath,
+      computeFileSha256({ fs, crypto }, path.join(root, relativePath)),
+    ]),
+  );
   const contractFileSha256 = Object.fromEntries(
     Object.keys(APPROVED_M4_CONTRACT_FILE_SHA256).map((relativePath) => [
       relativePath,
@@ -1968,6 +2182,9 @@ function buildLiveSnapshot(
       scripts: isPlainObject(packageJson.scripts) ? packageJson.scripts : {},
       dependencies,
       devDependencies,
+      patchedDependencies: isPlainObject(packageJson.patchedDependencies)
+        ? packageJson.patchedDependencies
+        : {},
       name: packageJson.name,
       main: packageJson.main,
       version: packageJson.version,
@@ -1996,11 +2213,22 @@ function buildLiveSnapshot(
     testInventory,
     repositoryLockfiles,
     bunLockSha256,
+    dependencyPatchFileSha256,
     m4: {
       contractCheck,
       contractFileSha256,
       databaseTables,
       sourceInventory: m4SourceInventory,
+    },
+    m5: {
+      authoredFiles: discoverM5AuthoredInventory(root, { fs, path }),
+      authorizedDeletePaths: M5_RETIRED_PLACEHOLDER_PATHS,
+      historicalM3AuthoredFiles: M3_AUTHORED_FILES,
+      historicalM3TestPaths: M3_TEST_PATHS,
+      retiredPlaceholderPaths: M5_RETIRED_PLACEHOLDER_PATHS,
+      testPaths: discoverM5TestInventory(root, { fs, path }),
+      requiredPreQualityPaths: M5_REQUIRED_PRE_QUALITY_PATHS,
+      meaningfulTestPaths: MEANINGFUL_TEST_PATHS,
     },
     easJsonPresent,
     reservedPathsPresent,
@@ -2162,6 +2390,7 @@ function introspectEslintConfig(root, { fs, path }) {
       forbidsCoverageIgnoreDirectives: false,
       screenOverride: {},
       routeOverride: {},
+      m5FeatureDataOverride: {},
     };
   }
 
@@ -2209,14 +2438,30 @@ function introspectEslintConfig(root, { fs, path }) {
     configArray,
     REQUIRED_ROUTE_FILES_GLOBS,
   );
+  const featureDataOverride = extractOverride(
+    configArray,
+    M5_FEATURE_DATA_FILES,
+  );
 
   const screenEntry = findOverrideEntry(
     configArray,
     REQUIRED_SCREEN_FILES_GLOBS,
   );
   const routeEntry = findOverrideEntry(configArray, REQUIRED_ROUTE_FILES_GLOBS);
+  const featureDataEntry = findOverrideEntry(
+    configArray,
+    M5_FEATURE_DATA_FILES,
+  );
+  const repositoryPortIsNotRestricted =
+    !featureDataOverride.staticImportPatterns.includes(
+      M5_REPOSITORY_PORT_PATTERN,
+    ) &&
+    !featureDataOverride.requireOrDynamicImportPatterns.includes(
+      M5_REPOSITORY_PORT_PATTERN,
+    );
   const hasBypassOrIgnoreState =
     countOverrideEntries(configArray, REQUIRED_TRANSPORT_GLOBS) !== 1 ||
+    countOverrideEntries(configArray, M5_FEATURE_DATA_FILES) !== 1 ||
     countOverrideEntries(configArray, REQUIRED_SCREEN_FILES_GLOBS) !== 1 ||
     countOverrideEntries(configArray, REQUIRED_ROUTE_FILES_GLOBS) !== 1 ||
     entryHasIgnoreOrDisabledRule(transportEntry, [
@@ -2227,6 +2472,10 @@ function introspectEslintConfig(root, { fs, path }) {
       "local/no-coverage-ignore-directives",
     ]) ||
     entryHasIgnoreOrDisabledRule(screenEntry, [
+      "no-restricted-imports",
+      "local/no-restricted-transport-require",
+    ]) ||
+    entryHasIgnoreOrDisabledRule(featureDataEntry, [
       "no-restricted-imports",
       "local/no-restricted-transport-require",
     ]) ||
@@ -2258,6 +2507,12 @@ function introspectEslintConfig(root, { fs, path }) {
     hasBypassOrIgnoreState,
     screenOverride,
     routeOverride,
+    m5FeatureDataOverride: {
+      ...featureDataOverride,
+      allowedDatabaseImportPatterns: repositoryPortIsNotRestricted
+        ? [M5_REPOSITORY_PORT_PATTERN]
+        : [],
+    },
   };
 }
 
@@ -2970,6 +3225,8 @@ module.exports = {
   isAuthorizedWorkingTreePath,
   APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
   APPROVED_RECOVERY_FILE_SHA256,
+  APPROVED_PATCHED_DEPENDENCIES,
+  APPROVED_DEPENDENCY_PATCH_FILE_SHA256,
   APPROVED_M4_CONTRACT_FILE_SHA256,
   APPROVED_M4_DATABASE_TABLES,
   APPROVED_GITIGNORE_SHA256,

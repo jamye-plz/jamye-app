@@ -55,11 +55,11 @@ auth 실행을 뜻하지 않는다.
 
 | 항목                    | 값                  |
 | ----------------------- | ------------------- |
-| Expo                    | `~57.0.18`          |
+| Expo                    | `~57.0.20`          |
 | React Native            | `0.86.3`            |
 | React                   | `19.2.3`            |
-| Expo Router             | `~57.0.17`          |
-| Expo Development Client | `~57.0.16`          |
+| Expo Router             | `~57.0.19`          |
+| Expo Development Client | `~57.0.18`          |
 | TypeScript              | `~6.0.3`            |
 | package manager         | Bun `1.3.13`        |
 | route root              | `src/app/`          |

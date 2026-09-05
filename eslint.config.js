@@ -7,6 +7,10 @@ const TRANSPORT_ENFORCED_FILES = [
   "src/**/*.tsx",
 ];
 const ROUTE_FILES = ["src/app/**/*.ts", "src/app/**/*.tsx"];
+const FEATURE_DATA_FILES = [
+  "src/features/chat/model/**/*.ts",
+  "src/features/chat/use-*.ts",
+];
 const SCREEN_AND_COMPONENT_FILES = [
   "src/features/**/ui/**/*.ts",
   "src/features/**/ui/**/*.tsx",
@@ -117,6 +121,21 @@ const RESERVED_CORE_ROUTE_IMPLEMENTATION_PATTERNS = [
   "**/core/storage/**",
   "**/core/logging",
   "**/core/logging/**",
+];
+
+const RESERVED_CORE_FEATURE_DATA_DATABASE_PATTERNS = [
+  "**/core/database/open-database",
+  "**/core/database/migrate",
+  "**/core/database/migrations",
+  "**/core/database/migrations/**",
+  "**/core/database/types",
+  "**/core/database/database-provider",
+];
+
+const RESERVED_CORE_SCREEN_DATABASE_PATTERNS = [
+  ...RESERVED_CORE_HTTP_NETWORK_PATTERNS,
+  "**/core/database",
+  "**/core/database/**",
 ];
 
 function toRestrictedImportPaths(names, message) {
@@ -280,18 +299,25 @@ module.exports = defineConfig([
     },
   },
   {
-    files: SCREEN_AND_COMPONENT_FILES,
+    files: FEATURE_DATA_FILES,
     rules: {
       "no-restricted-imports": [
         "error",
         {
           paths: toRestrictedImportPaths(
-            [...FORBIDDEN_TRANSPORT_MODULES, ...FORBIDDEN_HTTP_CLIENT_MODULES],
-            "Screens/components must not import HTTP clients or transport wrappers directly.",
+            [
+              ...FORBIDDEN_TRANSPORT_MODULES,
+              ...FORBIDDEN_HTTP_CLIENT_MODULES,
+              ...FORBIDDEN_PERSISTENCE_MODULES,
+            ],
+            "Chat feature data may use only the typed repository port, never transport, HTTP, or persistence implementations.",
           ),
           patterns: toRestrictedImportPatterns(
-            RESERVED_CORE_HTTP_NETWORK_PATTERNS,
-            "Screens/components must not import a core HTTP/network module directly.",
+            [
+              ...RESERVED_CORE_HTTP_NETWORK_PATTERNS,
+              ...RESERVED_CORE_FEATURE_DATA_DATABASE_PATTERNS,
+            ],
+            "Chat feature data must not import HTTP/network or direct SQLite implementation modules.",
           ),
         },
       ],
@@ -301,10 +327,49 @@ module.exports = defineConfig([
           modules: [
             ...FORBIDDEN_TRANSPORT_MODULES,
             ...FORBIDDEN_HTTP_CLIENT_MODULES,
+            ...FORBIDDEN_PERSISTENCE_MODULES,
           ],
-          patterns: RESERVED_CORE_HTTP_NETWORK_PATTERNS,
+          patterns: [
+            ...RESERVED_CORE_HTTP_NETWORK_PATTERNS,
+            ...RESERVED_CORE_FEATURE_DATA_DATABASE_PATTERNS,
+          ],
           message:
-            "Screens/components must not require/dynamically import HTTP clients, transport wrappers, or a core HTTP/network module.",
+            "Chat feature data must not require/dynamically import transport, HTTP, persistence, or direct SQLite implementation modules.",
+        },
+      ],
+    },
+  },
+  {
+    files: SCREEN_AND_COMPONENT_FILES,
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: toRestrictedImportPaths(
+            [
+              ...FORBIDDEN_TRANSPORT_MODULES,
+              ...FORBIDDEN_HTTP_CLIENT_MODULES,
+              ...FORBIDDEN_PERSISTENCE_MODULES,
+            ],
+            "Screens/components must not import HTTP, transport, or persistence implementations directly.",
+          ),
+          patterns: toRestrictedImportPatterns(
+            RESERVED_CORE_SCREEN_DATABASE_PATTERNS,
+            "Screens/components must not import a core HTTP/network or database implementation module directly.",
+          ),
+        },
+      ],
+      "local/no-restricted-transport-require": [
+        "error",
+        {
+          modules: [
+            ...FORBIDDEN_TRANSPORT_MODULES,
+            ...FORBIDDEN_HTTP_CLIENT_MODULES,
+            ...FORBIDDEN_PERSISTENCE_MODULES,
+          ],
+          patterns: RESERVED_CORE_SCREEN_DATABASE_PATTERNS,
+          message:
+            "Screens/components must not require/dynamically import HTTP, transport, persistence, or core database implementations.",
         },
       ],
     },

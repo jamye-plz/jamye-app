@@ -1,3 +1,5 @@
+import type { FixtureConversationSeed } from "../../../src/core/database/repositories/database-repository";
+
 type SqliteValue = string | number | null;
 
 type SqliteRunResult = Readonly<{
@@ -6,6 +8,10 @@ type SqliteRunResult = Readonly<{
 }>;
 
 type SqliteDatabase = {
+  getAllAsync: <Row extends Record<string, SqliteValue>>(
+    statement: string,
+    ...values: SqliteValue[]
+  ) => Promise<Row[]>;
   getFirstAsync: <Row extends Record<string, SqliteValue>>(
     statement: string,
     ...values: SqliteValue[]
@@ -47,7 +53,10 @@ type SyncCursor = Readonly<{
 
 type DatabaseChange = Readonly<{
   conversationId: string;
-  kind: "message-and-outbox-committed" | "canonical-event-applied";
+  kind:
+    | "message-and-outbox-committed"
+    | "canonical-event-applied"
+    | "message-retry-committed";
 }>;
 
 type PendingMessageInput = Readonly<{
@@ -91,16 +100,41 @@ type RecordUnknownEventResult = Readonly<{
   outcome: "recorded" | "duplicate";
 }>;
 
+type MessageCursor = Readonly<{
+  createdAtMs: number;
+  localId: string;
+}>;
+
+type MessagePage = Readonly<{
+  hasMore: boolean;
+  items: readonly Message[];
+  nextBefore: MessageCursor | null;
+}>;
+
+type RetryFailedMessageInput = Readonly<{
+  clientMsgId: string;
+  conversationId: string;
+}>;
+
 type DatabaseRepository = {
   applyCanonicalMessageUpsert: (
     event: CanonicalMessageUpsert,
   ) => Promise<ApplyCanonicalResult>;
   enqueuePendingMessage: (input: PendingMessageInput) => Promise<Message>;
   getCursor: (conversationId: string) => Promise<SyncCursor | null>;
+  listMessagesPage: (input: {
+    before: MessageCursor | null;
+    conversationId: string;
+    limit: number;
+  }) => Promise<MessagePage>;
   recordUnknownEvent: (
     event: UnknownEventInput,
   ) => Promise<RecordUnknownEventResult>;
   subscribe: (listener: (change: DatabaseChange) => void) => () => void;
+  ensureFixtureConversation: (
+    fixture: FixtureConversationSeed,
+  ) => Promise<void>;
+  retryFailedMessage: (input: RetryFailedMessageInput) => Promise<Message>;
   upsertConversation: (conversation: Conversation) => Promise<void>;
 };
 
@@ -176,6 +210,7 @@ function loadCreateDatabaseRepository(): CreateDatabaseRepository {
 
 class TransactionRecordingDatabase implements SqliteDatabase {
   readonly committedRuns: RunCall[] = [];
+  readonly readCalls: RunCall[] = [];
   readonly transactions: ("commit" | "rollback")[] = [];
   private committedEventIds = new Set<string>();
   private committedEventSequenceKeys = new Set<string>();
@@ -185,6 +220,8 @@ class TransactionRecordingDatabase implements SqliteDatabase {
   private pendingEventIds?: Set<string>;
   private pendingEventSequenceKeys?: Set<string>;
   private pendingRuns?: RunCall[];
+  private queuedFirstRows: Record<string, SqliteValue>[] = [];
+  private queuedReadRows: Record<string, SqliteValue>[][] = [];
   private runCount = 0;
   private transactionActive = false;
 
@@ -200,10 +237,29 @@ class TransactionRecordingDatabase implements SqliteDatabase {
     this.failAtRun = runNumber;
   }
 
+  queueReadRows(rows: readonly Record<string, SqliteValue>[]): void {
+    this.queuedReadRows.push([...rows]);
+  }
+
+  queueFirstRow(row: Record<string, SqliteValue>): void {
+    this.queuedFirstRows.push(row);
+  }
+
+  async getAllAsync<Row extends Record<string, SqliteValue>>(
+    statement: string,
+    ...values: SqliteValue[]
+  ): Promise<Row[]> {
+    this.readCalls.push({ statement, values });
+    return (this.queuedReadRows.shift() ?? []) as unknown as Row[];
+  }
+
   async getFirstAsync<Row extends Record<string, SqliteValue>>(
     statement: string,
     ...values: SqliteValue[]
   ): Promise<Row | null> {
+    const queuedFirstRow = this.queuedFirstRows.shift();
+    if (queuedFirstRow) return queuedFirstRow as unknown as Row;
+
     if (/FROM\s+sync_cursors/i.test(statement)) {
       const requestedConversationId = values.find(
         (value): value is string => typeof value === "string",
@@ -364,6 +420,153 @@ function createPendingMessage(): PendingMessageInput {
     localId: "local-message-1",
     senderId: "fixture-sender",
   };
+}
+
+function createFixtureSeed(): FixtureConversationSeed {
+  return {
+    conversation: createConversation(),
+    messages: [
+      {
+        body: "fixture sent message",
+        clientMsgId: null,
+        conversationId: "fixture-conversation",
+        createdAtMs: 100,
+        eventId: "fixture-event-1",
+        localId: "fixture-message-sent",
+        senderId: "fixture-sender",
+        serverSequence: 1,
+        status: "sent",
+      },
+      {
+        body: "fixture failed message",
+        clientMsgId: "fixture-client-failed-1",
+        conversationId: "fixture-conversation",
+        createdAtMs: 110,
+        eventId: null,
+        localId: "fixture-message-failed",
+        senderId: "fixture-sender",
+        serverSequence: null,
+        status: "failed",
+      },
+    ],
+    outboxCommands: [
+      {
+        body: "fixture failed message",
+        clientMsgId: "fixture-client-failed-1",
+        commandId: "outbox:fixture-client-failed-1",
+        commandType: "message.create",
+        conversationId: "fixture-conversation",
+        createdAtMs: 110,
+        state: "failed",
+      },
+    ],
+  };
+}
+
+function messageRow(message: Message): Record<string, SqliteValue> {
+  return {
+    body: message.body,
+    client_msg_id: message.clientMsgId,
+    conversation_id: message.conversationId,
+    created_at_ms: message.createdAtMs,
+    event_id: message.eventId,
+    local_id: message.localId,
+    sender_id: message.senderId,
+    server_sequence: message.serverSequence,
+    status: message.status,
+  };
+}
+
+function conversationRow(
+  conversation: FixtureConversationSeed["conversation"],
+): Record<string, SqliteValue> {
+  return {
+    id: conversation.id,
+    kind: conversation.kind,
+    title: conversation.title,
+    updated_at_ms: conversation.updatedAtMs,
+  };
+}
+
+function outboxRow(
+  command: FixtureConversationSeed["outboxCommands"][number],
+): Record<string, SqliteValue> {
+  return {
+    body: command.body,
+    client_msg_id: command.clientMsgId,
+    command_id: command.commandId,
+    command_type: command.commandType,
+    conversation_id: command.conversationId,
+    created_at_ms: command.createdAtMs,
+    state: command.state,
+  };
+}
+
+function queuePersistedFixture(
+  database: TransactionRecordingDatabase,
+  fixture: FixtureConversationSeed,
+  additionalMessages: readonly Message[] = [],
+  additionalOutboxCommands: readonly Record<string, SqliteValue>[] = [],
+): void {
+  database.queueReadRows([conversationRow(fixture.conversation)]);
+  database.queueReadRows([
+    ...fixture.messages.map(messageRow),
+    ...additionalMessages.map(messageRow),
+  ]);
+  database.queueReadRows([
+    ...fixture.outboxCommands.map(outboxRow),
+    ...additionalOutboxCommands,
+  ]);
+}
+
+type PersistedFixtureRetrySnapshot = Readonly<{
+  clientMsgId: string;
+  messageBody?: string;
+  messageStatus: Message["status"];
+  outboxBody?: string;
+  outboxState: "acked" | "failed" | "in_flight" | "queued";
+}>;
+
+function queuePersistedFixtureRetrySnapshot(
+  database: TransactionRecordingDatabase,
+  fixture: FixtureConversationSeed,
+  snapshot: PersistedFixtureRetrySnapshot,
+): void {
+  let matchedMessage = false;
+  let matchedOutboxCommand = false;
+
+  const persistedMessages = fixture.messages.map((message) => {
+    if (message.clientMsgId !== snapshot.clientMsgId) {
+      return messageRow(message);
+    }
+
+    matchedMessage = true;
+    return messageRow({
+      ...message,
+      body: snapshot.messageBody ?? message.body,
+      status: snapshot.messageStatus,
+    });
+  });
+  const persistedOutboxCommands = fixture.outboxCommands.map((command) => {
+    if (command.clientMsgId !== snapshot.clientMsgId) {
+      return outboxRow(command);
+    }
+
+    matchedOutboxCommand = true;
+    return {
+      ...outboxRow(command),
+      body: snapshot.outboxBody ?? command.body,
+      state: snapshot.outboxState,
+    };
+  });
+
+  if (!matchedMessage || !matchedOutboxCommand) {
+    throw new Error("Fixture retry snapshot requires a matching message pair.");
+  }
+
+  database.queueReadRows([conversationRow(fixture.conversation)]);
+  database.queueReadRows(persistedMessages);
+  database.queueReadRows(persistedOutboxCommands);
 }
 
 function createCanonicalEvent(serverSequence: number): CanonicalMessageUpsert {
@@ -835,20 +1038,531 @@ describe("M4-DB-1 injectable SQLite repository contract", () => {
     expect(changes).toEqual([]);
   });
 
+  test("exposes the repository-owned fixture, bounded page, and same-command retry port", async () => {
+    const createDatabaseRepository = loadCreateDatabaseRepository();
+    const repository = createDatabaseRepository(
+      new TransactionRecordingDatabase(),
+    );
+    const fixture = createFixtureSeed();
+
+    expect(typeof repository.listMessagesPage).toBe("function");
+    expect(typeof repository.ensureFixtureConversation).toBe("function");
+    expect(typeof repository.retryFailedMessage).toBe("function");
+    await expect(
+      repository.ensureFixtureConversation(fixture),
+    ).resolves.toBeUndefined();
+  });
+
+  test("returns a bounded compound-cursor page in ascending order while binding the exclusive tuple and limit plus one", async () => {
+    const createDatabaseRepository = loadCreateDatabaseRepository();
+    const database = new TransactionRecordingDatabase();
+    const repository = createDatabaseRepository(database);
+    const oldest: Message = {
+      body: "oldest",
+      clientMsgId: null,
+      conversationId: "fixture-conversation",
+      createdAtMs: 10,
+      eventId: "event-oldest",
+      localId: "local-oldest",
+      senderId: "fixture-sender",
+      serverSequence: 1,
+      status: "sent",
+    };
+    const tiedEarlier: Message = {
+      body: "tied earlier",
+      clientMsgId: null,
+      conversationId: "fixture-conversation",
+      createdAtMs: 20,
+      eventId: "event-tied-earlier",
+      localId: "local-a",
+      senderId: "fixture-sender",
+      serverSequence: 2,
+      status: "sent",
+    };
+    const newest: Message = {
+      body: "newest",
+      clientMsgId: null,
+      conversationId: "fixture-conversation",
+      createdAtMs: 20,
+      eventId: "event-newest",
+      localId: "local-z",
+      senderId: "fixture-sender",
+      serverSequence: 3,
+      status: "sent",
+    };
+
+    database.queueReadRows([
+      messageRow(newest),
+      messageRow(tiedEarlier),
+      messageRow(oldest),
+    ]);
+
+    await expect(
+      repository.listMessagesPage({
+        before: null,
+        conversationId: "fixture-conversation",
+        limit: 2,
+      }),
+    ).resolves.toEqual({
+      hasMore: true,
+      items: [tiedEarlier, newest],
+      nextBefore: { createdAtMs: 20, localId: "local-a" },
+    });
+
+    const initialPageCall = database.readCalls.at(-1);
+    expect(initialPageCall?.statement).toMatch(
+      /FROM\s+messages[\s\S]*ORDER\s+BY[\s\S]*created_at_ms\s+DESC[\s\S]*local_id\s+DESC/i,
+    );
+    expect(initialPageCall?.statement).not.toContain("fixture-conversation");
+    expect(initialPageCall?.values).toContain("fixture-conversation");
+    expect(initialPageCall?.values).toContain(3);
+
+    database.queueReadRows([messageRow(oldest)]);
+    await expect(
+      repository.listMessagesPage({
+        before: { createdAtMs: 20, localId: "local-a" },
+        conversationId: "fixture-conversation",
+        limit: 2,
+      }),
+    ).resolves.toEqual({
+      hasMore: false,
+      items: [oldest],
+      nextBefore: null,
+    });
+
+    const olderPageCall = database.readCalls.at(-1);
+    expect(olderPageCall?.statement).toMatch(
+      /\(\s*created_at_ms\s*,\s*local_id\s*\)\s*<\s*\(\s*\?\s*,\s*\?\s*\)|created_at_ms\s*<\s*\?|created_at_ms\s*=\s*\?\s+AND\s+local_id\s*<\s*\?/i,
+    );
+    expect(olderPageCall?.values).toEqual(
+      expect.arrayContaining(["fixture-conversation", 20, "local-a", 3]),
+    );
+  });
+
+  test("seeds the typed fixture exactly once and rolls back a same-id different-value collision", async () => {
+    const createDatabaseRepository = loadCreateDatabaseRepository();
+    const database = new TransactionRecordingDatabase();
+    const repository = createDatabaseRepository(database);
+    const fixture = createFixtureSeed();
+    const changes: DatabaseChange[] = [];
+    const unsubscribe = repository.subscribe((change) => changes.push(change));
+
+    await repository.ensureFixtureConversation(fixture);
+    const committedAfterFirstSeed = database.committedRuns.length;
+    const transactionsAfterFirstSeed = database.transactions.length;
+
+    queuePersistedFixture(database, fixture);
+    await expect(
+      repository.ensureFixtureConversation(fixture),
+    ).resolves.toBeUndefined();
+    expect(database.committedRuns).toHaveLength(committedAfterFirstSeed);
+    expect(database.transactions.slice(transactionsAfterFirstSeed)).toEqual([
+      "commit",
+    ]);
+    expect(changes).toEqual([]);
+
+    const mismatchedFixture: FixtureConversationSeed = {
+      ...fixture,
+      conversation: { ...fixture.conversation, title: "different fixture" },
+    };
+    queuePersistedFixture(database, fixture);
+    await expect(
+      repository.ensureFixtureConversation(mismatchedFixture),
+    ).rejects.toThrow();
+
+    unsubscribe();
+    expect(database.transactions.at(-1)).toBe("rollback");
+    expect(database.committedRuns).toHaveLength(committedAfterFirstSeed);
+    expect(changes).toEqual([]);
+  });
+
+  test("accepts the atomic retried fixture pair when startup seeding runs again", async () => {
+    const createDatabaseRepository = loadCreateDatabaseRepository();
+    const database = new TransactionRecordingDatabase();
+    const repository = createDatabaseRepository(database);
+    const fixture = createFixtureSeed();
+    const failedMessage = fixture.messages.find(
+      (message) => message.clientMsgId === "fixture-client-failed-1",
+    );
+    const failedOutboxCommand = fixture.outboxCommands.find(
+      (command) => command.clientMsgId === "fixture-client-failed-1",
+    );
+    if (
+      !failedMessage ||
+      failedMessage.clientMsgId === null ||
+      !failedOutboxCommand
+    ) {
+      throw new Error("Fixture failed retry pair is required.");
+    }
+    const changes: DatabaseChange[] = [];
+    const unsubscribe = repository.subscribe((change) => changes.push(change));
+
+    await repository.ensureFixtureConversation(fixture);
+    database.queueFirstRow(messageRow(failedMessage));
+    database.queueFirstRow(outboxRow(failedOutboxCommand));
+    await repository.retryFailedMessage({
+      clientMsgId: failedMessage.clientMsgId,
+      conversationId: failedMessage.conversationId,
+    });
+
+    const writesBeforeRestart = database.committedRuns.length;
+    const transactionsBeforeRestart = database.transactions.length;
+    queuePersistedFixtureRetrySnapshot(database, fixture, {
+      clientMsgId: failedOutboxCommand.clientMsgId,
+      messageStatus: "pending",
+      outboxState: "queued",
+    });
+
+    await expect(
+      repository.ensureFixtureConversation(fixture),
+    ).resolves.toBeUndefined();
+    unsubscribe();
+
+    expect(database.committedRuns).toHaveLength(writesBeforeRestart);
+    expect(database.transactions.slice(transactionsBeforeRestart)).toEqual([
+      "commit",
+    ]);
+    expect(changes).toEqual([
+      {
+        conversationId: "fixture-conversation",
+        kind: "message-retry-committed",
+      },
+    ]);
+  });
+
+  const invalidFixtureRetrySnapshots: readonly (PersistedFixtureRetrySnapshot &
+    Readonly<{ caseName: string }>)[] = [
+    {
+      caseName: "message-only transition",
+      clientMsgId: "fixture-client-failed-1",
+      messageStatus: "pending",
+      outboxState: "failed",
+    },
+    {
+      caseName: "outbox-only transition",
+      clientMsgId: "fixture-client-failed-1",
+      messageStatus: "failed",
+      outboxState: "queued",
+    },
+    {
+      caseName: "message content drift",
+      clientMsgId: "fixture-client-failed-1",
+      messageBody: "tampered fixture message",
+      messageStatus: "pending",
+      outboxState: "queued",
+    },
+    {
+      caseName: "outbox content drift",
+      clientMsgId: "fixture-client-failed-1",
+      messageStatus: "pending",
+      outboxBody: "tampered fixture command",
+      outboxState: "queued",
+    },
+  ];
+
+  test.each(invalidFixtureRetrySnapshots)(
+    "rejects a persisted fixture retry pair with $caseName",
+    async (snapshot) => {
+      const createDatabaseRepository = loadCreateDatabaseRepository();
+      const database = new TransactionRecordingDatabase();
+      const repository = createDatabaseRepository(database);
+      const fixture = createFixtureSeed();
+
+      queuePersistedFixtureRetrySnapshot(database, fixture, snapshot);
+
+      await expect(
+        repository.ensureFixtureConversation(fixture),
+      ).rejects.toThrow(/Fixture (?:message|outbox command) conflicts/);
+      expect(database.transactions).toEqual(["rollback"]);
+      expect(database.committedRuns).toEqual([]);
+    },
+  );
+
+  test("preserves a non-seeded user message and outbox byte-for-byte when the fixture seed is rerun", async () => {
+    const createDatabaseRepository = loadCreateDatabaseRepository();
+    const database = new TransactionRecordingDatabase();
+    const repository = createDatabaseRepository(database);
+    const fixture = createFixtureSeed();
+    const userMessage = {
+      ...createPendingMessage(),
+      body: "user-created row survives fixture rerun",
+      clientMsgId: "client-user-preserved-1",
+      localId: "local-user-preserved-1",
+    };
+    const changes: DatabaseChange[] = [];
+    const unsubscribe = repository.subscribe((change) => changes.push(change));
+
+    await repository.ensureFixtureConversation(fixture);
+    await repository.enqueuePendingMessage(userMessage);
+    const preservedRows = database.committedRuns
+      .filter((call) => call.values.includes(userMessage.clientMsgId))
+      .map((call) => ({ statement: call.statement, values: [...call.values] }));
+    const writesBeforeRerun = database.committedRuns.length;
+    const notificationsBeforeRerun = [...changes];
+
+    queuePersistedFixture(
+      database,
+      fixture,
+      [
+        {
+          body: userMessage.body,
+          clientMsgId: userMessage.clientMsgId,
+          conversationId: userMessage.conversationId,
+          createdAtMs: userMessage.createdAtMs,
+          eventId: null,
+          localId: userMessage.localId,
+          senderId: userMessage.senderId,
+          serverSequence: null,
+          status: "pending",
+        },
+      ],
+      [
+        {
+          body: userMessage.body,
+          client_msg_id: userMessage.clientMsgId,
+          command_id: "outbox:client-user-preserved-1",
+          command_type: "message.create",
+          conversation_id: userMessage.conversationId,
+          created_at_ms: userMessage.createdAtMs,
+          state: "queued",
+        },
+      ],
+    );
+    await repository.ensureFixtureConversation(fixture);
+    unsubscribe();
+
+    expect(database.committedRuns).toHaveLength(writesBeforeRerun);
+    expect(
+      database.committedRuns
+        .filter((call) => call.values.includes(userMessage.clientMsgId))
+        .map((call) => ({
+          statement: call.statement,
+          values: [...call.values],
+        })),
+    ).toEqual(preservedRows);
+    expect(changes).toEqual(notificationsBeforeRerun);
+  });
+
+  test("retries the existing failed message and outbox atomically with identity and body reuse", async () => {
+    const createDatabaseRepository = loadCreateDatabaseRepository();
+    const database = new TransactionRecordingDatabase();
+    const repository = createDatabaseRepository(database);
+    const failedMessage = createFixtureSeed().messages[1];
+    if (!failedMessage) throw new Error("Fixture failed message is required.");
+    const changes: DatabaseChange[] = [];
+
+    database.queueFirstRow(messageRow(failedMessage));
+    database.queueFirstRow({
+      body: failedMessage.body,
+      client_msg_id: "fixture-client-failed-1",
+      command_id: "outbox:fixture-client-failed-1",
+      command_type: "message.create",
+      conversation_id: "fixture-conversation",
+      created_at_ms: failedMessage.createdAtMs,
+      state: "failed",
+    });
+    const unsubscribe = repository.subscribe((change) => changes.push(change));
+    const writesBeforeRetry = database.committedRuns.length;
+
+    await expect(
+      repository.retryFailedMessage({
+        clientMsgId: "fixture-client-failed-1",
+        conversationId: "fixture-conversation",
+      }),
+    ).resolves.toEqual({ ...failedMessage, status: "pending" });
+
+    unsubscribe();
+    const retryWrites = database.committedRuns.slice(writesBeforeRetry);
+    expect(retryWrites).toHaveLength(2);
+    expect(retryWrites.map((call) => call.statement).join("\n")).toMatch(
+      /UPDATE\s+messages/i,
+    );
+    expect(retryWrites.map((call) => call.statement).join("\n")).toMatch(
+      /UPDATE\s+outbox_commands/i,
+    );
+    expect(retryWrites.map((call) => call.statement).join("\n")).not.toMatch(
+      /INSERT\s+INTO\s+(?:messages|outbox_commands)/i,
+    );
+    const retrySql = retryWrites.map((call) => call.statement).join("\n");
+    const retryBoundValues = retryWrites.flatMap((call) => call.values);
+    expect(retryBoundValues).toEqual(
+      expect.arrayContaining([
+        "fixture-client-failed-1",
+        "outbox:fixture-client-failed-1",
+      ]),
+    );
+    expect(retrySql).not.toContain("fixture-client-failed-1");
+    expect(retrySql).not.toContain("outbox:fixture-client-failed-1");
+    expect(`${retrySql}\n${retryBoundValues.join("\n")}`).toEqual(
+      expect.stringContaining("failed"),
+    );
+    expect(`${retrySql}\n${retryBoundValues.join("\n")}`).toEqual(
+      expect.stringContaining("pending"),
+    );
+    expect(`${retrySql}\n${retryBoundValues.join("\n")}`).toEqual(
+      expect.stringContaining("queued"),
+    );
+    expect(changes).toEqual([
+      {
+        conversationId: "fixture-conversation",
+        kind: "message-retry-committed",
+      },
+    ]);
+  });
+
+  test("rolls back retry partial failure and leaves unrelated subscribers without a retry notification", async () => {
+    const createDatabaseRepository = loadCreateDatabaseRepository();
+    const database = new TransactionRecordingDatabase();
+    const repository = createDatabaseRepository(database);
+    const failedMessage = createFixtureSeed().messages[1];
+    if (!failedMessage) throw new Error("Fixture failed message is required.");
+    const changes: DatabaseChange[] = [];
+
+    database.queueFirstRow(messageRow(failedMessage));
+    database.queueFirstRow({
+      body: failedMessage.body,
+      client_msg_id: "fixture-client-failed-1",
+      command_id: "outbox:fixture-client-failed-1",
+      command_type: "message.create",
+      conversation_id: "fixture-conversation",
+      created_at_ms: failedMessage.createdAtMs,
+      state: "failed",
+    });
+    database.failOnRun(database.executedRunCount + 2);
+    const unsubscribe = repository.subscribe((change) => changes.push(change));
+    const writesBeforeRetry = database.committedRuns.length;
+
+    await expect(
+      repository.retryFailedMessage({
+        clientMsgId: "fixture-client-failed-1",
+        conversationId: "fixture-conversation",
+      }),
+    ).rejects.toThrow("synthetic repository write failure");
+
+    unsubscribe();
+    expect(database.transactions.at(-1)).toBe("rollback");
+    expect(database.committedRuns).toHaveLength(writesBeforeRetry);
+    expect(changes).toEqual([]);
+  });
+
+  test("does not notify an unsubscribed unrelated listener when a retry commits", async () => {
+    const createDatabaseRepository = loadCreateDatabaseRepository();
+    const database = new TransactionRecordingDatabase();
+    const repository = createDatabaseRepository(database);
+    const failedMessage = createFixtureSeed().messages[1];
+    if (!failedMessage) throw new Error("Fixture failed message is required.");
+    const unrelatedChanges: DatabaseChange[] = [];
+
+    database.queueFirstRow(messageRow(failedMessage));
+    database.queueFirstRow({
+      body: failedMessage.body,
+      client_msg_id: "fixture-client-failed-1",
+      command_id: "outbox:fixture-client-failed-1",
+      command_type: "message.create",
+      conversation_id: "fixture-conversation",
+      created_at_ms: failedMessage.createdAtMs,
+      state: "failed",
+    });
+    const unsubscribe = repository.subscribe((change) => {
+      unrelatedChanges.push(change);
+    });
+    unsubscribe();
+
+    await expect(
+      repository.retryFailedMessage({
+        clientMsgId: "fixture-client-failed-1",
+        conversationId: "fixture-conversation",
+      }),
+    ).resolves.toEqual({ ...failedMessage, status: "pending" });
+
+    expect(unrelatedChanges).toEqual([]);
+  });
+
+  test("rejects unknown, already-retried, wrong-conversation, and missing-outbox retry requests without writes or notifications", async () => {
+    const createDatabaseRepository = loadCreateDatabaseRepository();
+    const database = new TransactionRecordingDatabase();
+    const repository = createDatabaseRepository(database);
+    const failedMessage = createFixtureSeed().messages[1];
+    if (!failedMessage) throw new Error("Fixture failed message is required.");
+    const alreadyRetriedMessage: Message = {
+      ...failedMessage,
+      clientMsgId: "fixture-client-pending-1",
+      localId: "fixture-message-pending",
+      status: "pending",
+    };
+    const changes: DatabaseChange[] = [];
+    const unsubscribe = repository.subscribe((change) => changes.push(change));
+    const writesBeforeRetries = database.committedRuns.length;
+
+    await expect(
+      repository.retryFailedMessage({
+        clientMsgId: "unknown-client-message",
+        conversationId: "fixture-conversation",
+      }),
+    ).rejects.toThrow();
+    database.queueFirstRow(messageRow(alreadyRetriedMessage));
+    await expect(
+      repository.retryFailedMessage({
+        clientMsgId: "fixture-client-pending-1",
+        conversationId: "fixture-conversation",
+      }),
+    ).rejects.toThrow();
+    database.queueFirstRow(messageRow(failedMessage));
+    await expect(
+      repository.retryFailedMessage({
+        clientMsgId: "fixture-client-failed-1",
+        conversationId: "different-conversation",
+      }),
+    ).rejects.toThrow();
+    database.queueFirstRow(messageRow(failedMessage));
+    await expect(
+      repository.retryFailedMessage({
+        clientMsgId: "fixture-client-failed-1",
+        conversationId: "fixture-conversation",
+      }),
+    ).rejects.toThrow();
+
+    unsubscribe();
+    expect(database.committedRuns).toHaveLength(writesBeforeRetries);
+    expect(changes).toEqual([]);
+  });
+
   test("keeps the database boundary free of transport, identity, UI, and M5/M6 imports", () => {
     const { fileSystem, path } = loadNodeModules();
     const databaseRoot = path.resolve(process.cwd(), "src/core/database");
+    const databaseProviderPath = path.join(
+      databaseRoot,
+      "database-provider.tsx",
+    );
     const sourceFiles = listSourceFiles(databaseRoot, fileSystem, path).filter(
       (sourcePath) => [".ts", ".tsx"].includes(path.extname(sourcePath)),
     );
     const source = sourceFiles
       .map((sourcePath) => fileSystem.readFileSync(sourcePath, "utf8"))
       .join("\n");
+    const featureFreeSource = sourceFiles
+      .filter((sourcePath) => sourcePath !== databaseProviderPath)
+      .map((sourcePath) => fileSystem.readFileSync(sourcePath, "utf8"))
+      .join("\n");
+    const databaseProviderSource = fileSystem.readFileSync(
+      databaseProviderPath,
+      "utf8",
+    );
+    const databaseProviderFeatureImports = [
+      ...databaseProviderSource.matchAll(
+        /from\s+["']([^"']*(?:app|features)[^"']*)["']/g,
+      ),
+    ].map((match) => match[1]);
 
     expect(sourceFiles.length).toBeGreaterThan(0);
     expect(source).not.toMatch(/\bfetch\s*\(/);
     expect(source).not.toMatch(/\bWebSocket\b|\bEventSource\b|\bNetInfo\b/);
     expect(source).not.toMatch(/\btoken\b|\bcredential\b|\bSecureStore\b/);
-    expect(source).not.toMatch(/from\s+["'][^"']*(?:app|features)[^"']*["']/);
+    expect(featureFreeSource).not.toMatch(
+      /from\s+["'][^"']*(?:app|features)[^"']*["']/,
+    );
+    expect(databaseProviderFeatureImports).toEqual([
+      "@/features/chat/model/chat-fixture",
+    ]);
   });
 });

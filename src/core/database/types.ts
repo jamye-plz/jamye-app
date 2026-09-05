@@ -24,6 +24,10 @@ export type SqliteMigrationDatabase = {
 };
 
 export type SqliteRepositoryDatabase = {
+  getAllAsync: <Row extends SqliteRow>(
+    statement: string,
+    ...values: SqliteValue[]
+  ) => Promise<Row[]>;
   getFirstAsync: <Row extends SqliteRow>(
     statement: string,
     ...values: SqliteValue[]

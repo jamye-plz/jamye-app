@@ -1,5 +1,5 @@
-import { DevelopmentFixtureScreen } from "@/features/development-fixture/ui/development-fixture-screen";
+import { ChatScreen } from "@/features/chat/ui/chat-screen";
 
 export default function IndexRoute() {
-  return <DevelopmentFixtureScreen />;
+  return <ChatScreen />;
 }
