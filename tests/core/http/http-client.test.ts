@@ -3,6 +3,7 @@ import {
   REQUEST_TIMEOUT_MS,
   anySignal,
   composeAbortSignal,
+  parseJsonResponseBody,
   withTimeoutSignal,
 } from "@/core/http/http-client";
 
@@ -113,6 +114,47 @@ describe("anySignal", () => {
     const a = new AbortController();
     const combined = anySignal([undefined, a.signal]);
     expect(combined.aborted).toBe(false);
+  });
+});
+
+describe("parseJsonResponseBody", () => {
+  test("never calls .json() on a 204 No Content response (G6/G7/G8)", async () => {
+    const json = jest.fn(async () => ({ unexpected: true }));
+    const response = { status: 204, json } as unknown as Response;
+    await expect(parseJsonResponseBody(response)).resolves.toBeNull();
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  test("returns the parsed JSON body for a non-204 response", async () => {
+    const response = {
+      status: 200,
+      json: async () => ({ ok: true }),
+    } as unknown as Response;
+    await expect(parseJsonResponseBody(response)).resolves.toEqual({
+      ok: true,
+    });
+  });
+
+  test("treats a malformed non-204 body as null rather than throwing", async () => {
+    const response = {
+      status: 200,
+      json: async () => {
+        throw new SyntaxError("Unexpected end of JSON input");
+      },
+    } as unknown as Response;
+    await expect(parseJsonResponseBody(response)).resolves.toBeNull();
+  });
+
+  test("propagates a genuine AbortError while reading the body instead of swallowing it", async () => {
+    const abortError = new Error("aborted");
+    abortError.name = "AbortError";
+    const response = {
+      status: 200,
+      json: async () => {
+        throw abortError;
+      },
+    } as unknown as Response;
+    await expect(parseJsonResponseBody(response)).rejects.toBe(abortError);
   });
 });
 

@@ -9,18 +9,19 @@
 contract, M5의 SQLite 기반 로컬 채팅 읽기·쓰기와 M6의 server contract intake,
 shared session/account-safe connected-auth shell이 구현돼 있다. `local-fixture` mode는
 보존된 fixture SQLite chat을, `connected-auth` mode는 shared OAuth session, U1 profile,
-origin+UUID account namespace와 authenticated home을 표시한다. 로그인 뒤 group/chat으로
-이어지는 server-backed product navigation과 server-backed chat은 아직 없다. 아래 명령은 실행 절차이며
+origin+UUID account namespace와 authenticated home을 표시한다. M7 connected-auth mode는
+server-backed group navigation을 구현했으며 server-backed chat은 아직 없다. 아래 명령은 실행 절차이며
 그 자체로 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제 관찰 결과는
 각 마일스톤 증거에 기록한다: [M3](docs/evidence/M3.md),
 [M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md),
-[M6 네이티브·로그인 검증](docs/oauth-development.md).
+[M6 네이티브·로그인 검증](docs/oauth-development.md), [M7 그룹·계정 전환 검증](docs/evidence/M7.md).
 
 ## 현재 범위
 
 M0-M5는 역사적으로 완료된 기반이다. M5는 **fixture 대화방 하나의 로컬 채팅 읽기·쓰기**까지
 완료했고, 이후 Kakao/Google OAuth와 U1 profile이 추가 구현됐다. 현재 M6 빌드에서는
-사용자가 iOS·Android 모두 Kakao·Google 실계정 로그인 성공을 확인했다.
+사용자가 iOS·Android 모두 Kakao·Google 실계정 로그인 성공을 확인했다. 추가 세션 검증과
+iOS 취소·재로그인 사용자 확인을 마친 뒤 2026-09-09 M6를 정식 종료했다.
 화면은 SQLite를
 유일한 메시지 원본으로 읽고, 전송 시 pending message와 queued outbox command를 하나의
 exclusive transaction에 기록한다. 실패 재시도는 기존 identity와 command를 재사용한다.
@@ -28,7 +29,7 @@ exclusive transaction에 기록한다. 실패 재시도는 기존 identity와 co
 입력창을 함께 이동하고 전송 뒤에도 keyboard focus를 유지한다.
 
 M5의 queued outbox는 전송 의도를 로컬에 보존할 뿐 네트워크 전송 성공을 뜻하지 않는다.
-authenticated group/chat navigation, server-backed chat, realtime/delta 실행과
+Server-backed chat navigation, realtime/delta 실행과
 reconnect/restart 수렴은 아직 없다. 자동 mobile E2E와 실기기 acceptance도 전체 제품에
 대해 완료하지 않았다.
 
@@ -36,19 +37,22 @@ reconnect/restart 수렴은 아직 없다. 자동 mobile E2E와 실기기 accept
 
 - M4: bootstrap contract와 SQLite — 완료
 - M5: 로컬 채팅 읽기·쓰기 — 완료
-- M6: server contract intake, shared session/profile/logout, account/origin 데이터 분리 — 구현·자동 검사·보안 패치 검증, 양 플랫폼 재빌드·설치와 로그인 4개 조합 통과; 나머지 세션 수용은 별도
-- 아직 없음: authenticated groups/chatrooms/messages/realtime/topics/media/notification/push
+- M6: server contract intake, shared session/profile/logout, account/origin 데이터 분리 — 완료 (2026-09-09 사용자 종료 승인)
+- M7: authenticated groups, membership, invitations — 완료 (2026-09-10 양 플랫폼 그룹 작업·계정 전환 사용자 확인 및 종료 승인)
+- 아직 없음: chatrooms/messages/realtime/topics/media/notification/push
 
 Apple login, STT/on-device AI, presence/typing/reaction, message edit/delete와 새 push
 backend는 현재 서버 계약 밖의 별도 backlog다. 의존성 보안 수정 후에도 원본 감사의 image-size
-High 2건 추적, 남은 세션 lifecycle 수용과 배포 revision binding 때문에 production readiness는 `NOT READY`다.
+High 2건과 Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용 및 배포 revision binding은
+남아 있어 production readiness는 `NOT READY`다. M6·M7 종료는 이 출시 항목들의 완료를 뜻하지 않는다.
 패치 검증과 감사 결과는 [개발 검증 기록](docs/development-workflow.md)에 구분한다. 자세한 경계는
 [`docs/roadmap.md`](docs/roadmap.md)와
 [`docs/product-intent.md`](docs/product-intent.md)를 기준으로 한다.
 
 ## M6 server contract와 account-safe session
 
-M6는 M4 `contracts/bootstrap/`을 대체하지 않는다. `contracts/server/`는 read-only
+M6는 M4 `contracts/bootstrap/`을 대체하지 않는다. Bootstrap 정리는 사용자 결정에 따라
+서버 계약 기반 앱 개발 이후로 미룬다. `contracts/server/`는 read-only
 `jamye-server/contracts`의 OpenAPI 3.1/version 1 snapshot이며, 전체 wire type과 M6 schema
 closure(H1/H2, A1-A5, U1)의 runtime validator/domain mapper를 별도 경계로 둔다.
 `contracts/server/contract.lock`과 `intake.json`은 source revision, manifest/openapi hash와
@@ -67,9 +71,10 @@ namespace를 만들고, `scope_metadata`에서 같은 origin/user/schema identit
 기존 `jamye.db`와 fixture migration/rows/outbox는 삭제·재시드·이동하지 않는다. cold restore가
 유효한 U1 profile을 얻지 못하면 account data를 복원하거나 표시하지 않는다.
 
-현재 `HomeScreen`은 profile/logout, account-storage 상태와 unauthenticated health diagnostics만
-표시한다. 이 화면의 source 통합 및 자동 테스트가 존재한다는 사실은 iOS/Android native
-runtime/user acceptance 완료를 뜻하지 않는다. M6에는 groups, server chat, WebSocket/delta,
+M6의 profile/logout과 account-storage 경계는 보존한다. connected-auth mode는 이제 M7의
+account-scoped in-memory group list/create/join/detail/roster/management 경로를 제공하며,
+local-fixture mode는 M5 chat으로 계속 진입한다. M6 native/runtime 수용은 아래 실행 기록과 사용자
+확인을 근거로 종료했으며, source 통합이나 자동 테스트만으로 판정한 것은 아니다. M7에는 server chat, WebSocket/delta,
 outbox dispatcher, media, push와 offline authenticated restore가 없다.
 
 2026-09-09 보안 수정 후 자동 통합 검사에서 `bun run check:code`가 43 suites/407 tests와 함께 통과했다.
@@ -81,8 +86,28 @@ server/bootstrap contract drift 검사도 통과했다. 이 결과는 이번 변
 찾지 못했지만, 최초 실행은 기존 dependency High 3건 때문에 `ultrawork` VERIFY gate를 보류했다.
 이후 의존성 보안 수정과 회귀 검사를 수행했다. 2026-09-09 승인된 clean prebuild와
 iOS·Android 재빌드·설치·앱 실행을 완료했고, 사용자가 현재 빌드의 Kakao·Google 로그인
-4개 조합을 모두 확인했다. iOS Kakao의 프로필·계정 저장소와 앱 재시작 복원은 에이전트가
-관찰했다. 실제 토큰 만료 후 갱신·로그아웃·계정 전환 등의 수용은 이 결과에 포함하지 않는다.
+4개 조합을 모두 확인했다. 추가로 에이전트가 양 플랫폼 세션 복원·로그아웃 유지와 Android
+취소·Google 재로그인을 확인했다. 사용자가 iOS 취소 후 앱 복귀와 Kakao·Google 재로그인도
+정상이라고 확인하고 M6 종료를 승인했다. 결과 출처와 종료 범위는 [M6 종료 기록](docs/oauth-development.md)에 남겼다.
+Android 직접 Activity 실행 중 시작 ANR과 이후 런처 실행 성공은 별도로 기록했다.
+당시 M6 실행은 실제 토큰 만료 후 갱신·실계정/origin 전환 수용을 포함하지 않았다.
+실계정 전환은 이후 M7에서 별도 사용자 확인을 받았다. 실제 만료 갱신과 origin 전환은 미확인이다.
+
+## M7 groups, membership와 invitations
+
+M7 구현은 G1-G8/I1-I2의 검증된 server contract를 사용하는 authenticated group slice다.
+그룹 목록·생성·초대 코드 참여·상세·member roster와 owner/member 관리(이름 변경, 삭제, self-leave,
+member 제거, ownership transfer, 초대 발급)를 제공한다. 그룹 상태는 normalized origin, U1 user UUID와
+M6 session epoch에 묶인 connected-runtime in-memory store에만 보관하며 SQLite fixture, SecureStore,
+MMKV, M5 outbox에는 쓰지 않는다. 서버의 canonical mutation 응답 뒤 필요한 list/detail/roster를 refetch하고,
+cursor와 owner-first 순서를 그대로 보존한다.
+
+현재 상태는 `COMPLETED / USER_ACCEPTED`다. 2026-09-10 사용자가 양 플랫폼에서 배포 API를 통한
+그룹 생성·초대·가입·나가기와 계정 전환을 확인하고 종료 기록을 승인했다. 기존 Development Build에서
+M7 bundle을 실행했으며 native 설정 변경이나 재빌드는 없었다. membership loss는 authorized REST,
+self-leave/delete 성공, foreground/manual refetch 범위에서 처리한다. WebSocket eviction, durable
+group cache/outbox는 이 범위에 포함하지 않는다. 다른 관리 기능의 개별 실사용 확인과 검증 한계는
+[M7 evidence](docs/evidence/M7.md)와 [개발 검증 기록](docs/development-workflow.md)을 따른다.
 
 ## M4 local bootstrap contract
 
@@ -378,16 +403,19 @@ src/core/logging/                 structured redacted local logging
 src/core/errors/                  root Error Boundary와 recovery UI
 src/core/database/                SQLite open·migration·repository lifecycle
 src/core/auth/                    A1-A4/U1 adapter, PKCE, controller와 SecureStore session
+src/core/contracts/server/        server wire type·validator·domain mapper
+src/core/http/                    account-safe authorized request boundary
 src/core/providers/               theme·database·keyboard·runtime provider composition
 src/core/theme/                   semantic light/dark token과 system theme provider
 src/features/chat/model/          fixture identity, send policy, message-window 계산
 src/features/chat/ui/             native list, row, composer, platform keyboard adapter
 src/features/chat/                repository 구독 기반 conversation hook
 src/features/auth/                login/profile/logout UI와 callback landing
+src/features/groups/              account-scoped API·state·group/member/invite UI
 src/shared/ui/                    native screen/text primitive
 ```
 
-- Route는 chat screen과 root provider만 조합하고 persistence 구현을 직접 import하지 않는다.
+- Route는 auth·chat·group screen과 root provider를 조합하고 persistence 구현을 직접 import하지 않는다.
 - `AppProviders`는 startup environment를 검증하고 theme, database, native keyboard controller와
   runtime dependency를 조합한다.
 - Chat screen과 UI는 유일하게 허용된 repository port를 통해 SQLite 상태를 읽고 쓴다.
@@ -397,18 +425,17 @@ src/shared/ui/                    native screen/text primitive
   UI-thread scroll을 사용한다.
 - Theme는 React Native `useColorScheme()`만 따르며 저장 preference나 state library가 없다.
 - Local fixture는 production server, HTTP, WebSocket 또는 auth를 사용하지 않는다.
-- `src/app/index.tsx`는 `local-fixture`와 `connected-auth` mode를 전환하지만 authenticated
-  navigation은 아직 없다. `connected-auth`의 현재 OAuth 범위는 `src/core/auth/`와
-  `src/features/auth/`에 한정된다.
-- `AppProviders`와 `DatabaseProvider`는 두 mode 모두 fixture DB/seed를 사용한다. 실제 account
-  data를 연결하기 전에는 account namespace와 cache/outbox 경계를 별도로 승인·구현해야 한다.
+- `src/app/index.tsx`는 `local-fixture`의 M5 chat과 `connected-auth`의 로그인·인증 home을
+  구분한다. 인증 후에는 account-scoped M7 group route로 이동할 수 있다.
+- `AppProviders`는 connected mode에서 shared session, account scope와 groups store를 조합한다.
+  fixture DB/seed는 local-fixture mode에서만 사용하며, 실제 계정 namespace와 분리한다.
 - ESLint가 `app.config.ts`와 route/UI 계층의 직접 transport를 금지한다. 현재 허용된 실제
-  네트워크 호출은 `src/core/auth/`의 OAuth/session adapter에 한정되며, 이후 server adapter도
-  별도 boundary로 승인·검증한다.
+  네트워크 호출은 auth·health·groups의 지정 adapter와 `src/core/http/` 경계를 통과한다.
+  이후 server adapter도 별도 boundary로 승인·검증한다.
 
 M8-M9는 이 경계를 유지한 채 server-backed chat adapter, persistent outbox processor와
-canonical event/delta recovery를 별도 승인 후 추가한다. 실제 `jamye-server`, credential,
-session/token, OAuth와 production endpoint는 이번 수직 절편의 계약이 아니다.
+canonical event/delta recovery를 별도 승인 후 추가한다. 실제 `jamye-server`의 OAuth·profile·group
+연결은 M6·M7에서 수용했으며, credential과 session/token은 fixture나 문서에 보존하지 않는다.
 
 ## 품질 명령과 coverage 계약
 

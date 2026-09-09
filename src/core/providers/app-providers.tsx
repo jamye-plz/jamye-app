@@ -9,6 +9,10 @@ import type {
   AccountScopeRenderedState,
 } from "@/core/database/account/account-scope";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
+import { createGroupsApi } from "@/features/groups/data/groups-api";
+import { createGroupsStore } from "@/features/groups/model/groups-store";
+import type { GroupsStore } from "@/features/groups/model/groups-store";
+import { GroupsProvider } from "@/features/groups/model/groups-provider";
 import {
   createMonotonicMessageIdentity,
   createSystemClock,
@@ -35,6 +39,7 @@ export type AppProvidersProps = PropsWithChildren<{
   messageIdentityFactory?: () => MessageIdentityPort;
   createSessionController?: SessionProviderProps["createController"];
   createAccountScope?: () => AccountScopeController;
+  createGroupsStore?: (origin: string) => GroupsStore;
 }>;
 
 export type AppRuntimeDependencies = Readonly<{
@@ -54,6 +59,9 @@ const AppRuntimeContext = createContext<AppRuntimeDependencies | undefined>(
 const AccountScopeContext = createContext<AccountScopeContextValue | undefined>(
   undefined,
 );
+function createDefaultGroupsStore(): GroupsStore {
+  return createGroupsStore({ createApi: createGroupsApi });
+}
 
 export function AppProviders({
   children,
@@ -62,6 +70,7 @@ export function AppProviders({
   messageIdentityFactory = createMonotonicMessageIdentity,
   createSessionController,
   createAccountScope,
+  createGroupsStore: groupsStoreFactory,
 }: AppProvidersProps) {
   const env = getPublicEnv();
 
@@ -72,6 +81,7 @@ export function AppProviders({
           <ConnectedRuntimeProviders
             accountScopeFactory={createAccountScope}
             createSessionController={createSessionController}
+            groupsStoreFactory={groupsStoreFactory}
             origin={requireConnectedOrigin(env.apiOrigin)}
           >
             {children}
@@ -123,17 +133,24 @@ function ConnectedRuntimeProviders({
   origin,
   createSessionController,
   accountScopeFactory,
+  groupsStoreFactory,
 }: PropsWithChildren<
   Readonly<{
     origin: string;
     createSessionController?: SessionProviderProps["createController"];
     accountScopeFactory?: () => AccountScopeController;
+    groupsStoreFactory?: (origin: string) => GroupsStore;
   }>
 >) {
   return (
     <SessionProvider createController={createSessionController} origin={origin}>
       <AccountScopeBridge accountScopeFactory={accountScopeFactory}>
-        {children}
+        <GroupsStoreBridge
+          origin={origin}
+          groupsStoreFactory={groupsStoreFactory}
+        >
+          {children}
+        </GroupsStoreBridge>
       </AccountScopeBridge>
     </SessionProvider>
   );
@@ -197,6 +214,29 @@ export function useAccountScope(): AccountScopeContextValue {
     );
   }
   return value;
+}
+
+function GroupsStoreBridge({
+  children,
+  origin,
+  groupsStoreFactory = createDefaultGroupsStore,
+}: PropsWithChildren<
+  Readonly<{
+    origin: string;
+    groupsStoreFactory?: (origin: string) => GroupsStore;
+  }>
+>) {
+  const { principal, authorizedRequest } = useSession();
+  return (
+    <GroupsProvider
+      origin={origin}
+      principal={principal}
+      authorizedRequest={authorizedRequest}
+      createStore={groupsStoreFactory}
+    >
+      {children}
+    </GroupsProvider>
+  );
 }
 
 function AppRuntimeBridge({

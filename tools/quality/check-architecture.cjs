@@ -367,6 +367,38 @@ const M6_04_AUTHORED_FILES = Object.freeze([
   ...M6_04_TEST_PATHS,
 ]);
 
+const M7_TEST_PATHS = Object.freeze([
+  "tests/features/groups/data/groups-api.test.ts",
+  "tests/features/groups/model/groups-error.test.ts",
+  "tests/features/groups/model/groups-store.test.ts",
+  "tests/features/groups/model/groups-management.test.ts",
+  "tests/features/groups/model/groups-provider.test.tsx",
+  "tests/features/groups/ui/groups-home.test.tsx",
+  "tests/features/groups/ui/group-detail.test.tsx",
+  "tests/quality/groups-boundaries.test.ts",
+]);
+const M7_AUTHORED_FILES = Object.freeze([
+  "src/app/groups/create.tsx",
+  "src/app/groups/join.tsx",
+  "src/app/groups/[groupId].tsx",
+  "src/features/groups/data/groups-api.ts",
+  "src/features/groups/model/groups-error.ts",
+  "src/features/groups/model/groups-input.ts",
+  "src/features/groups/model/groups-state.ts",
+  "src/features/groups/model/groups-store.ts",
+  "src/features/groups/model/groups-management.ts",
+  "src/features/groups/model/groups-provider.tsx",
+  "src/features/groups/ui/group-controls.tsx",
+  "src/features/groups/ui/group-list-screen.tsx",
+  "src/features/groups/ui/group-form-screen.tsx",
+  "src/features/groups/ui/group-detail-screen.tsx",
+  "src/features/groups/ui/group-owner-panel.tsx",
+  "src/features/groups/ui/group-route-guard.tsx",
+  "tests/features/groups/groups-fixtures.ts",
+  ...M7_TEST_PATHS,
+  "docs/evidence/M7.md",
+]);
+
 const M5_RETIRED_PLACEHOLDER_PATHS = Object.freeze([
   "src/features/development-fixture/model/local-fixture.ts",
   "src/features/development-fixture/ui/development-fixture-screen.tsx",
@@ -451,6 +483,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M6_02_AUTHORED_FILES.filter((file) => file.startsWith("tests/")),
     ...M6_03_TEST_PATHS,
     ...M6_04_TEST_PATHS,
+    ...M7_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
   ]),
@@ -922,6 +955,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M6_02_AUTHORED_FILES,
   ...M6_03_AUTHORED_FILES,
   ...M6_04_AUTHORED_FILES,
+  ...M7_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -982,6 +1016,7 @@ const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
   ...M6_02_AUTHORED_FILES,
   ...M6_03_AUTHORED_FILES,
   ...M6_04_AUTHORED_FILES,
+  ...M7_AUTHORED_FILES,
   ...AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS,
 ]);
 

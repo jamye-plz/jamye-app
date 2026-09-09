@@ -1,7 +1,8 @@
 import { anySignal } from "@/core/http/http-client";
 
 import { parseOAuthCallback } from "./callback";
-import type { AuthApi, AuthApiError } from "./auth-api";
+import { AuthApiError } from "./auth-api";
+import type { AuthApi } from "./auth-api";
 import type { SessionStore } from "./secure-session-store";
 import type { OAuthProvider, TokenPair, UserProfile } from "./types";
 
@@ -385,6 +386,50 @@ export function createAuthController(
         await deps.api
           .logout(previous.accessToken, signal)
           .catch(() => undefined);
+    },
+    /**
+     * The narrow M7 authorized-request boundary is for data adapters, not UI.
+     * An `execute` callback receives the current bearer
+     * token and a request signal already fenced to this controller's epoch.
+     * A 401 is retried through the existing single-flight refresh at most
+     * once; a response that resolves after this generation was superseded
+     * (dispose/restore/logout/account switch) is discarded as cancelled
+     * rather than returned.
+     */
+    async authorizedRequest<T>(
+      execute: (accessToken: string, signal: AbortSignal) => Promise<T>,
+      callerSignal?: AbortSignal,
+    ): Promise<T> {
+      if (!tokens) throw new AuthApiError(401, "not_authenticated");
+      const current = generation;
+      const signal = requestSignal(callerSignal);
+      const ensureActiveRequest = () => {
+        if (!active(current) || signal.aborted)
+          throw new AuthApiError(0, "request_cancelled");
+      };
+      const runOnce = async (accessToken: string): Promise<T> => {
+        ensureActiveRequest();
+        let result: T;
+        try {
+          result = await execute(accessToken, signal);
+        } catch (error) {
+          ensureActiveRequest();
+          throw error;
+        }
+        ensureActiveRequest();
+        return result;
+      };
+      try {
+        return await runOnce(tokens.accessToken);
+      } catch (error) {
+        if (error instanceof AuthApiError && error.code === "request_cancelled")
+          throw error;
+        if (!isUnauthorized(error)) throw error;
+        const refreshed = await this.refresh();
+        ensureActiveRequest();
+        if (!refreshed) throw error;
+        return await runOnce(refreshed.accessToken);
+      }
     },
     async retryProfile(callerSignal?: AbortSignal) {
       const current = generation;

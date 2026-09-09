@@ -1,7 +1,18 @@
 import {
+  isValidInviteJoinCode,
   parseOAuthCallbackQuery,
   validateErrorEnvelope,
+  validateGroup,
+  validateGroupCreate,
+  validateGroupPage,
+  validateGroupPatch,
+  validateInvite,
+  validateInviteCreate,
+  validateInviteJoinResult,
   validateLivenessResponse,
+  validateMember,
+  validateMemberPage,
+  validateMemberRolePatch,
   validateOAuthAuthorizeIn,
   validateOAuthAuthorizeOut,
   validateOAuthExchangeIn,
@@ -170,6 +181,150 @@ describe("M6-01 server contract runtime validators", () => {
     expect(
       validateErrorEnvelope({ error: { ...valid.error, request_id: "bad" } }),
     ).toBe(false);
+  });
+
+  test("G1/G5 Group and GroupCreate/GroupPatch reject a name outside 1-128 Unicode scalars and unknown fields", () => {
+    const valid = {
+      created_at: VALID_DATE_TIME,
+      id: VALID_UUID,
+      main_chatroom_id: VALID_UUID,
+      max_members: 10,
+      member_count: 1,
+      name: "그룹",
+      owner_id: VALID_UUID,
+    };
+    expect(validateGroup(valid)).toBe(true);
+    expect(validateGroup({ ...valid, name: "" })).toBe(false);
+    expect(validateGroup({ ...valid, name: "n".repeat(129) })).toBe(false);
+    expect(validateGroup({ ...valid, max_members: 0 })).toBe(false);
+    expect(validateGroup({ ...valid, member_count: -1 })).toBe(false);
+    expect(validateGroup({ ...valid, owner_id: "not-a-uuid" })).toBe(false);
+    expect(validateGroup({ ...valid, extra: true })).toBe(false);
+
+    expect(validateGroupCreate({ name: "그룹" })).toBe(true);
+    expect(validateGroupCreate({ name: "" })).toBe(false);
+    expect(validateGroupCreate({ name: "n".repeat(129) })).toBe(false);
+    expect(validateGroupCreate({})).toBe(false);
+    expect(validateGroupPatch({ name: "renamed" })).toBe(true);
+    expect(validateGroupPatch({ name: "" })).toBe(false);
+  });
+
+  test("G2 GroupPage rejects a malformed item and preserves next_cursor as an opaque nullable string", () => {
+    const group = {
+      created_at: VALID_DATE_TIME,
+      id: VALID_UUID,
+      main_chatroom_id: VALID_UUID,
+      max_members: 10,
+      member_count: 1,
+      name: "그룹",
+      owner_id: VALID_UUID,
+    };
+    expect(validateGroupPage({ items: [group], next_cursor: null })).toBe(true);
+    expect(
+      validateGroupPage({ items: [group], next_cursor: "opaque-token" }),
+    ).toBe(true);
+    expect(
+      validateGroupPage({
+        items: [{ ...group, id: "bad" }],
+        next_cursor: null,
+      }),
+    ).toBe(false);
+    expect(validateGroupPage({ items: [group] })).toBe(false);
+    expect(validateGroupPage({ items: [group], next_cursor: 123 })).toBe(false);
+  });
+
+  test("G4 Member/MemberPage enforce the owner|member enum and reject an unknown role", () => {
+    const member = {
+      avatar_url: null,
+      joined_at: VALID_DATE_TIME,
+      nickname: "n",
+      role: "owner",
+      user_id: VALID_UUID,
+    };
+    expect(validateMember(member)).toBe(true);
+    expect(validateMember({ ...member, role: "admin" })).toBe(false);
+    expect(validateMember({ ...member, user_id: "not-a-uuid" })).toBe(false);
+    expect(validateMember({ ...member, nickname: "" })).toBe(false);
+    expect(
+      validateMemberPage({ items: [member], next_cursor: "membership-cursor" }),
+    ).toBe(true);
+    expect(
+      validateMemberPage({
+        items: [{ ...member, role: "admin" }],
+        next_cursor: null,
+      }),
+    ).toBe(false);
+  });
+
+  test("G8 MemberRolePatch only accepts the owner|member role enum", () => {
+    expect(validateMemberRolePatch({ role: "owner" })).toBe(true);
+    expect(validateMemberRolePatch({ role: "member" })).toBe(true);
+    expect(validateMemberRolePatch({ role: "admin" })).toBe(false);
+    expect(validateMemberRolePatch({})).toBe(false);
+  });
+
+  test("I1 Invite/InviteCreate accept a nullable future expires_at and positive nullable max_uses", () => {
+    const invite = {
+      code: "a".repeat(16),
+      created_at: VALID_DATE_TIME,
+      created_by: VALID_UUID,
+      expires_at: null,
+      group_id: VALID_UUID,
+      id: VALID_UUID,
+      max_uses: null,
+      used_count: 0,
+    };
+    expect(validateInvite(invite)).toBe(true);
+    expect(
+      validateInvite({ ...invite, expires_at: VALID_DATE_TIME, max_uses: 5 }),
+    ).toBe(true);
+    expect(validateInvite({ ...invite, code: "short" })).toBe(false);
+    expect(validateInvite({ ...invite, max_uses: 0 })).toBe(false);
+    expect(validateInvite({ ...invite, used_count: -1 })).toBe(false);
+
+    expect(validateInviteCreate({})).toBe(true);
+    expect(validateInviteCreate({ expires_at: null, max_uses: null })).toBe(
+      true,
+    );
+    expect(validateInviteCreate({ max_uses: 1 })).toBe(true);
+    expect(validateInviteCreate({ max_uses: 0 })).toBe(false);
+  });
+
+  test("I2 InviteJoinResult allows joined:false with membership_id:null as a successful already-member outcome", () => {
+    expect(
+      validateInviteJoinResult({
+        group_id: VALID_UUID,
+        joined: false,
+        membership_id: null,
+      }),
+    ).toBe(true);
+    expect(
+      validateInviteJoinResult({
+        group_id: VALID_UUID,
+        joined: true,
+        membership_id: VALID_UUID,
+      }),
+    ).toBe(true);
+    expect(
+      validateInviteJoinResult({
+        group_id: "not-a-uuid",
+        joined: false,
+        membership_id: null,
+      }),
+    ).toBe(false);
+    expect(
+      validateInviteJoinResult({ group_id: VALID_UUID, joined: false }),
+    ).toBe(false);
+  });
+
+  test("I2 invite code runtime pattern accepts only 16-64 ASCII alphanumeric/underscore/hyphen", () => {
+    expect(isValidInviteJoinCode("a".repeat(16))).toBe(true);
+    expect(isValidInviteJoinCode("a".repeat(64))).toBe(true);
+    expect(isValidInviteJoinCode("Az09_-".repeat(3))).toBe(true);
+    expect(isValidInviteJoinCode("a".repeat(15))).toBe(false);
+    expect(isValidInviteJoinCode("a".repeat(65))).toBe(false);
+    expect(isValidInviteJoinCode("has a space".padEnd(16, "a"))).toBe(false);
+    expect(isValidInviteJoinCode("has/slash".padEnd(16, "a"))).toBe(false);
   });
 
   test("A5 is browser-only: the callback query is parsed, never fetched as JSON", () => {

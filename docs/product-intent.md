@@ -1,9 +1,9 @@
 # 잼얘좀 모바일 — 서버 연결 제품 여정과 보존할 native 의도
 
 - 작성 목적: M1에서 기존 `jamye-plz`의 제품 의미와 회귀 의도를 읽기 전용으로 추출
-- 현재 구현 범위: M0-M5 local fixture chat foundation과 M6 account-safe authenticated shell
-- M5 이후: Kakao/Google login/profile/logout implemented, 일부 실계정 수용 완료
-- 현재 frontier: M6 account-safe authenticated home 구현, group/chat product journey not implemented
+- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey
+- M5 이후: Kakao/Google login/profile/logout과 M6 범위의 native/user 세션 수용 완료
+- 현재 frontier: M7 completed / user accepted (2026-09-10), M8 planned / unapproved
 - 기준 저장소: [sibling `jamye-plz`](../../jamye-plz/) repository (수정하지 않음)
 
 ## 1. 먼저 고정할 해석 원칙
@@ -16,8 +16,8 @@
 이번 수직 절편은 다음 경계를 지킨다.
 
 - `local-fixture` mode는 고정 fixture 사용자와 대화방을, `connected-auth` mode는 shared
-  OAuth session, 검증된 U1 profile, logout과 account-safe home을 표시한다. authenticated
-  group/chat navigation은 아직 없다.
+  OAuth session, 검증된 U1 profile, logout과 account-safe home 및 M7 group journey를 표시한다.
+  server-backed chat navigation은 아직 없다.
 - 인증 mode는 M5 `jamye.db` fixture와 seed를 사용하지 않는다. API origin과 검증된 User UUID를
   함께 digest한 account namespace와 `scope_metadata` identity를 사용하며, 이전 account의
   늦은 응답·open/close 작업이 새 account에 노출되지 않도록 session epoch와 scope drain으로
@@ -32,7 +32,7 @@
   전송 동작이 발생하지 않아야 한다.
 
 장기 제품에는 그룹 메인방과 주제별 방이 모두 있다. 현재는 fixture 대화방 하나로 채팅의
-신뢰성을 검증했고, 다음 사용자 여정은 [로드맵](roadmap.md)의 M6 이후 순서를 따른다.
+신뢰성을 검증했고 M6 계정 안전 기반과 M7 그룹 여정도 종료했다. 다음 사용자 여정은 [로드맵](roadmap.md)의 M8 이후 순서를 따른다.
 
 ### 1.2 현재에서 미래로 이어지는 사용자 여정
 
@@ -40,8 +40,8 @@
 아니다. 각 wire shape의 권위는 기존 PWA가 아니라 계획에 사용하는 읽기 전용
 `jamye-server/contracts` snapshot이다. Native interaction intent는 M5의 원칙을 이어간다.
 
-1. Login 후 account-safe home
-2. Group 생성·참여와 membership
+1. Login 후 account-safe home — M6 완료
+2. Group 생성·참여와 membership — M7 완료, 양 플랫폼 그룹 작업·계정 전환 사용자 확인
 3. 실제 chatroom history/read/send
 4. Offline/realtime convergence
 5. Topics/tags
@@ -277,10 +277,13 @@ chat spacing, socket reconnect, design size, layout focus의 회귀 의도만 �
 ### 7.4 계획 범위와 contract-gap backlog
 
 - 계획 범위: server contract가 정의한 group·초대·chatroom/message·realtime/delta·topic/tag·
-  media·notification history·Expo push installation은 roadmap의 M6-M13 planned milestone이다.
+  media·notification history·Expo push installation은 roadmap의 M7-M13 범위다. M7은 종료했으며
+  focused·aggregate 자동 결과와 native/live 사용자 수용 범위는 구분해 기록한다.
 - contract-gap backlog: Apple login, STT/on-device AI, presence/typing/reaction,
   message edit/delete와 새 push backend, 현재 server contract에 없는 provider·기능
-- Server contract intake와 계정 기반은 M6에서 구현했으며, account/token lifecycle의 native/user 수용은 남아 있다.
+- Server contract intake와 계정 기반은 M6에서 정식 종료했다. M7은 M6 authorized executor와
+  origin/user/epoch fence를 재사용해 group 상태를 in-memory로 연결한다. membership loss는
+  authorized REST 결과·self-leave/delete 성공·foreground/manual refetch까지만 다루며 realtime eviction은 M9다.
 - 기존 browser 전용 설정: native 동작으로 대체할 필요가 생길 때 별도 검토
 - Production signing과 store 제출: 공통 release acceptance의 별도 사용자 결정
 
@@ -302,5 +305,6 @@ chat spacing, socket reconnect, design size, layout focus의 회귀 의도만 �
 
 M4 bootstrap contract와 M5 local chat을 닫을 때 이 문서의 제품 불변 조건과 roadmap을 함께
 대조했다. 기존 PWA 구현과 다른 wire shape와 native keyboard adapter를 선택한 것은 의도
-훼손이 아니라 새 모바일 경계의 정상적인 설계다. M6-M13도 같은 no-copy 경계에서 별도 승인 후
-시작한다.
+훼손이 아니라 새 모바일 경계의 정상적인 설계다. M6는 종료했고 M7은 구현·로컬 검사 이후
+양 플랫폼 그룹 생성·초대·가입·나가기와 계정 전환의 사용자 확인을 받아 2026-09-10 종료했다.
+구체적인 수용 범위와 미확인 항목은 [M7 evidence](evidence/M7.md)에 기록한다. M8-M13은 별도 gate를 따른다.

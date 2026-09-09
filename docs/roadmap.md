@@ -1,12 +1,12 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 account-safe authenticated shell 구현 및 양 플랫폼 Kakao·Google 실계정 로그인 수용
+- 현재 상태: M0-M5 완료 이력 보존, M6 서버 계약·계정 안전 기반 완료, M7 그룹·멤버십·초대 완료 (2026-09-10 사용자 종료 승인)
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M6 구현·자동 통합 검사·보안 패치 검증, 양 플랫폼 재빌드·설치와 로그인 4개 조합 통과; 남은 세션 lifecycle 수용은 별도
-- 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건 추적, 남은 세션 lifecycle 수용과 배포 binding이 남아 있음
+- 현재 frontier: M8 실제 서버 REST 채팅 — `planned_unapproved`
+- 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-09-09
+- 최종 수정일: 2026-09-10
 
 ## 1. 이 문서가 답하는 것
 
@@ -29,7 +29,7 @@
 - **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
-- **미래 계획**: 별도 승인 전에는 구현하지 않는 M6 이후 항목
+- **미래 계획**: 별도 승인 전에는 구현하지 않는 M8 이후 항목; M7 종료는 M8 구현 승인이 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
 production readiness의 증거로 재사용하지 않는다.
@@ -66,15 +66,16 @@ shared session과 U1 profile을 제공하며, M6에는 별도의 health 연결 �
 
 초기 OAuth 수용 이후 M6와 의존성 보안 패치를 포함해 clean iOS/Android rebuild·설치를
 다시 완료했다. 2026-09-09 사용자는 현재 빌드에서 양 platform × 양 provider의 실계정 로그인
-4개 조합이 모두 성공했다고 확인했다. 에이전트는 iOS Kakao profile/account storage와 앱
-재시작 복원을 관찰했다. 자세한 기록은
+4개 조합이 모두 성공했다고 확인했다. 이후 에이전트는 양 플랫폼 profile/account storage와
+앱 재시작 복원·로그아웃 유지, Android Kakao 취소·Google 재로그인을 관찰했다. 사용자는
+iOS 취소 후 앱 복귀와 Kakao·Google 재로그인도 정상이라고 확인하고 M6 종료를 승인했다. 자세한 기록은
 [OAuth 개발 연결](oauth-development.md)에 있다.
 
 아래 항목은 아직 전체 PASS가 아니다.
 
-- Android 기존 session restore
 - 실제 token 만료 뒤 refresh
-- logout 후 재실행, browser cancel과 account switch
+- 실계정/origin 전환과 네트워크 장애 수용
+- Android 직접 Activity 실행 중 발생한 시작 ANR의 원인 규명
 - 로그인 뒤 group/chat으로 이어지는 navigation
 - physical device, VoiceOver/TalkBack, 200% text, reduce motion
 - automated mobile E2E와 production 배포 revision binding
@@ -190,11 +191,12 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 않는다. Release acceptance는 번호가 붙은 catch-all milestone이 아니라, 실제 선택·구현한 범위에만
 적용하는 공통 gate다.
 
-## 7. 미래 milestone
+## 7. 서버 계약 기반 milestone
 
 ### M6. 서버 계약 수용과 계정 안전 기반
 
-- 상태: `implemented; automated and patched-security checks passed; native builds and four login combinations passed; remaining session acceptance pending`
+- 상태: `completed` — 2026-09-09 사용자 최종 세션 확인 및 종료 승인
+- 구현 기준: 로컬 commit `909acd3`; 종료 기록은 [OAuth 실행 검증](oauth-development.md)
 - 선행: M0-M5 이력, post-M5 OAuth baseline, 승인된 M6 PLAN_GATE
 - 사용자 결과: 로그인 성공 뒤 authenticated home/profile에 진입하며 fixture 데이터가 로그인
   account에 보이거나 전송되지 않는다.
@@ -232,11 +234,17 @@ account lifecycle은 전체 open/close transition을 직렬화하고, provider�
 적용했다. 원본 감사에 남는 image-size High 2건과 패치 검증은 [개발 검증 기록](development-workflow.md)에
 구분한다. 이후 clean prebuild와 양 플랫폼 재빌드·설치·실행을 완료했고, 사용자가 현재
 빌드의 iOS Kakao·Google, Android Kakao·Google 실계정 로그인 성공을 모두 확인했다.
-이 결과로 실제 토큰 만료·refresh, 로그아웃, 취소·오류·계정 전환 수용까지 PASS로 확대하지 않는다.
+추가 세션 확인에서 양 플랫폼 복원·로그아웃 유지, Android 취소·재로그인이 통과했다.
+이후 사용자가 iOS 취소 후 앱 복귀와 Kakao·Google 재로그인도 정상임을 확인하고 M6 종료를
+승인했다. 따라서 서버 계약 수용과 계정 안전 기반 범위를 `completed`로 정식 종료한다.
+실제 토큰 만료·refresh, 오류·실계정/origin 전환까지 PASS로 확대하지 않는다.
+Android 직접 Activity 실행 중 발생한 시작 ANR과 이후 런처 실행 성공은
+[개발 검증 기록](development-workflow.md)에 구분한다. `bootstrap` 정리는 M6 종료 조건이
+아니며, 사용자 결정에 따라 서버 계약 기반 앱 개발 이후로 미룬다.
 
 ### M7. 그룹·멤버십·초대
 
-- 상태: `planned_unapproved`
+- 상태: `COMPLETED / USER_ACCEPTED` — 2026-09-10 양 플랫폼 검증 확인 및 사용자 종료 기록 승인
 - 선행: M6
 - 사용자 결과: group을 만들거나 invite로 참여하고, group 목록·상세·member를 보며 권한에 맞는
   관리 action을 수행한다.
@@ -249,11 +257,30 @@ account lifecycle은 전체 open/close transition을 직렬화하고, provider�
 - Membership removal 뒤 protected screen 이탈, subscription/outbox/cache 차단
 - Re-fetch와 optimistic UI가 server authority를 덮지 않는 상태 소유권
 
+구현은 G1-G8/I1-I2만 다루며, M6 authorized executor의 401 single-flight·epoch fence와
+normalized origin/U1 user/epoch account-scoped in-memory store를 재사용한다. G2/G4 cursor는
+opaque하게 전달하고 server order를 보존한다. membership loss는 authorized REST 응답,
+self-leave/delete 성공, foreground/manual refetch 범위에서만 처리하며 WebSocket eviction은 M9다.
+SQLite fixture/bootstrap, SecureStore/MMKV cache와 M5 outbox는 변경하지 않았다.
+
 완료 증거:
 
 - 권한별 happy/error path와 account isolation test
 - User-visible loading/empty/retry/destructive confirmation/accessibility state
 - 실제 배포 API를 호출하면 test account/data mutation 범위를 사전 승인하고 cleanup 결과 분리
+
+현재 focused 결과는 여러 별도 실행의 합이므로 aggregate로 합산하지 않는다. task1 6 suites/92
+tests, M6 관련 회귀 10 suites/62 tests, architecture fixture 72 tests, auth cancellation follow-up
+2 suites/41 tests, task2 API/state/error 3 suites/65 tests, provider/app-provider 2 suites/18 tests,
+management/store/connected-index 3 suites/27 tests, groups home/detail/connected-index 3 suites/24 tests가
+각각 기록됐다. 최종 aggregate `rtk proxy bun run check:code`는 exit 0으로 51 suites/551 tests,
+statements 90.16%, branches 83.40%, functions 92.62%, lines 92.49%를 통과했다. contract
+checker도 `status:ok`, exit 0이며 transport/architecture regression 2 suites/75 tests가 통과했다.
+이후 기존 Development Build에서 양 플랫폼 M7 실행을 확인했다. 사용자가 실제 배포 API를 통한
+그룹 생성·초대·가입·나가기와 계정 전환을 양 플랫폼에서 확인하고 종료 기록을 승인해 M7을 닫았다.
+이름 변경·소유권 이전·다른 멤버 제거·그룹 삭제의 개별 실사용 확인과 검증 데이터 정리는
+보고받지 않았으며, 앱 전체 production readiness는 별도다. 출처와 확인 범위는
+[M7 evidence](evidence/M7.md)를 따른다.
 
 ### M8. 실제 서버와 연결한 REST 채팅
 
@@ -388,19 +415,19 @@ account lifecycle은 전체 open/close transition을 직렬화하고, provider�
 
 이 표는 contract inventory의 누락을 막기 위한 배정표다. 현재 구현이나 배포 검증 표가 아니다.
 
-| Family                  | Operation IDs                  | 현재 app                               | Roadmap assignment                            |
-| ----------------------- | ------------------------------ | -------------------------------------- | --------------------------------------------- |
-| Health                  | H1, H2                         | 진단 UI 구현                           | M6 진단, 공통 release acceptance              |
-| OAuth/session           | A1, A2, A3, A4, A5             | 구현·양 플랫폼 양 provider 로그인 수용 | M6 shared session과 남은 lifecycle acceptance |
-| Profile/account         | U1, U2, U3                     | U1 표시만                              | M6 U1, M13 U2/U3                              |
-| Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | 없음                                   | M7                                            |
-| Invitations             | I1, I2                         | 없음                                   | M7                                            |
-| Chatrooms/messages/read | C1, C2, C3, C4                 | local fixture만                        | M8                                            |
-| Delta/realtime          | S1, R1 + WebSocket             | 실행 경로 없음                         | M9                                            |
-| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 없음                                   | M10                                           |
-| Media                   | MD1, MD2, MD3, MD4, MD5        | 없음                                   | M11                                           |
-| Notification history    | N1, N2                         | 없음                                   | M12                                           |
-| Push installation       | P2, P3, P4                     | 없음                                   | M12                                           |
+| Family                  | Operation IDs                  | 현재 app                            | Roadmap assignment                         |
+| ----------------------- | ------------------------------ | ----------------------------------- | ------------------------------------------ |
+| Health                  | H1, H2                         | 진단 UI 구현                        | M6 진단, 공통 release acceptance           |
+| OAuth/session           | A1, A2, A3, A4, A5             | M6 범위 구현·세션 수용 완료         | M6 shared session, 공통 release acceptance |
+| Profile/account         | U1, U2, U3                     | U1 표시만                           | M6 U1, M13 U2/U3                           |
+| Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | M7 완료 — 수용 범위는 evidence 참조 | M7                                         |
+| Invitations             | I1, I2                         | M7 완료 — 양 플랫폼 사용자 수용     | M7                                         |
+| Chatrooms/messages/read | C1, C2, C3, C4                 | local fixture만                     | M8                                         |
+| Delta/realtime          | S1, R1 + WebSocket             | 실행 경로 없음                      | M9                                         |
+| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 없음                                | M10                                        |
+| Media                   | MD1, MD2, MD3, MD4, MD5        | 없음                                | M11                                        |
+| Notification history    | N1, N2                         | 없음                                | M12                                        |
+| Push installation       | P2, P3, P4                     | 없음                                | M12                                        |
 
 모든 43개 HTTP operation은 위 표에 포함된다. WebSocket은 M9에 배정한다.
 
@@ -464,9 +491,13 @@ build/prebuild, native generation, 로그인/API smoke 또는 배포 검증으�
 
 M6 구현·자동 통합 검사와 요구사항/회귀 리뷰는 통과했다. 의존성 보안 수정과 자동 재검증,
 clean prebuild·양 플랫폼 재빌드·설치 이후 [사용자 검증표](oauth-development.md)의
-Kakao·Google 실계정 로그인 4개 조합도 모두 통과했다. 현재 결과를 기록한 뒤 남은
-복원·로그아웃·실제 토큰 만료 갱신·취소·계정 전환 수용 범위를 사용자와 확인한다.
-로그인 성공만으로 이 항목이나 M6 전체 종료를 추론하지 않는다.
-M6 종료를 확인한 뒤 다음 기능 후보인 **M7 그룹·멤버십·초대**를 계획한다. M7-M13은 아직 구현하지 않았다.
+Kakao·Google 실계정 로그인 4개 조합도 모두 통과했다. 이후 양 플랫폼 세션 복원·로그아웃 유지와
+Android 취소·Google 재로그인을 확인했다. iOS 취소 후 앱 복귀와 Kakao·Google 재로그인도
+사용자가 정상임을 확인하고 종료를 승인하여, 2026-09-09 M6를 정식 종료했다.
+Android 시작 ANR은 원인 미확정 상태로 보존하며 실제 만료 갱신과
+실계정/origin 변경의 자동 검사·실서버 검증 범위를 혼동하지 않는다.
+이후 2026-09-10 사용자가 M7의 양 플랫폼 실서버 그룹 생성·초대·가입·나가기와 계정 전환을
+확인하고 종료 기록·로컬 커밋을 승인했다. M7은 `COMPLETED / USER_ACCEPTED`로 정식 종료했다.
+다음 단계는 M8의 실제 chatroom history/read/send 계획 검토와 승인이다.
 
-문서 갱신은 앱 기능 완료, 출시 승인, commit/push 또는 배포를 뜻하지 않는다.
+이번 종료 승인은 M8 구현, 앱 전체 출시, push 또는 배포를 뜻하지 않는다.

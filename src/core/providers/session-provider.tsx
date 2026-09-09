@@ -35,6 +35,10 @@ export type SessionContextValue = Readonly<{
   logout: (signal?: AbortSignal) => Promise<void>;
   restore: (signal?: AbortSignal) => Promise<void>;
   retryProfile: (signal?: AbortSignal) => Promise<void>;
+  authorizedRequest: <T>(
+    execute: (accessToken: string, signal: AbortSignal) => Promise<T>,
+    signal?: AbortSignal,
+  ) => Promise<T>;
 }>;
 
 const SessionContext = createContext<SessionContextValue | undefined>(
@@ -129,6 +133,8 @@ export function SessionProvider({
       logout: (signal) => controller.logout(signal),
       restore: (signal) => controller.restore(signal),
       retryProfile: (signal) => controller.retryProfile(signal),
+      authorizedRequest: (execute, signal) =>
+        controller.authorizedRequest(execute, signal),
     }),
     [state, principal, controller],
   );

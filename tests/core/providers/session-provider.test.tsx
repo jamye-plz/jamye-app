@@ -39,6 +39,9 @@ function fakeController(
     signIn: jest.fn(async () => undefined),
     logout: jest.fn(async () => undefined),
     retryProfile: jest.fn(async () => undefined),
+    authorizedRequest: jest.fn(async (execute) =>
+      execute("fake-access-token", new AbortController().signal),
+    ),
     publish,
     bumpGeneration: () => {
       generation += 1;
@@ -218,5 +221,33 @@ describe("SessionProvider / useSession", () => {
       principal: null,
     });
     expect(oldController.dispose).toHaveBeenCalled();
+  });
+
+  test("delegates authorizedRequest to the controller without the screen ever handling the token directly", async () => {
+    const controller = fakeController();
+    const createController = jest.fn(() => controller);
+    const { result } = await renderHook(() => useSession(), {
+      wrapper: ({ children }) => (
+        <SessionProvider
+          origin="https://api.example"
+          createController={createController}
+        >
+          {children}
+        </SessionProvider>
+      ),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const signal = new AbortController().signal;
+    const execute = jest.fn(
+      async (accessToken: string) => `used:${accessToken}`,
+    );
+    let value: string | undefined;
+    await act(async () => {
+      value = await result.current.authorizedRequest(execute, signal);
+    });
+    expect(value).toBe("used:fake-access-token");
+    expect(controller.authorizedRequest).toHaveBeenCalledWith(execute, signal);
   });
 });

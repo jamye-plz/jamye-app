@@ -199,6 +199,16 @@ const M6_04_TEST_PATHS = [
   "tests/features/home/connection-diagnostics.test.tsx",
   "tests/app/connected-index-route.test.tsx",
 ];
+const M7_TEST_PATHS = [
+  "tests/features/groups/data/groups-api.test.ts",
+  "tests/features/groups/model/groups-error.test.ts",
+  "tests/features/groups/model/groups-store.test.ts",
+  "tests/features/groups/model/groups-management.test.ts",
+  "tests/features/groups/model/groups-provider.test.tsx",
+  "tests/features/groups/ui/groups-home.test.tsx",
+  "tests/features/groups/ui/group-detail.test.tsx",
+  "tests/quality/groups-boundaries.test.ts",
+];
 
 const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M3_TEST_PATHS.filter(
@@ -213,6 +223,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M6_02_TEST_PATHS,
   ...M6_03_TEST_PATHS,
   ...M6_04_TEST_PATHS,
+  ...M7_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
 ].filter((path, index, paths) => paths.indexOf(path) === index);
@@ -815,6 +826,26 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     expect(result.violations.map((v) => v.category)).toContain(
       "meaningful-inventory",
     );
+  });
+  test("M7 requires behavior tests and only the declared groups feature files", () => {
+    for (const path of M7_TEST_PATHS) {
+      const snapshot = buildValidRepositorySnapshot();
+      snapshot.testInventory = snapshot.testInventory.filter(
+        (value: string) => value !== path,
+      );
+      expect(
+        checkArchitecture(snapshot).violations.map((v) => v.category),
+      ).toContain("meaningful-inventory");
+    }
+    expect(
+      isAuthorizedWorkingTreePath("src/features/groups/data/groups-api.ts"),
+    ).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M7.md")).toBe(true);
+    expect(
+      isAuthorizedWorkingTreePath(
+        "src/features/groups/data/unplanned-persistence.ts",
+      ),
+    ).toBe(false);
   });
 
   test("denies a testInventory missing an M6-02/M6-03/M6-04 integration test (meaningful-inventory)", () => {

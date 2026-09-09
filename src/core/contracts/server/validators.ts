@@ -39,6 +39,16 @@ export type RefreshInWire = components["schemas"]["RefreshIn"];
 export type TokenPairWire = components["schemas"]["TokenPair"];
 export type UserWire = components["schemas"]["User"];
 export type ErrorEnvelopeWire = components["schemas"]["ErrorEnvelope"];
+export type GroupWire = components["schemas"]["Group"];
+export type GroupCreateWire = components["schemas"]["GroupCreate"];
+export type GroupPatchWire = components["schemas"]["GroupPatch"];
+export type GroupPageWire = components["schemas"]["GroupPage"];
+export type MemberWire = components["schemas"]["Member"];
+export type MemberPageWire = components["schemas"]["MemberPage"];
+export type MemberRolePatchWire = components["schemas"]["MemberRolePatch"];
+export type InviteWire = components["schemas"]["Invite"];
+export type InviteCreateWire = components["schemas"]["InviteCreate"];
+export type InviteJoinResultWire = components["schemas"]["InviteJoinResult"];
 
 export const validateLivenessResponse =
   compileComponentSchema("LivenessResponse");
@@ -54,8 +64,30 @@ export const validateRefreshIn = compileComponentSchema("RefreshIn");
 export const validateTokenPair = compileComponentSchema("TokenPair");
 export const validateUser = compileComponentSchema("User");
 export const validateErrorEnvelope = compileComponentSchema("ErrorEnvelope");
+export const validateGroup = compileComponentSchema("Group");
+export const validateGroupCreate = compileComponentSchema("GroupCreate");
+export const validateGroupPatch = compileComponentSchema("GroupPatch");
+export const validateGroupPage = compileComponentSchema("GroupPage");
+export const validateMember = compileComponentSchema("Member");
+export const validateMemberPage = compileComponentSchema("MemberPage");
+export const validateMemberRolePatch =
+  compileComponentSchema("MemberRolePatch");
+export const validateInvite = compileComponentSchema("Invite");
+export const validateInviteCreate = compileComponentSchema("InviteCreate");
+export const validateInviteJoinResult =
+  compileComponentSchema("InviteJoinResult");
 
 const OAUTH_STATE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+// I2's path parameter (GET /api/v1/invites/{code}/join) is declared with only
+// minLength:1 in the imported OpenAPI snapshot; the server's actual runtime
+// constraint (16-64 ASCII alphanumeric/underscore/hyphen, matching the Invite
+// schema's own `code` field) is asserted here rather than by hand-editing the
+// preserved upstream snapshot. See m7-contract-notes-20260909-183326.md.
+const INVITE_JOIN_CODE_PATTERN = /^[A-Za-z0-9_-]{16,64}$/;
+
+export function isValidInviteJoinCode(value: string): boolean {
+  return INVITE_JOIN_CODE_PATTERN.test(value);
+}
 
 export type OAuthCallbackQuery =
   | Readonly<{

@@ -226,8 +226,84 @@ Android에 일시적인 시스템 응답 지연 팝업이 관찰됐지만, 앱 �
 수행하지 않았다. 해당 팝업의 원인을 해결했다고 판정하지는 않는다.
 
 이후 사용자가 양 플랫폼에서 Kakao·Google 실계정 로그인 4개 조합을 모두 확인했다.
-에이전트의 iOS 프로필·계정 저장소·재시작 복원 관찰과 사용자 로그인 결과, 미확인 lifecycle
+에이전트의 양 플랫폼 세션 복원·로그아웃 유지, Android 취소·재로그인 관찰과 사용자 로그인 결과, 미확인 lifecycle
 항목은 [OAuth 실행 검증](oauth-development.md)에 구분해 기록한다. 이 결과는 앱 전체 출시 승인이 아니다.
+
+### M6 세션 확인 및 정식 종료 — 2026-09-09
+
+로컬 commit `909acd3`의 기존 설치본과 실행 중인 Metro를 사용했다. 명령은 기존
+`nix develop path:.` shell에서 실행했으며 source/dependency/native 설정은 바꾸지 않았다.
+iOS는 `simctl terminate`/`simctl launch`로 앱 프로세스만 재시작하고 Simulator UI로 확인했다.
+Android는 `am force-stop` 후 런처의 Jamye Development 아이콘을 눌러 재실행하고
+UI hierarchy로 확인했다. 두 플랫폼에서 저장된 세션 복원과 로그아웃 후 재실행 시 로그인
+선택 화면 유지가 관찰됐다. Android Kakao 브라우저 취소와 이후 Google 재로그인도 확인했다.
+이후 사용자가 iOS 취소 후 앱 복귀와 Kakao·Google 재로그인이 모두 정상임을 확인하고
+M6 종료를 승인했다. 이 결과를 사용자 직접 확인으로 기록하고 M6를 `completed`로 닫았다.
+종료 기록 과정에서 native build나 로그인을 다시 실행한 것은 아니다.
+
+중간에 Android `am start -n dev.local.jamyeapp/.MainActivity`로 직접 실행한 두 시도는
+17:18과 17:21 KST에 `BIND APPLICATION ANR`로 종료됐다. `dumpsys activity exit-info`와
+ActivityManager 로그에서 application startup timeout을 확인했다. 이후 런처 아이콘을 통한
+두 실행은 정상 동작했다. 이 차이만으로 intent가 원인이라고 단정하거나 ANR을 수정했다고
+기록하지 않는다. 추가 원인 분석은 미완료이며, native 소스 수정이나 재빌드는 하지 않았다.
+
+앱 데이터 삭제, 에뮬레이터 재부팅, bootstrap 정리, server/homelab 변경은 하지 않았다.
+개별 세션 결과는 [OAuth 실행 검증](oauth-development.md)의 M6 세션 검증표를 따른다.
+
+## M7 검증과 종료 — 2026-09-10
+
+M7은 `COMPLETED / USER_ACCEPTED`로 종료했다. connected-auth group
+list/create/join/detail/roster와 owner/member management는 G1-G8/I1-I2 계약, M6
+authorized executor, origin/user/epoch account fence와 in-memory store를 사용한다. SQLite
+fixture/bootstrap, SecureStore/MMKV cache, M5 outbox, WebSocket eviction은 이 범위에 포함하지 않는다.
+
+focused 결과는 서로 다른 실행의 결과이며 additive aggregate가 아니다.
+
+| 실행 범위                                      | 결과                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| task1 contract/auth                            | 6 suites / 92 tests                                                |
+| M6 관련 회귀                                   | 10 suites / 62 tests                                               |
+| architecture fixture                           | 72 tests                                                           |
+| auth cancellation follow-up                    | 2 suites / 41 tests                                                |
+| task2 API/state/error                          | 3 suites / 65 tests                                                |
+| groups provider + app provider                 | 2 suites / 18 tests                                                |
+| management/store/connected-index               | 3 suites / 27 tests                                                |
+| groups home/detail/connected-index             | 3 suites / 24 tests                                                |
+| TypeScript no-emit typecheck                   | exit 0                                                             |
+| final aggregate `rtk proxy bun run check:code` | exit 0; 51 suites / 551 tests                                      |
+| final global coverage                          | statements 90.16%, branches 83.40%, functions 92.62%, lines 92.49% |
+| contract checker                               | `status:ok`, exit 0                                                |
+| transport/architecture regression              | 2 suites / 75 tests passed                                         |
+
+Task2 초안은 테스트 실행 전에 중단된 외부 작업에서 작성됐고 coordinator가 실제 failure regression
+cases를 추가·수정했다. 따라서 위 ledger는 clean blank-slate TDD 총계가 아니다. 최종 aggregate는
+위 focused snapshot과 별도 실행이며 수치를 합산하지 않는다. 추가 회귀에는 Retry-After
+route-reset/explicit-repeat blocking, no-auto-replay, unknown G1/G2 reconciliation, late-list,
+late-invite 403/404 eviction fence가 포함됐다. 독립 debug에서 HIGH race가 발견됐고 coordinator가
+재현·수정했다. 요구사항·안전성·회귀·구조와 최종 로컬 리뷰가 통과했으며, UX 수정 부분의 독립
+재리뷰도 통과했다. 이는 static/fake-transport 판정이며 native/live 검증은 아니다. focused 명령은
+`bun run test --runInBand --runTestsByPath <test paths>` 계열이며 전체 aggregate는
+`bun run check:code`로 실행해 통과했다.
+
+상세 화면의 같은 그룹 새로고침에서 기존 내용이 사라지는 문제도 model/UI 테스트 두 건으로
+재현·수정했다. 일시적 오류에는 기존 내용과 재시도를 제공하고, 다른 그룹 진입이나 403/404 권한
+상실에는 내용을 지운다. 관련 store/detail/API/management 4 suites / 63 tests와 위 최종 aggregate가
+통과했다. 가짜 bearer·초대 코드·서버 오류 원문을 로그에 남기지 않는 회귀도 포함했다.
+
+route 파일 변경 뒤 ignored Expo route declarations를 갱신하는 확인된 명령은 다음과 같다.
+
+```sh
+node -e 'process.env.EXPO_ROUTER_APP_ROOT = process.cwd() + "/src/app"; require("@expo/router-server/build/typed-routes").regenerateDeclarations(".expo/types", {});'
+```
+
+이 선언 갱신은 native build나 runtime acceptance가 아니다. 별도로 2026-09-09 기존 M6 Development
+Build에서 현재 M7 bundle을 실행하고 양 플랫폼 세션 복원·health·group 화면의 기본 동작을 확인했다.
+M7에는 dependency/native configuration 변경이 없어 clean prebuild·재빌드·재설치는 하지 않았다.
+
+2026-09-10 사용자가 양 플랫폼에서 실제 배포 API를 통한 그룹 생성·초대·가입·나가기와 계정 전환을
+확인하고 종료 기록·로컬 커밋을 승인했다. 이를 근거로 M7을 종료하며, 자세한 결과 출처는
+[M7 evidence](evidence/M7.md)를 따른다. 다른 관리 기능의 개별 실사용 확인과 검증 데이터 정리는
+보고받지 않았다. 앱 전체 production readiness, M8 구현과 push/배포는 이번 종료 범위가 아니다.
 
 ## 4. Dependency와 toolchain script
 

@@ -9,7 +9,12 @@ const GENERATED_FILE_NAME = "server-api.ts";
 const LOCK_FILE_NAME = "contract.lock";
 const OPENAPI_FILE_NAME = "openapi.json";
 const GENERATOR_IDENTITY = "openapi-typescript@7.13.0";
-const M6_SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
+// M6 established the initial runtime schema closure (auth + health + user
+// profile). M7 extends it with the groups/membership/invitations surface
+// (G1-G8, I1-I2) that was already present in the imported OpenAPI snapshot;
+// see contracts/server/intake.json for the frozen intake-time closure this
+// milestone deliberately grows beyond.
+const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "A1",
   "A2",
   "A3",
@@ -18,6 +23,16 @@ const M6_SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "H1",
   "H2",
   "U1",
+  "G1",
+  "G2",
+  "G3",
+  "G4",
+  "G5",
+  "G6",
+  "G7",
+  "G8",
+  "I1",
+  "I2",
 ]);
 
 function isRecord(value) {
@@ -81,8 +96,9 @@ async function writeStagedFiles(files) {
  * boundary from the local contracts/server/openapi.json snapshot (an
  * already-vetted intake artifact; this step never reads the sibling
  * jamye-server checkout). Full document types are generated, but the
- * contract.lock only records this milestone's runtime schema closure
- * (H1/H2/A1-A5/U1) so later milestones extending the closure are explicit.
+ * contract.lock only records the current runtime schema closure
+ * (SCHEMA_CLOSURE_OPERATION_IDS above) so later milestones extending the
+ * closure are explicit.
  */
 async function buildServerContractArtifacts({
   contractRoot,
@@ -110,7 +126,7 @@ async function buildServerContractArtifacts({
     contract_version: contractVersion,
     generated_sha256: sha256(generatedSource),
     generator_identity: GENERATOR_IDENTITY,
-    schema_closure_operation_ids: [...M6_SCHEMA_CLOSURE_OPERATION_IDS],
+    schema_closure_operation_ids: [...SCHEMA_CLOSURE_OPERATION_IDS],
     source_sha256: sha256(openapiBytes),
   });
 

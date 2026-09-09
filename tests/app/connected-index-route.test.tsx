@@ -20,6 +20,18 @@ jest.mock("@/features/home/ui/home-screen", () => ({
 jest.mock("@/features/chat/ui/chat-screen", () => ({
   ChatScreen: () => mockChatScreen(),
 }));
+jest.mock("@/features/groups/ui/group-list-screen", () => {
+  const { Text } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    GroupListScreen: ({ header }: { header: React.ReactNode }) => (
+      <>
+        {header}
+        <Text testID="group-list">groups</Text>
+      </>
+    ),
+  };
+});
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: jest.fn(() => ({
     state: { status: "signed-out", profile: null, message: null },
@@ -71,6 +83,7 @@ describe("mode-aware index route", () => {
       }>("../../src/app/index").default;
       const screen = await render(<IndexRoute />);
       expect(screen.getByTestId("home-screen")).toBeTruthy();
+      expect(screen.getByTestId("group-list")).toBeTruthy();
       expect(screen.queryByTestId("auth-screen")).toBeNull();
     });
 

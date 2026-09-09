@@ -1,3 +1,4 @@
+import { AuthApiError } from "@/core/auth/auth-api";
 import { createAuthController } from "@/core/auth/auth-controller";
 
 const state = "s".repeat(43);
@@ -691,5 +692,228 @@ describe("auth session controller", () => {
     await signIn();
     expect(f.controller.getState().retryAction).toBeUndefined();
     expect(f.api.profile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("authorizedRequest (M7 narrow session-owned authorized executor)", () => {
+  test("does not execute an already cancelled caller request", async () => {
+    const f = fixture({ store: { load: jest.fn(async () => pair) } });
+    await f.controller.restore();
+    const caller = new AbortController();
+    caller.abort();
+    const execute = jest.fn(async () => "unexpected");
+
+    await expect(
+      f.controller.authorizedRequest(execute, caller.signal),
+    ).rejects.toMatchObject({ code: "request_cancelled" });
+    expect(execute).not.toHaveBeenCalled();
+    expect(f.api.refresh).not.toHaveBeenCalled();
+  });
+
+  test.each([200, 401])(
+    "ignores a late %s after caller cancellation without refreshing",
+    async (status) => {
+      const f = fixture({ store: { load: jest.fn(async () => pair) } });
+      await f.controller.restore();
+      const caller = new AbortController();
+      const started = deferred();
+      const release = deferred();
+      const execute = jest.fn(async () => {
+        started.resolve();
+        await release.promise;
+        if (status === 401) throw new AuthApiError(401, "unauthorized");
+        return "stale";
+      });
+      const pending = f.controller.authorizedRequest(execute, caller.signal);
+      await started.promise;
+      caller.abort();
+      release.resolve();
+
+      await expect(pending).rejects.toMatchObject({
+        code: "request_cancelled",
+      });
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(f.api.refresh).not.toHaveBeenCalled();
+    },
+  );
+
+  test("does not retry a caller cancelled while the shared refresh finishes", async () => {
+    const started = deferred();
+    const release = deferred();
+    const f = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: {
+        refresh: jest.fn(async () => {
+          started.resolve();
+          await release.promise;
+          return { ...pair, accessToken: "refreshed-access" };
+        }),
+      },
+    });
+    await f.controller.restore();
+    const caller = new AbortController();
+    const execute = jest
+      .fn<Promise<string>, [string, AbortSignal]>()
+      .mockRejectedValueOnce(new AuthApiError(401, "unauthorized"))
+      .mockResolvedValueOnce("unexpected-retry");
+    const pending = f.controller.authorizedRequest(execute, caller.signal);
+    await started.promise;
+    caller.abort();
+    release.resolve();
+
+    await expect(pending).rejects.toMatchObject({ code: "request_cancelled" });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(f.api.refresh).toHaveBeenCalledTimes(1);
+    expect(f.controller.getState().status).toBe("signed-in");
+  });
+
+  test("rejects before calling execute when no session is signed in", async () => {
+    const f = fixture();
+    const execute = jest.fn(async () => "unused");
+    await expect(f.controller.authorizedRequest(execute)).rejects.toMatchObject(
+      { status: 401, code: "not_authenticated" },
+    );
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  test("passes the current bearer token and a request signal to execute, and returns its result", async () => {
+    const f = fixture({ store: { load: jest.fn(async () => pair) } });
+    await f.controller.restore();
+    const execute = jest.fn(
+      async (accessToken: string, signal: AbortSignal) => {
+        expect(signal).toBeInstanceOf(AbortSignal);
+        return `payload:${accessToken}`;
+      },
+    );
+    await expect(f.controller.authorizedRequest(execute)).resolves.toBe(
+      `payload:${pair.accessToken}`,
+    );
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  test("ignores a late-resolving response after dispose fences the generation", async () => {
+    const f = fixture({ store: { load: jest.fn(async () => pair) } });
+    await f.controller.restore();
+    const started = deferred();
+    const release = deferred();
+    const execute = jest.fn(async () => {
+      started.resolve();
+      await release.promise;
+      return "stale-result";
+    });
+    const pending = f.controller.authorizedRequest(execute);
+    await started.promise;
+    f.controller.dispose();
+    release.resolve();
+    await expect(pending).rejects.toMatchObject({
+      status: 0,
+      code: "request_cancelled",
+    });
+  });
+
+  test("retries exactly once through the M6 single-flight refresh after a 401, then returns the retried result", async () => {
+    const refreshed = { ...pair, accessToken: "refreshed-access" };
+    const f = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: { refresh: jest.fn(async () => refreshed) },
+    });
+    await f.controller.restore();
+    const execute = jest
+      .fn<Promise<string>, [string, AbortSignal]>()
+      .mockRejectedValueOnce({ status: 401 })
+      .mockResolvedValueOnce("ok-after-refresh");
+    await expect(f.controller.authorizedRequest(execute)).resolves.toBe(
+      "ok-after-refresh",
+    );
+    expect(f.api.refresh).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenNthCalledWith(
+      1,
+      pair.accessToken,
+      expect.anything(),
+    );
+    expect(execute).toHaveBeenNthCalledWith(
+      2,
+      refreshed.accessToken,
+      expect.anything(),
+    );
+  });
+
+  test("surfaces the original 401 without retrying when the M6 refresh itself fails", async () => {
+    const f = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: {
+        refresh: jest.fn(async () => {
+          throw { status: 401 };
+        }),
+      },
+    });
+    await f.controller.restore();
+    const originalError = { status: 401, code: "session_expired" };
+    const execute = jest.fn(async () => {
+      throw originalError;
+    });
+    await expect(f.controller.authorizedRequest(execute)).rejects.toBe(
+      originalError,
+    );
+    expect(f.api.refresh).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(f.controller.getState().status).toBe("signed-out");
+  });
+
+  test("surfaces a post-refresh 401 without a second refresh call or retry loop", async () => {
+    const refreshed = { ...pair, accessToken: "refreshed-access" };
+    const secondError = { status: 401, code: "still_unauthorized" };
+    const f = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: { refresh: jest.fn(async () => refreshed) },
+    });
+    await f.controller.restore();
+    const execute = jest
+      .fn<Promise<string>, [string, AbortSignal]>()
+      .mockRejectedValueOnce({ status: 401 })
+      .mockRejectedValueOnce(secondError);
+    await expect(f.controller.authorizedRequest(execute)).rejects.toBe(
+      secondError,
+    );
+    expect(f.api.refresh).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  test("propagates a non-401 error from execute immediately without ever calling refresh", async () => {
+    const f = fixture({ store: { load: jest.fn(async () => pair) } });
+    await f.controller.restore();
+    const networkError = new Error("network_unavailable");
+    const execute = jest.fn(async () => {
+      throw networkError;
+    });
+    await expect(f.controller.authorizedRequest(execute)).rejects.toBe(
+      networkError,
+    );
+    expect(f.api.refresh).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  test("never logs tokens or error detail across a full 401-retry cycle", async () => {
+    const refreshed = { ...pair, accessToken: "refreshed-access" };
+    const f = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: { refresh: jest.fn(async () => refreshed) },
+    });
+    await f.controller.restore();
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const execute = jest
+      .fn<Promise<string>, [string, AbortSignal]>()
+      .mockRejectedValueOnce({ status: 401 })
+      .mockResolvedValueOnce("ok-after-refresh");
+    await f.controller.authorizedRequest(execute);
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });

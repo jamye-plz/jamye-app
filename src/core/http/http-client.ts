@@ -66,6 +66,24 @@ export async function withTimeoutSignal<T>(
   }
 }
 
+/**
+ * A 204 No Content response (G6/G7/G8) has no body: calling .json() on it
+ * would read past the actual payload. Non-204 bodies that fail to parse are
+ * treated as null rather than thrown, except a genuine caller abort while
+ * reading the body, which must still propagate.
+ */
+export async function parseJsonResponseBody(
+  response: Response,
+): Promise<unknown> {
+  if (response.status === 204) return null;
+  try {
+    return await response.json();
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw error;
+    return null;
+  }
+}
+
 /** Combines multiple abort signals into one that aborts as soon as any input does. */
 export function anySignal(
   signals: readonly (AbortSignal | undefined)[],

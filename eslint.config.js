@@ -22,7 +22,10 @@ const AUTH_TRANSPORT_FILES = [
   "src/core/auth/**/*.ts",
   "src/core/auth/**/*.tsx",
 ];
-const HEALTH_TRANSPORT_FILES = ["src/core/health/health-api.ts"];
+const HTTP_ADAPTER_FILES = [
+  "src/core/health/health-api.ts",
+  "src/features/groups/data/groups-api.ts",
+];
 
 const FORBIDDEN_TRANSPORT_GLOBALS = [
   {
@@ -314,7 +317,7 @@ module.exports = defineConfig([
     },
   },
   {
-    files: HEALTH_TRANSPORT_FILES,
+    files: HTTP_ADAPTER_FILES,
     rules: {
       "no-restricted-globals": [
         "error",

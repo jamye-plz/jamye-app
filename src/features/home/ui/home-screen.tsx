@@ -13,7 +13,9 @@ import { ConnectionDiagnostics } from "./connection-diagnostics";
 
 type ThemeColors = ReturnType<typeof useAppTheme>["colors"];
 
-export function HomeScreen() {
+export function HomeScreen({
+  embedded = false,
+}: Readonly<{ embedded?: boolean }>) {
   const { colors } = useAppTheme();
   const session = useSession();
   const account = useAccountScope();
@@ -33,11 +35,8 @@ export function HomeScreen() {
 
   if (!session.principal || !profile) return null;
 
-  return (
-    <AppScreen
-      backgroundColor={colors.background}
-      contentStyle={styles.content}
-    >
+  const content = (
+    <View style={styles.content}>
       <View accessibilityRole="header">
         <AppText color={colors.text} variant="title">
           {profile.nickname}
@@ -73,7 +72,12 @@ export function HomeScreen() {
         state={account.state}
       />
       <ConnectionDiagnostics />
-    </AppScreen>
+    </View>
+  );
+  return embedded ? (
+    content
+  ) : (
+    <AppScreen backgroundColor={colors.background}>{content}</AppScreen>
   );
 }
 
