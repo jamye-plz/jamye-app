@@ -1,8 +1,9 @@
-# 잼얘좀 모바일 — 첫 채팅 수직 절편의 제품 의도
+# 잼얘좀 모바일 — 서버 연결 제품 여정과 보존할 native 의도
 
 - 작성 목적: M1에서 기존 `jamye-plz`의 제품 의미와 회귀 의도를 읽기 전용으로 추출
-- 현재 구현 범위: 인증 없는 deterministic fixture 대화방 하나의 offline-first 텍스트 채팅
-- 구현 시점: M5 로컬 채팅 읽기·쓰기까지 구현·검증 완료, M6 transport·동기화는 시작 전
+- 현재 구현 범위: M0-M5 local fixture chat foundation completed
+- M5 이후: Kakao/Google login/profile/logout implemented, 일부 실계정 수용 완료
+- 현재 frontier: authenticated group/chat product journey not implemented
 - 기준 저장소: [sibling `jamye-plz`](../../jamye-plz/) repository (수정하지 않음)
 
 ## 1. 먼저 고정할 해석 원칙
@@ -14,18 +15,39 @@
 
 이번 수직 절편은 다음 경계를 지킨다.
 
-- 사용자는 로그인하지 않는다. 고정된 익명 fixture 사용자와 대화방만 사용한다.
+- `local-fixture` mode는 고정 fixture 사용자와 대화방을, `connected-auth` mode는 OAuth
+  login/profile/logout을 표시한다. 로그인 뒤 authenticated group/chat navigation은 아직 없다.
 - 화면의 메시지 원본은 SQLite뿐이다. HTTP cache나 메모리 배열을 경쟁 원본으로 두지 않는다.
 - 텍스트 메시지만 읽고 보낸다.
 - 전송 버튼을 누르면 optimistic message와 outbox command를 하나의 transaction으로 만든다.
 - M5는 오프라인 전송 의도를 기기에 남긴다. 재시작·재연결 뒤 같은 `client_msg_id`로
-  canonical event 하나에 수렴시키는 processor는 M6에서 구현한다.
-- Realtime event 누락을 delta sync로 복구하는 동작도 M6의 목표이며 현재 실행 경로가 아니다.
+  canonical event 하나에 수렴시키는 processor는 M9에서 구현한다.
+- Realtime event 누락을 delta sync로 복구하는 동작은 M9의 목표이며 현재 실행 경로가 아니다.
 - composer에서 Enter는 줄바꿈이고, 명시적인 버튼만 전송한다. 한국어 IME 조합 중에는
   전송 동작이 발생하지 않아야 한다.
 
-장기 제품에는 그룹 메인방과 주제별 방이 모두 있지만, 이번에는 그 구조를 구현하지 않고
-fixture 대화방 하나로 채팅의 신뢰성만 검증한다.
+장기 제품에는 그룹 메인방과 주제별 방이 모두 있다. 현재는 fixture 대화방 하나로 채팅의
+신뢰성을 검증했고, 다음 사용자 여정은 [로드맵](roadmap.md)의 M6 이후 순서를 따른다.
+
+### 1.2 현재에서 미래로 이어지는 사용자 여정
+
+다음 순서는 제품 결과를 기준으로 한 계획이며, 문서 승인만으로 구현·배포가 허가되는 것은
+아니다. 각 wire shape의 권위는 기존 PWA가 아니라 계획에 사용하는 읽기 전용
+`jamye-server/contracts` snapshot이다. Native interaction intent는 M5의 원칙을 이어간다.
+
+1. Login 후 account-safe home
+2. Group 생성·참여와 membership
+3. 실제 chatroom history/read/send
+4. Offline/realtime convergence
+5. Topics/tags
+6. Media
+7. Notification/Expo push
+8. Account profile update와 deletion lifecycle
+
+Release-facing provider/platform/session matrix, E2E, physical-device/accessibility, current
+dependency audit, migration/rollback, deployment binding과 signing/store decision은 특정
+milestone에 자동 포함하지 않는다. 선택·구현한 범위에만 적용하는 공통 release acceptance를
+로드맵에서 별도 gate로 판정한다.
 
 ## 2. 필수 참고자료 확인표
 
@@ -71,18 +93,18 @@ reconciliation이다. 새 앱에서는 이를 offline-first 방식으로 강화�
 1. **M5 완료:** 사용자가 전송 버튼을 누른다.
 2. **M5 완료:** SQLite transaction 하나가 pending message와 outbox command를 함께 기록한다.
 3. **M5 완료:** 화면은 SQLite 변경을 구독해 메시지를 즉시 표시한다.
-4. **M6 목표:** 온라인이 되면 outbox가 같은 `client_msg_id`로 fixture REST command를 보낸다.
-5. **M6 목표:** REST response, realtime event, delta response는 같은 idempotent apply 경로를 쓴다.
-6. **M6 목표:** canonical event가 optimistic row를 sent 상태로 수렴시킨다.
+4. **M8 목표:** 온라인이 되면 outbox가 실제 chatroom REST command를 같은 `client_msg_id`로 보낸다.
+5. **M9 목표:** REST response, realtime event, delta response는 같은 idempotent apply 경로를 쓴다.
+6. **M9 목표:** canonical event가 optimistic row를 sent 상태로 수렴시킨다.
 
 M5는 local failed row 재시도에서 기존 message와 outbox identity를 재사용하는 데까지 구현했다.
-응답 유실 뒤 재요청과 server canonical message 수렴은 M6에서 검증할 불변 조건이다.
+응답 유실 뒤 재요청과 server canonical message 수렴은 M8-M9에서 검증할 불변 조건이다.
 
-### 3.3 M6 이후에도 realtime은 진실의 근거가 아니다
+### 3.3 M9 realtime은 진실의 근거가 아니다
 
 기존 `chat-socket-reconnect.test.mjs`는 reconnect, 중복 event, history gap, 늦게 도착한
 결과가 현재 화면을 오염시키지 않아야 한다는 회귀 의도를 제공한다. 새 앱은 기존 소켓
-구현을 복사하지 않고 다음 모바일 규칙으로 번역한다. 아래 항목은 M6 이후의 목표 계약이며,
+구현을 복사하지 않고 다음 모바일 규칙으로 번역한다. 아래 항목은 M9의 목표 계약이며,
 M5에는 WebSocket·REST delta·network lifecycle 실행 경로가 없다.
 
 - WebSocket은 이미 확정된 event를 빠르게 받는 통로다.
@@ -103,7 +125,7 @@ cookie, endpoint, socket frame은 모바일 계약으로 사용하지 않는다.
 
 - 처음 진입할 때 SQLite의 fixture 메시지를 읽는다.
 - 과거 page를 앞에 추가해도 사용자가 보던 첫 visible message의 위치를 유지한다.
-- **M6 목표:** reconnect나 delta sync 때문에 이미 읽고 있던 목록을 비우지 않는다.
+- **M9 목표:** reconnect나 delta sync 때문에 이미 읽고 있던 목록을 비우지 않는다.
 - 새 메시지가 도착했다고 사용자가 과거를 읽는 중인 화면을 강제로 맨 아래로 이동시키지
   않는다.
 - virtualization의 row key는 optimistic 상태에서 canonical 상태로 바뀌어도 불필요한
@@ -175,7 +197,7 @@ safe area를 소유하고 마지막 message를 가리지 않아야 한다.
 ### 4.4 접근성과 platform 적응
 
 - M5의 읽기 순서는 app heading, local fixture notice, message list, composer, send action 순으로
-  이해 가능해야 한다. Connection state가 도입되는 M6에서는 app bar 다음 위치를 별도 검증한다.
+  이해 가능해야 한다. Connection state가 도입되는 M9에서는 app bar 다음 위치를 별도 검증한다.
 - message list, input, send button에는 역할에 맞는 접근성 이름을 제공한다.
 - connection과 전송 상태는 live announcement가 과도하게 반복되지 않도록 설계한다.
 - dynamic text 200%, dark mode, reduce motion에서도 message 내용과 상태 및 전송 control을
@@ -207,7 +229,7 @@ safe area를 소유하고 마지막 message를 가리지 않아야 한다.
 
 기존 PWA에서 연결 단절을 전송 실패로 안내하던 문구는 offline outbox 동작과 맞지 않으므로
 그대로 재사용하지 않는다. M5는 local row 상태를 `전송 중`, `전송 실패`, `전송됨`으로
-구분하고, 연결·reconnect copy는 실제 transport 상태가 생기는 M6로 보류했다.
+구분하고, 연결·reconnect copy는 실제 transport 상태가 생기는 M9로 보류했다.
 
 ## 6. 기존 구현과 test에서 가져올 회귀 의도
 
@@ -230,33 +252,34 @@ screen과 component는 HTTP client를 import하지 않고 repository와 sync bou
 기존 route inventory는 layout 2개, root page, login, onboarding, groups 목록과 상세,
 group chat, invite 생성·참여, group settings, topic 상세와 topic chat, notifications,
 settings로 총 15개다. 이 중 chat entry topology와 focused conversation behavior만 제품
-근거로 읽었다. 여러 room navigation을 포함한 실제 route 구현은 backlog다.
+근거로 읽었다. 여러 room navigation을 포함한 실제 route 구현은 새 로드맵의 M6-M13 계획에서
+다룬다.
 
 ### 7.2 API 파일 8개
 
 기존 API inventory는 auth, chat, shared client, group, notification, push, topic, upload다.
 현재 slice에서 chat 모듈도 transport 계약으로 재사용하지 않고 idempotency와 history
-recovery 의도만 참고한다. 나머지 domain API는 모두 backlog다.
+recovery 의도만 참고한다. 각 domain의 실제 API 연결은 기존 PWA 모듈을 복사하지 않고
+서버 계약에 따라 M6-M13에서 구현한다.
 
 ### 7.3 test 파일 8개
 
 chat spacing, socket reconnect, design size, layout focus의 회귀 의도만 현재 slice에
-번역한다. list row, push recovery, push intent, topic rename test는 backlog다.
+번역했다. list row, push recovery, push intent, topic rename의 회귀 의도는 해당 기능을
+구현하는 후속 마일스톤에서 검토한다.
 
-### 7.4 명시적 backlog
+### 7.4 계획 범위와 contract-gap backlog
 
-- 카카오·구글·애플 OAuth, account와 token lifecycle, onboarding
-- group 생성·초대·owner/member 관리
-- topic timeline, seed에서 enriched로 이어지는 흐름
-- group main room, topic room, 여러 대화방 navigation
-- 사진·동영상·음성·녹음·재생·STT·on-device AI
-- read receipt, presence, typing, reaction, message edit/delete
-- 인앱 알림, push adapter와 permission, installation, deep link
-- PWA 기능과 기존 browser setting
-- production server contract, signing, store 제출
+- 계획 범위: server contract가 정의한 group·초대·chatroom/message·realtime/delta·topic/tag·
+  media·notification history·Expo push installation은 roadmap의 M6-M13 planned milestone이다.
+- contract-gap backlog: Apple login, STT/on-device AI, presence/typing/reaction,
+  message edit/delete와 새 push backend, 현재 server contract에 없는 provider·기능
+- Account/token lifecycle의 나머지 수용과 서버 계약 가져오기: M6
+- 기존 browser 전용 설정: native 동작으로 대체할 필요가 생길 때 별도 검토
+- Production signing과 store 제출: 공통 release acceptance의 별도 사용자 결정
 
-현재 범위의 어떤 interface에도 위 기능의 credential, session, permission, provider,
-attachment field를 미리 만들지 않는다.
+계획에 적혔다는 이유만으로 미래 기능의 credential, permission, provider, attachment field를
+미리 추가하지 않는다. 필요한 경계는 해당 마일스톤을 승인받고 구현할 때 추가한다.
 
 ## 8. no-copy 및 범위 일치 확인
 
@@ -273,5 +296,5 @@ attachment field를 미리 만들지 않는다.
 
 M4 bootstrap contract와 M5 local chat을 닫을 때 이 문서의 제품 불변 조건과 roadmap을 함께
 대조했다. 기존 PWA 구현과 다른 wire shape와 native keyboard adapter를 선택한 것은 의도
-훼손이 아니라 새 모바일 경계의 정상적인 설계다. M6도 같은 no-copy 경계에서 별도 승인 후
+훼손이 아니라 새 모바일 경계의 정상적인 설계다. M6-M13도 같은 no-copy 경계에서 별도 승인 후
 시작한다.

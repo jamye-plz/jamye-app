@@ -1,659 +1,452 @@
-# jamye-app 그린필드 로드맵
+# jamye-app 서버 계약 기반 로드맵
 
-- 상태: M5 완료 — 구현·품질·양 플랫폼 local-send/keyboard native/runtime 검증 및 사용자 수용 완료
-- 로드맵 기준 세션: `20260822-200158`
-- 현재 단계: M5 종료 evidence 작성·검증 완료; M6 시작 전
+- 현재 상태: M0-M5 완료 이력 보존, M5 이후 Kakao/Google OAuth 추가·부분 수용, 서버 기반 제품 여정은 시작 전
+- 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
+- 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
+- 다음 구현 후보: M6 서버 계약 수용과 계정 안전 기반
+- 앱 출시 판정: NOT READY — 서버의 운영 상태와 별개이며 이번 문서 갱신은 출시 검증이 아님
 - 결정권자: 사용자
-- 실행 조정자: 주 에이전트
-- 대상: iOS·Android React Native 앱의 첫 offline-first 채팅 수직 절편
-- 최종 수정일: 2026-09-05
+- 최종 수정일: 2026-09-09
 
-## 1. 이 문서의 역할
+## 1. 이 문서가 답하는 것
 
-이 문서는 완성 일정을 약속하는 달력이 아니라, 다음 질문에 계속 답할 수 있게 하는 실행 지도다.
+이 로드맵은 완료율 숫자나 출시일을 약속하지 않는다. 다음 다섯 가지를 분리해서 기록한다.
 
-1. 지금 무엇을 만들고 있는가?
-2. 왜 이 단계가 먼저인가?
-3. 에이전트가 무엇을 할 수 있는가?
-4. 사용자가 직접 결정하거나 실행해야 하는 것은 무엇인가?
-5. 어떤 증거가 있어야 다음 단계로 넘어가는가?
+1. 어떤 기반과 사용자 동작이 실제로 구현됐는가?
+2. 어떤 결과가 과거 명령·native runtime·사용자 수용으로 검증됐는가?
+3. 현재 앱이 실제 서버 계약 중 어디까지 호출하는가?
+4. 다음 사용자 여정은 어떤 서버 계약과 선행 조건에 의존하는가?
+5. 어떤 승인과 새 증거가 있어야 다음 milestone을 완료할 수 있는가?
 
-각 마일스톤은 독립된 승인 게이트다. 에이전트는 현재 승인된 마일스톤을 넘어서 구현하지 않는다.
+문서에 미래 milestone을 적는 일은 구현 승인이 아니다. 각 milestone은 별도의 계획, review,
+사용자 승인, 구현, 검증과 종료 결정을 거친다.
 
-### 1.1 이번 product scope
+## 2. 사실의 분류
 
-이번 로드맵은 잼얘좀 전체 기능을 만드는 계획이 아니다. **한 대화방의 offline-first 텍스트 채팅을 양 플랫폼에서 검증하는 것**만 구현한다.
+이 문서에서는 사실을 다음과 같이 구분한다.
 
-포함:
+- **현재 정적 확인**: 2026-09-09 기준 Git, source와 contract를 읽어 확인한 사실
+- **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
+- **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
+- **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
+- **미래 계획**: 별도 승인 전에는 구현하지 않는 M6 이후 항목
 
-- fixture 대화방을 SQLite에서 읽기
-- 한국어 composer에서 optimistic message와 outbox를 atomic하게 생성
-- offline 전송 의도를 앱 재시작 뒤에도 보존
-- network 복귀 후 REST canonical event로 한 번만 수렴
-- WebSocket event 유실을 delta sync로 복구
-- chat list virtualization·prepend anchor·IME·safe area·접근성
-- iOS·Android Development Build와 chat E2E
+기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
+production readiness의 증거로 재사용하지 않는다.
 
-제외하고 backlog로 이동:
+## 3. 지금까지의 기록
 
-- 완성형 카카오·구글·애플 OAuth와 계정 lifecycle
-- group 생성·초대·owner/member 관리
-- topic timeline과 seed → enriched 흐름
-- 사진·영상·음성·STT와 on-device AI
-- 인앱 알림·push skeleton·production remote push
-- 그 밖의 모든 비채팅 제품 기능
+### 3.1 완료된 M0-M5
 
-현재 chat transport는 **인증 없는 로컬 deterministic fixture transport**만 사용하며, 이를 production server 연결이나 로그인으로 표시하지 않는다.
+| 구간                 | 상태      | 보존할 결과                                                                              | 증거와 한계                                                                                                                                   |
+| -------------------- | --------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0 감독형 작업 방식  | completed | 사용자 결정권, 명령 카드와 milestone gate                                                | 당시 계획 이력. 이후 roadmap 변경을 소급 적용하지 않음                                                                                        |
+| M1 개발 환경         | completed | Nix devShell과 mobile toolchain baseline                                                 | [M1 evidence](evidence/M1.md). 당시 toolchain/flake 결과이며 앱 기능 증거가 아님                                                              |
+| M2 Expo/Bun scaffold | completed | Expo SDK 57 line과 Bun-only scaffold                                                     | [M2 evidence](evidence/M2.md). Expo Go smoke이며 lint/coverage는 당시 미측정                                                                  |
+| M3 앱 기반           | completed | Development Build/CNG, thin route, theme/error/logging/env와 quality harness             | [M3 evidence](evidence/M3.md). 당시 fixture smoke이며 제품 E2E가 아님                                                                         |
+| M4 SQLite/bootstrap  | completed | SQLite v1 repository와 unbound `bootstrap.v2` contract                                   | [M4 evidence](evidence/M4.md). 실제 server contract나 transport가 아님                                                                        |
+| M5 로컬 채팅         | completed | SQLite-only chat, atomic pending/outbox, stable retry, Korean IME와 native keyboard/list | [M5 evidence](evidence/M5.md). 당시 20 suites/193 tests와 양 platform Simulator/Emulator local 수용; network/auth/physical-device 증거가 아님 |
 
-실제 `jamye-server` API·PostgreSQL 연동과 배포된 server contract의 전달·수신은 이번 M0~M8
-수직 절편 범위에 포함하지 않는다. `jamye-server`가 완성·배포될 때 확정된 OpenAPI와 realtime
-schema를 version·source commit·checksum이 고정된 artifact로 발행할 책임은 server 프로젝트가
-별도로 계획한다. `jamye-app`이 그 artifact를 받아 bootstrap contract를 교체하고 실제 transport를
-호출하는 작업도 후속 로드맵과 사용자 승인을 거친다.
+M1-M5 evidence는 각 시점의 기록이므로 현재 package version이나 새 roadmap에 맞춰 고쳐 쓰지
+않는다. 원래 roadmap 전문은 Git 기준점 `ff909de`의 blob
+`b54bf80d94d97888b938bac540dfef73fa6694cf`에 남아 있다.
 
-## 2. 협업 원칙
-
-### 2.1 역할
-
-| 역할               | 책임                                                         |
-| ------------------ | ------------------------------------------------------------ |
-| 사용자             | 제품·아키텍처 결정, 중요 명령 실행, 결과 확인, 마일스톤 승인 |
-| 주 에이전트        | 선택지와 권고안 설명, 작업 분배, 파일 변경 통합, 결과 해석   |
-| 구현 에이전트      | 승인된 범위 안의 코드·테스트·문서 작성                       |
-| 독립 리뷰 에이전트 | 계획·구현을 새 맥락에서 읽고 누락·위험·과설계를 검토         |
-
-### 2.2 에이전트가 자율적으로 할 수 있는 일
-
-- 저장소와 참고 자료의 읽기 전용 조사
-- 승인된 마일스톤 범위 안에서 파일 초안 작성과 국소 수정
-- 테스트 케이스와 명령어 제안
-- 안전한 읽기 전용 명령 실행: `git status`, `git diff`, `rg`, JSON 구문 확인 등
-- 독립 리뷰 에이전트 호출과 리뷰 결과 정리
-- 결과와 실패 원인의 설명
-
-### 2.3 사용자가 직접 실행하는 중요 명령
-
-아래 명령은 사용자가 해당 명령을 개별적으로 위임하지 않는 한 에이전트가 대신 실행하지 않는다.
-
-- Xcode, Android Studio, SDK, emulator, simulator, 라이선스 설치·승인
-- `nix flake lock`과 flake input 갱신
-- `bun install` 및 lockfile을 변경하는 dependency 명령
-- `create-expo-app` scaffold 생성
-- `expo prebuild --clean`처럼 생성 디렉터리를 지우고 다시 만드는 명령
-- native dependency 또는 config 변경 뒤 development client 재빌드
-- `nix build`, Gradle, Xcode native build
-- simulator·emulator·실제 기기에 앱을 설치하거나 실행하는 명령
-- migration을 실제 데이터에 적용하는 명령
-- EAS 로그인·프로젝트 생성·credential 생성
-- production signing, App Store Connect·Play Console 제출
-- Git commit, branch publication, push, PR, merge, history 변경
-- 외부 서비스나 homelab 상태를 변경하는 모든 명령
-
-### 2.4 사용자가 직접 내리는 중요 결정
-
-- 마일스톤 시작·완료 승인
-- SDK 또는 주요 dependency 추가·교체
-- production bundle ID와 Android package name
-- 인증·push·deep-link 공개 계약
-- bootstrap contract 승인과 실제 server contract 전환
-- SQLite migration 및 데이터 삭제 정책
-- 범위·일정·완료 조건 변경
-- production signing과 store release 여부
-
-함수 이름이나 작은 테스트 fixture 구조처럼 쉽게 되돌릴 수 있는 구현 세부사항은 승인된 구조 안에서 에이전트가 결정할 수 있다. 그 결정이 공개 계약, 데이터, native 설정 또는 새로운 dependency에 영향을 주면 중요 결정으로 승격한다.
-
-## 3. 명령 실행 프로토콜
-
-중요 명령을 실행할 때 주 에이전트는 먼저 다음 형식의 명령 카드를 제공한다.
-
-```text
-목적:
-왜 지금 필요한가:
-실행 위치:
-명령:
-예상 변경:
-예상 출력:
-위험과 되돌리는 방법:
-실행 후 확인할 항목:
+```sh
+git show ff909de:docs/roadmap.md
 ```
 
-진행 순서는 항상 같다.
+별도 tracked archive 문서를 추가하지 않는 이유는 Git이 원문을 보존하고, 새 문서 경로는 현재
+architecture exact-path 정책 변경까지 요구하기 때문이다.
 
-1. 에이전트가 명령 카드와 선택지를 설명한다.
-2. 사용자가 결정하고 명령을 직접 실행한다.
-3. 사용자가 출력 또는 핵심 결과를 공유한다.
-4. 에이전트가 결과를 해석하고 다음 변경을 제안한다.
-5. 사용자가 마일스톤 통과 여부를 결정한다.
+### 3.2 M5 이후 실제 OAuth 추가
 
-명령을 실행하지 않아도 진행 가능한 문서화·코드 초안 작업은 계속할 수 있지만, 해당 명령이 완료 조건이면 마일스톤은 통과시키지 않는다.
+Commit `ff909de`에서 Kakao/Google OAuth authorize·exchange, refresh, logout, profile,
+PKCE, SecureStore와 native callback bridge가 추가됐다. `connected-auth` mode에서 현재 이 흐름이
+실제 `fetch()`를 사용하는 유일한 제품 경로다.
 
-## 4. 확정된 기술·운영 경계
+사용자는 clean iOS/Android rebuild 뒤 Kakao·Google 실계정 로그인, 앱 복귀와 프로필 표시를
+확인했다. iOS Kakao profile restore도 관찰됐다. 자세한 기록은
+[OAuth 개발 연결](oauth-development.md)에 있다.
 
-### 4.1 확정
+아래 항목은 아직 전체 PASS가 아니다.
 
-- 이번 로드맵의 제품 기능 범위는 **채팅 domain과 offline/realtime 복구에 한정**
-- React Native + TypeScript strict mode
-- 실행 시점의 공식 문서에서 확인하고 사용자가 승인한 Expo stable SDK와 대응 React Native version
-- Expo Development Build와 `expo-dev-client`
-- Expo Router typed routes와 CNG
-- Bun을 유일한 JavaScript package manager로 사용
-- Nix flake의 `devShell`을 개발 환경의 진입점으로 사용
-- Xcode와 Android Studio GUI는 사용자가 시스템에 설치
-- 첫 수직 절편은 Nix devShell 안에서 native CLI build를 검증하고, debug·unsigned 산출물의 `nix build` 패키징은 별도 후속 트랙으로 진행
-- production signing과 store 제출은 사용자가 직접 수행
-- SQLite가 메시지·대화·cursor·outbox의 화면 source of truth
-- TanStack Query는 이후 request/response state에 사용하되 채팅 메시지 원본과 경쟁시키지 않고, Zustand는 현재 slice에 필요한 작은 UI state만 담당
-- 인증 없는 로컬 deterministic fixture transport로 채팅을 검증하며 production server 연결이나 인증을 표현하지 않음
-- bootstrap contract는 실제 server release가 아님을 명시
-- 실제 `jamye-server` API·PostgreSQL 연동과 배포 contract 수신은 이번 M0~M8 범위 밖이며, server artifact 발행과 app import는 각 저장소의 별도 후속 계획·승인을 요구
-- 기존 PWA, `jamye-server`, homelab, store console은 이 저장소 작업에서 변경하지 않음
+- 양 platform × 양 provider 전체 조합
+- Android 기존 session restore
+- 실제 token 만료 뒤 refresh
+- logout 후 재실행, browser cancel과 account switch
+- 로그인 뒤 group/chat으로 이어지는 navigation
+- physical device, VoiceOver/TalkBack, 200% text, reduce motion
+- automated mobile E2E와 production 배포 revision binding
 
-M1 toolchain baseline은 2026-08-23 사용자 승인으로 확정됐다. Expo SDK 57,
-React Native 0.86.2, React 19.2.3, Bun 1.3.13, Node.js 22.23.2 LTS,
-Azul Zulu OpenJDK 17.0.19, CocoaPods 1.16.2, Android command-line tools 21.0,
-platform-tools 37.0.1, Platform 36, Build Tools 36.0.0을 사용한다. NDK는 포함하지 않는다.
-단일 `nixpkgs-unstable` 입력을 사용하며, 사용자 생성 `flake.lock`이 고정한
-`391b592eb44808b3bd0cb80bb71b63a5a118b8bb`을 정확한 Nix snapshot으로 사용한다. 공식
-근거와 lock 검증 기록은 `docs/research/mobile-baseline.md`를 SSOT로 사용한다.
+따라서 OAuth는 M5에 소급 포함하지 않고, 기존 M6-M8의 완료 근거로도 사용하지 않는다.
 
-M3 종료 전 Expo compatibility refresh에서는 SDK 57 line을 유지하면서 application
-dependency를 Expo 57.0.17과 React Native 0.86.3으로 갱신했다. M5 native keyboard 작업에서
-같은 SDK line의 Expo 57.0.20, Expo Router 57.0.19, Expo Dev Client 57.0.18과
-`react-native-keyboard-controller` 1.21.9로 다시 고정했다. M1의 당시 조사값은 위 기록과
-research 문서에 보존하고, 현재 exact package 선언과 resolution은 `package.json`과
-`bun.lock`을 권위 원본으로 사용한다.
+### 3.3 현재 실행 경로
 
-### 4.2 보류
+현재 app mode는 둘이다.
 
-- production bundle ID와 Android package name
-- universal link와 app link domain
-- 실제 `jamye-server` contract tag·commit
-- 배포된 server OpenAPI·realtime artifact의 전달 위치와 `jamye-app` import 절차
-- production OAuth credential
-- production push credential과 provider 운영 설정
-- App Store·Play Store release 절차
+- `local-fixture`: M5의 SQLite local chat을 표시한다. Network 전송이나 로그인은 없다.
+- `connected-auth`: 로그인 선택 또는 profile/logout 화면을 표시한다. 로그인 뒤 group/chat 화면은 없다.
 
-### 4.3 구현하지 않지만 잃지 않을 release gate와 backlog
+Root provider는 두 mode 모두 같은 SQLite database를 열고 fixture conversation을 seed한다.
+실제 사용자 데이터 연결 전에는 fixture seed를 auth mode에서 분리하고, API origin과 account별로
+database/cache/outbox를 partition해야 한다. Logout, account switch, membership eviction 뒤
+이전 account의 queued/in-flight work나 늦은 response가 새 account에 표시·전송되면 안 된다.
 
-첫 수직 절편에서 아래 기능을 구현하지는 않는다. 다만 나중에 release를 준비할 때 빠뜨리지 않도록 명시적 게이트로 유지한다.
+## 4. 서버 계약을 어떻게 사용할 것인가
 
-Release gate:
+### 4.1 계약 기준과 provenance
 
-- 새 client release 전에 `jamye-server`가 current/previous contract version을 지원하는지 확인
-- iOS store 제출 전에 Sign in with Apple을 제공하거나 App Review Guideline 4.8 예외 근거를 확인
-- 앱에서 계정을 만들 수 있게 되는 release 전에는 앱 안에서 계정 삭제를 시작하는 경로를 제공
-- production identifier, universal/app link, OAuth, push credential, privacy copy, signing을 사용자가 별도로 승인
+계획 기준은 read-only `jamye-server/contracts/`다.
 
-이후 product backlog:
+- OpenAPI 3.1, contract version `1`
+- HTTP 43 operations, 32 paths
+- Realtime current version `1`, previous version `0`
+- known event: `message.created`, `topic.created`
+- manifest stage: `release_candidate`
+- manifest `server_commit: dirty`, `server_tag: null`
+- manifest의 계약 묶음 checksum (`sha256`): `d2b88eddfa47bc88ad84f64c4dc80cc853cc86ac42254b7817e7b65b3b6f8d66`
 
-- 초대 기반 group과 owner/member 관리
-- 날짜별 topic timeline, seed → enriched 흐름, group main room과 topic room
-- 사진·동영상은 system picker를 우선하고, 음성은 해당 시점의 Expo 권장 audio package를 사용하는 첨부·재생·STT와 기능 사용 시점 permission
-- on-device AI
-- 인앱 알림과 push adapter skeleton, 권한·installation lifecycle·deep link, production remote push, push privacy preference
-- **완성형 카카오·구글·애플 OAuth 로그인**: provider UI/SDK·API, system-browser PKCE 또는 mobile exchange, callback allowlist, SecureStore token lifecycle, refresh single-flight, logout·stale credential 정리
-- 계정 생성·관리·삭제
-- 기존 PWA 제거 또는 web target 대체 여부의 별도 제품 결정
-- 전체 design polish와 animation
-- Expo로 충족할 수 없을 때만 `modules/` local Expo Module을 검토하고, CNG로 표현 불가능한 native 변경은 ADR 후 source-controlled native project 전환
+이 checksum은 manifest의 `checksum_algorithm`이 정의한 계약 묶음의 값이며,
+`manifest.json` 파일 하나의 byte hash가 아니다.
 
-## 5. 전체 흐름
+Server checkout commit과 contract content hash/version은 future intake의 재현 가능한 planning
+snapshot으로 기록한다. 그러나 manifest metadata가 실제 deployment revision에 bind됐다고
+확인되지 않았으므로 이를 production-certified contract라고 부르지 않는다. 배포 binding이나
+server 수정이 필요하면 별도 server 작업으로 승인받는다.
+
+계약 수용 시에는 exact source revision과 content hash/version에서 type과 validator를 생성하고,
+app domain mapper를 둔다. 문서 변경마다 tag, manifest, 승인 hash를 중첩하는 새 immutable
+evidence generation 체계는 만들지 않는다.
+
+### 4.2 Bootstrap과 실제 계약의 핵심 차이
+
+| 주제        | M4 bootstrap                                            | server contract v1                                                                          | future app rule                                    |
+| ----------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| 메시지 전송 | `/bootstrap/v1/conversations/{id}/messages`             | `POST /api/v1/chatrooms/{chatroom_id}/messages`                                             | 실제 API adapter와 mapper 사용                     |
+| 멱등 ID     | `client:timestamp:entropy:counter`                      | UUID `client_msg_id`                                                                        | 새 send는 UUID, retry는 같은 ID와 payload 재사용   |
+| 전송 응답   | event와 checkpoint                                      | `CanonicalMessage`; 201/200/409                                                             | REST canonical 결과와 event checkpoint 분리        |
+| event shape | `message.upsert`, `payload`, ms/sequence                | `message.created`, `data`, `occurred_at`, opaque cursor                                     | 없는 event ID/sequence를 만들지 않음               |
+| delta       | `after_cursor`, events/checkpoint/has_more              | `after`, `items`, `next_cursor`                                                             | 실제 paging/terminal 의미를 따름                   |
+| cursor      | numeric sequence와 결합                                 | opaque last-applied cursor                                                                  | 문자열·숫자 대소 비교 금지, commit 뒤 이동         |
+| SQLite      | fixture-only, nonempty body, sent에 event+sequence 필수 | main/topic room, nullable body/sender/client ID, media, REST response에 event metadata 없음 | 기존 DB를 삭제하지 않는 migration/namespace 설계   |
+| account     | 고정 fixture identity                                   | authenticated user와 membership                                                             | origin/account partition과 stale-work cancellation |
+
+### 4.3 Realtime·media·push 안전 경계
+
+- App outbox는 사용자의 전송 의도이고 server worker outbox는 committed server event 발행이다.
+  같은 책임으로 취급하지 않는다.
+- REST response와 WS/delta event는 message convergence mapper를 공유할 수 있지만, event
+  checkpoint는 validated event를 DB에 적용한 뒤에만 이동한다.
+- `subscribed`를 authoritative membership join barrier로 사용하고 그 경계의 누락을 delta로
+  복구한다.
+- Raw access token을 WebSocket URL에 넣지 않고 R1의 one-time ticket을 사용한다.
+- 4001 membership eviction, 4401 auth failure/expiry와 426 contract upgrade required를 서로
+  다른 recovery로 처리한다. 426을 무한 retry하지 않는다.
+- Unknown event는 cursor를 진행시키지 않고 마지막 applied cursor 뒤의 S1을 bounded하게 요청한다.
+- Media access는 API가 반환한 signed URL 전체를 그대로 사용한다. Media host에 API bearer나
+  MinIO credential을 전달하지 않는다.
+- Mobile push installation provider는 `expo`, platform은 `ios`/`android`다. PWA의
+  WebPush/VAPID를 mobile contract로 가져오지 않는다.
+
+## 5. 이전 M6-M8의 처분
+
+기존 roadmap의 다음 항목은 **완료되지 않은 superseded proposal**이다.
+
+| 이전 제안                               | 이전 의도                                            | 새 위치                                                         |
+| --------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------- |
+| 구 M6 anonymous fixture outbox/realtime | restart, dedupe, delta gap 복구를 test double로 검증 | 실제 server REST chat은 M8, durable outbox/realtime은 M9        |
+| 구 M7 chat E2E/native Development Build | 완성된 local fixture slice의 양 platform 검증        | 각 qualifying milestone의 native gate와 공통 release acceptance |
+| 구 M8 첫 fixture vertical slice 종료    | 문서/실기기/배포 경계 정리                           | 공통 cross-milestone release acceptance                         |
+
+재사용할 offline/recovery/native acceptance 의도는 새 milestone에 옮기되, 구 M6-M8을 실패나
+완료로 바꾸지 않는다.
+
+## 6. 앞으로의 흐름
 
 ```text
-M0 감독형 작업 방식 승인
+M0-M5 completed history
+  + post-M5 OAuth implemented / partially accepted
   ↓
-M1 공식 baseline 확인 + Nix devShell
+M6 server contract intake + account-safe authenticated shell
   ↓
-M2 Expo/Bun scaffold
+M7 groups, membership and invitations
   ↓
-M3 앱 기반 구조와 품질 경계
+M8 authenticated REST chat
   ↓
-M4 bootstrap contract + SQLite
-  ↓
-M5 로컬 채팅 읽기·쓰기
-  ↓
-M6 offline outbox + realtime/delta 복구
-  ↓
-M7 E2E + native Development Build
-  ↓
-M8 문서·실기기 확인·첫 수직 절편 종료
+M9 durable outbox + realtime/delta convergence
+  └─→ M10 topics and tags
+        ├─→ M11 media
+        └─→ M12 notification inbox + Expo push
+M6 ─→ M13 account profile update + deletion lifecycle
+
+selected completed scopes ─→ common release acceptance
 ```
 
-## 6. 마일스톤
+M10-M12의 구현 순서는 contract와 제품 우선순위를 다시 확인한 뒤 조정할 수 있다. M13은 M6의
+account-safe session을 선행 조건으로 하는 독립 account lifecycle이며 media나 push 완료를 요구하지
+않는다. Release acceptance는 번호가 붙은 catch-all milestone이 아니라, 실제 선택·구현한 범위에만
+적용하는 공통 gate다.
 
-### M0. 감독형 작업 방식과 계획 확정
+## 7. 미래 milestone
 
-목표는 에이전트의 작업 범위, 사용자 결정권, 명령 실행 절차를 먼저 고정하는 것이다.
+### M6. 서버 계약 수용과 계정 안전 기반
 
-에이전트 작업:
+- 상태: `planned_unapproved`
+- 선행: M0-M5 이력, post-M5 OAuth baseline, 별도 M6 PLAN_GATE
+- 사용자 결과: 로그인 성공 뒤 authenticated home/profile에 진입하며 fixture 데이터가 로그인
+  account에 보이거나 전송되지 않는다.
+- 계약 범위: Health 진단, OAuth/session과 현재 profile read
 
-- 이 로드맵과 machine-readable plan 작성
-- 완전성·메타·단순성 독립 리뷰
-- 리뷰 결과와 남은 결정 정리
+핵심 작업:
 
-사용자 게이트:
-
-- 로드맵 승인
-- 중요 명령과 결정의 사용자 소유권 승인
-- Ultrawork `PLAN_GATE` 상태 명령 직접 실행
-
-완료 증거:
-
-- Git에 남길 durable 계획인 `docs/roadmap.md`
-- 현재 `.gitignore` 아래의 OMA session artifact인 `docs/plans/work/001-jamye-app-greenfield.md`와 `.agents/results/plan-20260822-200158.json`
-- 세 개의 독립 리뷰가 PASS이거나 지적이 반영됨
-- 사용자의 명시적 승인
-
-### M1. 공식 mobile baseline과 Nix 전용 개발 환경
-
-목표는 현재 stable 조합을 근거로 정한 뒤, 개발자마다 다른 전역 도구 대신 `nix develop`로 동일한 CLI 환경에 진입하는 것이다.
-
-에이전트 작업:
-
-- 현재 디렉터리·Git·기존 package-manager/lockfile·Xcode·Android SDK 상태를 읽기 전용으로 확인하고 `docs/research/workspace-baseline.md`에 기록
-- Expo release archive, SDK별 React Native 표, Bun 사용법, EAS/Expo CLI 요구사항을 공식 자료에서 읽기 전용 확인
-- 출처 URL·확인일·stable 판정·후보 version·호환 조건을 `docs/research/mobile-baseline.md`에 기록
-- 기존 `jamye-plz`의 지정 문서·route·chat component·API·test를 읽고 **이번 채팅 slice에 필요한** 제품 동작, 한국어 카피, design token, 회귀 의도만 `docs/product-intent.md`에 추출; 비채팅 내용은 backlog link만 남김
-- Svelte component, Tailwind/daisyUI class, CSS rule을 복사하지 않았음을 product-intent review에서 확인
-- `flake.nix` 구조 제안
-- `nix/dev-shell.nix`, `nix/android-sdk.nix` 작성
-- 사용자가 승인한 Bun, Node, JDK, Android CLI toolchain과 CocoaPods를 고정
-- NDK·Watchman·Maestro는 scaffold 또는 해당 검증 단계가 필요성을 증명한 뒤 별도 승인으로 추가
-- `JAVA_HOME`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `DEVELOPER_DIR` 등 비밀이 아닌 환경 변수 정의; NDK를 포함하지 않으므로 `ANDROID_NDK_ROOT`는 설정하지 않음
-- 외부 Xcode·Android Studio 상태를 읽기만 하는 진단 script 작성
-
-사용자 직접 실행:
-
-- 공식 근거를 바탕으로 version 조합 승인 — 2026-08-23 완료
-- Android SDK license를 Nix 구성의 `android_sdk.accept_license = true`로 declarative하게 수락 — 2026-08-23 완료; read-only Nix SDK에 쓰는 `sdkmanager --licenses` 명령은 사용하지 않음
-- 아직 커밋되지 않은 새 Nix 파일도 포함하도록 `nix flake lock path:.`로 flake input 고정 — 2026-08-23 완료
-- 같은 이유로 `nix develop path:.`로 devShell 진입 — 2026-08-23 완료
-- Xcode·Android Studio·simulator·emulator 설치 — 2026-08-24 완료
-- 각 tool version 확인 명령 — 최종 진단의 exact-version 검사로 2026-08-24 완료
-- devShell 안에서 `./tools/diagnostics/toolchain-check.sh` 실행 — `23 passed, 0 failed`
-- repository root에서 `nix flake check path:.` 실행 — `flake_check_exit=0`
-
-결정 게이트:
-
-- `aarch64-darwin` 단일 지원으로 시작
-- Nix SDK를 CLI build의 authoritative SDK로 사용
-- Android SDK license acceptance는 사용자 결정으로 승인하고 flake에 declarative하게 기록
-- NDK는 M1에서 제외하며 `ANDROID_NDK_ROOT`를 설정하지 않음
-- 비밀값이나 signing material을 devShell에 넣지 않음
+- Server revision `7d146ab`과 contract version/content hash를 planning snapshot으로 수용
+- Generated type/validator와 domain mapper 경계를 만들고 bootstrap을 runtime server contract로
+  오인하지 않게 분리
+- AuthScreen 내부 controller를 shared session owner로 이동하고 authenticated navigation 제공
+- Refresh single-flight, callback/cancel, logout/account-switch generation과 stale request 취소
+- Auth mode의 fixture seed를 중단하고 origin/account별 DB/cache/outbox namespace와 preserving
+  migration 결정
+- Health는 연결 진단으로만 사용하고 제품 기능 완료율에 포함하지 않음
 
 완료 증거:
 
-- 깨끗한 shell에서 요구 도구의 version과 경로 확인
-- declarative license acceptance가 적용된 composed Android SDK가 성공적으로 realize됨
-- `nix flake check path:.`가 host GUI 상태와 독립적으로 flake output을 검증하며 통과
-- devShell 안에서 별도로 실행한 read-only 진단이 Xcode 또는 Android Studio가 없거나 잘못된 경우 이해 가능한 메시지로 실패
-- 공식 출처·확인일·승인된 version이 flake 및 이후 scaffold와 일치
-- product-intent 문서가 지정 참고자료 전부와 각 산출 의도를 추적하고 source code 복사를 포함하지 않음
-- scaffold 전 workspace baseline이 현재 Git·lockfile·toolchain 상태와 일치
+- Exact snapshot version/hash와 generated drift check
+- 로그인 → authenticated home, cold restore, refresh, logout, cancel과 account switch의 자동/수동 결과
+- 이전 account의 row/outbox/late result가 새 account에 노출·전송되지 않는 test
+- 기존 fixture DB를 조용히 삭제하지 않았다는 migration/integrity evidence
+- Native-affecting 변경이 있을 때만 clean prebuild와 양 platform rebuild/install/runtime acceptance
 
-### M2. 명시적 stable Expo SDK와 Bun scaffold
+### M7. 그룹·멤버십·초대
 
-목표는 기존 OMA 파일을 보존하면서 M1에서 승인한 stable SDK template을 현재 저장소에 안착시키는 것이다.
+- 상태: `planned_unapproved`
+- 선행: M6
+- 사용자 결과: group을 만들거나 invite로 참여하고, group 목록·상세·member를 보며 권한에 맞는
+  관리 action을 수행한다.
+- 계약 범위: Groups/members, Invitations
 
-에이전트 작업:
+핵심 작업:
 
-- non-empty 저장소 충돌 목록 작성
-- 임시 디렉터리 scaffold 명령 카드 작성
-- 생성된 template과 현재 저장소를 비교하고 필요한 파일만 통합
-- `packageManager`와 Bun-only lockfile 정책 적용
-- 기존 `.agents`, `.claude`, `.codex`, `AGENTS.md` 보존
-
-사용자 직접 실행:
-
-- 임시 위치의 `create-expo-app` 명령
-- 최초 `bun install`
-- 생성 diff 확인
-
-결정 게이트:
-
-- 실제 template의 route 위치를 존중할지 확인
-- Expo SDK·React Native·Bun 정확한 버전 승인
+- Group create/list/detail/update/delete와 member list/remove/role update
+- Invite 발급·참여와 invalid/expired/full/forbidden/rate/permission 상태
+- Membership removal 뒤 protected screen 이탈, subscription/outbox/cache 차단
+- Re-fetch와 optimistic UI가 server authority를 덮지 않는 상태 소유권
 
 완료 증거:
 
-- `package-lock.json`, Yarn·pnpm lockfile이 없음
-- `bun.lock`과 `packageManager` 일치
-- Expo doctor와 TypeScript 기본 검사 통과
-- 사용자가 Expo Go를 iOS Simulator와 ADB Android target에서 실행해 default template을 확인;
-  Development Build 또는 native build 증거와 구분
-- template 선택과 package manager 근거가 ADR에 기록됨
-- M2가 새로 작성한 비-template 실행 application/domain 로직이 없는 bootstrap에만 적용되는
-  품질 증거 유예와 M3 강제 이관 조건이
-  ADR 0003에 기록됨; M2 lint와 coverage는 PASS가 아니라 미측정으로 유지
+- 권한별 happy/error path와 account isolation test
+- User-visible loading/empty/retry/destructive confirmation/accessibility state
+- 실제 배포 API를 호출하면 test account/data mutation 범위를 사전 승인하고 cleanup 결과 분리
 
-### M3. 앱 기반 구조와 품질 경계
+### M8. 실제 서버와 연결한 REST 채팅
 
-목표는 기능을 얹기 전에 책임 경계와 실패 동작을 만든다.
+- 상태: `planned_unapproved`
+- 선행: M6, M7
+- 사용자 결과: 실제 group chatroom에 들어가 history를 읽고 read state를 갱신하며 text message를
+  전송한다. M5의 IME, anchor, keyboard와 accessibility 품질을 유지한다.
+- 계약 범위: Chatrooms/messages/read
 
-현재 판정은 종료 감사 PASS이며 사용자가 2026-08-28에 M3 완료를 승인했다. 앱 기반 구현은
-`eacd1da1b4b0ab4f46dc86ec15386869dbe0e3c6`, 개발 워크플로와 native 검증 기반은
-`a451b91af3598ce0df7c64d8e0b3d25a65f3dedc` local checkpoint에 보존했다. 실제 명령·build·
-runtime 결과와 남은 경계는 [M3 실행 증거](evidence/M3.md)를 기준으로 한다. 이 fixture smoke는
-M7의 완성된 채팅 E2E나 실기기 acceptance를 완료한 것으로 보지 않는다.
+핵심 작업:
 
-에이전트 작업:
-
-- Development Build, typed routes, CNG, app variants 설정
-- thin route와 `core/features/shared` 경계; `store`는 실제 in-scope state owner가 생길 때만 추가
-- environment validation, Error Boundary, redacted structured logger
-- 인증·session·token interface가 없는 local fixture mode와 production server 연결이 아님을 보여 주는 명시적 개발 표시
-- provider composition과 import boundary
-- TypeScript strict와 SQLite chat-state 소유권 guard; TanStack Query·Zustand는 실제 소유 state가 생길 때만 추가
-- 모든 screen/component가 HTTP client를 직접 import하지 못하게 하는 architecture check
-- semantic design tokens와 dark mode 기반
-- 실제로 작동하는 lint·format 설정과 M3 작성 실행 로직을 위한 의미 있는 test/coverage harness
-- coverage denominator와 generated/template 제외 사유를 선언적으로 기록하고 빈 test suite,
-  `passWithNoTests`, generated template 전용 test로 품질 조건을 우회하지 않는 guard
-- README의 development client 재생성 조건
-- `ios/`, `android/`를 CNG 생성물로 ignore하고 직접 수정·commit하지 않는 검증 script
-- Expo Router 외 별도 navigation stack과 UI framework가 추가되지 않았음을 dependency/import check로 확인
-- 현재 slice에는 preference state를 만들지 않고, 첫 실제 preference가 생길 때 저장소를 선택한다는 ADR 기록
-
-사용자 직접 실행:
-
-- simulator/emulator용 development identifier 승인
-- native config 변경 후 development client build
-- doctor, typecheck, lint, format 검사
-- M3 test와 coverage 측정
+- Group의 chatroom list, message history, read checkpoint와 send adapter
+- UUID `client_msg_id` 생성과 retry identity/payload 보존
+- 201 new, 200 same request, 409 different payload를 구분
+- `CanonicalMessage`의 nullable body/sender/client ID와 media/tombstone-safe rendering
+- Local UI key와 server message ID를 분리하고 REST response에 event metadata를 만들지 않음
+- SQLite v1을 데이터 삭제 없이 migration하고 local-fixture mode를 보존
 
 완료 증거:
 
-- route가 DB·HTTP·WebSocket을 직접 import하지 않음
-- 환경의 비밀값과 message body가 로그 redaction test를 통과
-- 잘못된 환경값이 시작 시 명확하게 실패
-- lint가 실제 exit `0`으로 통과
-- M3가 작성한 실행 가능한 application 로직을 포함한 aggregate coverage가 실제 측정값으로
-  80% 이상이며 denominator와 제외 사유가 repository에 기록됨
-- M2 품질 증거 유예가 M3 이후로 연장되지 않음
-- tracked `ios/`, `android/` 파일이나 생성물 직접 수정이 없음
-- 별도 navigation stack·UI framework dependency가 없음
+- Contract validator/mapper, pagination, permission/removed membership와 send idempotency test
+- Local optimistic message가 exactly one canonical server message로 수렴
+- iOS/Android에서 Korean IME, prepend/latest anchor와 error/retry 수동 확인
 
-### M4. Bootstrap contract와 SQLite 기반
+### M9. 영속 outbox와 실시간·delta 동기화
 
-목표는 로컬 데이터 원본과 wire contract를 구현 전에 차례로 고정하는 것이다. 원 프롬프트의 순서대로 첫 database schema·migration을 먼저 승인하고, 이어 bootstrap contract와 생성 type을 고정한다.
+- 상태: `planned_unapproved`
+- 선행: M8
+- 사용자 결과: Offline send가 restart를 견디고 online 복귀 뒤 한 번만 수렴하며, reconnect 중
+  빠진 event를 잃지 않는다.
+- 계약 범위: Delta sync, realtime ticket와 WebSocket
 
-현재 판정은 종료 감사 PASS다. 사용자는 2026-08-31에 M4 완료와 closure commit을 승인했고,
-SQLite·bootstrap contract 기반은 `298aacec7dd61a31c2fdc196e0ca7b47093c91fd`에 보존됐다. 실제
-명령·native smoke·품질 결과와 범위 밖 항목은 [M4 실행 증거](evidence/M4.md)를 기준으로 한다.
-이 기반은 chat UI나 실제 server integration을 완료한 것으로 보지 않는다.
+핵심 작업:
 
-에이전트 작업 — database:
-
-- deterministic migration과 `PRAGMA user_version`
-- WAL, foreign key, bound query
-- `conversations`, `messages`, `outbox_commands`, `applied_events`, `sync_cursors`
-- repository와 DB change subscription
-
-에이전트 작업 — contract:
-
-- 현재 slice에 필요한 message command·conversation delta 두 REST endpoint와, REST·delta·WebSocket이 함께 쓰는 realtime message/cursor event schema만 정의하고 범용 contract platform으로 확장하지 않음
-- bootstrap OpenAPI, realtime schema, fixtures, manifest
-- `contract.lock`과 deterministic checksum
-- REST·realtime TypeScript 생성 및 drift check
-- `snake_case` DTO와 `camelCase` entity mapper
-- bootstrap source와 교체 조건, `server_tag`·`server_commit`·`contract_version`·checksum provenance 기록
-- optional field 호환, REST DTO 수동 이중 정의 금지, breaking version 정책 검증
-- local CI entrypoint에서 generated diff 발생 시 실패
-
-사용자 직접 결정·실행:
-
-- bootstrap endpoint·event·cursor 계약 승인
-- 첫 migration schema 승인
-- contract generation과 실제 SQLite integration test 실행
+- Persistent queued/in-flight/acked/failed transition, restart recovery와 bounded backoff
+- REST canonical response와 event checkpoint의 분리된 atomic apply
+- Opaque cursor를 last-applied checkpoint로 저장하고 S1 `after`/`items`/`next_cursor` 사용
+- Delta → ticket/socket → subscribed barrier → second delta의 race-window closure
+- Foreground, network regain, reconnect single-flight와 duplicate event dedupe
+- 4001 eviction, 4401 auth expiry/failure, 426 upgrade와 unknown-event recovery
+- Logout/account switch에서 queued/in-flight work와 socket registry cleanup
 
 완료 증거:
 
-- 타입 재생성 후 diff 없음
-- lock checksum 일치
-- `contract.lock` provenance와 README의 production contract 교체 조건 일치
-- optional field fixture는 허용되고 unknown event type은 crash 없이 기록 후 delta를 요청
-- contract generation을 포함한 CI 명령이 diff를 남기면 실패
-- migration 반복 실행 가능
+- Duplicate, lost response, lost event, restart, foreground/reconnect와 membership eviction integration tests
+- Same `client_msg_id` retry와 exactly one canonical result
+- Unknown event에서 cursor unchanged와 bounded S1 reconcile scope
+- 양 platform offline → terminate → restart → online runtime acceptance
 
-### M5. 로컬 채팅 읽기·쓰기
+### M10. 주제·태그
 
-목표는 test fixture 대화방을 SQLite에서 읽고, 한국어 입력을 안전하게 pending message로 저장하는 것이다.
+- 상태: `planned_unapproved`
+- 선행: M7, M9
+- 사용자 결과: 날짜별 topic을 보고 생성·상세·수정·tag 관리 후 topic chatroom에 들어간다.
+- 계약 범위: Topics/tags와 `topic.created`
 
-사용자는 2026-08-31에 M5 Ultrawork 시작을 승인했고 2026-09-05에 iOS·Android의 최종
-keyboard/list 동작과 local send를 직접 확인했다. 현재 판정은 M5 완료다. 실제 chat list와
-composer는 SQLite repository에 연결됐고 network processor나 실제 server 호출은 만들지
-않았다. 명령·native build/runtime·수동 관찰·미실행 항목은 [M5 실행 증거](evidence/M5.md)를
-기준으로 한다.
+핵심 작업:
 
-이 수용은 Simulator/Emulator의 local-send와 keyboard/list 기능에 한정한다. 실제
-VoiceOver/TalkBack, 200% text, reduce motion과 물리 기기 checklist는 실행하지 않았으며 M8
-또는 별도 device acceptance에서 `PASS | FAIL | BLOCKED`로 기록한다.
-
-에이전트 작업:
-
-- SQLite 구독 기반 virtualized chat list
-- prepend scroll anchor와 안정적인 key
-- multiline composer와 명시적 전송 버튼
-- composer send가 optimistic message와 outbox command를 하나의 exclusive SQLite transaction에서 생성
-- failed message의 재시도 control은 기존 outbox command와 `client_msg_id`를 그대로 재사용
-- pending·failed·sent의 비색상 상태 표시
-- safe area, dynamic text, dark mode, accessibility label
-- VoiceOver/TalkBack 읽기 순서, reduce motion, icon button hit target
-- chat list·composer·button·keyboard 동작은 iOS HIG와 Android Material 관습에 맞추고, 실제 차이만 `.ios.tsx`, `.android.tsx` 또는 작은 adapter로 격리
-- component·accessibility test
-
-사용자 직접 결정·실행:
-
-- 첫 단계에서 Enter는 줄바꿈, 버튼만 전송하는 IME 정책 승인
-- iOS Simulator와 Android Emulator에서 화면 실행
-- Korean IME와 keyboard 동작 직접 확인
+- Date/list/create/detail/update/tag replace/list
+- `topic.created`를 M9의 same validator/checkpoint/recovery 경계에 연결
+- Group main room과 topic room navigation, stale group/account result 차단
 
 완료 증거:
 
-- 화면이 HTTP cache가 아닌 SQLite만 읽음
-- 전송 즉시 pending message와 outbox가 함께 생성
-- transaction 중 하나가 실패하면 optimistic message와 outbox가 모두 rollback
-- 과거 행 prepend 후 보던 위치 유지
-- VoiceOver·TalkBack용 label과 상태 텍스트 존재
-- 확대 글자에서도 composer와 message state를 읽을 수 있고, 읽기 순서·hit target·reduce-motion·dark-mode 판정 항목이 준비됨
-- iOS와 Android 양쪽에서 chat/composer control 동작을 비교한 증거와 platform-specific 파일·adapter 경계 review가 있음
+- Date/list/detail 일관성, permission/error와 realtime/delta recovery test
+- 생성된 topic과 chatroom으로의 user-visible navigation
 
-### M6. Offline outbox와 realtime/delta 복구
+### M11. 미디어 업로드·첨부·접근
 
-목표는 오프라인 전송 의도를 앱 재시작 뒤에도 보존하고 canonical event 하나로 수렴시키는 것이다.
+- 상태: `planned_unapproved`
+- 선행: M8, M10
+- 사용자 결과: 지원하는 media를 선택해 upload를 완료하고 contract가 허용하는 message/topic에
+  연결하며, 이후 안전하게 열거나 내려받는다.
+- 계약 범위: Media
 
-이 마일스톤의 transport는 인증 없는 deterministic local fixture다. 실제 `jamye-server` API나
-PostgreSQL에 연결하지 않으며, server 배포 artifact 수신·production endpoint·auth를 M6 완료로
-간주하지 않는다.
+핵심 작업:
 
-에이전트 작업:
-
-- deterministic REST·WebSocket transport test double과 응답 유실·event 누락 fixture
-- 인증 없는 local deterministic fixture transport만 사용하고 credential·session·token·OAuth interface가 생기지 않았음을 검증
-- 단일 processor를 전제로 한 persistent outbox 상태 전이, restart 시 `in_flight` 복구, retry classifier, exponential backoff+jitter
-- REST·WebSocket·delta가 공유하는 `applyEvent()`
-- `event_id` dedupe와 monotonic cursor
-- foreground, network regain, reconnect trigger의 single-flight 처리
-- restart·duplicate·lost-event integration test
-- `cursor 저장 → delta → 인증 없는 fixture WebSocket 연결 → second delta` 순서를 깨뜨린 race-window fixture와 정상 순서의 복구 test
-
-사용자 직접 결정·실행:
-
-- transient/permanent 오류 분류와 retry 상한 승인
-- deterministic transport와 integration test 실행
-- offline → 종료 → 재시작 → online 복구 시나리오 실행
+- Presigned upload create/finalize, topic media list와 media URL/download
+- System picker 우선, permission은 기능 사용 시점에 요청
+- Signed URL 전체를 그대로 사용하고 API credential을 media host에 전달하지 않음
+- Expiry, retry, cancellation, duplicate finalize와 partial upload cleanup
 
 완료 증거:
 
-- HTTP 재요청은 가능하지만 canonical message는 하나
-- 앱 재시작 뒤 같은 `client_msg_id` 재사용
-- 사용자가 failed message를 다시 시도해도 새 command를 만들지 않고 기존 outbox command와 `client_msg_id`를 재사용
-- realtime event 유실 뒤 delta가 복구
-- unknown event가 crash하지 않고 delta를 요청
+- Contract/content validation, credential isolation과 failure recovery test
+- 선택한 platform/device의 picker, upload, render/download와 접근성 수동 결과
 
-### M7. E2E와 native Development Build
+### M12. 알림함과 Expo 푸시
 
-목표는 자동화 결과와 실제 native build가 같은 수직 절편을 증명하게 하는 것이다.
+- 상태: `planned_unapproved`
+- 선행: M6, M7, M10
+- 사용자 결과: Notification history를 읽고 read 처리하며, 동의한 device에서 받은 push로 올바른
+  authenticated destination에 진입한다.
+- 계약 범위: Notification history와 Push installation
 
-에이전트 작업:
+핵심 작업:
 
-- Maestro flow와 실제 SQLite 진단 harness
-- devShell 안에서 실행할 iOS·Android development build 명령 카드
-- offline send·restart·recovery의 deterministic E2E fixture
-
-사용자 직접 실행:
-
-- `expo prebuild --clean` 명령
-- Android·iOS development build
-- simulator·emulator 실행과 Maestro flow
-
-결정 게이트:
-
-- production signing·keystore·provisioning은 계속 범위 밖
+- Structured notification `type`과 `args`를 local copy로 안전하게 rendering
+- Read state와 destination authorization/revalidation
+- Expo token register/update/delete와 login/logout/account/device lifecycle
+- Permission denied, token rotation과 stale installation cleanup
 
 완료 증거:
 
-- 두 플랫폼 development build smoke test 결과
-- E2E에서 offline send와 recovery 확인
-- 실패 시 정확한 toolchain·platform blocker 기록
+- History/read/deep-link/authorization test
+- Provider `expo`, platform `ios`/`android` request validation
+- Registration API test와 실제 receipt/delivery/physical-device evidence를 분리
 
-### M8. 첫 수직 절편 종료
+### M13. 프로필 수정과 계정 삭제
 
-목표는 구현 사실과 미검증 사실을 분리해 다음 수직 절편으로 넘기는 것이다.
+- 상태: `planned_unapproved`
+- 선행: M6
+- 사용자 결과: Profile을 갱신하고 account 삭제를 안전하게 요청하며, 삭제된 identity가 active
+  local session이나 stale data로 남지 않는다.
+- 계약 범위: Profile update와 account deletion
 
-에이전트 작업:
+핵심 작업:
 
-- README, architecture, ADR, manual device checklist 완성
-- 모든 필수 검사·build 명령을 `package.json` scripts와 README 명령표에 정확히 기록하고 각 명령을 실행·미실행 결과와 연결
-- 전체 diff와 docs reference 검토
-- 독립 QA·refactor·ship 리뷰
-- 실제 실행 결과, 미실행 항목, 다음 slice 제안
-- 최종 보고에 승인된 Expo SDK/RN/Bun과 공식 근거, 구조·상태 소유권, contract source·lock·checksum, 실제 test/build 결과, 플랫폼 차이·미검증 항목, 다음 slice·open decision, production/legacy 미변경 확인을 모두 포함
-
-사용자 직접 실행·결정:
-
-- 최종 검사 명령
-- 실제 iPhone·Android 수동 checklist
-- 수직 절편 완료 승인
-- commit·push·PR 여부 별도 결정과 직접 실행
+- Profile update와 destructive account deletion confirmation/blocker 처리
+- Delete/logout 뒤 token과 session을 제거하고, 실제 구현돼 있는 cache, SQLite namespace, outbox,
+  subscription, media 또는 push installation scope를 정리하거나 안전하게 격리
+- 아직 구현하지 않은 media/push milestone을 account update/delete의 선행 조건으로 요구하지 않음
+- Partial failure, retry와 재로그인 시 삭제된/stale account state 재활성화 방지
 
 완료 증거:
 
-- typecheck, lint, format, unit, component, integration, contract, E2E 결과
-- 현재 환경에서 실행 가능한 필수 자동 검사는 사용자가 실제로 실행해 모두 통과했으며, 실행할 수 없는 native·device 항목만 정확한 blocker·명령 카드·재개 조건과 함께 남음
-- domain mapper, event validation, component 상태, SQLite transaction, restart idempotency, delta recovery 등 채팅 요구 행위별 test가 통과
-- iOS·Android 차이와 미검증 항목 문서화
-- 실제 iPhone·Android checklist가 Korean IME, safe area, scroll anchor, VoiceOver/TalkBack label·읽기 순서, 확대 글자, icon hit target, reduce motion, dark mode를 항목별 `PASS | FAIL | BLOCKED`로 기록
-- OAuth, group/topic, media/audio/STT, notification/push 등 비채팅 기능이 이번 결과에 포함되지 않았고 backlog로 유지됨을 확인
-- local fixture transport가 production server 연결이나 로그인으로 표시되지 않고, session/token·SecureStore·OAuth provider·notification/push dependency가 current slice에 없음
-- 기존 PWA·server·homelab·store 상태를 변경하지 않았다는 확인
+- Profile update의 validation/error/success와 persisted identity refresh test
+- Account deletion confirmation, server blocker/error, retry와 실제 구현된 local scope cleanup test
+- 실제 account 삭제와 destructive local cleanup은 각각 별도 명시 승인
 
-### 후속 패키징 트랙 N1. Nix build 산출물
+## 8. Server API coverage
 
-이 트랙은 첫 수직 절편 M8의 필수 관문이 아니다. 사용자가 별도로 시작을 승인하면 CLI로 만들 수 있는 범위의 산출물을 `nix build`로 재현한다.
+이 표는 contract inventory의 누락을 막기 위한 배정표다. 현재 구현이나 배포 검증 표가 아니다.
 
-- Android debug APK를 우선하고 unsigned release AAB는 실제 필요가 확인된 뒤 추가
-- iOS Simulator `.app`은 host Xcode 의존성과 Nix sandbox 제약을 작은 spike로 검증한 뒤 derivation 또는 flake app 중 하나를 선택
-- production signing, keystore, provisioning profile, store 제출은 계속 제외
-- dependency closure, 네트워크 차단 build, SDK·contract·artifact checksum은 이 트랙의 완료 증거로 사용
+| Family                  | Operation IDs                  | 현재 app        | Roadmap assignment                            |
+| ----------------------- | ------------------------------ | --------------- | --------------------------------------------- |
+| Health                  | H1, H2                         | 연결 UI 없음    | M6 진단, 공통 release acceptance              |
+| OAuth/session           | A1, A2, A3, A4, A5             | 구현·부분 수용  | M6 shared session과 남은 lifecycle acceptance |
+| Profile/account         | U1, U2, U3                     | U1 표시만       | M6 U1, M13 U2/U3                              |
+| Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | 없음            | M7                                            |
+| Invitations             | I1, I2                         | 없음            | M7                                            |
+| Chatrooms/messages/read | C1, C2, C3, C4                 | local fixture만 | M8                                            |
+| Delta/realtime          | S1, R1 + WebSocket             | 실행 경로 없음  | M9                                            |
+| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 없음            | M10                                           |
+| Media                   | MD1, MD2, MD3, MD4, MD5        | 없음            | M11                                           |
+| Notification history    | N1, N2                         | 없음            | M12                                           |
+| Push installation       | P2, P3, P4                     | 없음            | M12                                           |
 
-## 7. 요구사항 추적
+모든 43개 HTTP operation은 위 표에 포함된다. WebSocket은 M9에 배정한다.
 
-| ID          | 요구 영역                                                        | 주 마일스톤·작업 | 핵심 증거                                             |
-| ----------- | ---------------------------------------------------------------- | ---------------- | ----------------------------------------------------- |
-| R-ENV       | 공식 stable 조합, Bun, Nix devShell                              | M1               | 공식 출처·확인일, user-approved version, flake check  |
-| R-INTENT    | 기존 PWA에서 제품·카피·token·회귀 의도만 추출                    | M1               | `docs/product-intent.md`, no-copy review              |
-| R-CNG       | Development Build, Router, CNG, native 생성물 경계               | M2–M3            | doctor, dependency/import guard, tracked-native check |
-| R-DATA      | SQLite migration·source of truth·atomic outbox                   | M4–M6            | migration·transaction·restart tests                   |
-| R-CONTRACT  | local bootstrap lock·generation·runtime validation·CI drift      | M4               | checksum, fixtures, local CI drift failure            |
-| R-CHAT      | fixture 대화방, IME, anchor, 접근성                              | M5               | component tests와 양 플랫폼 수동 기록                 |
-| R-SYNC      | retry, canonical apply, realtime gap recovery                    | M6               | offline/restart/dedupe/delta tests                    |
-| R-NATIVE    | iOS·Android Development Build와 E2E                              | M7–M8            | 사용자 실행 출력과 checklist                          |
-| R-BACKLOG   | OAuth, group/topic, media, notification/push 등 비채팅 기능 제외 | §4.3             | named backlog와 후속 scope 승인                       |
-| R-NIX-BUILD | debug·unsigned CLI 산출물 패키징                                 | 후속 N1          | 별도 승인된 reproducible build evidence               |
+## 9. 현재 server contract 밖의 backlog
 
-## 8. 마일스톤 공통 완료 규칙
+다음 기능은 현재 contract가 확정하지 않으므로 app-only 확정 milestone으로 만들지 않는다.
 
-모든 마일스톤은 다음 조건을 만족해야 완료로 바꿀 수 있다.
+- Sign in with Apple 또는 새 OAuth provider
+- STT와 on-device AI
+- Presence, typing, reaction
+- Message edit/delete
+- WebPush/VAPID 또는 새 push backend
+- Production signing과 store submission — 공통 release acceptance의 별도 사용자 결정
 
-- 승인된 범위 밖 파일을 변경하지 않았다.
-- 새로운 dependency와 공개 계약 변경은 사용자 승인을 받았다.
-- 에이전트가 변경 이유를 일반 언어로 설명했다.
-- 사용자가 실행해야 할 명령과 예상 결과가 기록돼 있다.
-- 실제 실행한 검사와 실행하지 못한 검사가 구분돼 있다.
-- 실행 가능한 필수 자동 검사를 단순히 `미실행`으로 남긴 채 마일스톤을 완료하지 않는다.
-- 실패·경고를 숨기거나 성공으로 바꾸지 않았다.
-- production, legacy, remote 상태를 변경하지 않았다.
-- 사용자가 해당 마일스톤 완료를 승인했다. 다음 마일스톤 시작은 별도 승인이다.
+필요해지면 product decision, server contract와 별도 milestone plan을 먼저 승인한다.
 
-M2에는 사용자가 승인한 1회성 bootstrap 품질 증거 유예가 적용된다. 이는 M2가 새로 작성한
-비-template 실행 가능한 application/domain 로직이 없다는 검증된 조건에만 성립하며 lint와 coverage를 PASS로
-간주하지 않는다. 미측정 증거는 ADR 0003의 조건대로 바로 다음 M3에 강제 이관되고, M3 이후
-다른 마일스톤에는 재사용하거나 자동 연장할 수 없다. 전역 Ultrawork 품질 기준은 변경되지
-않는다.
+## 10. 공통 gate
 
-중요 명령의 redacted 출력과 판정은 `docs/evidence/<milestone>.md`에 남긴다. 환경의 비밀값과 message body 등 민감값은 원문 그대로 기록하지 않는다.
+### 10.1 모든 future milestone
 
-## 9. 위험과 대응
+각 future milestone은 다음 원칙을 따른다.
 
-| 위험                                      | 영향                       | 대응                                                         | 소유자                     |
-| ----------------------------------------- | -------------------------- | ------------------------------------------------------------ | -------------------------- |
-| Xcode·Android toolchain 설치 지연         | native 검증 지연           | M1에서 조기 진단, 앱 로직 작업과 분리                        | 사용자                     |
-| Nix Android dependency closure 누락       | 후속 N1 offline build 실패 | vertical slice와 분리하고 작은 debug APK derivation부터 검증 | 에이전트 제안, 사용자 승인 |
-| iOS host Xcode의 비순수성                 | 후속 N1 재현성 제한        | spike 뒤 derivation 또는 flake app을 명시적으로 선택         | 공동 결정                  |
-| bootstrap contract가 실제 서버처럼 굳어짐 | 통합 시 재작업             | `status=bootstrap`, production gate, 교체 조건 명시          | 사용자 승인                |
-| 실제 server integration이 M5/M6에 유입됨  | 범위·의존성 조기 확대      | fixture-only gate와 server/app 후속 로드맵 분리              | 사용자                     |
-| SQLite와 Query cache 소유권 중복          | 데이터 불일치              | message import boundary와 architecture test                  | 에이전트                   |
-| 에이전트가 범위를 앞서감                  | 이해·통제 상실             | 마일스톤 승인, scope allowlist, 독립 리뷰                    | 주 에이전트                |
-| 사용자가 명령 목적을 모름                 | 검증이 형식화됨            | 모든 중요 명령에 명령 카드 제공                              | 주 에이전트                |
+- User-visible outcome과 server operation 범위를 PLAN에서 먼저 고정한다.
+- Contract, migration, dependency, native config, external data mutation과 production action은 각각
+  영향에 맞는 사용자 승인을 받는다.
+- App source of truth는 SQLite이고 HTTP cache와 경쟁시키지 않는다.
+- Route와 UI는 raw HTTP/WebSocket/SQLite implementation을 직접 소유하지 않는다.
+- Security, account isolation, error state, accessibility와 test는 각 task에 포함한다.
+- 실행한 static/test/native/runtime/manual evidence와 실행하지 않은 항목을 구분한다.
+- Native-affecting 변경만 clean prebuild와 iOS/Android rebuild/install을 요구한다.
+- Commit, push, PR, deployment와 destructive cleanup은 milestone completion과 별도 gate다.
 
-## 10. 에이전트 운영 방식
+### 10.2 Cross-milestone release acceptance
 
-- 하나의 구현 작업은 한 에이전트가 명확한 파일 소유권을 가진다.
-- 같은 우선순위의 독립 작업만 병렬화한다.
-- 공유 contract와 migration은 downstream 작업 전에 승인한다.
-- 리뷰 에이전트는 구현 에이전트의 설명을 보지 않고 durable artifact만 읽는다.
-- 리뷰 결과가 CRITICAL 또는 HIGH이면 다음 마일스톤으로 가지 않는다.
-- 사용자 승인을 대신 추론하지 않는다.
-- 실제 명령 출력이 없으면 실행된 것으로 기록하지 않는다.
+Release acceptance는 M13이나 새 M14가 아니다. Release candidate에 실제로 포함하기로 선택하고
+구현한 milestone 범위에만 적용하는 공통 gate다. 다음 항목을 현재 시점의 새 evidence로 확인한다.
 
-## 11. 결정 기록
+- 선택한 범위에 필요한 provider/platform/session matrix
+- 선택한 사용자 여정의 automated E2E
+- Physical device와 VoiceOver/TalkBack, 200% text, reduce motion 등 접근성 수용
+- 과거 M5 advisory를 재사용하지 않는 current dependency audit
+- Data shape가 바뀐 경우 migration preservation, backup/restore와 rollback
+- 실제 deployment revision과 contract binding
+- Production identifier, signing, privacy와 store decision
 
-| ID    | 결정                                                                                                                                                                       | 상태              |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| D-001 | 별도 `jamye-app` 저장소에서 React Native + Expo Development Build 사용                                                                                                     | 승인됨            |
-| D-002 | JavaScript package manager는 Bun 하나만 사용                                                                                                                               | 승인됨            |
-| D-003 | Nix devShell을 개발 환경의 기본 진입점으로 사용                                                                                                                            | 승인됨            |
-| D-004 | CLI debug·unsigned 산출물의 Nix 패키징은 M8 뒤 별도 N1 트랙에서 수행                                                                                                       | 계획 승인 대기    |
-| D-005 | production signing과 store 제출은 사용자가 직접 수행                                                                                                                       | 승인됨            |
-| D-006 | homelab과 모바일 앱 배포를 연결하지 않음                                                                                                                                   | 승인됨            |
-| D-007 | SQLite가 채팅과 outbox의 유일한 화면 원본                                                                                                                                  | 승인됨            |
-| D-008 | 실제 server artifact가 나오기 전 명시적 bootstrap contract 사용                                                                                                            | 2026-08-31 승인됨 |
-| D-009 | production identifier와 link domain                                                                                                                                        | 보류              |
-| D-010 | exact Expo/RN/Bun/JDK/Android version                                                                                                                                      | 2026-08-23 승인됨 |
-| D-011 | 이번 product scope는 offline-first 채팅에 한정하고 완성형 OAuth와 모든 비채팅 기능은 backlog로 이동                                                                        | 승인됨            |
-| D-012 | M2가 새로 작성한 비-template 실행 application/domain 로직이 없는 bootstrap의 lint·coverage를 미측정으로 유지하고 M3에 실제 lint·test·coverage 80% 조건을 한 번만 강제 이관 | 2026-08-25 승인됨 |
-| D-013 | 실제 `jamye-server` integration은 M0~M8 범위 밖에 두고, server의 배포 contract 발행과 app의 contract 수신·호출은 각 저장소의 별도 후속 계획으로 결정                       | 2026-08-31 승인됨 |
-| D-014 | iOS·Android 모두 native keyboard progress를 단일 animation authority로 사용하고, composer와 latest message를 같은 프레임에서 이동하며 전송 후 focus를 유지                 | 2026-09-05 승인됨 |
-| D-015 | Expo Router 57.0.19의 initial-link mount race는 exact Bun dependency patch와 SHA-256 architecture guard로 고정하고 upstream 교체 시 별도 재검증                            | 2026-09-05 승인됨 |
+Media, push 또는 다른 optional milestone을 release에 포함하지 않았다면 이 gate가 그 구현을
+요구하지 않는다. External account/data action, signing과 deployment는 계속 별도 사용자 승인이다.
 
-## 12. 현재 게이트
+## 11. 문서 변경의 검증 범위
 
-M5의 SQLite-only conversation read, atomic pending message/outbox write, stable retry identity,
-virtualized prepend anchor, Korean IME-safe composer와 native keyboard-progress coordination이
-구현됐다. 최종 aggregate는 20 suites·193 tests와 네 global coverage threshold, dependency,
-architecture, Expo Doctor 21/21을 모두 통과했다. Clean prebuild 뒤 iPhone 17 Simulator와
-`jamye_pixel_9_api_36` Emulator를 rebuild/install했고, 각 플랫폼에서 신규 local send가 message와
-outbox에 정확히 한 쌍씩 commit된 runtime database 증거와 사용자의 UI 수용을 확보했다. 전체
-판정과 미실행 항목은 [M5 실행 증거](evidence/M5.md)에 있다.
+이 로드맵과 [README](../README.md), [제품 의도](product-intent.md),
+[개발 workflow](development-workflow.md), [OAuth 개발 연결](oauth-development.md)은
+현재 상태와 다음 계획을 함께 설명한다. M1-M5 evidence는 당시의 기록으로 유지한다.
 
-M5 구현은 local commit `2915793`, native keyboard 조정 Serena memory는 `ee87da8`에 보존돼
-있다. M5 종료 문서와 evidence의 commit·push는 별도 SCM 승인 전까지 local working tree에
-남긴다. 다음 제품 게이트는 M6 PLAN이며 아직 시작하지 않았다. M6도 인증 없는 deterministic
-local fixture transport만 사용하고, 실제 `jamye-server` integration·auth·production endpoint는
-별도 후속 계획과 승인이 필요하다.
+문서만 변경할 때는 변경 경로, `git diff --check`, Prettier, 기존 architecture checker,
+로컬 문서 참조와 위 API 배정표를 확인한다. 이 결과를 test, coverage, dependency audit,
+build/prebuild, native generation, 로그인/API smoke 또는 배포 검증으로 표시하지 않는다.
+코드·계약·dependency·native 설정 변경의 검증은 개발 workflow의 영향별 기준을 따른다.
 
-M5 완료는 production deployment readiness를 뜻하지 않는다. 기존 transitive dependency
-advisory 4개(High 2, Moderate 2), production variant·signing·backend/auth와 물리 기기/접근성
-checklist가 남아 있으므로 production 판정은 **NOT READY**다. Dependency 변경과 release 준비는
-별도 승인 게이트에서 처리한다.
+## 12. 다음 단계
+
+로드맵 개편은 승인됐으며, 다음 구현 후보는 **M6 서버 계약 수용과 계정 안전 기반**이다.
+M6-M13의 기능 구현은 아직 시작하지 않았다. M6 세부 계획에서 계약 가져오기,
+공유 세션과 로그인 후 진입 화면, 계정별 데이터 분리 및 보존 migration을 구체화한 뒤
+사용자 승인을 받아 구현한다.
+
+문서 갱신은 앱 기능 완료, 출시 승인, commit/push 또는 배포를 뜻하지 않는다.

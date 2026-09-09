@@ -34,10 +34,25 @@ Jest는 `jest.config.js#globalSetup`에 고정된 `tools/quality/jest-env.cjs`�
 Test workflow는 개발자마다 달라질 수 있는 `.env.local`을 읽지 않는다. App config가 필요한
 명령은 다음 두 키가 없거나 지원하지 않는 값이면 명확하게 실패한다.
 
+로컬 M5 채팅과 OAuth 연결 개발은 mode를 분리해 사용한다.
+
 ```dotenv
+# Local M5 chat
 APP_VARIANT=development
 EXPO_PUBLIC_APP_MODE=local-fixture
 ```
+
+```dotenv
+# Connected OAuth development; keep only in ignored local env
+APP_VARIANT=development
+EXPO_PUBLIC_APP_MODE=connected-auth
+EXPO_PUBLIC_API_ORIGIN=https://jamye-api.ridewithmin.com
+```
+
+두 mode의 값을 한 환경 파일에 동시에 활성화하지 않는다. `EXPO_PUBLIC_*` 값은 공개 bundle에
+포함될 수 있으므로 token과 credential을 넣지 않는다. Environment file precedence는 현재
+loader 동작을 확인해 단일 source만 사용하며, 이 문서가 추측한 precedence를 새 계약으로
+만들지 않는다.
 
 `EXPO_PUBLIC_*` 값은 bundle에 포함될 수 있다. token, credential, private endpoint, 사용자
 데이터는 `.env`, `.env.local`, `.env.example` 어디에도 넣지 않는다.
@@ -52,8 +67,8 @@ EXPO_PUBLIC_APP_MODE=local-fixture
 | Node.js               | 22.23.2              | `nix/toolchain-versions.nix`                                |
 | JDK                   | 17.0.19              | `nix/toolchain-versions.nix`                                |
 | CocoaPods             | 1.16.2               | `nix/toolchain-versions.nix`                                |
-| Expo                  | 57.0.20              | `package.json`, `bun.lock`                                  |
-| Expo Router           | 57.0.19              | `package.json`, `bun.lock`                                  |
+| Expo                  | 57.0.21              | `package.json`, `bun.lock`                                  |
+| Expo Router           | 57.0.20              | `package.json`, `bun.lock`                                  |
 | Expo Dev Client       | 57.0.18              | `package.json`, `bun.lock`                                  |
 | React Native          | 0.86.3               | `package.json`, `bun.lock`                                  |
 | Keyboard Controller   | 1.21.9               | `package.json`, `bun.lock`                                  |
@@ -115,6 +130,20 @@ bun run format:check
 bun run format:write -- tests/core/logger.test.ts README.md
 bun run format:check
 ```
+
+## 변화 위험별 최소 검증과 gate
+
+| 변경 종류                 | 최소 검증                                                    | 별도 gate                                            |
+| ------------------------- | ------------------------------------------------------------ | ---------------------------------------------------- |
+| 문서만                    | changed-path, diff check, format, architecture, references   | build/native 없음                                    |
+| TS/JS behavior            | focused test + type/lint/architecture + aggregate coverage   | runtime relevance에 따라 smoke                       |
+| Contract/SQLite migration | generated drift, mapper/validator, migration/integrity tests | data preservation 승인                               |
+| Dependency/native config  | frozen install, Expo/toolchain checks                        | clean prebuild + iOS/Android rebuild/install/runtime |
+| External account/data     | deterministic tests와 redacted plan                          | 실계정/데이터 mutation 별도 승인                     |
+| Production/SCM            | readiness/rollback evidence                                  | commit/push/deploy/store 각각 별도 승인              |
+
+`bun run check:code`의 전체 검사 역할은 유지하되 문서-only 변경에 native build를 요구하지
+않는다. 반대로 native-affecting change의 rebuild gate는 완화하지 않는다.
 
 ## 4. Dependency와 toolchain script
 

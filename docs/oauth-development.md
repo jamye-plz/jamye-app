@@ -1,6 +1,10 @@
 # OAuth 개발 연결
 
-기본값 `EXPO_PUBLIC_APP_MODE=local-fixture`는 기존 SQLite fixture 채팅만 표시하며 네트워크나 인증을 시작하지 않습니다. 연결 인증을 시험할 때만 `.env.local`에 `EXPO_PUBLIC_APP_MODE=connected-auth`와 `EXPO_PUBLIC_API_ORIGIN=https://jamye-api.ridewithmin.com`을 둡니다.
+이 문서는 M5 이후 OAuth vertical의 구현·개발 수용 기록이다. 로그인 뒤 group/chat product
+navigation, shared session owner, account-scoped SQLite/outbox와 나머지 server API 연결은
+완료되지 않았다. 해당 future 범위와 승인 순서는 [로드맵](roadmap.md)의 M6 이후를 따른다.
+
+`EXPO_PUBLIC_APP_MODE=local-fixture`를 명시적으로 설정하면 기존 SQLite fixture 채팅만 표시하며 네트워크나 인증을 시작하지 않습니다. 연결 인증을 시험할 때만 `.env.local`에 `EXPO_PUBLIC_APP_MODE=connected-auth`와 `EXPO_PUBLIC_API_ORIGIN=https://jamye-api.ridewithmin.com`을 둡니다.
 
 앱은 시스템 인증 브라우저와 PKCE를 사용합니다. Kakao 및 Google authorize/exchange 요청에는 각각의 고정 HTTPS provider callback (`https://jamye-api.ridewithmin.com/api/v1/auth/oauth/{provider}/callback`)을 보내고, 브라우저 반환 URI는 `jamye://oauth/kakao` 또는 `jamye://oauth/google`입니다. Authorization code와 state는 OAuth 프로토콜상 callback URL에 일시적으로 전달됩니다. 앱은 이를 검증에 사용하되 로그·SQLite·환경 파일에 저장하거나 화면에 표시하지 않습니다. Access/refresh token은 HTTPS 응답 본문으로만 받고, API origin과 함께 SecureStore에 저장하며 URL에는 넣지 않습니다.
 

@@ -1,36 +1,44 @@
 # jamye-app
 
 잼얘좀의 iOS·Android 앱이다. React Native와 Expo를 사용하지만 기존 SvelteKit PWA를
-기계적으로 옮기지 않는다. 첫 수직 절편은 한 대화방의 메시지를 SQLite에서 읽고,
-오프라인 전송 의도를 보존한 뒤 재연결 시 canonical event와 동기화하는 데 집중한다.
+기계적으로 옮기지 않는다. 첫 수직 절편은 한 대화방의 메시지를 SQLite에서 읽고 오프라인
+전송 의도를 로컬에 보존했다. 재연결 시 canonical event와 동기화하는 동작은 M9의 제품
+목표다.
 
 현재 저장소에는 Expo SDK 57 Development Build/CNG 기반, M4의 local SQLite·bootstrap
-contract, M5의 SQLite 기반 로컬 채팅 읽기·쓰기가 구현돼 있다. 아래 명령은 실행 절차이며
+contract, M5의 SQLite 기반 로컬 채팅 읽기·쓰기와 M5 이후 Kakao/Google connected-auth가
+구현돼 있다. `local-fixture` mode는 SQLite chat을, `connected-auth` mode는 실제 OAuth
+login/profile/logout을 표시한다. 로그인 뒤 group/chat으로 이어지는 authenticated product
+navigation과 server-backed chat은 아직 없다. 아래 명령은 실행 절차이며
 그 자체로 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제 관찰 결과는
 각 마일스톤 증거에 기록한다: [M3](docs/evidence/M3.md),
 [M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md).
 
 ## 현재 범위
 
-M5는 **인증 없는 fixture 대화방 하나의 로컬 채팅 읽기·쓰기**까지 완료했다. 화면은 SQLite를
+M0-M5는 역사적으로 완료된 기반이다. M5는 **fixture 대화방 하나의 로컬 채팅 읽기·쓰기**까지
+완료했고, 이후 Kakao/Google OAuth와 U1 profile이 추가 구현되어 일부 실계정 수용을 마쳤다.
+화면은 SQLite를
 유일한 메시지 원본으로 읽고, 전송 시 pending message와 queued outbox command를 하나의
 exclusive transaction에 기록한다. 실패 재시도는 기존 identity와 command를 재사용한다.
 양 플랫폼 composer는 한국어 조합을 보존하며, native keyboard progress에 맞춰 최신 메시지와
 입력창을 함께 이동하고 전송 뒤에도 keyboard focus를 유지한다.
 
-Network dispatch, realtime/delta 실행, reconnect/restart 수렴, auth와 production server 연결은
-M6 이후 범위다. M5의 queued outbox는 전송 의도를 로컬에 보존할 뿐 네트워크 전송 성공을
-뜻하지 않는다. 자동 mobile E2E와 실기기 acceptance도 아직 완료하지 않았다.
+M5의 queued outbox는 전송 의도를 로컬에 보존할 뿐 네트워크 전송 성공을 뜻하지 않는다.
+authenticated group/chat navigation, server-backed chat, realtime/delta 실행과
+reconnect/restart 수렴은 아직 없다. 자동 mobile E2E와 실기기 acceptance도 전체 제품에
+대해 완료하지 않았다.
 
-전체 로드맵의 제품 범위는 한 대화방의 offline-first 텍스트 채팅과 복구다.
+현재 범위와 다음 사용자 여정은 [전체 로드맵](docs/roadmap.md)을 따른다.
 
 - M4: bootstrap contract와 SQLite — 완료
 - M5: 로컬 채팅 읽기·쓰기 — 완료
-- M6: offline outbox와 realtime/delta 복구 — 시작 전
-- M7: 완성된 채팅 흐름의 E2E와 양 플랫폼 native acceptance — 시작 전
+- 다음 후보: M6 contract intake, shared session/navigation, account/origin 데이터 분리
+- 아직 없음: authenticated groups/chatrooms/messages/realtime/topics/media/notification/push
 
-완성형 카카오·구글·애플 OAuth, 그룹·초대·주제 관리, 미디어·STT, production push,
-production identifier·signing·store 제출은 후속 backlog다. 자세한 경계는
+Apple login, STT/on-device AI, presence/typing/reaction, message edit/delete와 새 push
+backend는 현재 서버 계약 밖의 별도 backlog다. production readiness는 current audit/build/
+deployment evidence가 없으므로 `NOT READY`다. 자세한 경계는
 [`docs/roadmap.md`](docs/roadmap.md)와
 [`docs/product-intent.md`](docs/product-intent.md)를 기준으로 한다.
 
@@ -42,12 +50,18 @@ transport를 정의하지 않는다. `contract.lock`은 canonical source/fixture
 shape를 기록하며, `server_tag = null`, `server_commit = null`은 아직 server에 bind되지 않은
 local provenance(`unbound`)라는 의도적인 표시다.
 
-이 bootstrap은 다음 조건을 **모두 충족한 뒤에만** 대체할 수 있다.
+이 bootstrap은 M4의 historical/local-fixture contract다. 실제 server contract는
+read-only `jamye-server/contracts`의 version 1 snapshot을 기준으로 future intake한다.
+non-null tag만을 필수 조건으로 두지 않고 exact source revision, contract version과 content
+hash를 기록한다. 현재 manifest의 dirty/null provenance는 배포 binding을 증명하지 않는다.
+generated type/validator와 compatibility review는 M6 구현 계획에서 별도 승인한다.
+
+이 bootstrap을 실제 runtime 계약으로 대체하려면 다음 조건을 **모두 충족한 뒤에만** 진행한다.
 
 1. 별도 승인된 source가 non-bootstrap production contract version과 authenticated source
    ownership(인증된 source ownership)을 제공한다.
-2. non-null `server_tag`와 `server_commit`, 그리고 approved auth/endpoint scope가 별도
-   결정으로 승인된다.
+2. exact source revision, contract version/content hash와 approved auth/endpoint scope가
+   별도 결정으로 승인된다.
 3. types, fixtures, manifest, `contract.lock`을 regenerate(재생성)하고 compatibility review
    (호환성 검토)를 통과한다.
 4. M6 integration decision이 해당 contract의 실제 invocation을 별도로 승인한다.
@@ -73,6 +87,10 @@ auth 실행을 뜻하지 않는다.
 Expo Router의 초기 링크가 마운트 전에 상태를 갱신하는 문제는 57.0.20에도 남아 있어
 `patches/expo-router@57.0.20.patch`를 유지한다. 버전 업데이트 시 원본 코드와 패치 적용 여부를
 확인하며, 설치된 코드의 마운트 지연 처리는 회귀 테스트로 검사한다.
+
+OAuth native plugin은 `expo-web-browser`와 `expo-secure-store`이며 선언 원본은
+`package.json`/`bun.lock`이다. 공개 앱 scheme `jamye`는 OAuth app return용이고,
+`expo-dev-client`가 생성하는 development scheme과 구분한다.
 
 Development variant의 simulator/emulator 식별자는 다음 네 값으로만 구성한다.
 
@@ -224,7 +242,9 @@ cp .env.example .env
 - Token, credential, private endpoint, 사용자 데이터 같은 비밀은 `.env.example`, `.env`,
   `.env.local` 또는 `EXPO_PUBLIC_*`에 넣지 않는다.
 
-현재 mode에는 production server, auth 또는 session 연결이 없다.
+`local-fixture` mode는 production server, auth 또는 session 연결을 사용하지 않는다.
+`connected-auth` mode가 지원하는 OAuth/profile/logout 범위와 아직 남은 연결 범위는
+[OAuth 개발 연결](docs/oauth-development.md)과 [로드맵](docs/roadmap.md)을 따른다.
 
 ## Dependency와 재현성
 
@@ -306,7 +326,7 @@ build/install 결과일 뿐 현재 JavaScript bundle의 runtime 동작 증거가
 새 Metro bundle 재진입과 사용자 수동 관찰을 별도 게이트로 수행했다. 구체적인 실행 결과와
 미실행 범위는 [M5 실행 증거](docs/evidence/M5.md)에만 기록한다.
 
-## M5 구조와 상태 경계
+## 현재 구조와 다음 경계
 
 ```text
 src/app/                          얇은 Expo Router route와 root composition
@@ -314,11 +334,13 @@ src/core/config/                  Expo base config와 공개 environment validat
 src/core/logging/                 structured redacted local logging
 src/core/errors/                  root Error Boundary와 recovery UI
 src/core/database/                SQLite open·migration·repository lifecycle
+src/core/auth/                    A1-A4/U1 adapter, PKCE, controller와 SecureStore session
 src/core/providers/               theme·database·keyboard·runtime provider composition
 src/core/theme/                   semantic light/dark token과 system theme provider
 src/features/chat/model/          fixture identity, send policy, message-window 계산
 src/features/chat/ui/             native list, row, composer, platform keyboard adapter
 src/features/chat/                repository 구독 기반 conversation hook
+src/features/auth/                login/profile/logout UI와 callback landing
 src/shared/ui/                    native screen/text primitive
 ```
 
@@ -332,10 +354,16 @@ src/shared/ui/                    native screen/text primitive
   UI-thread scroll을 사용한다.
 - Theme는 React Native `useColorScheme()`만 따르며 저장 preference나 state library가 없다.
 - Local fixture는 production server, HTTP, WebSocket 또는 auth를 사용하지 않는다.
-- ESLint가 `app.config.ts`와 모든 `src` TS/TSX에서 직접 transport를 금지하고, route와 UI
-  계층에는 더 좁은 import 경계를 적용한다.
+- `src/app/index.tsx`는 `local-fixture`와 `connected-auth` mode를 전환하지만 authenticated
+  navigation은 아직 없다. `connected-auth`의 현재 OAuth 범위는 `src/core/auth/`와
+  `src/features/auth/`에 한정된다.
+- `AppProviders`와 `DatabaseProvider`는 두 mode 모두 fixture DB/seed를 사용한다. 실제 account
+  data를 연결하기 전에는 account namespace와 cache/outbox 경계를 별도로 승인·구현해야 한다.
+- ESLint가 `app.config.ts`와 route/UI 계층의 직접 transport를 금지한다. 현재 허용된 실제
+  네트워크 호출은 `src/core/auth/`의 OAuth/session adapter에 한정되며, 이후 server adapter도
+  별도 boundary로 승인·검증한다.
 
-M6는 이 경계를 유지한 채 deterministic local fixture transport, persistent outbox processor와
+M8-M9는 이 경계를 유지한 채 server-backed chat adapter, persistent outbox processor와
 canonical event/delta recovery를 별도 승인 후 추가한다. 실제 `jamye-server`, credential,
 session/token, OAuth와 production endpoint는 이번 수직 절편의 계약이 아니다.
 
