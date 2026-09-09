@@ -143,6 +143,63 @@ const OAUTH_TEST_PATHS = [
   "tests/features/auth/auth-screen.test.tsx",
 ];
 
+const M6_SERVER_CONTRACT_FILES = [
+  "contracts/server/contract.lock",
+  "contracts/server/intake.json",
+  "contracts/server/manifest.json",
+  "contracts/server/openapi.json",
+];
+
+const M6_CONTRACT_SOURCE_FILES = [
+  "src/core/contracts/generated/server/server-api.ts",
+  "src/core/contracts/server/domain.ts",
+  "src/core/contracts/server/formats.ts",
+  "src/core/contracts/server/index.ts",
+  "src/core/contracts/server/validators.ts",
+];
+
+const M6_CONTRACT_TOOL_FILES = [
+  "tools/contracts/check-server-contract.mjs",
+  "tools/contracts/generate-server-contract.mjs",
+  "tools/contracts/intake-server-contract.mjs",
+];
+
+const M6_CONTRACT_TEST_PATHS = [
+  "tests/core/contracts/server-contract-tooling.test.ts",
+  "tests/core/contracts/server-domain-mappers.test.ts",
+  "tests/core/contracts/server-validators.test.ts",
+];
+
+const M6_02_TEST_PATHS = [
+  "tests/core/http/http-client.test.ts",
+  "tests/core/providers/session-provider.test.tsx",
+];
+
+const M6_03_DATABASE_SOURCE_FILES = [
+  "src/core/database/account/types.ts",
+  "src/core/database/account/namespace.ts",
+  "src/core/database/account/migrations/001-account-schema.ts",
+  "src/core/database/account/migrations/index.ts",
+  "src/core/database/account/validate-scope-metadata.ts",
+  "src/core/database/account/open-account-database.ts",
+  "src/core/database/account/account-scope.ts",
+];
+
+const M6_03_TEST_PATHS = [
+  "tests/core/database/account/account-namespace.test.ts",
+  "tests/core/database/account/validate-scope-metadata.test.ts",
+  "tests/core/database/account/account-migrations.test.ts",
+  "tests/core/database/account/open-account-database.test.ts",
+  "tests/core/database/account/account-scope.test.ts",
+];
+
+const M6_04_TEST_PATHS = [
+  "tests/core/health/health-api.test.ts",
+  "tests/features/home/home-screen.test.tsx",
+  "tests/features/home/connection-diagnostics.test.tsx",
+  "tests/app/connected-index-route.test.tsx",
+];
+
 const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M3_TEST_PATHS.filter(
     (path) => path !== "tests/features/development-fixture-screen.test.tsx",
@@ -152,6 +209,12 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
     (path, index, paths) => paths.indexOf(path) === index,
   ),
   ...OAUTH_TEST_PATHS,
+  ...M6_CONTRACT_TEST_PATHS,
+  ...M6_02_TEST_PATHS,
+  ...M6_03_TEST_PATHS,
+  ...M6_04_TEST_PATHS,
+  "tests/quality/dependency-security.test.ts",
+  "tests/quality/image-size-security.test.ts",
 ].filter((path, index, paths) => paths.indexOf(path) === index);
 
 const MEANINGFUL_TEST_PATHS = ACTIVE_MEANINGFUL_TEST_PATHS;
@@ -226,8 +289,14 @@ const APPROVED_DEV_DEPENDENCIES = {
   typescript: "~6.0.3",
 };
 
+const APPROVED_DEPENDENCY_OVERRIDES = {
+  "decode-uri-component": "0.5.0",
+  "js-yaml": "4.3.2",
+  uuid: "11.1.1",
+};
+
 const APPROVED_BUN_LOCK_SHA256 =
-  "bc58af1279ac6ae3074de3c7b5dff094c1926d5cd8554533b377a02b575a0c31";
+  "3fbc9103b255b6a85ee8ee8fc53c7539afb96f1cd7ee0197efee0fe578312d34";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -238,6 +307,7 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "scripts",
   "private",
   "packageManager",
+  "overrides",
   "patchedDependencies",
 ];
 
@@ -350,6 +420,7 @@ const M4_DATABASE_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
 const ACTIVE_DATABASE_SOURCE_FILES = [
   ...M4_DATABASE_SOURCE_FILES,
   "src/core/database/database-provider.tsx",
+  ...M6_03_DATABASE_SOURCE_FILES,
 ];
 const M4_CONTRACT_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
   path.startsWith("src/core/contracts/"),
@@ -360,6 +431,14 @@ const M4_BOOTSTRAP_CONTRACT_FILES = M4_AUTHORED_FILES.filter((path: string) =>
 const M4_CONTRACT_TOOL_FILES = M4_AUTHORED_FILES.filter((path: string) =>
   path.startsWith("tools/contracts/"),
 );
+const ACTIVE_CONTRACT_SOURCE_FILES = [
+  ...M4_CONTRACT_SOURCE_FILES,
+  ...M6_CONTRACT_SOURCE_FILES,
+];
+const ACTIVE_CONTRACT_TOOL_FILES = [
+  ...M4_CONTRACT_TOOL_FILES,
+  ...M6_CONTRACT_TOOL_FILES,
+];
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
@@ -425,6 +504,7 @@ function buildValidRepositorySnapshot() {
       },
       dependencies: clone(APPROVED_DEPENDENCIES),
       devDependencies: clone(APPROVED_DEV_DEPENDENCIES),
+      overrides: clone(APPROVED_DEPENDENCY_OVERRIDES),
       patchedDependencies: clone(APPROVED_PATCHED_DEPENDENCIES),
       name: "template",
       main: "expo-router/entry",
@@ -468,9 +548,15 @@ function buildValidRepositorySnapshot() {
       databaseTables: clone(APPROVED_M4_DATABASE_TABLES) as string[],
       sourceInventory: {
         bootstrap: clone(M4_BOOTSTRAP_CONTRACT_FILES),
-        contracts: clone(M4_CONTRACT_SOURCE_FILES),
+        contracts: clone(ACTIVE_CONTRACT_SOURCE_FILES),
         database: clone(ACTIVE_DATABASE_SOURCE_FILES),
-        tools: clone(M4_CONTRACT_TOOL_FILES),
+        tools: clone(ACTIVE_CONTRACT_TOOL_FILES),
+      },
+    },
+    m6: {
+      contractCheck: { status: "ok" },
+      sourceInventory: {
+        server: clone(M6_SERVER_CONTRACT_FILES),
       },
     },
     m5: {
@@ -731,6 +817,49 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     );
   });
 
+  test("denies a testInventory missing an M6-02/M6-03/M6-04 integration test (meaningful-inventory)", () => {
+    const missingHealth = buildValidRepositorySnapshot();
+    missingHealth.testInventory = missingHealth.testInventory.filter(
+      (path: string) => path !== "tests/core/health/health-api.test.ts",
+    );
+    expect(
+      checkArchitecture(missingHealth).violations.map((v) => v.category),
+    ).toContain("meaningful-inventory");
+
+    const missingSession = buildValidRepositorySnapshot();
+    missingSession.testInventory = missingSession.testInventory.filter(
+      (path: string) =>
+        path !== "tests/core/providers/session-provider.test.tsx",
+    );
+    expect(
+      checkArchitecture(missingSession).violations.map((v) => v.category),
+    ).toContain("meaningful-inventory");
+
+    const missingAccountScope = buildValidRepositorySnapshot();
+    missingAccountScope.testInventory =
+      missingAccountScope.testInventory.filter(
+        (path: string) =>
+          path !== "tests/core/database/account/account-scope.test.ts",
+      );
+    expect(
+      checkArchitecture(missingAccountScope).violations.map((v) => v.category),
+    ).toContain("meaningful-inventory");
+  });
+
+  test("denies an m4 database source inventory missing an M6-03 account-storage file (m4-source-ownership)", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m4.sourceInventory.database =
+      snapshot.m4.sourceInventory.database.filter(
+        (path: string) => path !== "src/core/database/account/account-scope.ts",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "m4-source-ownership",
+    );
+  });
+
   test("denies a foreign lockfile beside bun.lock (dependency-and-lockfile)", () => {
     const snapshot = buildValidRepositorySnapshot();
     snapshot.repositoryLockfiles = ["bun.lock", "package-lock.json"];
@@ -791,31 +920,65 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     );
   });
 
-  test("denies a missing or redirected Expo Router dependency patch", () => {
-    const snapshot = buildValidRepositorySnapshot();
-    delete (snapshot.packageJson.patchedDependencies as Record<string, string>)[
-      "expo-router@57.0.20"
-    ];
+  test.each([
+    {},
+    { ...APPROVED_DEPENDENCY_OVERRIDES, "js-yaml": "4.3.1" },
+    { ...APPROVED_DEPENDENCY_OVERRIDES, uuid: "^11.1.1" },
+    { ...APPROVED_DEPENDENCY_OVERRIDES, "unapproved-package": "1.0.0" },
+    {
+      ...APPROVED_DEPENDENCY_OVERRIDES,
+      "query-string": { "decode-uri-component": "0.5.0" },
+    },
+  ])(
+    "denies missing, stale, widened or unsupported overrides: %j",
+    (overrides) => {
+      const snapshot = buildValidRepositorySnapshot();
+      snapshot.packageJson.overrides =
+        overrides as typeof APPROVED_DEPENDENCY_OVERRIDES;
 
-    const result: CheckResult = checkArchitecture(snapshot);
+      const result: CheckResult = checkArchitecture(snapshot);
 
-    expect(result.violations.map((v) => v.category)).toContain(
-      "dependency-and-lockfile",
-    );
-  });
+      expect(
+        result.violations.some(
+          (violation) =>
+            violation.category === "dependency-and-lockfile" &&
+            violation.message.includes("/overrides"),
+        ),
+      ).toBe(true);
+    },
+  );
 
-  test("denies Expo Router dependency patch content drift", () => {
-    const snapshot = buildValidRepositorySnapshot();
-    (snapshot.dependencyPatchFileSha256 as Record<string, string>)[
-      "patches/expo-router@57.0.20.patch"
-    ] = "0".repeat(64);
+  test.each(Object.keys(APPROVED_PATCHED_DEPENDENCIES))(
+    "denies a missing dependency patch: %s",
+    (dependency) => {
+      const snapshot = buildValidRepositorySnapshot();
+      delete (
+        snapshot.packageJson.patchedDependencies as Record<string, string>
+      )[dependency];
 
-    const result: CheckResult = checkArchitecture(snapshot);
+      const result: CheckResult = checkArchitecture(snapshot);
 
-    expect(result.violations.map((v) => v.category)).toContain(
-      "dependency-and-lockfile",
-    );
-  });
+      expect(result.violations.map((v) => v.category)).toContain(
+        "dependency-and-lockfile",
+      );
+    },
+  );
+
+  test.each(Object.keys(APPROVED_DEPENDENCY_PATCH_FILE_SHA256))(
+    "denies dependency patch content drift: %s",
+    (patchPath) => {
+      const snapshot = buildValidRepositorySnapshot();
+      (snapshot.dependencyPatchFileSha256 as Record<string, string>)[
+        patchPath
+      ] = "0".repeat(64);
+
+      const result: CheckResult = checkArchitecture(snapshot);
+
+      expect(result.violations.map((v) => v.category)).toContain(
+        "dependency-and-lockfile",
+      );
+    },
+  );
 
   test("defers Expo Router initial-link state until NavigationContainer mounts", () => {
     const { readFileSync } = jest.requireActual("node:fs") as {
@@ -938,6 +1101,49 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     expect(categories).toContain("contract-generated-drift");
   });
 
+  test("m6-source-ownership denies an incomplete or extra contracts/server inventory", () => {
+    const missing = buildValidRepositorySnapshot();
+    missing.m6.sourceInventory.server.pop();
+
+    expect(
+      checkArchitecture(missing).violations.map((v) => v.category),
+    ).toContain("m6-source-ownership");
+
+    const extra = buildValidRepositorySnapshot();
+    extra.m6.sourceInventory.server.push(
+      "contracts/server/fixtures/extra.json",
+    );
+
+    expect(
+      checkArchitecture(extra).violations.map((v) => v.category),
+    ).toContain("m6-source-ownership");
+  });
+
+  test("server-contract-generated-drift denies a non-ok server contract checker result", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m6.contractCheck.status = "drift";
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "server-contract-generated-drift",
+    );
+  });
+
+  test("no-manual-rest-dto also rejects an M6 server contract source dropped from its exact inventory", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.m4.sourceInventory.contracts =
+      snapshot.m4.sourceInventory.contracts.filter(
+        (path: string) => path !== "src/core/contracts/server/validators.ts",
+      );
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "no-manual-rest-dto",
+    );
+  });
+
   test("denies deferred M6 realtime ownership during the M4 boundary", () => {
     const snapshot = buildValidRepositorySnapshot();
     snapshot.reservedPathsPresent.push("src/core/realtime");
@@ -1055,10 +1261,16 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
   test("allows only the exact hash-bound approved recovery paths in the working-tree overlay", () => {
     expect(APPROVED_PATCHED_DEPENDENCIES).toEqual({
       "expo-router@57.0.20": "patches/expo-router@57.0.20.patch",
+      "image-size@1.2.1": "patches/image-size@1.2.1.patch",
+      "query-string@7.1.3": "patches/query-string@7.1.3.patch",
     });
     expect(APPROVED_DEPENDENCY_PATCH_FILE_SHA256).toEqual({
       "patches/expo-router@57.0.20.patch":
         "ffa1618df41558ac3b01d8f3c430927676e751fd36251f89571d64347846b3e5",
+      "patches/image-size@1.2.1.patch":
+        "7961f99b36d1e0bc332c92e852d6ffcd386a08abe240e9d61ef603c4c5a12823",
+      "patches/query-string@7.1.3.patch":
+        "3501a7e3d4d32cdf00e245e581c66bdf46ed9358b6295571952aec2d5ad0e162",
     });
     expect(APPROVED_RECOVERY_FILE_SHA256).toEqual({
       "tsconfig.json":

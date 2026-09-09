@@ -6,18 +6,21 @@
 목표다.
 
 현재 저장소에는 Expo SDK 57 Development Build/CNG 기반, M4의 local SQLite·bootstrap
-contract, M5의 SQLite 기반 로컬 채팅 읽기·쓰기와 M5 이후 Kakao/Google connected-auth가
-구현돼 있다. `local-fixture` mode는 SQLite chat을, `connected-auth` mode는 실제 OAuth
-login/profile/logout을 표시한다. 로그인 뒤 group/chat으로 이어지는 authenticated product
-navigation과 server-backed chat은 아직 없다. 아래 명령은 실행 절차이며
+contract, M5의 SQLite 기반 로컬 채팅 읽기·쓰기와 M6의 server contract intake,
+shared session/account-safe connected-auth shell이 구현돼 있다. `local-fixture` mode는
+보존된 fixture SQLite chat을, `connected-auth` mode는 shared OAuth session, U1 profile,
+origin+UUID account namespace와 authenticated home을 표시한다. 로그인 뒤 group/chat으로
+이어지는 server-backed product navigation과 server-backed chat은 아직 없다. 아래 명령은 실행 절차이며
 그 자체로 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제 관찰 결과는
 각 마일스톤 증거에 기록한다: [M3](docs/evidence/M3.md),
-[M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md).
+[M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md),
+[M6 네이티브·로그인 검증](docs/oauth-development.md).
 
 ## 현재 범위
 
 M0-M5는 역사적으로 완료된 기반이다. M5는 **fixture 대화방 하나의 로컬 채팅 읽기·쓰기**까지
-완료했고, 이후 Kakao/Google OAuth와 U1 profile이 추가 구현되어 일부 실계정 수용을 마쳤다.
+완료했고, 이후 Kakao/Google OAuth와 U1 profile이 추가 구현됐다. 현재 M6 빌드에서는
+사용자가 iOS·Android 모두 Kakao·Google 실계정 로그인 성공을 확인했다.
 화면은 SQLite를
 유일한 메시지 원본으로 읽고, 전송 시 pending message와 queued outbox command를 하나의
 exclusive transaction에 기록한다. 실패 재시도는 기존 identity와 command를 재사용한다.
@@ -33,14 +36,53 @@ reconnect/restart 수렴은 아직 없다. 자동 mobile E2E와 실기기 accept
 
 - M4: bootstrap contract와 SQLite — 완료
 - M5: 로컬 채팅 읽기·쓰기 — 완료
-- 다음 후보: M6 contract intake, shared session/navigation, account/origin 데이터 분리
+- M6: server contract intake, shared session/profile/logout, account/origin 데이터 분리 — 구현·자동 검사·보안 패치 검증, 양 플랫폼 재빌드·설치와 로그인 4개 조합 통과; 나머지 세션 수용은 별도
 - 아직 없음: authenticated groups/chatrooms/messages/realtime/topics/media/notification/push
 
 Apple login, STT/on-device AI, presence/typing/reaction, message edit/delete와 새 push
-backend는 현재 서버 계약 밖의 별도 backlog다. production readiness는 current audit/build/
-deployment evidence가 없으므로 `NOT READY`다. 자세한 경계는
+backend는 현재 서버 계약 밖의 별도 backlog다. 의존성 보안 수정 후에도 원본 감사의 image-size
+High 2건 추적, 남은 세션 lifecycle 수용과 배포 revision binding 때문에 production readiness는 `NOT READY`다.
+패치 검증과 감사 결과는 [개발 검증 기록](docs/development-workflow.md)에 구분한다. 자세한 경계는
 [`docs/roadmap.md`](docs/roadmap.md)와
 [`docs/product-intent.md`](docs/product-intent.md)를 기준으로 한다.
+
+## M6 server contract와 account-safe session
+
+M6는 M4 `contracts/bootstrap/`을 대체하지 않는다. `contracts/server/`는 read-only
+`jamye-server/contracts`의 OpenAPI 3.1/version 1 snapshot이며, 전체 wire type과 M6 schema
+closure(H1/H2, A1-A5, U1)의 runtime validator/domain mapper를 별도 경계로 둔다.
+`contracts/server/contract.lock`과 `intake.json`은 source revision, manifest/openapi hash와
+generator identity를 기록한다. 이 snapshot은 planning/intake provenance이지 현재 배포
+revision이나 production-certified contract의 증거가 아니다.
+
+`connected-auth`는 화면별 controller가 아니라 origin별 shared session owner를 사용한다.
+세션은 기존 `jamye.auth.session.v1` SecureStore record 호환성을 유지하고, 검증된 U1
+`User.id` UUID가 있을 때만 `SessionPrincipal`을 공개한다. profile retry는 한 번의 refresh와
+한 번의 replay만 허용하며, logout·origin/account 전환·늦은 응답은 session epoch로 fence한다.
+로그아웃은 local-first이며 원격 logout 실패가 로컬 세션 삭제를 되살리지 않는다.
+
+인증 mode에서는 M5 `jamye.db` fixture database/seed를 열지 않는다. 계정 저장소는 정규화된
+HTTPS API origin과 검증된 User UUID의 결정적 digest로 별도 `jamye-account-v1-<digest>.db`
+namespace를 만들고, `scope_metadata`에서 같은 origin/user/schema identity를 매번 확인한다.
+기존 `jamye.db`와 fixture migration/rows/outbox는 삭제·재시드·이동하지 않는다. cold restore가
+유효한 U1 profile을 얻지 못하면 account data를 복원하거나 표시하지 않는다.
+
+현재 `HomeScreen`은 profile/logout, account-storage 상태와 unauthenticated health diagnostics만
+표시한다. 이 화면의 source 통합 및 자동 테스트가 존재한다는 사실은 iOS/Android native
+runtime/user acceptance 완료를 뜻하지 않는다. M6에는 groups, server chat, WebSocket/delta,
+outbox dispatcher, media, push와 offline authenticated restore가 없다.
+
+2026-09-09 보안 수정 후 자동 통합 검사에서 `bun run check:code`가 43 suites/407 tests와 함께 통과했다.
+전체 coverage는 statements 89.83%, branches 83.29%, functions 91.52%, lines 91.64%이며,
+server/bootstrap contract drift 검사도 통과했다. 이 결과는 이번 변경의 build 또는 실계정
+로그인 검증을 포함하지 않는다.
+
+독립 요구사항 대조와 회귀 리뷰도 통과했다. 안전성 리뷰는 신규 코드의 Critical/High 문제를
+찾지 못했지만, 최초 실행은 기존 dependency High 3건 때문에 `ultrawork` VERIFY gate를 보류했다.
+이후 의존성 보안 수정과 회귀 검사를 수행했다. 2026-09-09 승인된 clean prebuild와
+iOS·Android 재빌드·설치·앱 실행을 완료했고, 사용자가 현재 빌드의 Kakao·Google 로그인
+4개 조합을 모두 확인했다. iOS Kakao의 프로필·계정 저장소와 앱 재시작 복원은 에이전트가
+관찰했다. 실제 토큰 만료 후 갱신·로그아웃·계정 전환 등의 수용은 이 결과에 포함하지 않는다.
 
 ## M4 local bootstrap contract
 
@@ -51,12 +93,13 @@ shape를 기록하며, `server_tag = null`, `server_commit = null`은 아직 ser
 local provenance(`unbound`)라는 의도적인 표시다.
 
 이 bootstrap은 M4의 historical/local-fixture contract다. 실제 server contract는
-read-only `jamye-server/contracts`의 version 1 snapshot을 기준으로 future intake한다.
+read-only `jamye-server/contracts`의 version 1 snapshot을 별도 `contracts/server/`로 수용했다.
 non-null tag만을 필수 조건으로 두지 않고 exact source revision, contract version과 content
 hash를 기록한다. 현재 manifest의 dirty/null provenance는 배포 binding을 증명하지 않는다.
-generated type/validator와 compatibility review는 M6 구현 계획에서 별도 승인한다.
+M6 generated type/validator는 구현됐으며 bootstrap source/fixture는 변경하지 않았다.
 
-이 bootstrap을 실제 runtime 계약으로 대체하려면 다음 조건을 **모두 충족한 뒤에만** 진행한다.
+이 bootstrap의 메시지/recovery 경로를 실제 서버에 연결하는 후속 M8-M9 작업은 다음 조건을
+**모두 충족한 뒤에만** 진행한다. 현재 M6 인증 경로의 승인과는 별개다.
 
 1. 별도 승인된 source가 non-bootstrap production contract version과 authenticated source
    ownership(인증된 source ownership)을 제공한다.
@@ -64,7 +107,7 @@ generated type/validator와 compatibility review는 M6 구현 계획에서 별�
    별도 결정으로 승인된다.
 3. types, fixtures, manifest, `contract.lock`을 regenerate(재생성)하고 compatibility review
    (호환성 검토)를 통과한다.
-4. M6 integration decision이 해당 contract의 실제 invocation을 별도로 승인한다.
+4. 해당 마일스톤의 integration decision이 contract의 실제 invocation을 별도로 승인한다.
 
 그 전까지 unknown event의 `request_delta`는 local recovery result일 뿐이며 HTTP, WebSocket,
 auth 실행을 뜻하지 않는다.

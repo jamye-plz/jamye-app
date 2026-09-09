@@ -454,8 +454,18 @@ function createRepository(): Record<string, unknown> {
 }
 
 const mockedUseColorScheme = jest.mocked(useColorScheme);
+const originalAppMode = process.env.EXPO_PUBLIC_APP_MODE;
 
 describe("M5-UI-1 accessible local chat screen", () => {
+  beforeEach(() => {
+    process.env.EXPO_PUBLIC_APP_MODE = "local-fixture";
+  });
+
+  afterEach(() => {
+    if (originalAppMode === undefined) delete process.env.EXPO_PUBLIC_APP_MODE;
+    else process.env.EXPO_PUBLIC_APP_MODE = originalAppMode;
+  });
+
   test("distinguishes initial message loading, recoverable error, and successful empty state", async () => {
     const { AppProviders, ChatScreen } = loadChatScreenContract();
     const firstPage = createDeferred<{

@@ -249,8 +249,10 @@ function loadActualAppProviders(): ComponentType<AppProvidersProps> {
 }
 
 let consoleErrorSpy: jest.SpyInstance;
+const originalAppMode = process.env.EXPO_PUBLIC_APP_MODE;
 
 beforeEach(() => {
+  process.env.EXPO_PUBLIC_APP_MODE = "local-fixture";
   mockRouterShouldThrow = false;
   mockProductionDatabaseFactory.mockClear();
   mockShellDatabaseClose.mockClear();
@@ -261,6 +263,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  if (originalAppMode === undefined) delete process.env.EXPO_PUBLIC_APP_MODE;
+  else process.env.EXPO_PUBLIC_APP_MODE = originalAppMode;
   consoleErrorSpy.mockRestore();
 });
 

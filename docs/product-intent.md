@@ -1,9 +1,9 @@
 # 잼얘좀 모바일 — 서버 연결 제품 여정과 보존할 native 의도
 
 - 작성 목적: M1에서 기존 `jamye-plz`의 제품 의미와 회귀 의도를 읽기 전용으로 추출
-- 현재 구현 범위: M0-M5 local fixture chat foundation completed
+- 현재 구현 범위: M0-M5 local fixture chat foundation과 M6 account-safe authenticated shell
 - M5 이후: Kakao/Google login/profile/logout implemented, 일부 실계정 수용 완료
-- 현재 frontier: authenticated group/chat product journey not implemented
+- 현재 frontier: M6 account-safe authenticated home 구현, group/chat product journey not implemented
 - 기준 저장소: [sibling `jamye-plz`](../../jamye-plz/) repository (수정하지 않음)
 
 ## 1. 먼저 고정할 해석 원칙
@@ -15,8 +15,13 @@
 
 이번 수직 절편은 다음 경계를 지킨다.
 
-- `local-fixture` mode는 고정 fixture 사용자와 대화방을, `connected-auth` mode는 OAuth
-  login/profile/logout을 표시한다. 로그인 뒤 authenticated group/chat navigation은 아직 없다.
+- `local-fixture` mode는 고정 fixture 사용자와 대화방을, `connected-auth` mode는 shared
+  OAuth session, 검증된 U1 profile, logout과 account-safe home을 표시한다. authenticated
+  group/chat navigation은 아직 없다.
+- 인증 mode는 M5 `jamye.db` fixture와 seed를 사용하지 않는다. API origin과 검증된 User UUID를
+  함께 digest한 account namespace와 `scope_metadata` identity를 사용하며, 이전 account의
+  늦은 응답·open/close 작업이 새 account에 노출되지 않도록 session epoch와 scope drain으로
+  fence한다. 유효한 profile 없는 cold restore는 authenticated account data를 표시하지 않는다.
 - 화면의 메시지 원본은 SQLite뿐이다. HTTP cache나 메모리 배열을 경쟁 원본으로 두지 않는다.
 - 텍스트 메시지만 읽고 보낸다.
 - 전송 버튼을 누르면 optimistic message와 outbox command를 하나의 transaction으로 만든다.
@@ -114,8 +119,9 @@ M5에는 WebSocket·REST delta·network lifecycle 실행 경로가 없다.
 - foreground 복귀, network regain, reconnect 때 delta sync를 요청한다.
 - room 또는 화면이 바뀐 뒤 도착한 오래된 비동기 결과는 현재 상태에 적용하지 않는다.
 
-현재 단계의 transport는 인증과 credential이 전혀 없는 local fixture다. 기존 PWA의
-cookie, endpoint, socket frame은 모바일 계약으로 사용하지 않는다.
+현재 M6의 transport는 OAuth/profile/logout과 unauthenticated health 진단까지다. 기존 PWA의
+cookie, endpoint, socket frame은 모바일 계약으로 사용하지 않는다. Groups, server chat,
+WebSocket/delta, outbox dispatch, media/push와 offline authenticated restore는 이후 milestone이다.
 
 ### 3.4 읽던 위치를 잃지 않는다
 
@@ -274,7 +280,7 @@ chat spacing, socket reconnect, design size, layout focus의 회귀 의도만 �
   media·notification history·Expo push installation은 roadmap의 M6-M13 planned milestone이다.
 - contract-gap backlog: Apple login, STT/on-device AI, presence/typing/reaction,
   message edit/delete와 새 push backend, 현재 server contract에 없는 provider·기능
-- Account/token lifecycle의 나머지 수용과 서버 계약 가져오기: M6
+- Server contract intake와 계정 기반은 M6에서 구현했으며, account/token lifecycle의 native/user 수용은 남아 있다.
 - 기존 browser 전용 설정: native 동작으로 대체할 필요가 생길 때 별도 검토
 - Production signing과 store 제출: 공통 release acceptance의 별도 사용자 결정
 

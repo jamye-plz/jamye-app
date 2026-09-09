@@ -1,0 +1,16 @@
+{
+  "contract_version": "1",
+  "generated_sha256": "f9e00d9ee27380fb55c7b9f90d0e4bb58c0b99ba6a3659df3fd62cdcd935ec40",
+  "generator_identity": "openapi-typescript@7.13.0",
+  "schema_closure_operation_ids": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "H1",
+    "H2",
+    "U1"
+  ],
+  "source_sha256": "5e18e3f0439b52e2cb359721f448100c7f11210b89e9aff173111d8cd1cef6d1"
+}

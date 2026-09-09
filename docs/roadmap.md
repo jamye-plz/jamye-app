@@ -1,10 +1,10 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M5 이후 Kakao/Google OAuth 추가·부분 수용, 서버 기반 제품 여정은 시작 전
+- 현재 상태: M0-M5 완료 이력 보존, M6 account-safe authenticated shell 구현 및 양 플랫폼 Kakao·Google 실계정 로그인 수용
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 다음 구현 후보: M6 서버 계약 수용과 계정 안전 기반
-- 앱 출시 판정: NOT READY — 서버의 운영 상태와 별개이며 이번 문서 갱신은 출시 검증이 아님
+- 현재 frontier: M6 구현·자동 통합 검사·보안 패치 검증, 양 플랫폼 재빌드·설치와 로그인 4개 조합 통과; 남은 세션 lifecycle 수용은 별도
+- 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건 추적, 남은 세션 lifecycle 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-09
 
@@ -58,19 +58,20 @@ git show ff909de:docs/roadmap.md
 별도 tracked archive 문서를 추가하지 않는 이유는 Git이 원문을 보존하고, 새 문서 경로는 현재
 architecture exact-path 정책 변경까지 요구하기 때문이다.
 
-### 3.2 M5 이후 실제 OAuth 추가
+### 3.2 M5 이후 실제 OAuth 추가와 M6 shared session
 
 Commit `ff909de`에서 Kakao/Google OAuth authorize·exchange, refresh, logout, profile,
 PKCE, SecureStore와 native callback bridge가 추가됐다. `connected-auth` mode에서 현재 이 흐름이
-실제 `fetch()`를 사용하는 유일한 제품 경로다.
+shared session과 U1 profile을 제공하며, M6에는 별도의 health 연결 진단도 있다.
 
-사용자는 clean iOS/Android rebuild 뒤 Kakao·Google 실계정 로그인, 앱 복귀와 프로필 표시를
-확인했다. iOS Kakao profile restore도 관찰됐다. 자세한 기록은
+초기 OAuth 수용 이후 M6와 의존성 보안 패치를 포함해 clean iOS/Android rebuild·설치를
+다시 완료했다. 2026-09-09 사용자는 현재 빌드에서 양 platform × 양 provider의 실계정 로그인
+4개 조합이 모두 성공했다고 확인했다. 에이전트는 iOS Kakao profile/account storage와 앱
+재시작 복원을 관찰했다. 자세한 기록은
 [OAuth 개발 연결](oauth-development.md)에 있다.
 
 아래 항목은 아직 전체 PASS가 아니다.
 
-- 양 platform × 양 provider 전체 조합
 - Android 기존 session restore
 - 실제 token 만료 뒤 refresh
 - logout 후 재실행, browser cancel과 account switch
@@ -87,10 +88,12 @@ PKCE, SecureStore와 native callback bridge가 추가됐다. `connected-auth` mo
 - `local-fixture`: M5의 SQLite local chat을 표시한다. Network 전송이나 로그인은 없다.
 - `connected-auth`: 로그인 선택 또는 profile/logout 화면을 표시한다. 로그인 뒤 group/chat 화면은 없다.
 
-Root provider는 두 mode 모두 같은 SQLite database를 열고 fixture conversation을 seed한다.
-실제 사용자 데이터 연결 전에는 fixture seed를 auth mode에서 분리하고, API origin과 account별로
-database/cache/outbox를 partition해야 한다. Logout, account switch, membership eviction 뒤
-이전 account의 queued/in-flight work나 늦은 response가 새 account에 표시·전송되면 안 된다.
+`local-fixture`만 기존 `jamye.db`와 fixture conversation을 사용한다. `connected-auth`는
+fixture database/seed를 열지 않고 shared session과 account scope를 사용한다. 계정 namespace는
+정규화된 HTTPS origin과 검증된 U1 User UUID의 digest로 분리되며 `scope_metadata` identity를
+매번 확인한다. Logout/account switch 뒤 이전 account의 row/outbox/late response가 새 account에
+표시·전송되지 않도록 session epoch와 account-scope open/close drain으로 fence한다. cold restore가
+검증된 U1 profile을 얻지 못하면 authenticated account data를 표시하지 않는다.
 
 ## 4. 서버 계약을 어떻게 사용할 것인가
 
@@ -191,8 +194,8 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 
 ### M6. 서버 계약 수용과 계정 안전 기반
 
-- 상태: `planned_unapproved`
-- 선행: M0-M5 이력, post-M5 OAuth baseline, 별도 M6 PLAN_GATE
+- 상태: `implemented; automated and patched-security checks passed; native builds and four login combinations passed; remaining session acceptance pending`
+- 선행: M0-M5 이력, post-M5 OAuth baseline, 승인된 M6 PLAN_GATE
 - 사용자 결과: 로그인 성공 뒤 authenticated home/profile에 진입하며 fixture 데이터가 로그인
   account에 보이거나 전송되지 않는다.
 - 계약 범위: Health 진단, OAuth/session과 현재 profile read
@@ -215,6 +218,21 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 - 이전 account의 row/outbox/late result가 새 account에 노출·전송되지 않는 test
 - 기존 fixture DB를 조용히 삭제하지 않았다는 migration/integrity evidence
 - Native-affecting 변경이 있을 때만 clean prebuild와 양 platform rebuild/install/runtime acceptance
+- UI/provider 통합을 포함한 전체 자동 검사는 통과했다. mocked/automated test 통과로
+  native/user acceptance를 추론하지 않음
+
+현재 자동 결과(2026-09-09 보안 수정 후): `bun run check:code` 통과, 43 suites/407 tests.
+TypeScript/ESLint/Prettier/architecture와 server/bootstrap contract drift 검사도 통과했다.
+전체 coverage는 statements 89.83%, branches 83.29%, functions 91.52%, lines 91.64%다.
+account lifecycle은 전체 open/close transition을 직렬화하고, provider는 user/epoch/origin/logout
+변경의 첫 render부터 이전 DB handle을 숨긴다. 최종 문서 5개/참조 110개 검사에서 broken reference는
+없었다. 독립 요구사항/회귀 리뷰도 통과했고 회귀 리뷰는 374개 테스트 통과를 재확인했다.
+최초 안전성 리뷰의 신규 코드 Critical/High 발견은 없었으나, 기존 dependency High 3건으로
+`ultrawork` VERIFY gate를 보류했다. 이후 사용자 승인으로 보안 수정판과 재현 가능한 패치를
+적용했다. 원본 감사에 남는 image-size High 2건과 패치 검증은 [개발 검증 기록](development-workflow.md)에
+구분한다. 이후 clean prebuild와 양 플랫폼 재빌드·설치·실행을 완료했고, 사용자가 현재
+빌드의 iOS Kakao·Google, Android Kakao·Google 실계정 로그인 성공을 모두 확인했다.
+이 결과로 실제 토큰 만료·refresh, 로그아웃, 취소·오류·계정 전환 수용까지 PASS로 확대하지 않는다.
 
 ### M7. 그룹·멤버십·초대
 
@@ -370,19 +388,19 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 
 이 표는 contract inventory의 누락을 막기 위한 배정표다. 현재 구현이나 배포 검증 표가 아니다.
 
-| Family                  | Operation IDs                  | 현재 app        | Roadmap assignment                            |
-| ----------------------- | ------------------------------ | --------------- | --------------------------------------------- |
-| Health                  | H1, H2                         | 연결 UI 없음    | M6 진단, 공통 release acceptance              |
-| OAuth/session           | A1, A2, A3, A4, A5             | 구현·부분 수용  | M6 shared session과 남은 lifecycle acceptance |
-| Profile/account         | U1, U2, U3                     | U1 표시만       | M6 U1, M13 U2/U3                              |
-| Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | 없음            | M7                                            |
-| Invitations             | I1, I2                         | 없음            | M7                                            |
-| Chatrooms/messages/read | C1, C2, C3, C4                 | local fixture만 | M8                                            |
-| Delta/realtime          | S1, R1 + WebSocket             | 실행 경로 없음  | M9                                            |
-| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 없음            | M10                                           |
-| Media                   | MD1, MD2, MD3, MD4, MD5        | 없음            | M11                                           |
-| Notification history    | N1, N2                         | 없음            | M12                                           |
-| Push installation       | P2, P3, P4                     | 없음            | M12                                           |
+| Family                  | Operation IDs                  | 현재 app                               | Roadmap assignment                            |
+| ----------------------- | ------------------------------ | -------------------------------------- | --------------------------------------------- |
+| Health                  | H1, H2                         | 진단 UI 구현                           | M6 진단, 공통 release acceptance              |
+| OAuth/session           | A1, A2, A3, A4, A5             | 구현·양 플랫폼 양 provider 로그인 수용 | M6 shared session과 남은 lifecycle acceptance |
+| Profile/account         | U1, U2, U3                     | U1 표시만                              | M6 U1, M13 U2/U3                              |
+| Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | 없음                                   | M7                                            |
+| Invitations             | I1, I2                         | 없음                                   | M7                                            |
+| Chatrooms/messages/read | C1, C2, C3, C4                 | local fixture만                        | M8                                            |
+| Delta/realtime          | S1, R1 + WebSocket             | 실행 경로 없음                         | M9                                            |
+| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 없음                                   | M10                                           |
+| Media                   | MD1, MD2, MD3, MD4, MD5        | 없음                                   | M11                                           |
+| Notification history    | N1, N2                         | 없음                                   | M12                                           |
+| Push installation       | P2, P3, P4                     | 없음                                   | M12                                           |
 
 모든 43개 HTTP operation은 위 표에 포함된다. WebSocket은 M9에 배정한다.
 
@@ -444,9 +462,11 @@ build/prebuild, native generation, 로그인/API smoke 또는 배포 검증으�
 
 ## 12. 다음 단계
 
-로드맵 개편은 승인됐으며, 다음 구현 후보는 **M6 서버 계약 수용과 계정 안전 기반**이다.
-M6-M13의 기능 구현은 아직 시작하지 않았다. M6 세부 계획에서 계약 가져오기,
-공유 세션과 로그인 후 진입 화면, 계정별 데이터 분리 및 보존 migration을 구체화한 뒤
-사용자 승인을 받아 구현한다.
+M6 구현·자동 통합 검사와 요구사항/회귀 리뷰는 통과했다. 의존성 보안 수정과 자동 재검증,
+clean prebuild·양 플랫폼 재빌드·설치 이후 [사용자 검증표](oauth-development.md)의
+Kakao·Google 실계정 로그인 4개 조합도 모두 통과했다. 현재 결과를 기록한 뒤 남은
+복원·로그아웃·실제 토큰 만료 갱신·취소·계정 전환 수용 범위를 사용자와 확인한다.
+로그인 성공만으로 이 항목이나 M6 전체 종료를 추론하지 않는다.
+M6 종료를 확인한 뒤 다음 기능 후보인 **M7 그룹·멤버십·초대**를 계획한다. M7-M13은 아직 구현하지 않았다.
 
 문서 갱신은 앱 기능 완료, 출시 승인, commit/push 또는 배포를 뜻하지 않는다.

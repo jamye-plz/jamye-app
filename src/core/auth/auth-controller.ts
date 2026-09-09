@@ -1,3 +1,5 @@
+import { anySignal } from "@/core/http/http-client";
+
 import { parseOAuthCallback } from "./callback";
 import type { AuthApi, AuthApiError } from "./auth-api";
 import type { SessionStore } from "./secure-session-store";
@@ -20,6 +22,16 @@ type PendingAttempt = Readonly<{
   expiresAtMs: number;
   generation: number;
 }>;
+type RefreshFlight = Readonly<{
+  generation: number;
+  promise: Promise<TokenPair | null>;
+}>;
+
+export type AuthController = ReturnType<typeof createAuthController>;
+
+// Native I/O already in progress cannot be cancelled. All controllers sharing
+// one secure record must drain it before a later owner reads or writes that record.
+const storageQueues = new WeakMap<SessionStore, Promise<unknown>>();
 
 export function createAuthController(
   deps: Readonly<{
@@ -37,8 +49,8 @@ export function createAuthController(
   let tokens: TokenPair | null = null;
   let pending: PendingAttempt | null = null;
   let generation = 0;
-  let refreshFlight: Promise<TokenPair | null> | null = null;
-  let storageQueue: Promise<void> = Promise.resolve();
+  let fence: AbortController | null = null;
+  let refreshFlight: RefreshFlight | null = null;
   const listeners = new Set<(value: AuthState) => void>();
   const publish = (next: AuthState) => {
     state = next;
@@ -54,37 +66,111 @@ export function createAuthController(
   };
   const active = (value: number) => generation === value;
 
-  const serializeStorage = (operation: () => Promise<void>) => {
-    const queued = storageQueue.then(operation, operation);
-    storageQueue = queued.catch(() => undefined);
+  /**
+   * Fences everything the previous generation had in flight (aborts its
+   * requests) and starts a new one. Every public entry point that begins a
+   * new session epoch (restore/signIn/logout/dispose) goes through this so a
+   * superseded generation can never publish state or mutate storage again.
+   */
+  const beginGeneration = () => {
+    fence?.abort();
+    fence = new AbortController();
+    return ++generation;
+  };
+  const requestSignal = (callerSignal?: AbortSignal) =>
+    anySignal([fence?.signal, callerSignal]);
+
+  /** Queued secure-storage writes re-check the epoch at execution time, not just at enqueue time. */
+  const serializeStorage = <T>(
+    expectedGeneration: number,
+    operation: () => Promise<T>,
+  ) => {
+    const run = () => (active(expectedGeneration) ? operation() : undefined);
+    const queued = (storageQueues.get(deps.store) ?? Promise.resolve()).then(
+      run,
+      run,
+    );
+    storageQueues.set(
+      deps.store,
+      queued.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
     return queued;
   };
   async function persistThenProfile(
     pair: TokenPair,
     expectedGeneration: number,
+    signal?: AbortSignal,
   ) {
-    if (!active(expectedGeneration)) return;
-    await serializeStorage(() => deps.store.save(deps.origin, pair));
-    if (!active(expectedGeneration)) return;
+    if (!active(expectedGeneration)) return false;
+    try {
+      await serializeStorage(expectedGeneration, () =>
+        deps.store.save(deps.origin, pair),
+      );
+    } catch {
+      if (active(expectedGeneration)) {
+        await clearSessionAndPublish(
+          expectedGeneration,
+          "세션을 안전하게 저장할 수 없습니다. 다시 로그인해 주세요.",
+        );
+      }
+      return false;
+    }
+    if (!active(expectedGeneration)) return false;
     tokens = pair;
-    const profile = await deps.api.profile(pair.accessToken);
-    if (!active(expectedGeneration)) return;
+    const profile = await deps.api.profile(pair.accessToken, signal);
+    if (!active(expectedGeneration)) return false;
     publish({ status: "signed-in", profile, message: null });
+    return true;
+  }
+
+  async function clearSessionAndPublish(
+    expectedGeneration: number,
+    message: string,
+  ) {
+    tokens = null;
+    try {
+      await serializeStorage(expectedGeneration, () => deps.store.clear());
+      if (active(expectedGeneration))
+        publish({ status: "signed-out", profile: null, message });
+    } catch {
+      if (active(expectedGeneration))
+        publish({
+          status: "error",
+          profile: null,
+          message:
+            "보안 저장소에서 세션을 지울 수 없습니다. 다시 시도해 주세요.",
+          retryAction: "logout",
+        });
+    }
   }
 
   return {
     getState: () => state,
+    /** The current session epoch; a fresh SessionPrincipal is only valid alongside the epoch it was read at. */
+    getGeneration: () => generation,
     subscribe(listener: (value: AuthState) => void) {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
       };
     },
-    async restore() {
-      const current = ++generation;
+    /** Fences all in-flight work owned by this controller instance without touching secure storage. */
+    dispose() {
+      fence?.abort();
+      fence = null;
+      generation++;
+    },
+    async restore(callerSignal?: AbortSignal) {
+      const current = beginGeneration();
+      const signal = requestSignal(callerSignal);
       publish({ status: "loading", profile: null, message: null });
       try {
-        const stored = await deps.store.load(deps.origin);
+        const stored = await serializeStorage(current, () =>
+          deps.store.load(deps.origin),
+        );
         if (!active(current)) return;
         if (!stored) {
           if (active(current))
@@ -97,10 +183,11 @@ export function createAuthController(
           return;
         }
         try {
-          await persistThenProfile(stored, current);
+          await persistThenProfile(stored, current, signal);
         } catch (error) {
+          if (!active(current)) return;
           if (isUnauthorized(error)) await this.refresh();
-          else if (active(current))
+          else
             publish({
               status: "error",
               profile: null,
@@ -122,17 +209,21 @@ export function createAuthController(
       provider: OAuthProvider,
       providerRedirectUri: string,
       appReturnUri: string,
+      callerSignal?: AbortSignal,
     ) {
-      const current = ++generation;
+      const current = beginGeneration();
+      const signal = requestSignal(callerSignal);
       pending = null;
       let exchangedPair: TokenPair | null = null;
       publish({ status: "signing-in", profile: null, message: null });
       try {
         const pkce = await deps.createPkce();
-        const authorization = await deps.api.authorize(provider, {
-          redirectUri: providerRedirectUri,
-          challenge: pkce.challenge,
-        });
+        if (!active(current)) return;
+        const authorization = await deps.api.authorize(
+          provider,
+          { redirectUri: providerRedirectUri, challenge: pkce.challenge },
+          signal,
+        );
         if (!active(current)) return;
         pending = {
           provider,
@@ -174,14 +265,19 @@ export function createAuthController(
           });
           return;
         }
-        const pair = await deps.api.exchange(provider, {
-          authorizationCode: callback.code,
-          state: callback.state,
-          verifier: attempt.verifier,
-          redirectUri: attempt.redirectUri,
-        });
+        const pair = await deps.api.exchange(
+          provider,
+          {
+            authorizationCode: callback.code,
+            state: callback.state,
+            verifier: attempt.verifier,
+            redirectUri: attempt.redirectUri,
+          },
+          signal,
+        );
         exchangedPair = pair;
-        await persistThenProfile(pair, current);
+        if (!active(current)) return;
+        await persistThenProfile(pair, current, signal);
       } catch {
         if (active(current)) {
           pending = null;
@@ -198,59 +294,58 @@ export function createAuthController(
       }
     },
     async refresh() {
-      if (refreshFlight) return refreshFlight;
-      if (!tokens) return null;
       const current = generation;
-      refreshFlight = (async () => {
-        if (tokenExpired(tokens.refreshTokenExpiresAt)) {
-          tokens = null;
-          try {
-            await serializeStorage(() => deps.store.clear());
-            if (active(current))
-              publish({
-                status: "signed-out",
-                profile: null,
-                message: "세션이 만료되었습니다. 다시 로그인해 주세요.",
-              });
-          } catch {
-            if (active(current))
-              publish({
-                status: "error",
-                profile: null,
-                message:
-                  "보안 저장소에서 세션을 지울 수 없습니다. 다시 시도해 주세요.",
-                retryAction: "logout",
-              });
-          } finally {
-            refreshFlight = null;
+      if (refreshFlight && refreshFlight.generation === current)
+        return refreshFlight.promise;
+      if (!tokens) return null;
+      const signal = requestSignal();
+      const entry: { generation: number; promise: Promise<TokenPair | null> } =
+        {
+          generation: current,
+          promise: undefined as unknown as Promise<TokenPair | null>,
+        };
+      entry.promise = (async (): Promise<TokenPair | null> => {
+        const activeTokens = tokens;
+        if (!activeTokens) return null;
+        if (tokenExpired(activeTokens.refreshTokenExpiresAt)) {
+          await clearSessionAndPublish(
+            current,
+            "세션이 만료되었습니다. 다시 로그인해 주세요.",
+          );
+          return null;
+        }
+        let pair: TokenPair;
+        try {
+          pair = await deps.api.refresh(activeTokens.refreshToken, signal);
+        } catch (error) {
+          if (!active(current)) return null;
+          if (isUnauthorized(error)) {
+            await clearSessionAndPublish(
+              current,
+              "세션이 만료되었습니다. 다시 로그인해 주세요.",
+            );
+          } else {
+            // A transport, proxy or server error cannot prove rotation did not
+            // commit. Never replay a potentially consumed refresh token.
+            await clearSessionAndPublish(
+              current,
+              "세션 상태를 확인할 수 없습니다. 다시 로그인해 주세요.",
+            );
           }
           return null;
         }
+        if (!active(current)) return null;
         try {
-          const pair = await deps.api.refresh(tokens.refreshToken);
-          if (!active(current)) return null;
-          await persistThenProfile(pair, current);
-          return pair;
+          const persisted = await persistThenProfile(pair, current, signal);
+          return persisted ? pair : null;
         } catch (error) {
-          if (active(current) && isUnauthorized(error)) {
-            tokens = null;
-            try {
-              await serializeStorage(() => deps.store.clear());
-              publish({
-                status: "signed-out",
-                profile: null,
-                message: "세션이 만료되었습니다. 다시 로그인해 주세요.",
-              });
-            } catch {
-              publish({
-                status: "error",
-                profile: null,
-                message:
-                  "보안 저장소에서 세션을 지울 수 없습니다. 다시 시도해 주세요.",
-                retryAction: "logout",
-              });
-            }
-          } else if (active(current)) {
+          if (!active(current)) return null;
+          if (isUnauthorized(error)) {
+            await clearSessionAndPublish(
+              current,
+              "세션이 만료되었습니다. 다시 로그인해 주세요.",
+            );
+          } else {
             publish({
               status: "error",
               profile: null,
@@ -259,44 +354,51 @@ export function createAuthController(
             });
           }
           return null;
-        } finally {
-          refreshFlight = null;
         }
-      })();
-      return refreshFlight;
+      })().finally(() => {
+        if (refreshFlight === entry) refreshFlight = null;
+      });
+      refreshFlight = entry;
+      return entry.promise;
     },
-    async logout() {
-      ++generation;
+    async logout(callerSignal?: AbortSignal) {
+      const current = beginGeneration();
+      const signal = requestSignal(callerSignal);
       pending = null;
       const previous = tokens;
       tokens = null;
       publish({ status: "signed-out", profile: null, message: null });
       try {
-        await serializeStorage(() => deps.store.clear());
+        await serializeStorage(current, () => deps.store.clear());
       } catch {
-        publish({
-          status: "error",
-          profile: null,
-          message:
-            "보안 저장소에서 세션을 지울 수 없습니다. 다시 시도해 주세요.",
-          retryAction: "logout",
-        });
+        if (active(current))
+          publish({
+            status: "error",
+            profile: null,
+            message:
+              "보안 저장소에서 세션을 지울 수 없습니다. 다시 시도해 주세요.",
+            retryAction: "logout",
+          });
         return;
       }
       if (previous)
-        await deps.api.logout(previous.accessToken).catch(() => undefined);
+        await deps.api
+          .logout(previous.accessToken, signal)
+          .catch(() => undefined);
     },
-    async retryProfile() {
+    async retryProfile(callerSignal?: AbortSignal) {
       const current = generation;
       if (!tokens) return;
+      const signal = requestSignal(callerSignal);
       publish({ status: "loading", profile: null, message: null });
       try {
-        const profile = await deps.api.profile(tokens.accessToken);
+        const profile = await deps.api.profile(tokens.accessToken, signal);
         if (active(current))
           publish({ status: "signed-in", profile, message: null });
       } catch (error) {
-        if (active(current) && isUnauthorized(error)) await this.refresh();
-        else if (active(current))
+        if (!active(current)) return;
+        if (isUnauthorized(error)) await this.refresh();
+        else
           publish({
             status: "error",
             profile: null,

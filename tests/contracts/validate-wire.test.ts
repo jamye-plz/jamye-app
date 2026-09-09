@@ -384,7 +384,17 @@ describe("M4-CONTRACT-1 validated event boundary", () => {
       ]),
     );
 
-    const source = relativeFiles
+    // src/core/contracts/server and src/core/contracts/generated/server are
+    // the M6 real-server contract boundary (approved plan-20260909-130724.json,
+    // task M6-01): unlike bootstrap, they are intentionally bound to a real
+    // backend (production https:// origin, bearer auth), so this bootstrap-only
+    // production-url/transport/auth guard does not apply to that sibling tree.
+    const bootstrapOnlyFiles = relativeFiles.filter(
+      (relativePath) =>
+        !relativePath.startsWith("src/core/contracts/server/") &&
+        !relativePath.startsWith("src/core/contracts/generated/server/"),
+    );
+    const source = bootstrapOnlyFiles
       .map((relativePath) =>
         readFileSync(join(repositoryRoot, relativePath), "utf8"),
       )

@@ -180,6 +180,8 @@ describe("development workflow contract", () => {
         "assets/",
         "contracts/bootstrap/openapi.json",
         "contracts/bootstrap/realtime-event.schema.json",
+        "contracts/server/manifest.json",
+        "contracts/server/openapi.json",
         "coverage/",
         "dist/",
         "docs/evidence/",

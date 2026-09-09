@@ -64,6 +64,90 @@ function deferred() {
 }
 
 describe("auth session controller", () => {
+  test.each(["save", "load"])(
+    "an abandoned controller's in-flight %s cannot replace the next controller's secure record",
+    async (phase) => {
+      const started = deferred();
+      const release = deferred();
+      let stored: typeof pair | null = null;
+      const nextPair = { ...pair, accessToken: "next-account-access" };
+      const f = fixture({
+        store: {
+          load: async () => {
+            started.resolve();
+            await release.promise;
+            stored = null; // A malformed/mismatched legacy record may be deleted by load().
+            return null;
+          },
+          save: async (_origin: string, value: typeof pair) => {
+            if (value.accessToken === pair.accessToken) {
+              started.resolve();
+              await release.promise;
+            }
+            stored = value;
+          },
+        },
+      });
+      const old =
+        phase === "load"
+          ? f.controller.restore()
+          : f.controller.signIn(
+              "kakao",
+              "https://api.example/callback",
+              "jamye://oauth/kakao",
+            );
+      await started.promise;
+      f.controller.dispose();
+      const next = createAuthController({
+        origin: "https://next.example",
+        api: { ...f.api, exchange: async () => nextPair },
+        store: f.store,
+        openBrowser: f.openBrowser,
+        createPkce: async () => ({
+          verifier: "v".repeat(43),
+          challenge: "c".repeat(43),
+        }),
+        nowMs: () => 100,
+      });
+      const login = next.signIn(
+        "kakao",
+        "https://next.example/callback",
+        "jamye://oauth/kakao",
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      release.resolve();
+      await Promise.all([old, login]);
+      expect(stored).toEqual(nextPair);
+      expect(next.getState().status).toBe("signed-in");
+    },
+  );
+
+  test("a failed save after rotation never leaves the consumed refresh token retryable", async () => {
+    const f = fixture({
+      store: {
+        load: async () => pair,
+        save: jest
+          .fn()
+          .mockResolvedValueOnce(undefined)
+          .mockRejectedValueOnce(new Error("locked")),
+      },
+      api: {
+        refresh: jest.fn(async () => ({
+          ...pair,
+          refreshToken: "n".repeat(43),
+        })),
+      },
+    });
+    await f.controller.restore();
+    await f.controller.refresh();
+    expect(f.controller.getState()).toMatchObject({
+      status: "signed-out",
+      profile: null,
+    });
+    await f.controller.retryProfile();
+    expect(f.api.refresh).toHaveBeenCalledTimes(1);
+  });
+
   test.each(["restore", "exchange", "save", "profile"])(
     "logout wins over late %s completion",
     async (phase) => {
@@ -143,16 +227,24 @@ describe("auth session controller", () => {
       "https://api.example/callback",
       "jamye://oauth/kakao",
     );
-    expect(api.authorize).toHaveBeenCalledWith("kakao", {
-      redirectUri: "https://api.example/callback",
-      challenge: "c".repeat(43),
-    });
-    expect(api.exchange).toHaveBeenCalledWith("kakao", {
-      authorizationCode: "code",
-      state,
-      verifier: "v".repeat(43),
-      redirectUri: "https://api.example/callback",
-    });
+    expect(api.authorize).toHaveBeenCalledWith(
+      "kakao",
+      {
+        redirectUri: "https://api.example/callback",
+        challenge: "c".repeat(43),
+      },
+      expect.anything(),
+    );
+    expect(api.exchange).toHaveBeenCalledWith(
+      "kakao",
+      {
+        authorizationCode: "code",
+        state,
+        verifier: "v".repeat(43),
+        redirectUri: "https://api.example/callback",
+      },
+      expect.anything(),
+    );
     expect(store.save).toHaveBeenCalledWith("https://api.example", pair);
     expect(openBrowser).toHaveBeenCalledWith(
       "https://kauth.kakao.com/oauth/authorize",
@@ -244,7 +336,10 @@ describe("auth session controller", () => {
     const expired = { ...pair, accessTokenExpiresAt: "1970-01-01T00:00:00Z" };
     const restored = fixture({ store: { load: jest.fn(async () => expired) } });
     await restored.controller.restore();
-    expect(restored.api.refresh).toHaveBeenCalledWith(expired.refreshToken);
+    expect(restored.api.refresh).toHaveBeenCalledWith(
+      expired.refreshToken,
+      expect.anything(),
+    );
     expect(restored.controller.getState().status).toBe("signed-in");
 
     const rotated = {
@@ -404,6 +499,166 @@ describe("auth session controller", () => {
     await retry.controller.retryProfile();
     expect(retry.api.profile).toHaveBeenCalledTimes(2);
   });
+  test("dispose fences a queued secure save that has not started executing yet", async () => {
+    const releaseFirst = deferred();
+    let loadCount = 0;
+    const load = jest.fn(async () => {
+      loadCount += 1;
+      return { ...pair, accessToken: `access-${loadCount}` };
+    });
+    let saveCount = 0;
+    const savedTokens: string[] = [];
+    const save = jest.fn(
+      async (_origin: string, saved: { accessToken: string }) => {
+        saveCount += 1;
+        savedTokens.push(saved.accessToken);
+        if (saveCount === 1) await releaseFirst.promise;
+      },
+    );
+    const f = fixture({ store: { load, save } });
+    const first = f.controller.restore();
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    const second = f.controller.restore();
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    f.controller.dispose();
+    releaseFirst.resolve();
+    await Promise.all([first, second]);
+    expect(savedTokens).toEqual(["access-1"]);
+  });
+
+  test("an old generation's refresh finally does not clear a newer generation's active flight", async () => {
+    const releaseOld = deferred();
+    const releaseNew = deferred();
+    let refreshCount = 0;
+    const refresh = jest.fn(async () => {
+      refreshCount += 1;
+      if (refreshCount === 1) await releaseOld.promise;
+      else if (refreshCount === 2) await releaseNew.promise;
+      return { ...pair, accessToken: `refreshed-${refreshCount}` };
+    });
+    const f = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: { refresh },
+    });
+    await f.controller.restore();
+    const oldRefresh = f.controller.refresh();
+    await Promise.resolve();
+    f.controller.dispose();
+    await f.controller.restore();
+    const newRefresh = f.controller.refresh();
+    await Promise.resolve();
+    releaseOld.resolve();
+    await oldRefresh;
+    const afterOldFinally = f.controller.refresh();
+    releaseNew.resolve();
+    await Promise.all([newRefresh, afterOldFinally]);
+    expect(refreshCount).toBe(2);
+  });
+
+  test("does not call authorize for a signIn superseded during PKCE creation", async () => {
+    const startedPkce = deferred();
+    const releasePkce = deferred();
+    const createPkce = jest.fn(async () => {
+      startedPkce.resolve();
+      await releasePkce.promise;
+      return { verifier: "v".repeat(43), challenge: "c".repeat(43) };
+    });
+    const authorize = jest.fn(async () => ({
+      authorizationUrl: "https://kauth.kakao.com/oauth/authorize",
+      state,
+      expiresInSeconds: 600,
+    }));
+    const store = {
+      load: jest.fn(async () => null),
+      save: jest.fn(async () => undefined),
+      clear: jest.fn(async () => undefined),
+    };
+    const openBrowser = jest.fn(async () => ({
+      type: "success" as const,
+      url: `jamye://oauth/kakao?code=code&state=${state}`,
+    }));
+    const controller = createAuthController({
+      origin: "https://api.example",
+      api: {
+        authorize,
+        exchange: jest.fn(async () => pair),
+        refresh: jest.fn(async () => pair),
+        profile: jest.fn(async () => profile),
+        logout: jest.fn(async () => undefined),
+      },
+      store,
+      openBrowser,
+      createPkce,
+      nowMs: () => 100,
+    });
+    const stale = controller.signIn(
+      "kakao",
+      "https://api.example/callback",
+      "jamye://oauth/kakao",
+    );
+    await startedPkce.promise;
+    const superseding = controller.logout();
+    releasePkce.resolve();
+    await Promise.all([stale, superseding]);
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  test("fails closed on an ambiguous rotating-refresh transport outcome instead of retrying blindly", async () => {
+    const f = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: {
+        refresh: jest.fn(async () => {
+          throw { status: 0 };
+        }),
+      },
+    });
+    await f.controller.restore();
+    await f.controller.refresh();
+    expect(f.controller.getState()).toMatchObject({
+      status: "signed-out",
+      message: expect.stringMatching(/확인할 수 없습니다/),
+    });
+    expect(f.store.clear).toHaveBeenCalled();
+
+    const uncertainServerResponse = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: {
+        refresh: jest.fn(async () => {
+          throw { status: 503 };
+        }),
+      },
+    });
+    await uncertainServerResponse.controller.restore();
+    await uncertainServerResponse.controller.refresh();
+    expect(uncertainServerResponse.controller.getState()).toMatchObject({
+      status: "signed-out",
+      profile: null,
+    });
+    expect(uncertainServerResponse.store.clear).toHaveBeenCalled();
+  });
+
+  test("dispose aborts an in-flight generation-scoped request", async () => {
+    const started = deferred();
+    let capturedSignal: AbortSignal | undefined;
+    const profileFn = jest.fn(
+      (_token: string, signal?: AbortSignal) =>
+        new Promise<typeof profile>((resolve, reject) => {
+          capturedSignal = signal;
+          started.resolve();
+          signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    );
+    const f = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: { profile: profileFn },
+    });
+    const restoring = f.controller.restore();
+    await started.promise;
+    f.controller.dispose();
+    await restoring;
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
   test("offers profile retry only after the new login pair was securely saved", async () => {
     const f = fixture({
       api: {

@@ -7,7 +7,7 @@ const verifier = "v".repeat(43);
 const pair = {
   access_token: "test-access",
   access_token_expires_at: "2030-01-01T00:00:00Z",
-  refresh_token: "test-refresh",
+  refresh_token: "r".repeat(43),
   refresh_token_expires_at: "2031-01-01T00:00:00Z",
   token_type: "Bearer",
 };
@@ -40,7 +40,7 @@ describe("connected OAuth wire flow", () => {
         },
         pair,
         {
-          id: "test-id",
+          id: "3f0a3f1e-2f2a-4a3e-9c3b-1f8f9d3a2b4c",
           provider,
           nickname: "테스트 사용자",
           avatar_url: null,

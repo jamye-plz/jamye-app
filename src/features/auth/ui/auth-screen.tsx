@@ -1,57 +1,36 @@
-import * as WebBrowser from "expo-web-browser";
-import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
-import { createAuthApi } from "@/core/auth/auth-api";
-import { createAuthController } from "@/core/auth/auth-controller";
 import { appReturnUri, providerRedirectUri } from "@/core/auth/app-return-uri";
-import { createPkcePair } from "@/core/auth/pkce";
-import { secureSessionStore } from "@/core/auth/secure-session-store";
 import { getPublicEnv } from "@/core/config/public-env";
+import { useSession } from "@/core/providers/session-provider";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appControl, appRadii, appSpacing } from "@/core/theme/tokens";
 import { AppScreen } from "@/shared/ui/app-screen";
 import { AppText } from "@/shared/ui/app-text";
+
+const RETRY_LABELS = {
+  restore: "세션 복원 다시 시도",
+  retryProfile: "프로필 다시 시도",
+  logout: "로그아웃 다시 시도",
+} as const;
 
 export function AuthScreen() {
   const { colors } = useAppTheme();
   const env = getPublicEnv();
   const origin = env.apiOrigin;
   if (!origin) throw new Error("connected-auth requires an API origin.");
-  const controller = useMemo(
-    () =>
-      createAuthController({
-        origin,
-        api: createAuthApi(origin),
-        store: secureSessionStore,
-        createPkce: createPkcePair,
-        openBrowser: async (url, callback) => {
-          const result = await WebBrowser.openAuthSessionAsync(url, callback);
-          return result.type === "success"
-            ? { type: "success" as const, url: result.url }
-            : {
-                type:
-                  result.type === "cancel"
-                    ? ("cancel" as const)
-                    : ("dismiss" as const),
-              };
-        },
-      }),
-    [origin],
-  );
-  const [state, setState] = useState(controller.getState());
-  useEffect(() => {
-    const unsubscribe = controller.subscribe(setState);
-    void controller.restore();
-    return unsubscribe;
-  }, [controller]);
+  const session = useSession();
+  const state = session.state;
   const disabled = state.status === "loading" || state.status === "signing-in";
   const retryAction = state.status === "error" ? state.retryAction : undefined;
-  const retryLabels = {
-    restore: "세션 복원 다시 시도",
-    retryProfile: "프로필 다시 시도",
-    logout: "로그아웃 다시 시도",
-  };
+  const retryOperation =
+    retryAction === "restore"
+      ? session.restore
+      : retryAction === "logout"
+        ? session.logout
+        : retryAction === "retryProfile"
+          ? session.retryProfile
+          : undefined;
 
   return (
     <AppScreen
@@ -66,54 +45,32 @@ export function AuthScreen() {
           카카오 또는 Google 계정으로 로그인합니다.
         </AppText>
       </View>
-      {state.status === "signed-in" && state.profile ? (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <AppText color={colors.text} variant="label">
-            {state.profile.nickname}
-          </AppText>
-          <AppText color={colors.textMuted}>
-            {state.profile.provider} 계정으로 로그인됨
-          </AppText>
-          <AuthButton
-            label="로그아웃"
-            disabled={false}
-            colors={colors}
-            onPress={() => void controller.logout()}
-          />
-        </View>
-      ) : (
-        <View style={styles.actions}>
-          <AuthButton
-            label={disabled ? "로그인 준비 중…" : "카카오로 계속하기"}
-            disabled={disabled}
-            colors={colors}
-            onPress={() =>
-              void controller.signIn(
-                "kakao",
-                providerRedirectUri(origin, "kakao"),
-                appReturnUri("kakao"),
-              )
-            }
-          />
-          <AuthButton
-            label="Google로 계속하기"
-            disabled={disabled}
-            colors={colors}
-            onPress={() =>
-              void controller.signIn(
-                "google",
-                providerRedirectUri(origin, "google"),
-                appReturnUri("google"),
-              )
-            }
-          />
-        </View>
-      )}
+      <View style={styles.actions}>
+        <AuthButton
+          label={disabled ? "로그인 준비 중…" : "카카오로 계속하기"}
+          disabled={disabled}
+          colors={colors}
+          onPress={() =>
+            void session.login(
+              "kakao",
+              providerRedirectUri(origin, "kakao"),
+              appReturnUri("kakao"),
+            )
+          }
+        />
+        <AuthButton
+          label="Google로 계속하기"
+          disabled={disabled}
+          colors={colors}
+          onPress={() =>
+            void session.login(
+              "google",
+              providerRedirectUri(origin, "google"),
+              appReturnUri("google"),
+            )
+          }
+        />
+      </View>
       {state.message ? (
         <View style={styles.retry}>
           <AppText
@@ -122,12 +79,12 @@ export function AuthScreen() {
           >
             {state.message}
           </AppText>
-          {retryAction ? (
+          {retryAction && retryOperation ? (
             <AuthButton
-              label={retryLabels[retryAction]}
+              label={RETRY_LABELS[retryAction]}
               disabled={false}
               colors={colors}
-              onPress={() => void controller[retryAction]()}
+              onPress={() => void retryOperation()}
             />
           ) : null}
         </View>
@@ -181,12 +138,6 @@ const styles = StyleSheet.create({
   },
   description: { marginTop: appSpacing.sm },
   actions: { gap: appSpacing.sm },
-  card: {
-    borderRadius: appRadii.medium,
-    borderWidth: 1,
-    gap: appSpacing.sm,
-    padding: appSpacing.md,
-  },
   retry: { gap: appSpacing.sm },
   button: {
     alignItems: "center",

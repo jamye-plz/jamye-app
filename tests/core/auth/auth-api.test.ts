@@ -1,4 +1,8 @@
-import { AuthApiError, createAuthApi } from "@/core/auth/auth-api";
+import {
+  AuthApiError,
+  createAuthApi,
+  isCallerCancelled,
+} from "@/core/auth/auth-api";
 
 const state = "s".repeat(43);
 const token = {
@@ -19,6 +23,31 @@ describe("auth API contract", () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
     jest.useRealTimers();
+  });
+  test("canonicalizes the HTTPS origin and forbids credential-bearing redirects", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 204 });
+    await createAuthApi("https://API.Example:443/").logout("access");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example/api/v1/auth/logout",
+      expect.objectContaining({ credentials: "omit", redirect: "error" }),
+    );
+    expect(() => createAuthApi("http://api.example")).toThrow();
+    expect(() => createAuthApi("https://secret@api.example")).toThrow();
+    expect(() => createAuthApi("https://api.example/untrusted-path")).toThrow();
+  });
+
+  test("logout requires the contracted bodyless 204 rather than any successful status", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    });
+    await expect(
+      createAuthApi("https://api.example").logout("access"),
+    ).rejects.toMatchObject({
+      status: 502,
+      code: "invalid_response_status",
+    });
   });
   test.each(["headers", "body"])(
     "times out a stalled response at %s",
@@ -44,6 +73,30 @@ describe("auth API contract", () => {
       expect(jest.getTimerCount()).toBe(0);
     },
   );
+  test("distinguishes caller cancellation from a timeout on the same composed deadline", async () => {
+    const controller = new AbortController();
+    fetchMock.mockImplementation((_url: string, init: RequestInit) => {
+      return new Promise<never>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          const error = new Error("aborted");
+          error.name = "AbortError";
+          reject(error);
+        });
+      });
+    });
+    const pending = createAuthApi("https://api.example").profile(
+      "access",
+      controller.signal,
+    );
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({
+      status: 0,
+      code: "request_cancelled",
+    });
+    await pending.catch((error) => {
+      expect(isCallerCancelled(error)).toBe(true);
+    });
+  });
   test("preserves status when an error response has no JSON envelope", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
@@ -98,7 +151,7 @@ describe("auth API contract", () => {
       .mockResolvedValueOnce(response(token))
       .mockResolvedValueOnce(
         response({
-          id: "id",
+          id: "3f0a3f1e-2f2a-4a3e-9c3b-1f8f9d3a2b4c",
           provider: "kakao",
           nickname: "name",
           avatar_url: null,
@@ -165,7 +218,14 @@ describe("auth API contract", () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 401,
-      json: async () => ({ error: { code: "authentication_required" } }),
+      json: async () => ({
+        error: {
+          code: "authentication_required",
+          message: "Authentication required.",
+          request_id: "11111111-1111-4111-8111-111111111111",
+          details: null,
+        },
+      }),
     });
     await expect(
       createAuthApi("https://api.example").profile("x"),
@@ -173,6 +233,20 @@ describe("auth API contract", () => {
       expect.objectContaining({ status: 401, code: "authentication_required" }),
     );
     expect(AuthApiError).toBeDefined();
+  });
+
+  test("does not trust error codes from a malformed error envelope", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: { code: "unvalidated-payload" } }),
+    });
+    await expect(
+      createAuthApi("https://api.example").profile("access"),
+    ).rejects.toMatchObject({
+      status: 401,
+      code: "request_failed",
+    });
   });
   test("rejects malformed token/profile data and maps network failure", async () => {
     fetchMock.mockResolvedValueOnce(response({ token_type: "Bearer" }));
@@ -199,6 +273,44 @@ describe("auth API contract", () => {
     await expect(
       createAuthApi("https://api.example").logout("x"),
     ).rejects.toEqual(expect.objectContaining({ code: "network_unavailable" }));
+  });
+  test("rejects a malformed U1 UUID, non-43-char rotating refresh token, and an out-of-range date-time", async () => {
+    fetchMock.mockResolvedValueOnce(
+      response({
+        id: "not-a-uuid",
+        provider: "kakao",
+        nickname: "name",
+        avatar_url: null,
+        created_at: "2020-01-01T00:00:00Z",
+      }),
+    );
+    await expect(
+      createAuthApi("https://api.example").profile("x"),
+    ).rejects.toEqual(
+      expect.objectContaining({ code: "invalid_profile_response" }),
+    );
+    fetchMock.mockResolvedValueOnce(
+      response({ ...token, refresh_token: "too-short" }),
+    );
+    await expect(
+      createAuthApi("https://api.example").refresh("r".repeat(43)),
+    ).rejects.toEqual(
+      expect.objectContaining({ code: "invalid_token_response" }),
+    );
+    fetchMock.mockResolvedValueOnce(
+      response({
+        id: "3f0a3f1e-2f2a-4a3e-9c3b-1f8f9d3a2b4c",
+        provider: "kakao",
+        nickname: "name",
+        avatar_url: null,
+        created_at: "2020-02-30T00:00:00Z",
+      }),
+    );
+    await expect(
+      createAuthApi("https://api.example").profile("x"),
+    ).rejects.toEqual(
+      expect.objectContaining({ code: "invalid_profile_response" }),
+    );
   });
 });
 

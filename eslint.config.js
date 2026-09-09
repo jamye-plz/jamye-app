@@ -22,6 +22,7 @@ const AUTH_TRANSPORT_FILES = [
   "src/core/auth/**/*.ts",
   "src/core/auth/**/*.tsx",
 ];
+const HEALTH_TRANSPORT_FILES = ["src/core/health/health-api.ts"];
 
 const FORBIDDEN_TRANSPORT_GLOBALS = [
   {
@@ -304,6 +305,16 @@ module.exports = defineConfig([
   },
   {
     files: AUTH_TRANSPORT_FILES,
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...FORBIDDEN_TRANSPORT_GLOBALS.filter(({ name }) => name !== "fetch"),
+      ],
+      "no-restricted-properties": ["error", ...FORBIDDEN_TRANSPORT_PROPERTIES],
+    },
+  },
+  {
+    files: HEALTH_TRANSPORT_FILES,
     rules: {
       "no-restricted-globals": [
         "error",

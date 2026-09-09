@@ -275,6 +275,98 @@ const M4_AUTHORED_FILES = Object.freeze([
   ...M4_TEST_PATHS,
 ]);
 
+const M6_SERVER_CONTRACT_FILES = Object.freeze([
+  "contracts/server/contract.lock",
+  "contracts/server/intake.json",
+  "contracts/server/manifest.json",
+  "contracts/server/openapi.json",
+]);
+
+const M6_CONTRACT_SOURCE_FILES = Object.freeze([
+  "src/core/contracts/generated/server/server-api.ts",
+  "src/core/contracts/server/domain.ts",
+  "src/core/contracts/server/formats.ts",
+  "src/core/contracts/server/index.ts",
+  "src/core/contracts/server/validators.ts",
+]);
+
+const M6_CONTRACT_TOOL_FILES = Object.freeze([
+  "tools/contracts/check-server-contract.mjs",
+  "tools/contracts/generate-server-contract.mjs",
+  "tools/contracts/intake-server-contract.mjs",
+]);
+
+const M6_CONTRACT_TEST_PATHS = Object.freeze([
+  "tests/core/contracts/server-contract-tooling.test.ts",
+  "tests/core/contracts/server-domain-mappers.test.ts",
+  "tests/core/contracts/server-validators.test.ts",
+]);
+
+const M6_01_AUTHORED_FILES = Object.freeze([
+  ...M6_SERVER_CONTRACT_FILES,
+  ...M6_CONTRACT_SOURCE_FILES,
+  ...M6_CONTRACT_TOOL_FILES,
+  ...M6_CONTRACT_TEST_PATHS,
+]);
+
+const ACTIVE_CONTRACT_SOURCE_FILES = Object.freeze([
+  ...M4_CONTRACT_SOURCE_FILES,
+  ...M6_CONTRACT_SOURCE_FILES,
+]);
+
+const ACTIVE_CONTRACT_TOOL_FILES = Object.freeze([
+  ...M4_CONTRACT_TOOL_FILES,
+  ...M6_CONTRACT_TOOL_FILES,
+]);
+
+const M6_02_AUTHORED_FILES = Object.freeze([
+  "src/core/http/http-client.ts",
+  "src/core/providers/session-provider.tsx",
+  "tests/core/http/http-client.test.ts",
+  "tests/core/providers/session-provider.test.tsx",
+]);
+
+const M6_03_DATABASE_SOURCE_FILES = Object.freeze([
+  "src/core/database/account/types.ts",
+  "src/core/database/account/namespace.ts",
+  "src/core/database/account/migrations/001-account-schema.ts",
+  "src/core/database/account/migrations/index.ts",
+  "src/core/database/account/validate-scope-metadata.ts",
+  "src/core/database/account/open-account-database.ts",
+  "src/core/database/account/account-scope.ts",
+]);
+
+const M6_03_TEST_PATHS = Object.freeze([
+  "tests/core/database/account/account-namespace.test.ts",
+  "tests/core/database/account/validate-scope-metadata.test.ts",
+  "tests/core/database/account/account-migrations.test.ts",
+  "tests/core/database/account/open-account-database.test.ts",
+  "tests/core/database/account/account-scope.test.ts",
+]);
+
+const M6_03_AUTHORED_FILES = Object.freeze([
+  ...M6_03_DATABASE_SOURCE_FILES,
+  ...M6_03_TEST_PATHS,
+]);
+
+const M6_04_HEALTH_SOURCE_FILES = Object.freeze([
+  "src/core/health/health-api.ts",
+]);
+
+const M6_04_TEST_PATHS = Object.freeze([
+  "tests/core/health/health-api.test.ts",
+  "tests/features/home/home-screen.test.tsx",
+  "tests/features/home/connection-diagnostics.test.tsx",
+  "tests/app/connected-index-route.test.tsx",
+]);
+
+const M6_04_AUTHORED_FILES = Object.freeze([
+  ...M6_04_HEALTH_SOURCE_FILES,
+  "src/features/home/ui/home-screen.tsx",
+  "src/features/home/ui/connection-diagnostics.tsx",
+  ...M6_04_TEST_PATHS,
+]);
+
 const M5_RETIRED_PLACEHOLDER_PATHS = Object.freeze([
   "src/features/development-fixture/model/local-fixture.ts",
   "src/features/development-fixture/ui/development-fixture-screen.tsx",
@@ -321,6 +413,7 @@ const M5_AUTHORED_FILES = Object.freeze([
 const ACTIVE_DATABASE_SOURCE_FILES = Object.freeze([
   ...M4_DATABASE_SOURCE_FILES,
   "src/core/database/database-provider.tsx",
+  ...M6_03_DATABASE_SOURCE_FILES,
 ]);
 
 const M5_DESIGN_ARTIFACT_PATHS = Object.freeze([
@@ -354,6 +447,12 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M4_TEST_PATHS,
     ...M5_TEST_PATHS,
     ...OAUTH_TEST_PATHS,
+    ...M6_CONTRACT_TEST_PATHS,
+    ...M6_02_AUTHORED_FILES.filter((file) => file.startsWith("tests/")),
+    ...M6_03_TEST_PATHS,
+    ...M6_04_TEST_PATHS,
+    "tests/quality/dependency-security.test.ts",
+    "tests/quality/image-size-security.test.ts",
   ]),
 ]);
 
@@ -440,12 +539,23 @@ const APPROVED_MANIFEST_POINTERS = Object.freeze({
   private: true,
   packageManager: "bun@1.3.13",
 });
+const APPROVED_DEPENDENCY_OVERRIDES = Object.freeze({
+  "decode-uri-component": "0.5.0",
+  "js-yaml": "4.3.2",
+  uuid: "11.1.1",
+});
 const APPROVED_PATCHED_DEPENDENCIES = Object.freeze({
   "expo-router@57.0.20": "patches/expo-router@57.0.20.patch",
+  "image-size@1.2.1": "patches/image-size@1.2.1.patch",
+  "query-string@7.1.3": "patches/query-string@7.1.3.patch",
 });
 const APPROVED_DEPENDENCY_PATCH_FILE_SHA256 = Object.freeze({
   "patches/expo-router@57.0.20.patch":
     "ffa1618df41558ac3b01d8f3c430927676e751fd36251f89571d64347846b3e5",
+  "patches/image-size@1.2.1.patch":
+    "7961f99b36d1e0bc332c92e852d6ffcd386a08abe240e9d61ef603c4c5a12823",
+  "patches/query-string@7.1.3.patch":
+    "3501a7e3d4d32cdf00e245e581c66bdf46ed9358b6295571952aec2d5ad0e162",
 });
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
   "name",
@@ -456,11 +566,12 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
   "scripts",
   "private",
   "packageManager",
+  "overrides",
   "patchedDependencies",
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "bc58af1279ac6ae3074de3c7b5dff094c1926d5cd8554533b377a02b575a0c31";
+  "3fbc9103b255b6a85ee8ee8fc53c7539afb96f1cd7ee0197efee0fe578312d34";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -743,6 +854,8 @@ const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   "tsconfig.json",
   "contracts/bootstrap/openapi.json",
   "contracts/bootstrap/realtime-event.schema.json",
+  "contracts/server/manifest.json",
+  "contracts/server/openapi.json",
   "src/core/contracts/generated/",
   "docs/evidence/",
 ]);
@@ -789,6 +902,8 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "tests/core/auth/pkce.test.ts",
   "tests/features/auth/auth-screen.test.tsx",
   "docs/oauth-development.md",
+  "tests/quality/dependency-security.test.ts",
+  "tests/quality/image-size-security.test.ts",
   ...Object.keys(APPROVED_DEPENDENCY_PATCH_FILE_SHA256),
   ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
   ...M3_AUTHORED_FILES.filter(
@@ -803,6 +918,10 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M4_AUTHORED_FILES,
   ...M5_AUTHORED_FILES,
   ...M5_DESIGN_ARTIFACT_PATHS,
+  ...M6_01_AUTHORED_FILES,
+  ...M6_02_AUTHORED_FILES,
+  ...M6_03_AUTHORED_FILES,
+  ...M6_04_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -859,6 +978,10 @@ const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
   ...M4_AUTHORED_FILES,
   ...M5_REQUIRED_PRE_QUALITY_PATHS,
   ...M5_DESIGN_ARTIFACT_PATHS,
+  ...M6_01_AUTHORED_FILES,
+  ...M6_02_AUTHORED_FILES,
+  ...M6_03_AUTHORED_FILES,
+  ...M6_04_AUTHORED_FILES,
   ...AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS,
 ]);
 
@@ -1241,6 +1364,19 @@ function checkDependencyAndLockfile(snapshot, violations) {
 
   if (
     !deepEqual(
+      isPlainObject(packageJson.overrides) ? packageJson.overrides : {},
+      APPROVED_DEPENDENCY_OVERRIDES,
+    )
+  ) {
+    pushViolation(
+      violations,
+      "dependency-and-lockfile",
+      "package.json /overrides must exactly equal the approved security fixes.",
+    );
+  }
+
+  if (
+    !deepEqual(
       isPlainObject(packageJson.patchedDependencies)
         ? packageJson.patchedDependencies
         : {},
@@ -1297,20 +1433,20 @@ function checkM4Foundation(snapshot, violations) {
   if (
     !sameStringSet(sourceInventory.database, ACTIVE_DATABASE_SOURCE_FILES) ||
     !sameStringSet(sourceInventory.bootstrap, M4_BOOTSTRAP_CONTRACT_FILES) ||
-    !sameStringSet(sourceInventory.tools, M4_CONTRACT_TOOL_FILES)
+    !sameStringSet(sourceInventory.tools, ACTIVE_CONTRACT_TOOL_FILES)
   ) {
     pushViolation(
       violations,
       "m4-source-ownership",
-      "M4 database, bootstrap-contract, and contract-tool inventories must exactly equal the approved M4 baseline plus the sole M5 database-provider extension.",
+      "M4 database, bootstrap-contract, and contract-tool inventories must exactly equal the approved M4 baseline plus the sole M5 database-provider and M6 server-contract-tool extensions.",
     );
   }
 
-  if (!sameStringSet(sourceInventory.contracts, M4_CONTRACT_SOURCE_FILES)) {
+  if (!sameStringSet(sourceInventory.contracts, ACTIVE_CONTRACT_SOURCE_FILES)) {
     pushViolation(
       violations,
       "no-manual-rest-dto",
-      "src/core/contracts must contain exactly the approved mapper/validator sources plus the sole generated bootstrap-api.ts; hand-maintained duplicate REST DTO files are forbidden.",
+      "src/core/contracts must contain exactly the approved mapper/validator sources plus the sole generated bootstrap-api.ts and the M6 server contract validator/mapper/generated sources; hand-maintained duplicate REST DTO files are forbidden.",
     );
   }
 
@@ -1336,6 +1472,30 @@ function checkM4Foundation(snapshot, violations) {
       violations,
       "contract-generated-drift",
       `The non-mutating bootstrap contract checker must report status=ok${typeof contractCheck.reason === "string" ? ` (${contractCheck.reason})` : ""}.`,
+    );
+  }
+}
+
+function checkM6Foundation(snapshot, violations) {
+  const m6 = isPlainObject(snapshot && snapshot.m6) ? snapshot.m6 : {};
+  const sourceInventory = isPlainObject(m6.sourceInventory)
+    ? m6.sourceInventory
+    : {};
+
+  if (!sameStringSet(sourceInventory.server, M6_SERVER_CONTRACT_FILES)) {
+    pushViolation(
+      violations,
+      "m6-source-ownership",
+      "contracts/server must contain exactly the preserved upstream manifest/openapi snapshot plus the intake record and generation lock.",
+    );
+  }
+
+  const contractCheck = isPlainObject(m6.contractCheck) ? m6.contractCheck : {};
+  if (contractCheck.status !== "ok") {
+    pushViolation(
+      violations,
+      "server-contract-generated-drift",
+      `The non-mutating server contract checker must report status=ok${typeof contractCheck.reason === "string" ? ` (${contractCheck.reason})` : ""}.`,
     );
   }
 }
@@ -1936,6 +2096,7 @@ function checkArchitecture(snapshot) {
   checkMeaningfulInventory(snapshot, violations);
   checkDependencyAndLockfile(snapshot, violations);
   checkM4Foundation(snapshot, violations);
+  checkM6Foundation(snapshot, violations);
   checkM5Foundation(snapshot, violations);
   checkLintTransportBinding(snapshot, violations);
   checkExpoBasePreservation(snapshot, violations);
@@ -2042,6 +2203,33 @@ function runBootstrapContractCheck(root, { execFileSync, path }) {
   const scriptPath = path.join(
     root,
     "tools/contracts/check-bootstrap-contract.mjs",
+  );
+  try {
+    const output = execFileSync(process.execPath, [scriptPath], {
+      cwd: root,
+      encoding: "utf8",
+      shell: false,
+    });
+    return (
+      parseBootstrapContractCheckOutput(output) || {
+        reason: "checker-produced-no-json-result",
+        status: "error",
+      }
+    );
+  } catch (error) {
+    return (
+      parseBootstrapContractCheckOutput(error && error.stdout) || {
+        reason: error && error.message ? error.message : String(error),
+        status: "error",
+      }
+    );
+  }
+}
+
+function runServerContractCheck(root, { execFileSync, path }) {
+  const scriptPath = path.join(
+    root,
+    "tools/contracts/check-server-contract.mjs",
   );
   try {
     const output = execFileSync(process.execPath, [scriptPath], {
@@ -2219,6 +2407,9 @@ function buildLiveSnapshot(
       scripts: isPlainObject(packageJson.scripts) ? packageJson.scripts : {},
       dependencies,
       devDependencies,
+      overrides: isPlainObject(packageJson.overrides)
+        ? packageJson.overrides
+        : {},
       patchedDependencies: isPlainObject(packageJson.patchedDependencies)
         ? packageJson.patchedDependencies
         : {},
@@ -2256,6 +2447,12 @@ function buildLiveSnapshot(
       contractFileSha256,
       databaseTables,
       sourceInventory: m4SourceInventory,
+    },
+    m6: {
+      contractCheck: runServerContractCheck(root, { execFileSync, path }),
+      sourceInventory: {
+        server: listFilesUnder(root, { fs, path }, "contracts/server"),
+      },
     },
     m5: {
       authoredFiles: discoverM5AuthoredInventory(root, { fs, path }),
@@ -3273,6 +3470,11 @@ module.exports = {
   GLOBAL_COVERAGE_THRESHOLD,
   MEANINGFUL_TEST_PATHS,
   M4_AUTHORED_FILES,
+  M6_SERVER_CONTRACT_FILES,
+  M6_CONTRACT_SOURCE_FILES,
+  M6_CONTRACT_TOOL_FILES,
+  M6_CONTRACT_TEST_PATHS,
+  M6_01_AUTHORED_FILES,
   REQUIRED_TRANSPORT_GLOBS,
   FOREIGN_LOCKFILES,
 };

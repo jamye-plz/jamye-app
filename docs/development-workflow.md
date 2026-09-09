@@ -103,6 +103,24 @@ Nix 또는 package dependency를 바꾸면 이 표를 수동으로 먼저 믿지
 | `bun run check:architecture`         | 읽기 전용   | dependency, source boundary, generated output, script 계약 검사 |
 | `bun run check:code`                 | 복합 검사   | typecheck → lint → format → architecture → coverage             |
 
+M6 server contract snapshot은 별도 intake/generation/check 도구로 관리한다. 이 명령은 현재
+작업 디렉터리의 `contracts/server/` snapshot과 generated wire type만 대상으로 하며 sibling
+server checkout이나 실제 API를 호출하지 않는다.
+
+```sh
+# 이미 intake된 sibling contract를 변경하지 않고 snapshot을 갱신해야 할 때만 별도 승인
+nix develop . --command node tools/contracts/intake-server-contract.mjs
+nix develop . --command node tools/contracts/generate-server-contract.mjs
+
+# 현재 checked-in snapshot/generated output의 read-only drift check
+nix develop . --command node tools/contracts/check-server-contract.mjs
+```
+
+M6 runtime schema closure는 H1/H2 health, A1-A5 OAuth/session, U1 profile이다. Generated
+TypeScript가 runtime validation을 대신하지 않으므로 Ajv validator와 domain mapper test를
+함께 확인한다. Contract check가 통과해도 server deployment binding, provider login, native
+runtime 또는 production readiness를 의미하지 않는다.
+
 Focused test에는 test script 뒤에 Jest 인자를 전달한다.
 
 ```sh
@@ -144,6 +162,72 @@ bun run format:check
 
 `bun run check:code`의 전체 검사 역할은 유지하되 문서-only 변경에 native build를 요구하지
 않는다. 반대로 native-affecting change의 rebuild gate는 완화하지 않는다.
+
+2026-09-09 M6 기능 통합 검사는 41 suites/374 tests를 통과했다. 이후 사용자 승인으로
+의존성 보안을 수정한 실행에서는 43 suites/407 tests, server/bootstrap drift 검사가 모두
+통과했다. 기존 coverage 기준은 유지했다. 이 실행은 build/native/실계정 검증을 포함하지 않는다.
+
+### 의존성 보안 수정 기록 — 2026-09-09
+
+Expo 57.0.21, Router 57.0.20, React Native 0.86.3과 기존 Router 패치는 유지했다.
+`package.json`의 exact overrides와 `patchedDependencies`, `bun.lock`이 재현 가능한 설치를
+정의한다. 기존 architecture 검사는 이 변경의 정확한 값과 패치 내용을 확인하며, 임의의
+override 추가·버전 범위 확대·패치 제거를 회귀 테스트로 거부한다.
+
+| 의존성               | 적용한 수정                                    | 검증                                                            |
+| -------------------- | ---------------------------------------------- | --------------------------------------------------------------- |
+| js-yaml              | 4.3.2 override                                 | 빈 merge source의 CPU 한도 적용, 실제 YAML 소비자 4곳의 호환성  |
+| uuid                 | CommonJS 호환 수정판 11.1.1 override           | v3/v5 buffer 범위 검사, Xcode ID 생성                           |
+| decode-uri-component | 0.5.0 override와 query-string 7.1.3 호환 패치  | 잘못된 percent encoding, 한국어·공백·callback query 처리        |
+| image-size           | 1.2.1에 ICNS/JXL/HEIF 길이·반복 진행 검사 패치 | 악성 입력의 제한 시간 내 종료, PNG/JPEG/ICNS/JXL/HEIF 정상 치수 |
+
+보안/소비자 회귀 테스트는 `tests/quality/dependency-security.test.ts`와
+`tests/quality/image-size-security.test.ts`에 있다. 이미지 테스트는 실제 Metro 의존성을
+별도 프로세스에서 실행하고 시간 초과 시 강제 종료한다. 최초 이미지 패치의 적용 위치 오류도
+정상 JXL 테스트에서 발견해 수정했다. 설치된 코드로 전체 검사를 다시 통과시켰다.
+
+query-string 패치는 decode-uri-component 0.5.0의 ESM default export를 읽으면서 기존
+`+`→공백 동작을 유지한다. 두 의존성의 override/patch는 한 쌍이므로 따로 제거하지 않고
+함께 재검증한다. 기존 Router 패치는 CVE 대응이 아니라 NavigationContainer mount 이전
+initial-link state 갱신 오류를 막는 패치이며, 기존 회귀 테스트로 유지 여부를 확인한다.
+
+원본 `bun audit --json` 결과는 **High 2건, Moderate 0건**이다. 둘 다 image-size이며,
+공식 수정판이 없어 원래 버전 번호에 로컬 패치를 적용했다. 버전 기반 감사는 패치 내용을
+판단하지 않으므로 경고가 남는다. 이를 audit 0으로 표시하거나 suppress하지 않는다.
+관련 upstream 공지는 [ICNS advisory](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr)와
+[JXL/HEIF advisory](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq)다. 공식 수정판이 나오면
+호환성 검증 후 로컬 패치를 제거한다. 패치 검증과 native/user acceptance, 출시 승인은 별개다.
+
+독립 보안 리뷰는 설치 코드와 보안 회귀 테스트 24개를 확인해 수정 범위에서 PASS를 판정했다.
+이는 원본 감사가 0건이 됐다는 판정도, 앱 전체의 출시 승인도 아니다.
+
+설치는 lifecycle script를 실행하지 않는 다음 명령으로 재검증했다. 초기 설치에 남아 있던
+구버전 nested YAML은 같은 frozen lock으로 force 재설치한 뒤 실제 소비 경로를 다시 확인했다.
+
+```sh
+bun run deps:install:frozen --ignore-scripts
+```
+
+Expo install check와 Doctor 21/21, 기본 toolchain 39/39, native preflight 45/45도 통과했다.
+Native preflight와 별도로 사용자 승인에 따라 다음 명령을 pinned Nix devShell에서 실행했다.
+
+| 2026-09-09 실행 명령                                                                        | 결과                                                                 |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `CI=1 bun run expo:prebuild:clean --no-install --skip-dependency-update react,react-native` | exit 0; ignored iOS/Android native project 재생성, package 선언 유지 |
+| `bun run toolchain:check:native`                                                            | prebuild 전후 각각 45 PASS / 0 FAIL                                  |
+| `CI=1 bun run expo:run:ios --device 95B8CDCD-0C27-4B40-A48F-71AC2B0FD547`                   | exit 0; iPhone 17 / iOS 26.5 빌드·설치·실행, 0 errors / 1 warning    |
+| `CI=1 bun run expo:run:android --device jamye_pixel_9_api_36`                               | exit 0; Android 빌드·설치·실행, BUILD SUCCESSFUL                     |
+| `bun run expo:start --clear --lan --port 8081`                                              | Metro 실행; iOS·Android bundle과 앱 화면 확인                        |
+
+Android의 최초 `--device emulator-5554` 실행은 Expo device name과 ADB serial 차이로
+빌드 전에 실패했다. AVD 이름으로 재실행해 통과했다. Metro의 초기 localhost 실행에서는
+IPv6 `::1`과 launcher의 `127.0.0.1` 연결이 맞지 않아 LAN listener로 다시 실행했다.
+Android에 일시적인 시스템 응답 지연 팝업이 관찰됐지만, 앱 데이터 삭제나 에뮬레이터 재부팅은
+수행하지 않았다. 해당 팝업의 원인을 해결했다고 판정하지는 않는다.
+
+이후 사용자가 양 플랫폼에서 Kakao·Google 실계정 로그인 4개 조합을 모두 확인했다.
+에이전트의 iOS 프로필·계정 저장소·재시작 복원 관찰과 사용자 로그인 결과, 미확인 lifecycle
+항목은 [OAuth 실행 검증](oauth-development.md)에 구분해 기록한다. 이 결과는 앱 전체 출시 승인이 아니다.
 
 ## 4. Dependency와 toolchain script
 
