@@ -18,6 +18,10 @@ const SCREEN_AND_COMPONENT_FILES = [
   "src/shared/ui/**/*.tsx",
 ];
 const NODE_COMMONJS_TOOL_FILES = ["tools/**/*.cjs"];
+const AUTH_TRANSPORT_FILES = [
+  "src/core/auth/**/*.ts",
+  "src/core/auth/**/*.tsx",
+];
 
 const FORBIDDEN_TRANSPORT_GLOBALS = [
   {
@@ -296,6 +300,16 @@ module.exports = defineConfig([
         },
       ],
       "local/no-coverage-ignore-directives": "error",
+    },
+  },
+  {
+    files: AUTH_TRANSPORT_FILES,
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...FORBIDDEN_TRANSPORT_GLOBALS.filter(({ name }) => name !== "fetch"),
+      ],
+      "no-restricted-properties": ["error", ...FORBIDDEN_TRANSPORT_PROPERTIES],
     },
   },
   {

@@ -41,6 +41,7 @@ const DEVELOPMENT_IDENTITY = {
 };
 
 const DEV_CLIENT_PLUGIN = ["expo-dev-client", { addGeneratedScheme: true }];
+const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"];
 const INITIAL_APP_VARIANT = process.env.APP_VARIANT;
 const INITIAL_PUBLIC_APP_MODE = process.env.EXPO_PUBLIC_APP_MODE;
 
@@ -208,7 +209,12 @@ describe("M3-I1 Expo configuration contract", () => {
         ...(base.android as UnknownRecord),
         package: DEVELOPMENT_IDENTITY.androidPackage,
       },
-      plugins: [...(base.plugins as unknown[]), DEV_CLIENT_PLUGIN],
+      scheme: "jamye",
+      plugins: [
+        ...(base.plugins as unknown[]),
+        DEV_CLIENT_PLUGIN,
+        ...OAUTH_NATIVE_PLUGINS,
+      ],
     });
     expect(resolved).toMatchObject({
       name: DEVELOPMENT_IDENTITY.name,
@@ -216,10 +222,11 @@ describe("M3-I1 Expo configuration contract", () => {
       ios: { bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier },
       android: { package: DEVELOPMENT_IDENTITY.androidPackage },
     });
-    expect(resolved).not.toHaveProperty("scheme");
+    expect(resolved.scheme).toBe("jamye");
     expect(resolved.plugins).toEqual([
       ...PINNED_BASE.plugins,
       DEV_CLIENT_PLUGIN,
+      ...OAUTH_NATIVE_PLUGINS,
     ]);
   });
 

@@ -59,16 +59,20 @@ auth 실행을 뜻하지 않는다.
 
 | 항목                    | 값                  |
 | ----------------------- | ------------------- |
-| Expo                    | `~57.0.20`          |
+| Expo                    | `~57.0.21`          |
 | React Native            | `0.86.3`            |
 | React                   | `19.2.3`            |
-| Expo Router             | `~57.0.19`          |
+| Expo Router             | `~57.0.20`          |
 | Expo Development Client | `~57.0.18`          |
 | Keyboard Controller     | `1.21.9`            |
 | TypeScript              | `~6.0.3`            |
 | package manager         | Bun `1.3.13`        |
 | route root              | `src/app/`          |
 | entry                   | `expo-router/entry` |
+
+Expo Router의 초기 링크가 마운트 전에 상태를 갱신하는 문제는 57.0.20에도 남아 있어
+`patches/expo-router@57.0.20.patch`를 유지한다. 버전 업데이트 시 원본 코드와 패치 적용 여부를
+확인하며, 설치된 코드의 마운트 지연 처리는 회귀 테스트로 검사한다.
 
 Development variant의 simulator/emulator 식별자는 다음 네 값으로만 구성한다.
 

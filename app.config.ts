@@ -14,6 +14,8 @@ const DEV_CLIENT_PLUGIN = [
   { addGeneratedScheme: true },
 ] as const;
 
+const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"] as const;
+
 function parseAppVariant(value: string | undefined): AppVariant {
   if (!value) {
     throw new Error(
@@ -47,6 +49,7 @@ export default function resolveExpoConfig() {
     ...baseConfig,
     name: DEVELOPMENT_IDENTITY.name,
     slug: DEVELOPMENT_IDENTITY.slug,
+    scheme: "jamye",
     ios: {
       ...baseConfig.ios,
       bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier,
@@ -55,6 +58,10 @@ export default function resolveExpoConfig() {
       ...baseConfig.android,
       package: DEVELOPMENT_IDENTITY.androidPackage,
     },
-    plugins: [...baseConfig.plugins, DEV_CLIENT_PLUGIN],
+    plugins: [
+      ...baseConfig.plugins,
+      DEV_CLIENT_PLUGIN,
+      ...OAUTH_NATIVE_PLUGINS,
+    ],
   };
 }

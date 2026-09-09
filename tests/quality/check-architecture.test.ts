@@ -133,6 +133,15 @@ const M5_FEATURE_DATA_DATABASE_PATTERNS = [
 ];
 const M5_REPOSITORY_PORT_PATTERN =
   "**/core/database/repositories/database-repository";
+const OAUTH_TEST_PATHS = [
+  "tests/core/auth/auth-api.test.ts",
+  "tests/core/auth/auth-controller.test.ts",
+  "tests/core/auth/auth-flow.test.ts",
+  "tests/core/auth/callback.test.ts",
+  "tests/core/auth/secure-session-store.test.ts",
+  "tests/core/auth/pkce.test.ts",
+  "tests/features/auth/auth-screen.test.tsx",
+];
 
 const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M3_TEST_PATHS.filter(
@@ -142,6 +151,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M5_TEST_PATHS.filter(
     (path, index, paths) => paths.indexOf(path) === index,
   ),
+  ...OAUTH_TEST_PATHS,
 ].filter((path, index, paths) => paths.indexOf(path) === index);
 
 const MEANINGFUL_TEST_PATHS = ACTIVE_MEANINGFUL_TEST_PATHS;
@@ -177,15 +187,19 @@ const M3_AUTHORED_FILES = [
 
 const APPROVED_DEPENDENCIES = {
   ajv: "8.20.0",
-  expo: "~57.0.20",
+  expo: "~57.0.21",
+  "expo-auth-session": "~57.0.11",
   "expo-constants": "~57.0.17",
+  "expo-crypto": "~57.0.2",
   "expo-dev-client": "~57.0.18",
   "expo-font": "~57.0.3",
   "expo-linking": "~57.0.9",
-  "expo-router": "~57.0.19",
+  "expo-router": "~57.0.20",
+  "expo-secure-store": "~57.0.3",
   "expo-splash-screen": "~57.0.8",
   "expo-sqlite": "~57.0.2",
   "expo-system-ui": "~57.0.3",
+  "expo-web-browser": "~57.0.2",
   react: "19.2.3",
   "react-dom": "19.2.3",
   "react-native": "0.86.3",
@@ -213,7 +227,7 @@ const APPROVED_DEV_DEPENDENCIES = {
 };
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "80325d7c7118115dccc2dc2db671b0ec88b28a320fb88dc03d2eab1bef54de65";
+  "bc58af1279ac6ae3074de3c7b5dff094c1926d5cd8554533b377a02b575a0c31";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -369,7 +383,10 @@ function buildValidRepositorySnapshot() {
   resolvedDevelopment.plugins = [
     ...clone(PINNED_BASE.plugins),
     ["expo-dev-client", { addGeneratedScheme: true }],
+    "expo-web-browser",
+    "expo-secure-store",
   ];
+  resolvedDevelopment.scheme = "jamye";
 
   return {
     packageJson: {
@@ -752,7 +769,7 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
   test("denies a stale Expo compatibility pin after baseline promotion", () => {
     const snapshot = buildValidRepositorySnapshot();
     (snapshot.packageJson.dependencies as Record<string, string>).expo =
-      "~57.0.19";
+      "~57.0.20";
 
     const result: CheckResult = checkArchitecture(snapshot);
 
@@ -765,7 +782,7 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     const snapshot = buildValidRepositorySnapshot();
     (snapshot.packageJson.dependencies as Record<string, string>)[
       "expo-router"
-    ] = "~57.0.18";
+    ] = "~57.0.19";
 
     const result: CheckResult = checkArchitecture(snapshot);
 
@@ -777,7 +794,7 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
   test("denies a missing or redirected Expo Router dependency patch", () => {
     const snapshot = buildValidRepositorySnapshot();
     delete (snapshot.packageJson.patchedDependencies as Record<string, string>)[
-      "expo-router@57.0.19"
+      "expo-router@57.0.20"
     ];
 
     const result: CheckResult = checkArchitecture(snapshot);
@@ -790,7 +807,7 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
   test("denies Expo Router dependency patch content drift", () => {
     const snapshot = buildValidRepositorySnapshot();
     (snapshot.dependencyPatchFileSha256 as Record<string, string>)[
-      "patches/expo-router@57.0.19.patch"
+      "patches/expo-router@57.0.20.patch"
     ] = "0".repeat(64);
 
     const result: CheckResult = checkArchitecture(snapshot);
@@ -1037,10 +1054,10 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
 
   test("allows only the exact hash-bound approved recovery paths in the working-tree overlay", () => {
     expect(APPROVED_PATCHED_DEPENDENCIES).toEqual({
-      "expo-router@57.0.19": "patches/expo-router@57.0.19.patch",
+      "expo-router@57.0.20": "patches/expo-router@57.0.20.patch",
     });
     expect(APPROVED_DEPENDENCY_PATCH_FILE_SHA256).toEqual({
-      "patches/expo-router@57.0.19.patch":
+      "patches/expo-router@57.0.20.patch":
         "ffa1618df41558ac3b01d8f3c430927676e751fd36251f89571d64347846b3e5",
     });
     expect(APPROVED_RECOVERY_FILE_SHA256).toEqual({
@@ -1072,7 +1089,7 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
 
     expect(isAuthorizedWorkingTreePath("tsconfig.recovery.json")).toBe(false);
     expect(
-      isAuthorizedWorkingTreePath("patches/expo-router@57.0.20.patch"),
+      isAuthorizedWorkingTreePath("patches/expo-router@57.0.21.patch"),
     ).toBe(false);
     expect(isAuthorizedWorkingTreePath("nix/dev-shell.cc.nix")).toBe(false);
     expect(
@@ -1428,10 +1445,10 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     );
   });
 
-  test("denies a public custom scheme on the development variant (variant-and-security)", () => {
+  test("denies a non-Jamye scheme on the development variant (variant-and-security)", () => {
     const snapshot = buildValidRepositorySnapshot();
     (snapshot.expoBase.resolvedDevelopment as Record<string, unknown>).scheme =
-      "jamye";
+      "other";
 
     const result: CheckResult = checkArchitecture(snapshot);
 

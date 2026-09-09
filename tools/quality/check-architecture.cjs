@@ -148,7 +148,6 @@ const REQUIRED_ABSENT_DEMO_DIRECT_DEPENDENCIES = Object.freeze([
   "expo-image",
   "expo-status-bar",
   "expo-symbols",
-  "expo-web-browser",
 ]);
 
 const DIRECT_DEPENDENCY_DENYLIST = Object.freeze([
@@ -175,8 +174,6 @@ const DIRECT_DEPENDENCY_DENYLIST = Object.freeze([
   "realm",
   "@nozbe/watermelondb",
   "@react-native-async-storage/async-storage",
-  "expo-secure-store",
-  "expo-auth-session",
   "expo-notifications",
   "axios",
   "ky",
@@ -342,8 +339,22 @@ const ACTIVE_M3_TEST_PATHS = Object.freeze(
   M3_TEST_PATHS.filter((file) => !M5_RETIRED_PLACEHOLDER_PATHS.includes(file)),
 );
 
+const OAUTH_TEST_PATHS = Object.freeze([
+  "tests/core/auth/auth-api.test.ts",
+  "tests/core/auth/auth-controller.test.ts",
+  "tests/core/auth/auth-flow.test.ts",
+  "tests/core/auth/callback.test.ts",
+  "tests/core/auth/secure-session-store.test.ts",
+  "tests/core/auth/pkce.test.ts",
+  "tests/features/auth/auth-screen.test.tsx",
+]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
-  ...new Set([...ACTIVE_M3_TEST_PATHS, ...M4_TEST_PATHS, ...M5_TEST_PATHS]),
+  ...new Set([
+    ...ACTIVE_M3_TEST_PATHS,
+    ...M4_TEST_PATHS,
+    ...M5_TEST_PATHS,
+    ...OAUTH_TEST_PATHS,
+  ]),
 ]);
 
 const APPROVED_M4_DATABASE_TABLES = Object.freeze([
@@ -383,15 +394,19 @@ const AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS = Object.freeze([
 
 const APPROVED_DEPENDENCIES = Object.freeze({
   ajv: "8.20.0",
-  expo: "~57.0.20",
+  expo: "~57.0.21",
+  "expo-auth-session": "~57.0.11",
   "expo-constants": "~57.0.17",
+  "expo-crypto": "~57.0.2",
   "expo-dev-client": "~57.0.18",
   "expo-font": "~57.0.3",
   "expo-linking": "~57.0.9",
-  "expo-router": "~57.0.19",
+  "expo-router": "~57.0.20",
+  "expo-secure-store": "~57.0.3",
   "expo-splash-screen": "~57.0.8",
   "expo-sqlite": "~57.0.2",
   "expo-system-ui": "~57.0.3",
+  "expo-web-browser": "~57.0.2",
   react: "19.2.3",
   "react-dom": "19.2.3",
   "react-native": "0.86.3",
@@ -426,10 +441,10 @@ const APPROVED_MANIFEST_POINTERS = Object.freeze({
   packageManager: "bun@1.3.13",
 });
 const APPROVED_PATCHED_DEPENDENCIES = Object.freeze({
-  "expo-router@57.0.19": "patches/expo-router@57.0.19.patch",
+  "expo-router@57.0.20": "patches/expo-router@57.0.20.patch",
 });
 const APPROVED_DEPENDENCY_PATCH_FILE_SHA256 = Object.freeze({
-  "patches/expo-router@57.0.19.patch":
+  "patches/expo-router@57.0.20.patch":
     "ffa1618df41558ac3b01d8f3c430927676e751fd36251f89571d64347846b3e5",
 });
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
@@ -445,7 +460,7 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "80325d7c7118115dccc2dc2db671b0ec88b28a320fb88dc03d2eab1bef54de65";
+  "bc58af1279ac6ae3074de3c7b5dff094c1926d5cd8554533b377a02b575a0c31";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -457,6 +472,10 @@ const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
 const APPROVED_DEV_CLIENT_PLUGIN = Object.freeze([
   "expo-dev-client",
   Object.freeze({ addGeneratedScheme: true }),
+]);
+const APPROVED_OAUTH_NATIVE_PLUGINS = Object.freeze([
+  "expo-web-browser",
+  "expo-secure-store",
 ]);
 
 const APPROVED_PREBUILD_ANDROID_PERMISSIONS = Object.freeze([
@@ -734,7 +753,6 @@ const RESERVED_DEFERRED_PATHS = Object.freeze([
   "src/navigators",
   "src/routes",
   "src/router",
-  "src/core/auth",
   "src/core/network",
   "src/core/platform",
   "src/core/push",
@@ -752,6 +770,25 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "jest.config.js",
   "package.json",
   "bun.lock",
+  "src/core/auth/auth-api.ts",
+  "src/core/auth/app-return-uri.ts",
+  "src/core/auth/auth-controller.ts",
+  "src/core/auth/callback.ts",
+  "src/core/auth/pkce.ts",
+  "src/core/auth/secure-session-store.ts",
+  "src/core/auth/types.ts",
+  "src/features/auth/ui/auth-screen.tsx",
+  "src/features/auth/ui/oauth-callback-screen.tsx",
+  "src/app/+native-intent.tsx",
+  "src/app/oauth/[provider].tsx",
+  "tests/core/auth/auth-api.test.ts",
+  "tests/core/auth/auth-controller.test.ts",
+  "tests/core/auth/auth-flow.test.ts",
+  "tests/core/auth/callback.test.ts",
+  "tests/core/auth/secure-session-store.test.ts",
+  "tests/core/auth/pkce.test.ts",
+  "tests/features/auth/auth-screen.test.tsx",
+  "docs/oauth-development.md",
   ...Object.keys(APPROVED_DEPENDENCY_PATCH_FILE_SHA256),
   ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
   ...M3_AUTHORED_FILES.filter(
@@ -775,6 +812,7 @@ const APPROVED_RECOVERY_CREATE_OR_REPLACE_PATHS = Object.freeze(
 );
 
 const AUTHORIZED_DELETE_PATHS = Object.freeze([
+  "patches/expo-router@57.0.19.patch",
   "app.json",
   "src/app/explore.tsx",
   "scripts/reset-project.js",
@@ -1674,12 +1712,13 @@ function checkExpoBasePreservation(snapshot, violations) {
   const expectedPlugins = [
     ...APPROVED_EXPO_BASE.plugins,
     APPROVED_DEV_CLIENT_PLUGIN,
+    ...APPROVED_OAUTH_NATIVE_PLUGINS,
   ];
   if (!deepEqual(plugins, expectedPlugins)) {
     pushViolation(
       violations,
       "expo-base-preservation",
-      'Development config plugins must equal the preserved base plugins followed by exactly ["expo-dev-client", { "addGeneratedScheme": true }].',
+      "Development config plugins must equal the preserved base plugins followed by the fixed dev client and OAuth native plugins.",
     );
   }
 
@@ -1834,11 +1873,11 @@ function checkVariantAndSecurity(snapshot, violations) {
     ? snapshot.expoBase.resolvedDevelopment
     : {};
 
-  if (Object.prototype.hasOwnProperty.call(resolvedDevelopment, "scheme")) {
+  if (resolvedDevelopment.scheme !== "jamye") {
     pushViolation(
       violations,
       "variant-and-security",
-      "The development variant must not declare a top-level (public/custom) scheme.",
+      'The development variant must declare only the fixed OAuth return scheme "jamye".',
     );
   }
 

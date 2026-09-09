@@ -4,15 +4,19 @@
   "version": "1.0.0",
   "dependencies": {
     "ajv": "8.20.0",
-    "expo": "~57.0.20",
+    "expo": "~57.0.21",
+    "expo-auth-session": "~57.0.11",
     "expo-constants": "~57.0.17",
+    "expo-crypto": "~57.0.2",
     "expo-dev-client": "~57.0.18",
     "expo-font": "~57.0.3",
     "expo-linking": "~57.0.9",
-    "expo-router": "~57.0.19",
+    "expo-router": "~57.0.20",
+    "expo-secure-store": "~57.0.3",
     "expo-splash-screen": "~57.0.8",
     "expo-sqlite": "~57.0.2",
     "expo-system-ui": "~57.0.3",
+    "expo-web-browser": "~57.0.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -70,6 +74,6 @@
   "private": true,
   "packageManager": "bun@1.3.13",
   "patchedDependencies": {
-    "expo-router@57.0.19": "patches/expo-router@57.0.19.patch"
+    "expo-router@57.0.20": "patches/expo-router@57.0.20.patch"
   }
 }
