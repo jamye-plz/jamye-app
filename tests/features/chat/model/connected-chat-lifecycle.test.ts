@@ -1,16 +1,14 @@
 import { createConnectedChatStore } from "@/features/chat/model/connected-chat-store";
-import { ChatApiError } from "@/features/chat/data/chat-api";
-import type { ChatMessageSendResult } from "@/features/chat/data/chat-api";
 import {
   CHATROOM_ID,
   OTHER_CHATROOM_ID,
   PRINCIPAL,
-  canonicalWireMessage,
   deferred,
   emptyMessageWindow,
   fakeChatApi,
   fakeClock,
   fakeConnectedChatRepository,
+  fakeConnectedSync,
   fakeMessageIdentity,
   pendingEnqueueResult,
 } from "./connected-chat-fixtures";
@@ -42,83 +40,64 @@ function setup() {
     return { message: row, command };
   });
   const identity = fakeMessageIdentity();
+  const sync = fakeConnectedSync();
   const store = createConnectedChatStore({
     createApi: () => api,
     clock: fakeClock(),
     messageIdentity: identity,
+    createSync: sync.create,
   });
   store.setPrincipal(PRINCIPAL, repository, (execute, signal) =>
     execute("fake", signal!),
   );
-  return { store, api, repository, identity };
+  return { store, api, repository, identity, sync };
 }
 
-test("SQLite pending and failed rows are visible before and after the HTTP attempt", async () => {
-  const { store, api } = setup();
+test("SQLite pending and dispatcher-failed rows are visible without a view-owned HTTP attempt", async () => {
+  const { store, api, repository, sync } = setup();
   await store.actions.openRoom(CHATROOM_ID);
-  const response = deferred<ChatMessageSendResult>();
-  const started = deferred<void>();
-  api.sendChatMessage.mockImplementation(() => {
-    started.resolve();
-    return response.promise;
-  });
-  const sending = store.actions.sendMessage("그대로\n보내기");
-  await started.promise;
+  await store.actions.sendMessage("그대로\n보내기");
   expect(store.getState().history.items).toEqual([
     expect.objectContaining({ body: "그대로\n보내기", status: "pending" }),
   ]);
-  response.reject(new ChatApiError(0, "network_error"));
-  await sending;
+  // Simulate a stable failure already committed by the exclusive dispatcher.
+  await repository.markSendFailed({
+    clientMsgId: "gen-client-1",
+    errorCode: "conflict",
+  });
+  await sync.bindings[0].onChanged();
   expect(store.getState().history.items[0]?.status).toBe("failed");
+  expect(api.sendChatMessage).not.toHaveBeenCalled();
+  store.dispose();
 });
 
 test.each(["background", "closeRoom"] as const)(
-  "%s interrupts pending send; re-entry permits only an explicit exact retry",
+  "%s preserves the pending send identity for the account dispatcher on re-entry",
   async (action) => {
-    const { store, api, repository, identity } = setup();
+    const { store, api, repository, identity, sync } = setup();
     await store.actions.openRoom(CHATROOM_ID);
-    const response = deferred<ChatMessageSendResult>();
-    const started = deferred<void>();
-    api.sendChatMessage.mockImplementationOnce(() => {
-      started.resolve();
-      return response.promise;
-    });
-    const sending = store.actions.sendMessage("한글 🙂\n 원문 ");
-    await started.promise;
+    await store.actions.sendMessage("한글 🙂\n 원문 ");
     store.actions[action]();
     if (action === "background") await store.actions.foreground();
     else await store.actions.openRoom(CHATROOM_ID);
-    expect(repository.markSendFailed).toHaveBeenCalledWith({
-      clientMsgId: "gen-client-1",
-      errorCode: "network",
-    });
-    expect(store.getState().history.items[0]?.status).toBe("failed");
+    expect(repository.markSendFailed).not.toHaveBeenCalled();
+    expect(store.getState().history.items[0]?.status).toBe("pending");
     expect(store.getState().send.status).not.toBe("pending");
-    expect(api.sendChatMessage).toHaveBeenCalledTimes(1);
-    response.resolve({ status: 201, message: canonicalWireMessage() });
-    await sending;
+    expect(api.sendChatMessage).not.toHaveBeenCalled();
     expect(repository.mergeCanonicalMessage).not.toHaveBeenCalled();
-    api.sendChatMessage.mockRejectedValueOnce(
-      new ChatApiError(0, "network_error"),
-    );
     await store.actions.retryMessage("gen-client-1");
-    expect(api.sendChatMessage).toHaveBeenCalledTimes(2);
-    expect(api.sendChatMessage).toHaveBeenLastCalledWith(
-      "fake",
-      CHATROOM_ID,
-      { body: "한글 🙂\n 원문 ", clientMessageId: "gen-client-1" },
-      expect.anything(),
-    );
+    expect(repository.retryFailedMessage).not.toHaveBeenCalled();
+    expect(sync.runtime.wake).toHaveBeenCalledTimes(1);
     expect(identity.next).toHaveBeenCalledTimes(1);
+    store.dispose();
   },
 );
 
 test("double tap during SQLite enqueue creates just one command", async () => {
-  const { store, repository, identity, api } = setup();
+  const { store, repository, identity } = setup();
   await store.actions.openRoom(CHATROOM_ID);
   const write = deferred<ReturnType<typeof pendingEnqueueResult>>();
   repository.enqueuePendingMessage.mockReturnValueOnce(write.promise);
-  api.sendChatMessage.mockRejectedValue(new ChatApiError(0, "network_error"));
   const first = store.actions.sendMessage("first");
   const second = store.actions.sendMessage("second");
   expect(identity.next).toHaveBeenCalledTimes(1);
@@ -136,7 +115,7 @@ test("background during enqueue settles the local row without dispatch or cross-
   write.resolve(pendingEnqueueResult());
   await sending;
   await store.actions.foreground();
-  expect(repository.markSendFailed).toHaveBeenCalled();
+  expect(repository.markSendFailed).not.toHaveBeenCalled();
   expect(api.sendChatMessage).not.toHaveBeenCalled();
   await store.actions.openRoom(OTHER_CHATROOM_ID);
   expect(store.getState().history.items).toEqual([]);

@@ -134,6 +134,7 @@ const M5_FEATURE_DATA_DATABASE_PATTERNS = [
   "**/core/database/account/migrations",
   "**/core/database/account/migrations/**",
   "**/core/database/account/connected-chat-repository",
+  "**/core/database/account/connected-chat-sync-repository",
 ];
 const M5_REPOSITORY_PORT_PATTERN =
   "**/core/database/repositories/database-repository";
@@ -152,6 +153,16 @@ const M6_SERVER_CONTRACT_FILES = [
   "contracts/server/intake.json",
   "contracts/server/manifest.json",
   "contracts/server/openapi.json",
+];
+const M9_SERVER_CONTRACT_FILES = [
+  "contracts/server/fixtures/mobile-sync-handoff.json",
+  "contracts/server/fixtures/realtime-lifecycle.json",
+  "contracts/server/fixtures/unknown-event-recovery.json",
+  "contracts/server/realtime/client-frame.schema.json",
+  "contracts/server/realtime/message.created.schema.json",
+  "contracts/server/realtime/protocol.json",
+  "contracts/server/realtime/server-frame.schema.json",
+  "contracts/server/realtime/topic.created.schema.json",
 ];
 
 const M6_CONTRACT_SOURCE_FILES = [
@@ -247,6 +258,16 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M6_04_TEST_PATHS,
   ...M7_TEST_PATHS,
   ...M8_TEST_PATHS,
+  "tests/core/database/account/connected-chat-sync-repository.test.ts",
+  "tests/features/sync/model/profile-recovery.test.ts",
+  "tests/features/sync/model/account-sync.test.ts",
+  "tests/features/sync/outbox/outbox-dispatcher.test.ts",
+  "tests/features/sync/realtime/sync-api.test.ts",
+  "tests/features/sync/realtime/realtime-socket.test.ts",
+  "tests/features/sync/realtime/delta-sync.test.ts",
+  "tests/features/sync/realtime/realtime-sync.test.ts",
+  "tests/features/chat/model/connected-chat-sync.test.ts",
+  "tests/quality/sync-boundaries.test.ts",
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
 ].filter((path, index, paths) => paths.indexOf(path) === index);
@@ -456,6 +477,8 @@ const ACTIVE_DATABASE_SOURCE_FILES = [
   "src/core/database/database-provider.tsx",
   ...M6_03_DATABASE_SOURCE_FILES,
   ...M8_DATABASE_SOURCE_FILES,
+  "src/core/database/account/connected-chat-sync-repository.ts",
+  "src/core/database/account/migrations/003-durable-outbox-events.ts",
 ];
 const M4_CONTRACT_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
   path.startsWith("src/core/contracts/"),
@@ -591,7 +614,10 @@ function buildValidRepositorySnapshot() {
     m6: {
       contractCheck: { status: "ok" },
       sourceInventory: {
-        server: clone(M6_SERVER_CONTRACT_FILES),
+        server: clone([
+          ...M6_SERVER_CONTRACT_FILES,
+          ...M9_SERVER_CONTRACT_FILES,
+        ]),
       },
     },
     m5: {
@@ -1432,6 +1458,34 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
         "src/features/development-fixture/model/legacy-fixture.ts",
       ),
     ).toBe(false);
+  });
+
+  test("authorizes only the exact M9 sync boundary and preserves adjacent prohibitions", () => {
+    for (const path of [
+      "docs/evidence/M9.md",
+      "src/core/database/account/connected-chat-sync-repository.ts",
+      "src/core/database/account/migrations/003-durable-outbox-events.ts",
+      "src/features/sync/outbox/outbox-dispatcher.ts",
+      "src/features/sync/realtime/sync-api.ts",
+      "src/features/sync/realtime/realtime-socket.ts",
+      "src/features/sync/realtime/delta-sync.ts",
+      "src/features/sync/realtime/realtime-sync.ts",
+      "src/features/sync/model/profile-recovery.ts",
+      "src/features/sync/model/account-sync.ts",
+      "contracts/server/realtime/protocol.json",
+      "contracts/server/fixtures/unknown-event-recovery.json",
+      "tests/features/chat/model/connected-chat-sync.test.ts",
+      "tests/quality/sync-boundaries.test.ts",
+    ])
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    for (const path of [
+      "src/features/sync/model/unread-badges.ts",
+      "src/features/sync/model/global-network.ts",
+      "src/core/database/account/reset-all.ts",
+      "contracts/server/realtime/invented-event.schema.json",
+      "src/features/chat/model/realtime-dispatcher.ts",
+    ])
+      expect(isAuthorizedWorkingTreePath(path)).toBe(false);
   });
 
   test("denies a missing M5 authored inventory path", () => {

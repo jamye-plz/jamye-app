@@ -20,6 +20,22 @@ const M6_SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "H2",
   "U1",
 ]);
+// M9 selectively vendors the realtime protocol/frame schemas and only the
+// three M9 recovery fixtures out of the upstream bundle's larger fixture set
+// (c2-*/c4-* server-side fixtures and other lifecycle fixtures stay
+// upstream-only). Every path below is still covered by the whole-bundle
+// checksum verified in verifyUpstreamBundleChecksum before any byte is
+// mirrored, so selective vendoring never weakens provenance.
+export const SELECTIVE_M9_VENDORED_ARTIFACTS = Object.freeze([
+  "fixtures/mobile-sync-handoff.json",
+  "fixtures/realtime-lifecycle.json",
+  "fixtures/unknown-event-recovery.json",
+  "realtime/client-frame.schema.json",
+  "realtime/message.created.schema.json",
+  "realtime/protocol.json",
+  "realtime/server-frame.schema.json",
+  "realtime/topic.created.schema.json",
+]);
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -190,11 +206,14 @@ async function writeStagedFiles(files) {
  * Reads the upstream jamye-server contract bundle (read-only), verifies its
  * documented checksum algorithm over the exact artifact inventory declared
  * in its manifest (rejecting missing/escaping paths and any content drift),
- * then mirrors only the two artifacts this milestone's schema closure needs
- * (openapi.json, manifest.json) byte-identically into the local snapshot and
- * writes one intake record. The upstream manifest's own fields (including
- * server_commit: "dirty") are preserved verbatim; the actual local source
- * Git revision is recorded separately in the intake record.
+ * then mirrors openapi.json and manifest.json plus the selectively vendored
+ * M9 realtime protocol/frame schemas and recovery fixtures
+ * (SELECTIVE_M9_VENDORED_ARTIFACTS) byte-identically into the local snapshot
+ * and writes one intake record, including a per-artifact sha256 map
+ * (selective_vendor_sha256) the checker uses to detect local tampering. The
+ * upstream manifest's own fields (including server_commit: "dirty") are
+ * preserved verbatim; the actual local source Git revision is recorded
+ * separately in the intake record.
  */
 export async function intakeServerContract({
   upstreamContractRoot,
@@ -213,7 +232,7 @@ export async function intakeServerContract({
   const upstreamOpenapiBytes = await readFile(upstreamOpenapiPath);
   const upstreamManifestBytes = await readFile(upstreamManifestPath);
 
-  const { artifactCount } = await verifyUpstreamBundleChecksum(
+  const { artifactCount, artifacts } = await verifyUpstreamBundleChecksum(
     upstreamManifest,
     resolvedUpstreamRoot,
   );
@@ -229,11 +248,32 @@ export async function intakeServerContract({
     );
   }
 
+  const missingSelectiveArtifacts = SELECTIVE_M9_VENDORED_ARTIFACTS.filter(
+    (artifactPath) => !artifacts.includes(artifactPath),
+  );
+  if (missingSelectiveArtifacts.length > 0) {
+    throw new Error(
+      `Upstream manifest does not declare the selectively vendored artifact(s): ${missingSelectiveArtifacts.join(", ")}.`,
+    );
+  }
+  const selectiveVendoredFiles = await Promise.all(
+    SELECTIVE_M9_VENDORED_ARTIFACTS.map(async (artifactPath) => ({
+      bytes: await readFile(
+        assertArtifactPathIsContained(artifactPath, resolvedUpstreamRoot),
+      ),
+      path: artifactPath,
+    })),
+  );
+  const selectiveVendorSha256 = Object.fromEntries(
+    selectiveVendoredFiles.map(({ bytes, path }) => [path, sha256(bytes)]),
+  );
+
   const intake = normalizeJson({
     checksum_algorithm: upstreamManifest.checksum_algorithm,
     generator_identity: GENERATOR_IDENTITY,
     intake_kind: "server-snapshot",
     schema_closure_operation_ids: [...M6_SCHEMA_CLOSURE_OPERATION_IDS],
+    selective_vendor_sha256: selectiveVendorSha256,
     source_git_revision: sourceGitRevision,
     upstream_artifact_count: artifactCount,
     upstream_bundle_sha256: upstreamManifest.sha256,
@@ -246,6 +286,8 @@ export async function intakeServerContract({
   });
 
   await mkdir(resolvedLocalRoot, { recursive: true });
+  await mkdir(join(resolvedLocalRoot, "fixtures"), { recursive: true });
+  await mkdir(join(resolvedLocalRoot, "realtime"), { recursive: true });
   await writeStagedFiles([
     {
       contents: upstreamOpenapiBytes,
@@ -255,13 +297,24 @@ export async function intakeServerContract({
       contents: upstreamManifestBytes,
       path: join(resolvedLocalRoot, MANIFEST_FILE_NAME),
     },
+    ...selectiveVendoredFiles.map(({ bytes, path }) => ({
+      contents: bytes,
+      path: join(resolvedLocalRoot, ...path.split("/")),
+    })),
     {
       contents: canonicalizeJson(intake),
       path: join(resolvedLocalRoot, INTAKE_FILE_NAME),
     },
   ]);
 
-  return { intake, mirroredFiles: [OPENAPI_FILE_NAME, MANIFEST_FILE_NAME] };
+  return {
+    intake,
+    mirroredFiles: [
+      OPENAPI_FILE_NAME,
+      MANIFEST_FILE_NAME,
+      ...SELECTIVE_M9_VENDORED_ARTIFACTS,
+    ],
+  };
 }
 
 function defaultPaths() {

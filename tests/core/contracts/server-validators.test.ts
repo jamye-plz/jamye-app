@@ -1,12 +1,18 @@
+import Ajv2020 from "ajv/dist/2020";
+
+import { registerServerContractFormats } from "@/core/contracts/server/formats";
 import {
   isValidInviteJoinCode,
   parseOAuthCallbackQuery,
+  realtimeProtocol,
   validateCanonicalMessage,
   validateChatroom,
   validateChatroomPage,
   validateDenormalizedMessage,
   validateDenormalizedMessagePage,
+  validateDeltaItem,
   validateErrorEnvelope,
+  validateEventPage,
   validateGroup,
   validateGroupCreate,
   validateGroupPage,
@@ -19,6 +25,7 @@ import {
   validateMemberPage,
   validateMemberRolePatch,
   validateMessageCreate,
+  validateMessageCreatedEvent,
   validateOAuthAuthorizeIn,
   validateOAuthAuthorizeOut,
   validateOAuthExchangeIn,
@@ -26,8 +33,15 @@ import {
   validateReadCursorIn,
   validateReadinessResponse,
   validateReadMarker,
+  validateRealtimeClientFrame,
+  validateRealtimeMessageCreatedFrame,
+  validateRealtimeServerFrame,
+  validateRealtimeTicket,
+  validateRealtimeTopicCreatedFrame,
   validateRefreshIn,
   validateTokenPair,
+  validateTopicCreatedEvent,
+  validateUnsupportedEventMarker,
   validateUser,
 } from "@/core/contracts/server";
 
@@ -37,6 +51,26 @@ const STATE = "s".repeat(43);
 const VERIFIER = "v".repeat(43);
 
 describe("M6-01 server contract runtime validators", () => {
+  test.each([
+    ["int32", -(2 ** 31), 2 ** 31],
+    ["int64", -(2 ** 63), 2 ** 63],
+    ["uint8", 0, 2 ** 8],
+    ["uint32", 0, 2 ** 32],
+    ["uint64", 0, 2 ** 64],
+  ] as const)(
+    "numeric format %s enforces the declared integer width",
+    (format, minimum, maximum) => {
+      const ajv = new Ajv2020();
+      registerServerContractFormats(ajv);
+      const validate = ajv.compile({ type: "integer", format });
+      expect(validate(minimum)).toBe(true);
+      expect(validate(1)).toBe(true);
+      expect(validate(maximum)).toBe(false);
+      expect(validate(minimum === 0 ? -1 : minimum * 2)).toBe(false);
+      expect(validate(1.5)).toBe(false);
+    },
+  );
+
   test("H1 liveness accepts only the live enum", () => {
     expect(validateLivenessResponse({ status: "live" })).toBe(true);
     expect(validateLivenessResponse({ status: "dead" })).toBe(false);
@@ -548,5 +582,192 @@ describe("M6-01 server contract runtime validators", () => {
     };
     expect(validateReadMarker(marker)).toBe(true);
     expect(validateReadMarker({ ...marker, last_read_cursor: 42 })).toBe(false);
+  });
+
+  const VALID_MESSAGE_CREATED_EVENT = {
+    conversation_id: VALID_UUID,
+    cursor: "202",
+    data: {
+      body: "안녕하세요",
+      chatroom_id: VALID_UUID,
+      client_msg_id: null,
+      created_at: VALID_DATE_TIME,
+      id: VALID_UUID,
+      media: [],
+      sender_id: VALID_UUID,
+      type: "user",
+    },
+    event_id: VALID_UUID,
+    occurred_at: VALID_DATE_TIME,
+    type: "message.created",
+    version: 1,
+  };
+
+  const VALID_TOPIC_CREATED_EVENT = {
+    conversation_id: VALID_UUID,
+    cursor: "203",
+    data: {
+      author_id: VALID_UUID,
+      chatroom_id: VALID_UUID,
+      group_id: VALID_UUID,
+      title: "Weekend plans",
+      topic_id: VALID_UUID,
+    },
+    event_id: VALID_UUID,
+    occurred_at: VALID_DATE_TIME,
+    type: "topic.created",
+    version: 1,
+  };
+
+  test("S1 EventPage/DeltaItem accept a known message.created item and an UnsupportedEventMarker, in either order", () => {
+    const unsupported = {
+      cursor: "201",
+      event_id: VALID_UUID,
+      reconcile_scope: "chat_history",
+    };
+    expect(validateUnsupportedEventMarker(unsupported)).toBe(true);
+    expect(
+      validateUnsupportedEventMarker({ ...unsupported, reconcile_scope: "x" }),
+    ).toBe(false);
+    expect(validateDeltaItem(VALID_MESSAGE_CREATED_EVENT)).toBe(true);
+    expect(validateDeltaItem(unsupported)).toBe(true);
+    expect(validateMessageCreatedEvent(VALID_MESSAGE_CREATED_EVENT)).toBe(true);
+    expect(
+      validateMessageCreatedEvent({
+        ...VALID_MESSAGE_CREATED_EVENT,
+        extra: "field",
+      }),
+    ).toBe(false);
+
+    expect(
+      validateEventPage({
+        items: [unsupported, VALID_MESSAGE_CREATED_EVENT],
+        next_cursor: null,
+      }),
+    ).toBe(true);
+    expect(
+      validateEventPage({
+        items: [{ type: "future.event" }],
+        next_cursor: null,
+      }),
+    ).toBe(false);
+  });
+
+  test("R1 RealtimeTicket requires exactly ticket/expires_at/contract_version", () => {
+    const ticket = {
+      contract_version: "1",
+      expires_at: VALID_DATE_TIME,
+      ticket: "one-time-opaque-value",
+    };
+    expect(validateRealtimeTicket(ticket)).toBe(true);
+    expect(validateRealtimeTicket({ ...ticket, extra: true })).toBe(false);
+    expect(validateRealtimeTicket({ ...ticket, ticket: undefined })).toBe(
+      false,
+    );
+  });
+
+  test("topic.created requires its own event/data fields and a positive-decimal cursor", () => {
+    expect(validateTopicCreatedEvent(VALID_TOPIC_CREATED_EVENT)).toBe(true);
+    expect(
+      validateTopicCreatedEvent({ ...VALID_TOPIC_CREATED_EVENT, cursor: "0" }),
+    ).toBe(false);
+    expect(
+      validateTopicCreatedEvent({ ...VALID_TOPIC_CREATED_EVENT, cursor: "01" }),
+    ).toBe(false);
+    expect(
+      validateTopicCreatedEvent({
+        ...VALID_TOPIC_CREATED_EVENT,
+        data: { ...VALID_TOPIC_CREATED_EVENT.data, extra: true },
+      }),
+    ).toBe(false);
+  });
+
+  test("realtime client frames validate subscribe/unsubscribe/ping and reject an unknown discriminant", () => {
+    expect(
+      validateRealtimeClientFrame({
+        conversation_id: VALID_UUID,
+        request_id: VALID_UUID,
+        type: "subscribe",
+      }),
+    ).toBe(true);
+    expect(
+      validateRealtimeClientFrame({
+        conversation_id: VALID_UUID,
+        request_id: VALID_UUID,
+        type: "unsubscribe",
+      }),
+    ).toBe(true);
+    expect(validateRealtimeClientFrame({ nonce: "n-1", type: "ping" })).toBe(
+      true,
+    );
+    expect(validateRealtimeClientFrame({ type: "subscribe" })).toBe(false);
+    expect(validateRealtimeClientFrame({ type: "resync" })).toBe(false);
+    // additionalProperties is absent from the authoritative client-frame
+    // branches, so an extra field on an otherwise-valid frame must still
+    // validate rather than being over-restricted by this vendored copy.
+    expect(
+      validateRealtimeClientFrame({
+        nonce: "n-1",
+        type: "ping",
+        trace_id: "ignored",
+      }),
+    ).toBe(true);
+  });
+
+  test("realtime server frames validate control frames plus known events and reject a malformed/extra-field event envelope", () => {
+    expect(
+      validateRealtimeServerFrame({
+        conversation_id: VALID_UUID,
+        request_id: VALID_UUID,
+        type: "subscribed",
+      }),
+    ).toBe(true);
+    expect(validateRealtimeServerFrame({ nonce: "n-1", type: "pong" })).toBe(
+      true,
+    );
+    expect(
+      validateRealtimeServerFrame({
+        code: "membership_required",
+        message: "not a member",
+        request_id: VALID_UUID,
+        type: "error",
+      }),
+    ).toBe(true);
+    expect(validateRealtimeServerFrame(VALID_MESSAGE_CREATED_EVENT)).toBe(true);
+    expect(validateRealtimeServerFrame(VALID_TOPIC_CREATED_EVENT)).toBe(true);
+    expect(
+      validateRealtimeServerFrame({
+        ...VALID_MESSAGE_CREATED_EVENT,
+        unexpected_field: true,
+      }),
+    ).toBe(false);
+    expect(
+      validateRealtimeMessageCreatedFrame({
+        ...VALID_MESSAGE_CREATED_EVENT,
+        unexpected_field: true,
+      }),
+    ).toBe(false);
+    expect(
+      validateRealtimeTopicCreatedFrame({
+        ...VALID_TOPIC_CREATED_EVENT,
+        unexpected_field: true,
+      }),
+    ).toBe(false);
+    expect(validateRealtimeServerFrame({ type: "made-up" })).toBe(false);
+  });
+
+  test("realtime protocol constants expose the vendored heartbeat/close-code/contract-version policy verbatim", () => {
+    expect(realtimeProtocol.heartbeat).toEqual({
+      client_ping_interval_seconds: 25,
+      pong_deadline_seconds: 10,
+      timeout_action: "reconnect_then_delta",
+    });
+    expect(realtimeProtocol.denied_subscribe.close_code).toBe(4001);
+    expect(realtimeProtocol.selected_D13_A.deadline_close_code).toBe(4401);
+    expect(realtimeProtocol.contract_versions.unsupported.status).toBe(426);
+    expect(realtimeProtocol.known_event_discriminants).toEqual([
+      "message.created",
+      "topic.created",
+    ]);
   });
 });

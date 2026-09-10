@@ -7,6 +7,7 @@ import {
   buildServerContractArtifactsForCheck,
   canonicalizeJson,
 } from "./generate-server-contract.mjs";
+import { SELECTIVE_M9_VENDORED_ARTIFACTS } from "./intake-server-contract.mjs";
 
 const GENERATED_FILE_NAME = "server-api.ts";
 const LOCK_FILE_NAME = "contract.lock";
@@ -37,8 +38,10 @@ async function readOptionalJson(path) {
  * Self-contained, read-only drift check: never reads the sibling
  * jamye-server checkout and never mutates the checked-in snapshot or
  * generated output. Reports whether the preserved intake snapshot
- * (openapi.json/manifest.json), the generated type boundary, and the
- * generation lock are mutually consistent.
+ * (openapi.json/manifest.json), the selectively vendored M9 realtime
+ * protocol/frame schemas and recovery fixtures (verified against the
+ * intake-recorded selective_vendor_sha256 map), the generated type
+ * boundary, and the generation lock are mutually consistent.
  */
 export async function checkServerContract({
   contractRoot,
@@ -65,6 +68,29 @@ export async function checkServerContract({
   const currentManifest = JSON.parse(manifestBytes.toString("utf8"));
   if (currentManifest.server_commit !== intake.upstream_server_commit) {
     return { reason: "upstream-manifest-drift", status: "tampered" };
+  }
+
+  if (
+    typeof intake.selective_vendor_sha256 !== "object" ||
+    intake.selective_vendor_sha256 === null
+  ) {
+    return { reason: "vendored-artifact-provenance-missing", status: "error" };
+  }
+  for (const artifactPath of SELECTIVE_M9_VENDORED_ARTIFACTS) {
+    const expectedSha256 = intake.selective_vendor_sha256[artifactPath];
+    if (typeof expectedSha256 !== "string" || expectedSha256.length === 0) {
+      return {
+        reason: "vendored-artifact-provenance-missing",
+        status: "error",
+      };
+    }
+    const artifactBytes = await readOptional(
+      join(resolvedContractRoot, ...artifactPath.split("/")),
+      { asBuffer: true },
+    );
+    if (artifactBytes === null || sha256(artifactBytes) !== expectedSha256) {
+      return { reason: "vendored-artifact-drift", status: "tampered" };
+    }
   }
 
   const artifacts = await buildServerContractArtifactsForCheck({

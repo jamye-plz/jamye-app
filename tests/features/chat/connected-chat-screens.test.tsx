@@ -195,6 +195,30 @@ const visible = (item: ChatMessage, isViewable = true) => ({
   index: 0,
 });
 
+test("offline sync keeps composing available with a durable queue notice", async () => {
+  mockChat.state = { ...mockChat.state, sync: "offline" };
+  const screen = await render(roomTree());
+  expect(
+    screen.getByText(
+      "연결을 기다리는 중입니다. 메시지는 기기에 저장되고 연결되면 자동으로 전송됩니다.",
+    ),
+  ).toBeTruthy();
+  expect(mockObserveComposer.mock.calls.at(-1)?.[0].blocked).not.toBe(true);
+  await screen.unmount();
+});
+
+test("protocol upgrade blocks composing without discarding the queued messages", async () => {
+  mockChat.state = { ...mockChat.state, sync: "upgrade-required" };
+  const screen = await render(roomTree());
+  expect(
+    screen.getByText(
+      "앱 업데이트가 필요합니다. 전송 대기 중인 메시지는 기기에 보관됩니다.",
+    ),
+  ).toBeTruthy();
+  expect(mockObserveComposer.mock.calls.at(-1)?.[0].blocked).toBe(true);
+  await screen.unmount();
+});
+
 test("C1 lists real room kinds, paginates, navigates and cancels when leaving the list", async () => {
   mockChat.state = {
     ...mockChat.state,

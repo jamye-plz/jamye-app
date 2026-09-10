@@ -79,6 +79,14 @@ export type ConnectedChatOutboxCommand = Readonly<{
   state: "queued" | "in_flight" | "acked" | "failed";
 }>;
 
+export type ConnectedClaimedOutboxCommand = ConnectedChatOutboxCommand &
+  Readonly<{
+    attemptCount: number;
+    leaseExpiresAtMs: number;
+    leaseToken: string;
+    nextAttemptAtMs: number;
+  }>;
+
 export type ConnectedSendErrorCode =
   | "network"
   | "unauthorized"
@@ -102,63 +110,162 @@ export type ConnectedMessageAndCommand = Readonly<{
   message: ConnectedChatMessage;
 }>;
 
-export type ConnectedChatRepository = Readonly<{
-  enqueuePendingMessage: (
-    input: ConnectedPendingMessageInput,
-  ) => Promise<ConnectedMessageAndCommand>;
-  getOutboxCommand: (
-    clientMsgId: string,
-  ) => Promise<ConnectedChatOutboxCommand | null>;
-  listChatrooms: (
-    input: Readonly<{
-      after: ConnectedChatroomCursor | null;
-      groupId: string;
-      limit: number;
-    }>,
-  ) => Promise<
-    Readonly<{
-      /** True only when another cached SQLite row was observed. */
-      hasMore: boolean;
-      items: readonly ConnectedChatroom[];
-      /** Last returned SQLite keyset boundary, or null only for an empty page. */
-      nextAfter: ConnectedChatroomCursor | null;
-    }>
-  >;
-  listMessagesWindow: (
-    input: Readonly<{
-      before: ConnectedMessageCursor | null;
-      chatroomId: string;
-      limit: number;
-    }>,
-  ) => Promise<
-    Readonly<{
-      /** True only when another cached SQLite row was observed. */
-      hasMore: boolean;
-      items: readonly ConnectedChatMessage[];
-      /** Oldest returned SQLite keyset boundary, or null only for an empty page. */
-      nextBefore: ConnectedMessageCursor | null;
-    }>
-  >;
-  markSendFailed: (
-    input: Readonly<{
-      clientMsgId: string;
-      errorCode: ConnectedSendErrorCode;
-    }>,
-  ) => Promise<void>;
-  mergeCanonicalMessage: (
-    input: ConnectedCanonicalMessageUpsert,
-  ) => Promise<ConnectedChatMessage>;
-  mergeHistoryMessages: (
-    inputs: readonly ConnectedHistoryMessageUpsert[],
-  ) => Promise<void>;
-  retryFailedMessage: (
-    input: Readonly<{
-      body: string;
-      chatroomId: string;
-      clientMsgId: string;
-    }>,
-  ) => Promise<ConnectedMessageAndCommand>;
-  upsertChatrooms: (
-    inputs: readonly ConnectedChatroomUpsert[],
-  ) => Promise<void>;
+export type ConnectedReconciliationScope =
+  "chat_history" | "group_topics" | "notifications";
+
+export type ConnectedDirtyReconciliationScope = Readonly<{
+  markerEventId: string;
+  scope: ConnectedReconciliationScope;
 }>;
+
+export type ConnectedRealtimeMessageCreatedInput = Readonly<{
+  eventId: string;
+  message: ConnectedCanonicalMessageUpsert;
+}>;
+
+export type ConnectedRealtimeEventApplyResult = Readonly<{
+  status: "applied" | "duplicate";
+}>;
+
+type ConnectedOrderedEventIdentity = Readonly<{
+  chatroomId: string;
+  cursor: string;
+  eventId: string;
+  expectedCursor: string | null;
+}>;
+
+export type ConnectedOrderedMessageCreatedInput =
+  ConnectedOrderedEventIdentity &
+    Readonly<{
+      message: ConnectedCanonicalMessageUpsert;
+    }>;
+
+export type ConnectedOrderedUnsupportedEventInput =
+  ConnectedOrderedEventIdentity &
+    Readonly<{
+      reconcileScope: ConnectedReconciliationScope;
+    }>;
+
+export type ConnectedOrderedEventApplyResult =
+  | Readonly<{
+      checkpoint: string;
+      status: "applied" | "duplicate" | "no_progress";
+    }>
+  | Readonly<{
+      actualCheckpoint: string | null;
+      status: "checkpoint_mismatch";
+    }>;
+
+export type ConnectedChatSyncRepository = Readonly<{
+  applyOrderedMessageCreated: (
+    input: ConnectedOrderedMessageCreatedInput,
+  ) => Promise<ConnectedOrderedEventApplyResult>;
+  applyOrderedUnsupportedEvent: (
+    input: ConnectedOrderedUnsupportedEventInput,
+  ) => Promise<ConnectedOrderedEventApplyResult>;
+  applyRealtimeMessageCreated: (
+    input: ConnectedRealtimeMessageCreatedInput,
+  ) => Promise<ConnectedRealtimeEventApplyResult>;
+  claimDueOutboxCommands: (
+    input: Readonly<{
+      leaseExpiresAtMs: number;
+      leaseToken: string;
+      limit: number;
+      nowMs: number;
+    }>,
+  ) => Promise<readonly ConnectedClaimedOutboxCommand[]>;
+  failClaimedOutboxCommand: (
+    input: Readonly<{
+      commandId: string;
+      errorCode: ConnectedSendErrorCode;
+      leaseToken: string;
+    }>,
+  ) => Promise<boolean>;
+  getEventCheckpoint: (chatroomId: string) => Promise<string | null>;
+  listDirtyReconciliationScopes: (
+    chatroomId: string,
+  ) => Promise<readonly ConnectedDirtyReconciliationScope[]>;
+  reconcileChatHistory: (
+    input: Readonly<{
+      chatroomId: string;
+      expectedMarkerEventId: string;
+      messages: readonly ConnectedHistoryMessageUpsert[];
+    }>,
+  ) => Promise<void>;
+  releaseOutboxClaims: (
+    input: Readonly<{
+      leaseToken: string;
+      nextAttemptAtMs: number;
+    }>,
+  ) => Promise<number>;
+  rescheduleClaimedOutboxCommand: (
+    input: Readonly<{
+      commandId: string;
+      errorCode: ConnectedSendErrorCode;
+      leaseToken: string;
+      nextAttemptAtMs: number;
+    }>,
+  ) => Promise<boolean>;
+}>;
+
+export type ConnectedChatRepository = ConnectedChatSyncRepository &
+  Readonly<{
+    enqueuePendingMessage: (
+      input: ConnectedPendingMessageInput,
+    ) => Promise<ConnectedMessageAndCommand>;
+    getOutboxCommand: (
+      clientMsgId: string,
+    ) => Promise<ConnectedChatOutboxCommand | null>;
+    listChatrooms: (
+      input: Readonly<{
+        after: ConnectedChatroomCursor | null;
+        groupId: string;
+        limit: number;
+      }>,
+    ) => Promise<
+      Readonly<{
+        /** True only when another cached SQLite row was observed. */
+        hasMore: boolean;
+        items: readonly ConnectedChatroom[];
+        /** Last returned SQLite keyset boundary, or null only for an empty page. */
+        nextAfter: ConnectedChatroomCursor | null;
+      }>
+    >;
+    listMessagesWindow: (
+      input: Readonly<{
+        before: ConnectedMessageCursor | null;
+        chatroomId: string;
+        limit: number;
+      }>,
+    ) => Promise<
+      Readonly<{
+        /** True only when another cached SQLite row was observed. */
+        hasMore: boolean;
+        items: readonly ConnectedChatMessage[];
+        /** Oldest returned SQLite keyset boundary, or null only for an empty page. */
+        nextBefore: ConnectedMessageCursor | null;
+      }>
+    >;
+    markSendFailed: (
+      input: Readonly<{
+        clientMsgId: string;
+        errorCode: ConnectedSendErrorCode;
+      }>,
+    ) => Promise<void>;
+    mergeCanonicalMessage: (
+      input: ConnectedCanonicalMessageUpsert,
+    ) => Promise<ConnectedChatMessage>;
+    mergeHistoryMessages: (
+      inputs: readonly ConnectedHistoryMessageUpsert[],
+    ) => Promise<void>;
+    retryFailedMessage: (
+      input: Readonly<{
+        body: string;
+        chatroomId: string;
+        clientMsgId: string;
+      }>,
+    ) => Promise<ConnectedMessageAndCommand>;
+    upsertChatrooms: (
+      inputs: readonly ConnectedChatroomUpsert[],
+    ) => Promise<void>;
+  }>;

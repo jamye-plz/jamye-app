@@ -1,9 +1,9 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 서버 계약·계정 안전 기반, M7 그룹·멤버십·초대, M8 실제 서버 REST 채팅 완료 (2026-09-10 M8 사용자 종료 승인)
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화 완료 (2026-09-10 M9 사용자 종료 승인)
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M9 영속 outbox·실시간/delta 동기화 — `planned_unapproved`
+- 현재 frontier: M10 주제·태그 — `planned_unapproved`
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-10
@@ -29,7 +29,7 @@
 - **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
-- **미래 계획**: 별도 승인 전에는 구현하지 않는 M9 이후 항목; M8 종료는 M9 구현 승인이 아님
+- **미래 계획**: 별도 승인 전에는 구현하지 않는 M10 이후 항목; M9 종료는 M10 구현 승인이 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
 production readiness의 증거로 재사용하지 않는다.
@@ -323,7 +323,7 @@ C3는 실제 보인 서버 `message_id`로 내 읽음 위치를 저장하며, �
 
 ### M9. 영속 outbox와 실시간·delta 동기화
 
-- 상태: `planned_unapproved`
+- 상태: `completed` — 2026-09-10 사용자 수용 4/4 확인 및 종료 승인 (`COMPLETED / USER_ACCEPTED`)
 - 선행: M8
 - 사용자 결과: Offline send가 restart를 견디고 online 복귀 뒤 한 번만 수렴하며, reconnect 중
   빠진 event를 잃지 않는다.
@@ -345,6 +345,12 @@ C3는 실제 보인 서버 `message_id`로 내 읽음 위치를 저장하며, �
 - Same `client_msg_id` retry와 exactly one canonical result
 - Unknown event에서 cursor unchanged와 bounded S1 reconcile scope
 - 양 platform offline → terminate → restart → online runtime acceptance
+
+계정별 영속 outbox, S1/R1/WebSocket adapter, event/checkpoint atomic apply와 foreground/reconnect
+생명주기를 기존 채팅 화면에 연결했다. 자동 통합 검사 70 suites / 814 tests, 독립 리뷰와
+양 플랫폼 실행 준비 이후 사용자가 안내한 4개 수용 항목을 모두 정상으로 확인했다.
+에이전트의 제한된 실행 관찰과 사용자 확인은 [M9 evidence](evidence/M9.md)에 구분한다.
+강제 프로토콜 오류·멤버십 제거의 자동 회귀를 실서버 수동 검증으로 확대하지 않는다.
 
 ### M10. 주제·태그
 
@@ -439,7 +445,7 @@ C3는 실제 보인 서버 `message_id`로 내 읽음 위치를 저장하며, �
 | Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | M7 완료 — 수용 범위는 evidence 참조 | M7                                         |
 | Invitations             | I1, I2                         | M7 완료 — 양 플랫폼 사용자 수용     | M7                                         |
 | Chatrooms/messages/read | C1, C2, C3, C4                 | M8 완료 — 양 플랫폼 사용자 수용     | M8                                         |
-| Delta/realtime          | S1, R1 + WebSocket             | 실행 경로 없음                      | M9                                         |
+| Delta/realtime          | S1, R1 + WebSocket             | M9 완료 — 사용자 수용 4/4 확인      | M9                                         |
 | Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 없음                                | M10                                        |
 | Media                   | MD1, MD2, MD3, MD4, MD5        | 없음                                | M11                                        |
 | Notification history    | N1, N2                         | 없음                                | M12                                        |
@@ -517,6 +523,9 @@ Android 시작 ANR은 원인 미확정 상태로 보존하며 실제 만료 갱�
 이후 서버 C3 수정 배포와 M8 REST 채팅 구현·자동 검사·양 플랫폼 실행을 완료했다.
 사용자가 남은 원래 M8 수동 항목도 전부 정상이라고 확인하고 종료 기록과 로컬 커밋을 승인하여,
 M8을 `COMPLETED / USER_ACCEPTED`로 정식 종료했다. 상세 결과는 [M8 evidence](evidence/M8.md)를 따른다.
-다음 단계는 기존 M9의 영속 outbox·실시간/delta 동기화 계획 검토와 승인이다.
+이후 M9 구현·자동 통합 검사·독립 리뷰·양 플랫폼 실행 준비를 마쳤다. 사용자가 안내한 수용
+4개 항목이 모두 정상이라고 확인하고 “M9 커밋하고 종료해”라고 승인하여 M9를 정식 종료했다.
+상세 결과와 한계는 [M9 evidence](evidence/M9.md)를 따른다. 다음 단계는 기존 M10 주제·태그의
+계획 검토와 승인이다.
 
-이번 종료 승인은 M9 구현, 기존 후속 마일스톤 변경, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.
+이번 종료 승인은 M10 구현, 기존 후속 마일스톤 변경, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.

@@ -31,6 +31,14 @@ contracts/bootstrap/openapi.json
 contracts/bootstrap/realtime-event.schema.json
 contracts/server/manifest.json
 contracts/server/openapi.json
+contracts/server/fixtures/mobile-sync-handoff.json
+contracts/server/fixtures/realtime-lifecycle.json
+contracts/server/fixtures/unknown-event-recovery.json
+contracts/server/realtime/client-frame.schema.json
+contracts/server/realtime/message.created.schema.json
+contracts/server/realtime/protocol.json
+contracts/server/realtime/server-frame.schema.json
+contracts/server/realtime/topic.created.schema.json
 src/core/contracts/generated/
 
 # Accepted milestone evidence is immutable

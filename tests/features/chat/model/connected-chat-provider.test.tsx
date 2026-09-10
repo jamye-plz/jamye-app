@@ -18,6 +18,7 @@ import {
   fakeChatApi,
   fakeClock,
   fakeConnectedChatRepository,
+  fakeConnectedSync,
   fakeMessageIdentity,
   repositoryHistoryRow,
 } from "./connected-chat-fixtures";
@@ -34,11 +35,13 @@ function fixture() {
     nextBefore: null,
   });
   const stores: ConnectedChatStore[] = [];
+  const sync = fakeConnectedSync();
   const createStore = jest.fn(() => {
     const store = createConnectedChatStore({
       createApi: () => api,
       clock: fakeClock(),
       messageIdentity: fakeMessageIdentity(),
+      createSync: sync.create,
     });
     stores.push(store);
     return store;
@@ -64,7 +67,7 @@ function fixture() {
       <Probe label={label} />
     </ConnectedChatProvider>
   );
-  return { api, repo, stores, createStore, observations, tree };
+  return { api, repo, stores, createStore, observations, tree, sync };
 }
 
 describe("M8 account-scoped connected chat provider", () => {
@@ -201,6 +204,15 @@ describe("M8 account-scoped connected chat provider", () => {
     } finally {
       error.mockRestore();
     }
+  });
+
+  test("starts the account runtime after mounting and disposes it on unmount", async () => {
+    const f = fixture();
+    const screen = await render(f.tree());
+    expect(f.sync.runtime.start).toHaveBeenCalledTimes(1);
+    expect(f.api.sendChatMessage).not.toHaveBeenCalled();
+    await screen.unmount();
+    expect(f.sync.runtime.dispose).toHaveBeenCalledTimes(1);
   });
 
   test("a provider opened in the background cannot dispatch requests until foreground", async () => {

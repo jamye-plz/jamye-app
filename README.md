@@ -2,20 +2,21 @@
 
 잼얘좀의 iOS·Android 앱이다. React Native와 Expo를 사용하지만 기존 SvelteKit PWA를
 기계적으로 옮기지 않는다. 첫 수직 절편은 한 대화방의 메시지를 SQLite에서 읽고 오프라인
-전송 의도를 로컬에 보존했다. 재연결 시 canonical event와 동기화하는 동작은 M9의 제품
-목표다.
+전송 의도를 로컬에 보존했다. M9에서는 재시작 후 자동 전송 복구와 canonical event의
+실시간·delta 동기화까지 연결했다.
 
 현재 저장소에는 Expo SDK 57 Development Build/CNG 기반, M4의 local SQLite·bootstrap
 contract, M5의 SQLite 기반 로컬 채팅 읽기·쓰기와 M6의 server contract intake,
 shared session/account-safe connected-auth shell이 구현돼 있다. `local-fixture` mode는
 보존된 fixture SQLite chat을, `connected-auth` mode는 shared OAuth session, U1 profile,
 origin+UUID account namespace와 authenticated home을 표시한다. M7 connected-auth mode는
-server-backed group navigation을 제공하고, M8은 실제 주제 목록·메시지 조회·전송·내 읽음 위치 저장까지 연결했다. 아래 명령은 실행 절차이며
+server-backed group navigation을 제공하고, M8은 실제 주제 목록·메시지 조회·전송·내 읽음 위치 저장,
+M9는 영속 outbox와 실시간·누락 복구를 연결했다. 아래 명령은 실행 절차이며
 그 자체로 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제 관찰 결과는
 각 마일스톤 증거에 기록한다: [M3](docs/evidence/M3.md),
 [M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md),
 [M6 네이티브·로그인 검증](docs/oauth-development.md), [M7 그룹·계정 전환 검증](docs/evidence/M7.md),
-[M8 REST 채팅 검증](docs/evidence/M8.md).
+[M8 REST 채팅 검증](docs/evidence/M8.md), [M9 동기화 검증](docs/evidence/M9.md).
 
 ## 현재 범위
 
@@ -30,9 +31,9 @@ exclusive transaction에 기록한다. 실패 재시도는 기존 identity와 co
 입력창을 함께 이동하고 전송 뒤에도 keyboard focus를 유지한다.
 
 M5의 queued outbox는 전송 의도를 로컬에 보존할 뿐 네트워크 전송 성공을 뜻하지 않는다.
-M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도를 제공한다. Realtime/delta 실행과
-재연결·재시작 후 자동 전송 수렴은 아직 없다. 자동 mobile E2E와 실기기 acceptance도 전체 제품에
-대해 완료하지 않았다.
+M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도를 제공한다. M9는 같은 계정의
+영속 outbox를 처리하고 WebSocket 수신과 S1 delta로 메시지를 수렴시킨다. 자동 mobile E2E와
+실기기 acceptance는 전체 제품에 대해 완료하지 않았다.
 
 현재 범위와 다음 사용자 여정은 [전체 로드맵](docs/roadmap.md)을 따른다.
 
@@ -41,13 +42,14 @@ M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도�
 - M6: server contract intake, shared session/profile/logout, account/origin 데이터 분리 — 완료 (2026-09-09 사용자 종료 승인)
 - M7: authenticated groups, membership, invitations — 완료 (2026-09-10 양 플랫폼 그룹 작업·계정 전환 사용자 확인 및 종료 승인)
 - M8: 실제 주제 목록·메시지 조회·전송·내 읽음 위치 저장 — 완료 (2026-09-10 양 플랫폼 사용자 확인 및 종료 승인)
-- 다음: M9 영속 outbox·실시간/delta 동기화 — 계획·구현 승인 대기
-- 아직 없음: realtime/delta, 주제 생성·관리, media/notification/push
+- M9: 영속 outbox·실시간/delta 동기화 — 완료 (2026-09-10 사용자 수용 4/4 확인 및 종료 승인)
+- 다음: M10 주제·태그 — 계획·구현 승인 대기
+- 아직 없음: 주제 생성·관리, media/notification/push
 
 Apple login, STT/on-device AI, presence/typing/reaction, message edit/delete와 새 push
 backend는 현재 서버 계약 밖의 별도 backlog다. 의존성 보안 수정 후에도 원본 감사의 image-size
 High 2건과 Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용 및 배포 revision binding은
-남아 있어 production readiness는 `NOT READY`다. M6·M7·M8 종료는 이 출시 항목들의 완료를 뜻하지 않는다.
+남아 있어 production readiness는 `NOT READY`다. M6-M9 종료는 이 출시 항목들의 완료를 뜻하지 않는다.
 패치 검증과 감사 결과는 [개발 검증 기록](docs/development-workflow.md)에 구분한다. 자세한 경계는
 [`docs/roadmap.md`](docs/roadmap.md)와
 [`docs/product-intent.md`](docs/product-intent.md)를 기준으로 한다.
@@ -125,7 +127,20 @@ M8은 `COMPLETED / USER_ACCEPTED`다. 그룹 상세에서 주제 목록으로 �
 
 읽음 결과는 **내 읽음 위치 저장**을 뜻한다. 메시지별 상대방 읽음 표시와 주제별 안읽음 표시는
 구현하지 않았고 기존 마일스톤에도 추가하지 않는다. 새 주제 생성은 기존 M10, 실시간 수신과
-자동 outbox 처리는 기존 M9에 남는다. 결과 출처와 검증 한계는 [M8 evidence](docs/evidence/M8.md)를 따른다.
+자동 outbox 처리는 후속 M9에서 완료했다. 결과 출처와 검증 한계는 [M8 evidence](docs/evidence/M8.md)를 따른다.
+
+## M9 영속 outbox와 실시간·delta 동기화
+
+M9는 `COMPLETED / USER_ACCEPTED`다. 계정별 SQLite에 저장한 전송 의도를 같은
+`client_msg_id`로 재시도하며, REST 응답과 WebSocket/S1 event를 하나의 canonical message로
+수렴시킨다. S1 → R1 ticket/socket → 구독 확인 → 두 번째 S1 순서로 연결 중 누락을 복구한다.
+화면은 계속 SQLite만 읽고 opaque cursor를 임의로 비교하거나 생성하지 않는다.
+
+2026-09-10 자동 통합 검사 70 suites / 814 tests와 독립 리뷰를 마쳤다. 사용자는 새로고침 없는
+송수신, 백그라운드 복귀 시 누락 복구, 오프라인 전송 대기 후 재시작·연결 복구, 계정 전환 시
+이전 데이터·대기열 격리의 4개 항목을 모두 정상으로 확인하고 종료·로컬 커밋을 승인했다.
+Cold offline 시작에서는 U1로 계정을 확인하기 전 데이터를 숨긴다. 자동 검사·에이전트 관찰·
+사용자 확인과 미검증 범위는 [M9 evidence](docs/evidence/M9.md)에 구분한다.
 
 ## M4 local bootstrap contract
 
@@ -143,7 +158,8 @@ M6 generated type/validator는 구현됐으며 bootstrap source/fixture는 변�
 
 Bootstrap 자체는 실제 서버에 연결하지 않는다. M8은 별도 승인된 C1-C4 server snapshot과
 account-scoped 저장소로 REST 채팅을 연결했고, bootstrap source/fixture는 보존했다.
-후속 M9 recovery 연결도 다음 조건을 모두 충족한 뒤 별도 결정으로 진행한다.
+M9는 다음 조건을 모두 충족하는 별도 승인으로 server recovery를 연결했다.
+Bootstrap의 transport를 활성화한 것은 아니며, 향후 연결 변경에도 같은 조건을 적용한다.
 
 1. 별도 승인된 source가 non-bootstrap production contract version과 authenticated source
    ownership(인증된 source ownership)을 제공한다.
@@ -153,8 +169,8 @@ account-scoped 저장소로 REST 채팅을 연결했고, bootstrap source/fixtur
    (호환성 검토)를 통과한다.
 4. 해당 마일스톤의 integration decision이 contract의 실제 invocation을 별도로 승인한다.
 
-그 전까지 unknown event의 `request_delta`는 local recovery result일 뿐이며 HTTP, WebSocket,
-auth 실행을 뜻하지 않는다.
+Bootstrap의 unknown event `request_delta`는 계속 local recovery result일 뿐이며 HTTP,
+WebSocket, auth 실행을 뜻하지 않는다. 실제 S1/R1 실행은 M9 server adapter의 책임이다.
 
 ## 고정 기준선
 
@@ -436,6 +452,7 @@ src/features/chat/ui/             native list, row, composer, platform keyboard 
 src/features/chat/                repository 구독 기반 conversation hook
 src/features/auth/                login/profile/logout UI와 callback landing
 src/features/groups/              account-scoped API·state·group/member/invite UI
+src/features/sync/                account-owned outbox·delta·WebSocket·profile recovery
 src/shared/ui/                    native screen/text primitive
 ```
 
@@ -454,12 +471,12 @@ src/shared/ui/                    native screen/text primitive
 - `AppProviders`는 connected mode에서 shared session, account scope와 groups/chat store를 조합한다.
   fixture DB/seed는 local-fixture mode에서만 사용하며, 실제 계정 namespace와 분리한다.
 - ESLint가 `app.config.ts`와 route/UI 계층의 직접 transport를 금지한다. 현재 허용된 실제
-  네트워크 호출은 auth·health·groups·chat의 지정 adapter와 `src/core/http/` 경계를 통과한다.
+  네트워크 호출은 auth·health·groups·chat·sync의 지정 adapter와 `src/core/http/` 경계를 통과한다.
   이후 server adapter도 별도 boundary로 승인·검증한다.
 
-M8은 이 경계 안에서 server-backed REST chat을 연결했다. M9의 persistent outbox processor와
-canonical event/delta recovery는 별도 승인 후 추가한다. 실제 `jamye-server`의 OAuth·profile·group·REST chat
-연결은 M6·M7·M8에서 수용했으며, credential과 session/token은 fixture나 문서에 보존하지 않는다.
+M8은 이 경계 안에서 server-backed REST chat을, M9는 persistent outbox processor와
+canonical event/delta recovery를 연결했다. 실제 `jamye-server` 연결은 M6-M9의 수용 범위에
+기록하며, credential과 session/token은 fixture나 문서에 보존하지 않는다.
 
 ## 품질 명령과 coverage 계약
 

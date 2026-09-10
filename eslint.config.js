@@ -26,6 +26,17 @@ const HTTP_ADAPTER_FILES = [
   "src/core/health/health-api.ts",
   "src/features/groups/data/groups-api.ts",
   "src/features/chat/data/chat-api.ts",
+  "src/features/sync/realtime/sync-api.ts",
+];
+
+const REALTIME_SOCKET_ADAPTER_FILES = [
+  "src/features/sync/realtime/realtime-socket.ts",
+];
+const SYNC_MODEL_FILES = [
+  "src/features/sync/model/**/*.ts",
+  "src/features/sync/outbox/**/*.ts",
+  "src/features/sync/realtime/delta-sync.ts",
+  "src/features/sync/realtime/realtime-sync.ts",
 ];
 
 const FORBIDDEN_TRANSPORT_GLOBALS = [
@@ -143,6 +154,7 @@ const RESERVED_CORE_FEATURE_DATA_DATABASE_PATTERNS = [
   "**/core/database/account/migrations",
   "**/core/database/account/migrations/**",
   "**/core/database/account/connected-chat-repository",
+  "**/core/database/account/connected-chat-sync-repository",
 ];
 
 const RESERVED_CORE_SCREEN_DATABASE_PATTERNS = [
@@ -332,6 +344,17 @@ module.exports = defineConfig([
     },
   },
   {
+    files: REALTIME_SOCKET_ADAPTER_FILES,
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...FORBIDDEN_TRANSPORT_GLOBALS.filter(
+          ({ name }) => name !== "WebSocket",
+        ),
+      ],
+    },
+  },
+  {
     files: FEATURE_DATA_FILES,
     rules: {
       "no-restricted-imports": [
@@ -368,6 +391,47 @@ module.exports = defineConfig([
           ],
           message:
             "Chat feature data must not require/dynamically import transport, HTTP, persistence, or direct SQLite implementation modules.",
+        },
+      ],
+    },
+  },
+  {
+    files: SYNC_MODEL_FILES,
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: toRestrictedImportPaths(
+            [
+              ...FORBIDDEN_TRANSPORT_MODULES,
+              ...FORBIDDEN_HTTP_CLIENT_MODULES,
+              ...FORBIDDEN_PERSISTENCE_MODULES,
+            ],
+            "Sync models use injected transport and typed account repository ports.",
+          ),
+          patterns: toRestrictedImportPatterns(
+            [
+              ...RESERVED_CORE_HTTP_NETWORK_PATTERNS,
+              ...RESERVED_CORE_FEATURE_DATA_DATABASE_PATTERNS,
+            ],
+            "Sync models must not import HTTP or SQLite implementations.",
+          ),
+        },
+      ],
+      "local/no-restricted-transport-require": [
+        "error",
+        {
+          modules: [
+            ...FORBIDDEN_TRANSPORT_MODULES,
+            ...FORBIDDEN_HTTP_CLIENT_MODULES,
+            ...FORBIDDEN_PERSISTENCE_MODULES,
+          ],
+          patterns: [
+            ...RESERVED_CORE_HTTP_NETWORK_PATTERNS,
+            ...RESERVED_CORE_FEATURE_DATA_DATABASE_PATTERNS,
+          ],
+          message:
+            "Sync models must not require transport, HTTP or SQLite implementations.",
         },
       ],
     },

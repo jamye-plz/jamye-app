@@ -15,7 +15,19 @@ import { createGroupsStore } from "@/features/groups/model/groups-store";
 import type { GroupsStore } from "@/features/groups/model/groups-store";
 import { GroupsProvider } from "@/features/groups/model/groups-provider";
 import { createChatApi } from "@/features/chat/data/chat-api";
-import { createConnectedChatStore } from "@/features/chat/model/connected-chat-store";
+import {
+  createConnectedChatStore,
+  toCanonicalUpsert,
+  toHistoryUpsert,
+} from "@/features/chat/model/connected-chat-store";
+import type { ConnectedChatSyncFactory } from "@/features/chat/model/connected-chat-store";
+import { mapCanonicalChatMessage } from "@/core/contracts/server";
+import { createAccountSync } from "@/features/sync/model/account-sync";
+import {
+  createSyncApi,
+  realtimeSocketUrl,
+} from "@/features/sync/realtime/sync-api";
+import { createRealtimeSocket } from "@/features/sync/realtime/realtime-socket";
 import { ConnectedChatProvider } from "@/features/chat/model/connected-chat-provider";
 import {
   createMonotonicMessageIdentity,
@@ -66,9 +78,111 @@ const AccountScopeContext = createContext<AccountScopeContextValue | undefined>(
 function createDefaultGroupsStore(): GroupsStore {
   return createGroupsStore({ createApi: createGroupsApi });
 }
+
+/** Concrete IO is connected only here; sync models receive account-fenced ports. */
+export const createConnectedAccountSync: ConnectedChatSyncFactory = (
+  binding,
+) => {
+  const chatApi = createChatApi(binding.principal.origin);
+  const syncApi = createSyncApi(binding.principal.origin);
+  // Bounded C2 work can continue on a later drain without holding all history in JS.
+  const historyProgress = new Map<string, { marker: string; before: string }>();
+  return createAccountSync({
+    ...binding,
+    createLeaseToken: randomUUID,
+    createRequestId: randomUUID,
+    createSocket: createRealtimeSocket,
+    nowMs: Date.now,
+    random: Math.random,
+    socketUrl: (ticket) =>
+      realtimeSocketUrl(binding.principal.origin, ticket.ticket),
+    listEvents: (roomId, after, signal) =>
+      binding.authorize(
+        (token, authSignal) =>
+          syncApi.listEvents(
+            token,
+            roomId,
+            { after: after ?? undefined, limit: 100 },
+            authSignal,
+          ),
+        signal,
+      ),
+    issueTicket: (signal) =>
+      binding.authorize(
+        (token, authSignal) => syncApi.issueTicket(token, authSignal),
+        signal,
+      ),
+    send: (command, signal) =>
+      binding.authorize(async (token, authSignal) => {
+        const result = await chatApi.sendChatMessage(
+          token,
+          command.chatroomId,
+          {
+            body: command.body,
+            clientMessageId: command.clientMsgId,
+          },
+          authSignal,
+        );
+        // Do not replace the response client_msg_id: the dispatcher verifies it.
+        return toCanonicalUpsert(result.message, command.localId);
+      }, signal),
+    mapMessage: (wire) => toCanonicalUpsert(mapCanonicalChatMessage(wire)),
+    async refreshHistory(roomId, signal) {
+      const current = () => binding.isActive() && !signal.aborted;
+      const incomplete = { complete: false, messages: [] } as const;
+      if (!current()) return incomplete;
+      const dirty =
+        await binding.repository.listDirtyReconciliationScopes(roomId);
+      if (!current()) return incomplete;
+      const marker =
+        dirty.find((scope) => scope.scope === "chat_history")?.markerEventId ??
+        "";
+      const progress = historyProgress.get(roomId);
+      let before = progress?.marker === marker ? progress.before : undefined;
+      const seen = new Set<string | undefined>();
+      for (let pageIndex = 0; pageIndex < 10; pageIndex += 1) {
+        if (!current() || seen.has(before)) return incomplete;
+        seen.add(before);
+        const page = await binding.authorize(
+          (token, authSignal) =>
+            chatApi.listChatroomMessages(
+              token,
+              roomId,
+              { before, limit: 100 },
+              authSignal,
+            ),
+          signal,
+        );
+        if (!current()) return incomplete;
+        if (page.items.some((message) => message.chatroomId !== roomId))
+          return incomplete;
+        if (page.items.length > 0) {
+          await binding.repository.mergeHistoryMessages(
+            page.items.map(toHistoryUpsert),
+          );
+          if (!current()) return incomplete;
+          await binding.onChanged();
+          if (!current()) return incomplete;
+        }
+        if (page.nextCursor === null) {
+          historyProgress.delete(roomId);
+          // Only delta's exact marker-fenced transaction may clear the dirty scope.
+          return { complete: true, messages: [] };
+        }
+        if (page.items.length === 0 || page.nextCursor === before)
+          return incomplete;
+        before = page.nextCursor;
+        historyProgress.set(roomId, { marker, before });
+      }
+      return incomplete;
+    },
+  });
+};
+
 function createDefaultChatStore() {
   return createConnectedChatStore({
     createApi: createChatApi,
+    createSync: createConnectedAccountSync,
     clock: createSystemClock(),
     messageIdentity: {
       next: () => ({

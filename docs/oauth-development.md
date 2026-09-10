@@ -1,14 +1,15 @@
 # OAuth 개발 연결
 
 이 문서는 M5 이후 OAuth vertical과 M6 shared-session/account-safe shell의 구현 기록이다.
-로그인 뒤 authenticated home/profile/logout, M7 group navigation과 M8 REST chat이 현재 source에 연결됐다.
-M8의 별도 구현·배포·사용자 수용은 [M8 evidence](evidence/M8.md)에 기록한다. M6의 자동 통합 검사와 요구사항/회귀 리뷰는
+로그인 뒤 authenticated home/profile/logout, M7 group navigation, M8 REST chat과 M9 동기화가 현재 source에 연결됐다.
+M8의 별도 구현·배포·사용자 수용은 [M8 evidence](evidence/M8.md), M9의 outbox·실시간·delta 수용은
+[M9 evidence](evidence/M9.md)에 기록한다. M6의 자동 통합 검사와 요구사항/회귀 리뷰는
 통과했으며, 의존성 보안 수정 뒤 양 플랫폼 재빌드·설치와 Kakao·Google 실계정 로그인
 4개 조합도 확인했다. 추가 세션 검증에서 양 플랫폼 복원·로그아웃 유지와 Android 취소·재로그인을
 확인했다. 사용자의 iOS 취소·Kakao·Google 재로그인 확인과 종료 승인으로 2026-09-09 M6를
 정식 종료했다. 보안 패치와 남는 원본 감사
 경고는 [개발 검증 기록](development-workflow.md)에 구분해 기록한다. 후속 범위와 승인 순서는
-[로드맵](roadmap.md)의 M9 이후를 따른다.
+[로드맵](roadmap.md)의 M10 이후를 따른다.
 
 `EXPO_PUBLIC_APP_MODE=local-fixture`를 명시적으로 설정하면 기존 SQLite fixture 채팅만 표시하며 네트워크나 인증을 시작하지 않습니다. 연결 인증을 시험할 때만 `.env.local`에 `EXPO_PUBLIC_APP_MODE=connected-auth`와 `EXPO_PUBLIC_API_ORIGIN=https://jamye-api.ridewithmin.com`을 둡니다.
 

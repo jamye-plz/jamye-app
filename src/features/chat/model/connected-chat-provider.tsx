@@ -68,13 +68,14 @@ function ScopedChatProvider({
   }, [store, scopedPrincipal, repository, authorizedRequest]);
   useEffect(() => {
     let previous = AppState.currentState;
+    if (previous === "active") void store.actions.foreground();
     const subscription = AppState.addEventListener("change", (next) => {
       if (next !== "active") store.actions.background();
       else if (previous !== "active") void store.actions.foreground();
       previous = next;
     });
     return () => {
-      subscription.remove();
+      subscription?.remove();
       store.dispose();
     };
   }, [store]);

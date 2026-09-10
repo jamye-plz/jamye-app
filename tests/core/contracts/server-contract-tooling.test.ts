@@ -37,13 +37,25 @@ type ChildProcessModule = Readonly<{
 
 type OperatingSystemModule = Readonly<{ tmpdir: () => string }>;
 type PathModule = Readonly<{ join: (...paths: string[]) => string }>;
+type CryptoHash = Readonly<{
+  digest: (encoding: "hex") => string;
+  update: (data: Uint8Array) => CryptoHash;
+}>;
+type CryptoModule = Readonly<{
+  createHash: (algorithm: "sha256") => CryptoHash;
+}>;
 
 const { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } =
   jest.requireActual<FileSystemModule>("node:fs");
+const { readFile: readFileBuffer } =
+  jest.requireActual<
+    Readonly<{ readFile: (path: string) => Promise<Uint8Array> }>
+  >("node:fs/promises");
 const { execFileSync } =
   jest.requireActual<ChildProcessModule>("node:child_process");
 const { tmpdir } = jest.requireActual<OperatingSystemModule>("node:os");
 const { join } = jest.requireActual<PathModule>("node:path");
+const { createHash } = jest.requireActual<CryptoModule>("node:crypto");
 
 const repositoryRoot = process.cwd();
 const contractRoot = join(repositoryRoot, "contracts/server");
@@ -172,7 +184,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
       expect.objectContaining({
         generator_identity: "openapi-typescript@7.13.0",
         intake_kind: "server-snapshot",
-        source_git_revision: "3451d3497644e99843e2126b59f129f91f353615",
+        source_git_revision: "5decfbca9e719e7932a941e5af764cca3156f2f6",
         upstream_bundle_sha256:
           "59fb2d4ec755f4e0d7cb5763eae289c59ae1f712e358152449c33e3c7abb3d7f",
         upstream_bundle_verified: true,
@@ -259,6 +271,8 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         "C2",
         "C3",
         "C4",
+        "S1",
+        "R1",
       ]);
     } finally {
       rmSync(temporary.root, { force: true, recursive: true });
@@ -429,6 +443,108 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
       expect(caught).toBeDefined();
     } finally {
       rmSync(upstreamRoot, { force: true, recursive: true });
+    }
+  });
+
+  test("selectively vendors only the M9 realtime schemas and the three M9 recovery fixtures, with recorded provenance", async () => {
+    const intake = readJson(join(contractRoot, "intake.json"));
+    const vendorSha256 = intake.selective_vendor_sha256;
+    expect(vendorSha256).toEqual(
+      expect.objectContaining({
+        "fixtures/mobile-sync-handoff.json": expect.any(String),
+        "fixtures/realtime-lifecycle.json": expect.any(String),
+        "fixtures/unknown-event-recovery.json": expect.any(String),
+        "realtime/client-frame.schema.json": expect.any(String),
+        "realtime/message.created.schema.json": expect.any(String),
+        "realtime/protocol.json": expect.any(String),
+        "realtime/server-frame.schema.json": expect.any(String),
+        "realtime/topic.created.schema.json": expect.any(String),
+      }),
+    );
+    expect(Object.keys(vendorSha256 as Record<string, string>).sort()).toEqual([
+      "fixtures/mobile-sync-handoff.json",
+      "fixtures/realtime-lifecycle.json",
+      "fixtures/unknown-event-recovery.json",
+      "realtime/client-frame.schema.json",
+      "realtime/message.created.schema.json",
+      "realtime/protocol.json",
+      "realtime/server-frame.schema.json",
+      "realtime/topic.created.schema.json",
+    ]);
+    for (const [artifactPath, expectedSha256] of Object.entries(
+      vendorSha256 as Record<string, string>,
+    )) {
+      const bytes = await readFileBuffer(join(contractRoot, artifactPath));
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+        expectedSha256,
+      );
+      expect(bytes.length > 0).toBe(true);
+    }
+  });
+
+  test("reports vendored-artifact drift when a selectively vendored M9 fixture is hand-edited", () => {
+    const temporary = createTemporarySnapshot();
+    try {
+      writeFileSync(
+        join(
+          temporary.temporaryContractRoot,
+          "fixtures/mobile-sync-handoff.json",
+        ),
+        JSON.stringify({ tampered: true }),
+        "utf8",
+      );
+
+      const result = runToolExport<CheckResult>(
+        "tools/contracts/check-server-contract.mjs",
+        "checkServerContract",
+        {
+          contractRoot: temporary.temporaryContractRoot,
+          generatedDirectory: temporary.generatedDirectory,
+        },
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          reason: "vendored-artifact-drift",
+          status: "tampered",
+        }),
+      );
+    } finally {
+      rmSync(temporary.root, { force: true, recursive: true });
+    }
+  });
+
+  test("reports missing provenance when intake.json predates the M9 vendored-artifact map", () => {
+    const temporary = createTemporarySnapshot();
+    try {
+      const intake = readJson(
+        join(temporary.temporaryContractRoot, "intake.json"),
+      );
+      const { selective_vendor_sha256: _omitted, ...withoutProvenance } =
+        intake;
+      writeFileSync(
+        join(temporary.temporaryContractRoot, "intake.json"),
+        JSON.stringify(withoutProvenance),
+        "utf8",
+      );
+
+      const result = runToolExport<CheckResult>(
+        "tools/contracts/check-server-contract.mjs",
+        "checkServerContract",
+        {
+          contractRoot: temporary.temporaryContractRoot,
+          generatedDirectory: temporary.generatedDirectory,
+        },
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          reason: "vendored-artifact-provenance-missing",
+          status: "error",
+        }),
+      );
+    } finally {
+      rmSync(temporary.root, { force: true, recursive: true });
     }
   });
 });

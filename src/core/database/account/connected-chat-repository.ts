@@ -1,5 +1,6 @@
 import type { SqliteRepositoryDatabase, SqliteRow } from "../types";
 import type { AccountPrincipal } from "./types";
+import { createConnectedChatSyncRepository } from "./connected-chat-sync-repository";
 import type {
   ConnectedCanonicalMessageUpsert,
   ConnectedChatMedia,
@@ -237,7 +238,8 @@ export function createConnectedChatRepository(
     if (input.senderId === principal.userId && input.clientMsgId) {
       await transaction.runAsync(
         `UPDATE connected_chat_outbox_commands
-         SET state = 'acked', error_code = NULL
+         SET state = 'acked', error_code = NULL,
+             lease_token = NULL, lease_expires_at_ms = NULL
          WHERE sender_id = ? AND client_msg_id = ?`,
         principal.userId,
         input.clientMsgId,
@@ -254,7 +256,17 @@ export function createConnectedChatRepository(
     return merged;
   }
 
+  const syncRepository = createConnectedChatSyncRepository({
+    assertActive,
+    database,
+    mergeMessage: async (transaction, input, source) => {
+      await mergeMessage(transaction, input, source);
+    },
+    principal,
+  });
+
   return {
+    ...syncRepository,
     async upsertChatrooms(inputs: readonly ConnectedChatroomUpsert[]) {
       assertActive();
       await database.withExclusiveTransactionAsync(async (transaction) => {
@@ -402,14 +414,15 @@ export function createConnectedChatRepository(
         await transaction.runAsync(
           `INSERT INTO connected_chat_outbox_commands (
             command_id, local_id, chatroom_id, client_msg_id, sender_id, body,
-            state, error_code, created_at_ms
-          ) VALUES (?, ?, ?, ?, ?, ?, 'queued', NULL, ?)`,
+            state, error_code, created_at_ms, next_attempt_at_ms
+          ) VALUES (?, ?, ?, ?, ?, ?, 'queued', NULL, ?, ?)`,
           input.commandId,
           input.localId,
           input.chatroomId,
           input.clientMsgId,
           principal.userId,
           input.body,
+          input.localCreatedAtMs,
           input.localCreatedAtMs,
         );
       });
@@ -454,7 +467,9 @@ export function createConnectedChatRepository(
           throw new Error("Connected chat outbox command was not found.");
         if (command.state === "acked") return;
         await transaction.runAsync(
-          `UPDATE connected_chat_outbox_commands SET state = 'failed', error_code = ?
+          `UPDATE connected_chat_outbox_commands SET
+             state = 'failed', error_code = ?, lease_token = NULL,
+             lease_expires_at_ms = NULL
            WHERE command_id = ?`,
           errorCode,
           command.command_id,
@@ -484,7 +499,9 @@ export function createConnectedChatRepository(
           );
         }
         await transaction.runAsync(
-          `UPDATE connected_chat_outbox_commands SET state = 'queued', error_code = NULL
+          `UPDATE connected_chat_outbox_commands SET
+             state = 'queued', error_code = NULL, next_attempt_at_ms = 0,
+             lease_token = NULL, lease_expires_at_ms = NULL
            WHERE command_id = ? AND state = 'failed'`,
           command.command_id,
         );

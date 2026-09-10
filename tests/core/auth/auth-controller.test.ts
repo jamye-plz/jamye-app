@@ -65,6 +65,49 @@ function deferred() {
 }
 
 describe("auth session controller", () => {
+  test("profile recovery is single-flight and an aborted result cannot create a principal", async () => {
+    const release = deferred();
+    const started = deferred();
+    const f = fixture({ store: { load: async () => pair } });
+    f.api.profile.mockRejectedValueOnce(new Error("offline"));
+    await f.controller.restore();
+    expect(f.controller.getState()).toMatchObject({
+      status: "error",
+      profile: null,
+      retryAction: "retryProfile",
+    });
+    f.api.profile.mockImplementationOnce(async () => {
+      started.resolve();
+      await release.promise;
+      return profile;
+    });
+    const caller = new AbortController();
+    const first = f.controller.retryProfile(caller.signal);
+    await started.promise;
+    const second = f.controller.retryProfile();
+    caller.abort();
+    release.resolve();
+    await Promise.all([first, second]);
+    expect(f.api.profile).toHaveBeenCalledTimes(2); // initial restore + one retry
+    expect(f.controller.getState()).toMatchObject({
+      status: "error",
+      profile: null,
+      retryAction: "retryProfile",
+    });
+  });
+
+  test("an already-cancelled profile retry leaves the recoverable error untouched", async () => {
+    const f = fixture({ store: { load: async () => pair } });
+    f.api.profile.mockRejectedValueOnce(new Error("offline"));
+    await f.controller.restore();
+    const before = f.controller.getState();
+    const caller = new AbortController();
+    caller.abort();
+    await f.controller.retryProfile(caller.signal);
+    expect(f.api.profile).toHaveBeenCalledTimes(1);
+    expect(f.controller.getState()).toBe(before);
+  });
+
   test.each(["save", "load"])(
     "an abandoned controller's in-flight %s cannot replace the next controller's secure record",
     async (phase) => {

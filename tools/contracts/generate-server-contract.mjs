@@ -15,6 +15,10 @@ const GENERATOR_IDENTITY = "openapi-typescript@7.13.0";
 // see contracts/server/intake.json for the frozen intake-time closure this
 // milestone deliberately grows beyond. M8 extends it again with the chat
 // surface (C1-C4), including the additive C3 message_id-or-cursor read anchor.
+// M9 task-1 extends it again with the delta-recovery surface (S1 GET events,
+// R1 POST realtime ticket); the realtime WebSocket frame/protocol schemas
+// are not OpenAPI operations and are validated separately from the
+// selectively vendored contracts/server/realtime/*.json artifacts.
 const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "A1",
   "A2",
@@ -38,6 +42,8 @@ const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "C2",
   "C3",
   "C4",
+  "S1",
+  "R1",
 ]);
 
 function isRecord(value) {

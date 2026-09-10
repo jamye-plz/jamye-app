@@ -1,6 +1,6 @@
 import { act, render, renderHook } from "@testing-library/react-native";
 import React from "react";
-import { Text } from "react-native";
+import { AppState, Text } from "react-native";
 
 import type { AuthController, AuthState } from "@/core/auth/auth-controller";
 import { SessionProvider, useSession } from "@/core/providers/session-provider";
@@ -63,6 +63,64 @@ function Probe(): React.JSX.Element {
 }
 
 describe("SessionProvider / useSession", () => {
+  test("foreground recovery keeps principal null until U1 succeeds and cleans up on unmount", async () => {
+    jest.useFakeTimers();
+    const initialAppState = AppState.currentState;
+    AppState.currentState = "background";
+    let change!: (state: "active" | "background") => void;
+    const remove = jest.fn();
+    const subscribe = jest
+      .spyOn(AppState, "addEventListener")
+      .mockImplementation((_event, listener) => {
+        change = listener;
+        return { remove };
+      });
+    const controller = fakeController({
+      status: "error",
+      profile: null,
+      message: "offline",
+      retryAction: "retryProfile",
+    });
+    const createController = () => controller;
+    const screen = await render(
+      <SessionProvider
+        origin="https://api.example"
+        createController={createController}
+      >
+        <Probe />
+      </SessionProvider>,
+    );
+    try {
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(60000);
+      });
+      expect(controller.retryProfile).not.toHaveBeenCalled();
+      await act(async () => {
+        change("active");
+        await jest.advanceTimersByTimeAsync(1000);
+      });
+      expect(controller.retryProfile).toHaveBeenCalledTimes(1);
+      expect(
+        JSON.parse(screen.getByTestId("probe").props.children).principal,
+      ).toBeNull();
+      await act(async () => {
+        controller.publish({ status: "signed-in", profile, message: null });
+        await jest.advanceTimersByTimeAsync(60000);
+      });
+      expect(controller.retryProfile).toHaveBeenCalledTimes(1);
+      expect(
+        JSON.parse(screen.getByTestId("probe").props.children).principal.userId,
+      ).toBe(profile.id);
+    } finally {
+      await screen.unmount();
+      subscribe.mockRestore();
+      AppState.currentState = initialAppState;
+      jest.useRealTimers();
+    }
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(controller.dispose).toHaveBeenCalled();
+  });
+
   test("builds exactly one controller per mount and calls restore once", async () => {
     const controller = fakeController();
     const createController = jest.fn(() => controller);

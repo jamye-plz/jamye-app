@@ -1,6 +1,11 @@
 import Ajv2020 from "ajv/dist/2020";
 
 import serverOpenApi from "../../../../contracts/server/openapi.json";
+import realtimeClientFrameSchema from "../../../../contracts/server/realtime/client-frame.schema.json";
+import realtimeMessageCreatedFrameSchema from "../../../../contracts/server/realtime/message.created.schema.json";
+import realtimeProtocolDocument from "../../../../contracts/server/realtime/protocol.json";
+import realtimeServerFrameSchema from "../../../../contracts/server/realtime/server-frame.schema.json";
+import realtimeTopicCreatedFrameSchema from "../../../../contracts/server/realtime/topic.created.schema.json";
 import type { components } from "../generated/server/server-api";
 
 import { registerServerContractFormats } from "./formats";
@@ -102,6 +107,104 @@ export const validateCanonicalMessage =
 export const validateReadAnchorIn = compileComponentSchema("ReadAnchorIn");
 export const validateReadCursorIn = compileComponentSchema("ReadCursorIn");
 export const validateReadMarker = compileComponentSchema("ReadMarker");
+
+// S1 (GET /api/v1/conversations/{conversation_id}/events) and R1
+// (POST /api/v1/realtime/tickets) wire shapes. 426/401/403/503 for both
+// operations reuse the existing ErrorEnvelope validated above.
+export type EventPageWire = components["schemas"]["EventPage"];
+export type DeltaItemWire = components["schemas"]["DeltaItem"];
+export type UnsupportedEventMarkerWire =
+  components["schemas"]["UnsupportedEventMarker"];
+export type ReconcileScopeWire = components["schemas"]["ReconcileScope"];
+export type MessageCreatedEventWire =
+  components["schemas"]["MessageCreatedEvent"];
+export type TopicCreatedEventWire = components["schemas"]["TopicCreatedEvent"];
+export type RealtimeTicketWire = components["schemas"]["RealtimeTicket"];
+
+export const validateEventPage = compileComponentSchema("EventPage");
+export const validateDeltaItem = compileComponentSchema("DeltaItem");
+export const validateUnsupportedEventMarker = compileComponentSchema(
+  "UnsupportedEventMarker",
+);
+export const validateMessageCreatedEvent = compileComponentSchema(
+  "MessageCreatedEvent",
+);
+export const validateTopicCreatedEvent =
+  compileComponentSchema("TopicCreatedEvent");
+export const validateRealtimeTicket = compileComponentSchema("RealtimeTicket");
+
+// Realtime WebSocket wire boundary, validated against the selectively
+// vendored contracts/server/realtime/*.json artifacts (a separate Ajv
+// instance avoids $id collisions with the openapi.json component schemas
+// above). additionalProperties is intentionally absent from the client/server
+// control-frame branches below because the authoritative schema omits it
+// there; only the event envelopes (message.created/topic.created and their
+// nested data) declare additionalProperties:false. This mirrors the
+// upstream schema exactly rather than over-restricting legal fields.
+const realtimeAjv = new Ajv2020({ allErrors: true, strict: false });
+registerServerContractFormats(realtimeAjv);
+
+function compileRealtimeFrameSchema<T>(
+  schema: unknown,
+): (value: unknown) => value is T {
+  const validate = realtimeAjv.compile<T>(schema as never);
+  return (value: unknown): value is T => validate(value);
+}
+
+export type RealtimeClientFrame =
+  | Readonly<{
+      type: "subscribe";
+      request_id: string;
+      conversation_id: string;
+    }>
+  | Readonly<{
+      type: "unsubscribe";
+      request_id: string;
+      conversation_id: string;
+    }>
+  | Readonly<{ type: "ping"; nonce: string }>;
+
+export type RealtimeServerControlFrame =
+  | Readonly<{
+      type: "subscribed";
+      request_id: string;
+      conversation_id: string;
+    }>
+  | Readonly<{
+      type: "unsubscribed";
+      request_id: string;
+      conversation_id: string;
+    }>
+  | Readonly<{ type: "pong"; nonce: string }>
+  | Readonly<{
+      type: "error";
+      request_id: string;
+      code: string;
+      message: string;
+    }>;
+
+export type RealtimeServerFrame =
+  RealtimeServerControlFrame | MessageCreatedEventWire | TopicCreatedEventWire;
+
+export const validateRealtimeClientFrame =
+  compileRealtimeFrameSchema<RealtimeClientFrame>(realtimeClientFrameSchema);
+export const validateRealtimeServerFrame =
+  compileRealtimeFrameSchema<RealtimeServerFrame>(realtimeServerFrameSchema);
+export const validateRealtimeMessageCreatedFrame =
+  compileRealtimeFrameSchema<MessageCreatedEventWire>(
+    realtimeMessageCreatedFrameSchema,
+  );
+export const validateRealtimeTopicCreatedFrame =
+  compileRealtimeFrameSchema<TopicCreatedEventWire>(
+    realtimeTopicCreatedFrameSchema,
+  );
+
+// protocol.json is lifecycle/versioning metadata (heartbeat timing, close
+// codes, ticket policy), not a JSON Schema; its type is inferred directly
+// from the vendored document so it can never drift from or invent beyond
+// the authoritative snapshot.
+export type RealtimeProtocol = typeof realtimeProtocolDocument;
+export const realtimeProtocol: RealtimeProtocol = realtimeProtocolDocument;
 
 const OAUTH_STATE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 // I2's path parameter (GET /api/v1/invites/{code}/join) is declared with only

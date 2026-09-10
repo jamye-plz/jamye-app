@@ -45,6 +45,34 @@ export type AuthorizedChatRequest = <T>(
   signal?: AbortSignal,
 ) => Promise<T>;
 
+export type ConnectedSyncState =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "offline"
+  | "unauthorized"
+  | "upgrade-required"
+  | "membership-evicted";
+export type ConnectedChatSync = Readonly<{
+  start: () => void;
+  wake: () => void;
+  setConversations: (ids: readonly string[]) => void;
+  pause: () => void;
+  resume: () => void;
+  dispose: () => void;
+}>;
+export type ConnectedChatSyncFactory = (
+  binding: Readonly<{
+    principal: AccountPrincipal;
+    repository: ConnectedChatRepository;
+    authorize: AuthorizedChatRequest;
+    isActive: () => boolean;
+    onChanged: () => Promise<void>;
+    onState: (state: ConnectedSyncState) => void;
+    onConversationEvicted?: (chatroomId: string) => void;
+  }>,
+) => ConnectedChatSync;
+
 export type ConnectedChatRoomsState = Readonly<{
   status: "idle" | "loading" | "ready" | "error";
   items: readonly ConnectedChatroom[];
@@ -80,6 +108,7 @@ export type ConnectedChatState = Readonly<{
   history: ConnectedChatHistoryState;
   send: ConnectedChatSendState;
   read: ConnectedChatReadState;
+  sync: ConnectedSyncState;
 }>;
 
 export type ConnectedChatStoreActions = Readonly<{
@@ -134,6 +163,7 @@ function initialState(): ConnectedChatState {
     },
     send: { status: "idle" },
     read: emptyReadState(),
+    sync: "idle",
   };
 }
 
@@ -146,11 +176,6 @@ function mapSendErrorCode(error: unknown): ConnectedSendErrorCode {
   if (error.status === 422) return "validation";
   if (error.status >= 500) return "server_unavailable";
   return "unknown";
-}
-
-/** Only a transport failure (no response received at all) is ambiguous about server effect. */
-function isUncertainSendOutcome(errorCode: ConnectedSendErrorCode): boolean {
-  return errorCode === "network";
 }
 
 function isMembershipLost(error: unknown): boolean {
@@ -187,7 +212,9 @@ function toChatroomUpsert(wire: Chatroom): ConnectedChatroomUpsert {
 
 /** The server message id doubles as the local key for a never-before-seen row; an
  * existing match is looked up by the repository itself and keeps its own local id. */
-function toHistoryUpsert(wire: WireChatMessage): ConnectedHistoryMessageUpsert {
+export function toHistoryUpsert(
+  wire: WireChatMessage,
+): ConnectedHistoryMessageUpsert {
   return {
     body: wire.body,
     chatroomId: wire.chatroomId,
@@ -203,10 +230,10 @@ function toHistoryUpsert(wire: WireChatMessage): ConnectedHistoryMessageUpsert {
   };
 }
 
-function toCanonicalUpsert(
+export function toCanonicalUpsert(
   wire: CanonicalChatMessage,
-  localId: string,
-  clientMsgId: string,
+  localId = wire.id,
+  clientMsgId: string | null = wire.clientMessageId,
 ): ConnectedCanonicalMessageUpsert {
   return {
     body: wire.body,
@@ -246,12 +273,14 @@ export function createConnectedChatStore(
     clock: ClockPort;
     createApi: (origin: string) => ChatApi;
     messageIdentity: ConnectedMessageIdentityPort;
+    createSync?: ConnectedChatSyncFactory;
   }>,
 ): ConnectedChatStore {
   let identity = "";
   let api: ChatApi | null = null;
   let repository: ConnectedChatRepository | null = null;
   let authorize: AuthorizedChatRequest | null = null;
+  let sync: ConnectedChatSync | null = null;
   let state = initialState();
   const listeners = new Set<() => void>();
   const requests = new Map<string, AbortController>();
@@ -310,50 +339,19 @@ export function createConnectedChatStore(
   function cancelAll(): void {
     for (const key of [...requests.keys()]) cancel(key);
   }
-  function interruptSend(persist = true): void {
+  function interruptSend(): void {
     cancel("send");
     const attempt = sendPreparation;
     sendPreparation = null;
-    if (!persist) return;
-    if (!attempt) {
-      if (state.send.status === "pending")
-        publish({ ...state, send: { status: "idle" } });
-      return;
-    }
-    interruptedWrite = interruptedWrite
-      .then(async () => {
-        await attempt.write;
-        if (identity !== attempt.identity || repository !== attempt.repo)
-          return;
-        await attempt.repo.markSendFailed({
-          clientMsgId: attempt.clientMsgId,
-          errorCode: "network",
-        });
-      })
-      .catch(() => {
-        if (
-          identity === attempt.identity &&
-          repository === attempt.repo &&
-          state.chatroomId === attempt.chatroomId
-        ) {
-          publish({
-            ...state,
-            send: {
-              status: "failed",
-              clientMsgId: attempt.clientMsgId,
-              errorCode: "unknown",
-            },
-          });
-        }
-      });
-    publish({
-      ...state,
-      send: {
-        status: "uncertain",
-        clientMsgId: attempt.clientMsgId,
-        errorCode: "network",
-      },
-    });
+    // An interrupted view does not own delivery. The already-started atomic enqueue
+    // remains queued for the account dispatcher, even if its callback is now stale.
+    if (attempt)
+      interruptedWrite = attempt.write.then(
+        () => undefined,
+        () => undefined,
+      );
+    if (state.send.status === "pending")
+      publish({ ...state, send: { status: "idle" } });
   }
   function begin(key: string) {
     if (!active || !api || !authorize || !repository) return null;
@@ -404,7 +402,9 @@ export function createConnectedChatStore(
       authorize = valid ? nextAuthorize : null;
       return;
     }
-    interruptSend(false);
+    sync?.dispose();
+    sync = null;
+    interruptSend();
     cancelAll();
     read.reset();
     identity = key;
@@ -418,6 +418,90 @@ export function createConnectedChatStore(
     historyBlocked = false;
     interruptedWrite = Promise.resolve();
     publish(initialState());
+    if (valid && deps.createSync) {
+      const scopedRepository = nextRepository;
+      const current = () => identity === key && repository === scopedRepository;
+      sync = deps.createSync({
+        principal: nextPrincipal,
+        repository: scopedRepository,
+        authorize: (execute, signal) => {
+          if (!current() || !authorize)
+            return Promise.reject(new ChatApiError(0, "request_cancelled"));
+          return authorize(execute, signal);
+        },
+        isActive: current,
+        onChanged: async () => {
+          if (!current() || historyBlocked || !state.chatroomId) return;
+          const roomId = state.chatroomId;
+          const ticket = begin("sync-read");
+          if (ticket) await refreshAfterWrite(ticket, roomId);
+        },
+        onConversationEvicted: (roomId) => {
+          if (!current()) return;
+          const rooms = {
+            ...state.rooms,
+            items: state.rooms.items.filter(
+              (room) => room.chatroomId !== roomId,
+            ),
+          };
+          if (state.chatroomId !== roomId) {
+            publish({ ...state, rooms });
+            return;
+          }
+          interruptSend();
+          cancel("history");
+          cancel("sync-read");
+          cancel("read");
+          read.reset();
+          historyBlocked = true;
+          publish({
+            ...state,
+            rooms,
+            accessLost: true,
+            history: {
+              ...initialState().history,
+              status: "error",
+              error: "forbidden",
+            },
+            read: emptyReadState(),
+          });
+        },
+        onState: (next) => {
+          if (!current()) return;
+          if (next === "membership-evicted") {
+            interruptSend();
+            cancelAll();
+            read.reset();
+            historyBlocked = true;
+            publish({
+              ...state,
+              sync: next,
+              accessLost: true,
+              history: {
+                ...initialState().history,
+                status: "error",
+                error: "forbidden",
+              },
+              rooms: {
+                ...initialState().rooms,
+                status: "error",
+                error: "forbidden",
+              },
+              read: emptyReadState(),
+            });
+          } else publish({ ...state, sync: next });
+        },
+      });
+    }
+  }
+
+  function syncConversations(): void {
+    sync?.setConversations([
+      ...new Set([
+        ...state.rooms.items.map((room) => room.chatroomId),
+        ...(state.chatroomId ? [state.chatroomId] : []),
+      ]),
+    ]);
   }
 
   function historyErrorPatch(
@@ -484,6 +568,7 @@ export function createConnectedChatStore(
     if (!more) {
       roomsGroupId = groupId;
       roomsHttpCursor = null;
+      sync?.setConversations([]);
     }
     publish({
       ...state,
@@ -536,6 +621,7 @@ export function createConnectedChatStore(
           error: null,
         },
       });
+      syncConversations();
     } catch (error) {
       if (!ticket.current()) return;
       publish({
@@ -555,6 +641,7 @@ export function createConnectedChatStore(
   async function openRoom(chatroomId: string): Promise<void> {
     const roomChanged = state.chatroomId !== chatroomId;
     if (roomChanged) interruptSend();
+    cancel("sync-read");
     const ticket = begin("history");
     if (!ticket) return;
     cancel("read");
@@ -590,8 +677,31 @@ export function createConnectedChatStore(
       const history = await readHistoryWindow(ticket, chatroomId, null);
       if (!history) return;
       publish({ ...state, history });
+      syncConversations();
     } catch (error) {
       if (!ticket.current()) return;
+      if (
+        error instanceof ChatApiError &&
+        (error.status === 0 ||
+          error.status === 408 ||
+          error.status === 429 ||
+          error.status >= 500)
+      ) {
+        try {
+          const cached = await readHistoryWindow(ticket, chatroomId, null);
+          if (!cached) return;
+          publish({
+            ...state,
+            history: { ...cached, error: mapSendErrorCode(error) },
+            sync: state.sync === "upgrade-required" ? state.sync : "offline",
+          });
+          syncConversations();
+          return;
+        } catch {
+          if (!ticket.current()) return;
+          // A failed local read must not manufacture an empty, successful cache.
+        }
+      }
       publish({
         ...state,
         history: historyErrorPatch(state.history, error),
@@ -667,7 +777,12 @@ export function createConnectedChatStore(
     body: string,
     onCommitted?: (localId: string) => void,
   ): Promise<void> {
-    if (historyBlocked || state.send.status === "pending" || !body.trim())
+    if (
+      historyBlocked ||
+      state.sync === "upgrade-required" ||
+      state.send.status === "pending" ||
+      !body.trim()
+    )
       return;
     const chatroomId = state.chatroomId;
     if (!chatroomId) return;
@@ -699,36 +814,30 @@ export function createConnectedChatStore(
       onCommitted?.(enqueueResult.message.localId);
       await refreshAfterWrite(ticket, chatroomId);
       if (!ticket.current()) return;
-      const result = await ticket.run((service, token, signal) =>
-        service.sendChatMessage(
-          token,
-          enqueueResult.command.chatroomId,
-          {
-            body: enqueueResult.command.body,
-            clientMessageId: enqueueResult.command.clientMsgId,
-          },
-          signal,
-        ),
-      );
-      if (!ticket.current()) return;
-      await ticket.repo.mergeCanonicalMessage(
-        toCanonicalUpsert(
-          result.message,
-          enqueueResult.message.localId,
-          identityInput.clientMsgId,
-        ),
-      );
-      if (!ticket.current()) return;
-      await publishSendSuccess(ticket, chatroomId, identityInput.clientMsgId);
+      sync?.wake();
+      publish({ ...state, send: { status: "idle" } });
     } catch (error) {
-      await publishSendFailure(ticket, identityInput.clientMsgId, error);
+      if (ticket.current())
+        publish({
+          ...state,
+          send: {
+            status: "failed",
+            clientMsgId: identityInput.clientMsgId,
+            errorCode: mapSendErrorCode(error),
+          },
+        });
     } finally {
       if (ticket.current()) sendPreparation = null;
     }
   }
 
   async function retryMessage(clientMsgId: string): Promise<void> {
-    if (historyBlocked || state.send.status === "pending") return;
+    if (
+      historyBlocked ||
+      state.sync === "upgrade-required" ||
+      state.send.status === "pending"
+    )
+      return;
     const chatroomId = state.chatroomId;
     if (!chatroomId) return;
     const ticket = begin("send");
@@ -761,45 +870,25 @@ export function createConnectedChatStore(
         clientMsgId,
         write,
       };
-      const retryResult = await write;
+      await write;
       if (!ticket.current()) return;
       await refreshAfterWrite(ticket, chatroomId);
       if (!ticket.current()) return;
-      const result = await ticket.run((service, token, signal) =>
-        service.sendChatMessage(
-          token,
-          command.chatroomId,
-          { body: command.body, clientMessageId: command.clientMsgId },
-          signal,
-        ),
-      );
-      if (!ticket.current()) return;
-      await ticket.repo.mergeCanonicalMessage(
-        toCanonicalUpsert(
-          result.message,
-          retryResult.message.localId,
-          command.clientMsgId,
-        ),
-      );
-      if (!ticket.current()) return;
-      await publishSendSuccess(ticket, command.chatroomId, command.clientMsgId);
+      sync?.wake();
+      publish({ ...state, send: { status: "idle" } });
     } catch (error) {
-      await publishSendFailure(ticket, clientMsgId, error);
+      if (ticket.current())
+        publish({
+          ...state,
+          send: {
+            status: "failed",
+            clientMsgId,
+            errorCode: mapSendErrorCode(error),
+          },
+        });
     } finally {
       if (ticket.current()) sendPreparation = null;
     }
-  }
-
-  /** Room changes cancel the send ticket before any late canonical merge or publication. */
-  async function publishSendSuccess(
-    ticket: NonNullable<ReturnType<typeof begin>>,
-    chatroomId: string,
-    clientMsgId: string,
-  ): Promise<void> {
-    if (!ticket.current() || state.chatroomId !== chatroomId) return;
-    await refreshAfterWrite(ticket, chatroomId);
-    if (ticket.current())
-      publish({ ...state, send: { status: "sent", clientMsgId } });
   }
 
   async function refreshAfterWrite(
@@ -826,38 +915,8 @@ export function createConnectedChatStore(
     });
   }
 
-  async function publishSendFailure(
-    ticket: NonNullable<ReturnType<typeof begin>>,
-    clientMsgId: string,
-    error: unknown,
-  ): Promise<void> {
-    if (!ticket.current()) return;
-    const errorCode = mapSendErrorCode(error);
-    try {
-      await ticket.repo.markSendFailed({ clientMsgId, errorCode });
-      if (ticket.current() && state.chatroomId)
-        await refreshAfterWrite(ticket, state.chatroomId);
-    } catch {
-      if (ticket.current())
-        publish({ ...state, history: { ...state.history, error: "unknown" } });
-    }
-    if (!ticket.current()) return;
-    const history = isMembershipLost(error)
-      ? historyErrorPatch(state.history, error)
-      : state.history;
-    publish({
-      ...state,
-      history,
-      accessLost: historyBlocked,
-      send: {
-        status: isUncertainSendOutcome(errorCode) ? "uncertain" : "failed",
-        clientMsgId,
-        errorCode,
-      },
-    });
-  }
-
   function closeRoom(): void {
+    cancel("sync-read");
     cancel("history");
     cancel("read");
     read.reset();
@@ -873,9 +932,11 @@ export function createConnectedChatStore(
       history: initialState().history,
       send: { status: "idle" },
     });
+    syncConversations();
   }
 
   function background(): void {
+    sync?.pause();
     active = false;
     interruptSend();
     cancelAll();
@@ -899,6 +960,8 @@ export function createConnectedChatStore(
 
   async function foreground(): Promise<void> {
     active = true;
+    sync?.start();
+    sync?.resume();
     if (state.chatroomId) await openRoom(state.chatroomId);
     else if (roomsGroupId) await loadRooms(roomsGroupId, false);
   }
@@ -927,6 +990,7 @@ export function createConnectedChatStore(
           rooms: initialState().rooms,
           accessLost: false,
         });
+        syncConversations();
       },
       openRoom,
       loadOlderHistory,

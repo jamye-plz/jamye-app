@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { PropsWithChildren } from "react";
+import { AppState } from "react-native";
 
 import { createAuthApi } from "@/core/auth/auth-api";
 import { createAuthController } from "@/core/auth/auth-controller";
@@ -16,6 +17,7 @@ import { createPkcePair } from "@/core/auth/pkce";
 import { secureSessionStore } from "@/core/auth/secure-session-store";
 import { parsePublicApiOrigin } from "@/core/config/public-env";
 import type { OAuthProvider } from "@/core/auth/types";
+import { createProfileRecovery } from "@/features/sync/model/profile-recovery";
 
 export type SessionPrincipal = Readonly<{
   origin: string;
@@ -108,8 +110,17 @@ export function SessionProvider({
   );
 
   useEffect(() => {
+    const recovery = createProfileRecovery(
+      controller,
+      AppState.currentState === "active",
+    );
+    const appStateSubscription = AppState.addEventListener("change", (next) => {
+      recovery.setForeground(next === "active");
+    });
     void controller.restore();
     return () => {
+      appStateSubscription?.remove();
+      recovery.dispose();
       controller.dispose();
     };
   }, [controller]);

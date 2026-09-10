@@ -1,9 +1,9 @@
 # 잼얘좀 모바일 — 서버 연결 제품 여정과 보존할 native 의도
 
 - 작성 목적: M1에서 기존 `jamye-plz`의 제품 의미와 회귀 의도를 읽기 전용으로 추출
-- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat
+- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat, M9 durable outbox/realtime/delta
 - M5 이후: Kakao/Google login/profile/logout과 M6 범위의 native/user 세션 수용 완료
-- 현재 frontier: M8 completed / user accepted (2026-09-10), M9 planned / unapproved
+- 현재 frontier: M9 completed / user accepted (2026-09-10), M10 planned / unapproved
 - 기준 저장소: [sibling `jamye-plz`](../../jamye-plz/) repository (수정하지 않음)
 
 ## 1. 먼저 고정할 해석 원칙
@@ -17,7 +17,8 @@
 
 - `local-fixture` mode는 고정 fixture 사용자와 대화방을, `connected-auth` mode는 shared
   OAuth session, 검증된 U1 profile, logout과 account-safe home, M7 group journey 및 M8 REST chat을 표시한다.
-  그룹에서 주제 목록·메시지 조회·텍스트 전송·수동 재시도·내 읽음 위치 저장으로 이동한다.
+  그룹에서 주제 목록·메시지 조회·텍스트 전송·수동 재시도·내 읽음 위치 저장으로 이동하며
+  M9의 자동 outbox와 실시간·delta 복구를 사용한다.
 - 인증 mode는 M5 `jamye.db` fixture와 seed를 사용하지 않는다. API origin과 검증된 User UUID를
   함께 digest한 account namespace와 `scope_metadata` identity를 사용하며, 이전 account의
   늦은 응답·open/close 작업이 새 account에 노출되지 않도록 session epoch와 scope drain으로
@@ -26,15 +27,15 @@
 - 텍스트 메시지만 읽고 보낸다.
 - 전송 버튼을 누르면 optimistic message와 outbox command를 하나의 transaction으로 만든다.
 - M5는 오프라인 전송 의도를 기기에 남긴다. 재시작·재연결 뒤 같은 `client_msg_id`로
-  canonical event 하나에 수렴시키는 processor는 M9에서 구현한다.
-- Realtime event 누락을 delta sync로 복구하는 동작은 M9의 목표이며 현재 실행 경로가 아니다.
+  canonical message 하나에 수렴시키는 processor는 M9에서 구현·수용했다.
+- M9는 realtime event 누락을 S1 delta sync로 복구하며 화면의 SQLite 원본 경계를 유지한다.
 - composer에서 Enter는 줄바꿈이고, 명시적인 버튼만 전송한다. 한국어 IME 조합 중에는
   전송 동작이 발생하지 않아야 한다.
 
 장기 제품에는 그룹 메인방과 주제별 방이 모두 있다. 현재는 fixture 대화방 하나로 채팅의
-신뢰성을 검증했고 M6 계정 안전 기반, M7 그룹 여정과 M8 REST 채팅도 종료했다.
+신뢰성을 검증했고 M6 계정 안전 기반, M7 그룹 여정, M8 REST 채팅과 M9 동기화도 종료했다.
 앱의 사용자용 chatroom 명칭은 '주제'이며 main room은 '기본 주제'로 표시한다.
-API의 `chatroom`/`topic` 식별자는 유지한다. 다음 사용자 여정은 [로드맵](roadmap.md)의 M9 이후 순서를 따른다.
+API의 `chatroom`/`topic` 식별자는 유지한다. 다음 사용자 여정은 [로드맵](roadmap.md)의 M10 이후 순서를 따른다.
 
 ### 1.2 현재에서 미래로 이어지는 사용자 여정
 
@@ -45,7 +46,7 @@ API의 `chatroom`/`topic` 식별자는 유지한다. 다음 사용자 여정은 
 1. Login 후 account-safe home — M6 완료
 2. Group 생성·참여와 membership — M7 완료, 양 플랫폼 그룹 작업·계정 전환 사용자 확인
 3. 실제 chatroom history/read/send — M8 완료, 양 플랫폼 사용자 확인
-4. Offline/realtime convergence
+4. Offline/realtime convergence — M9 완료, 사용자 수용 4/4 확인
 5. Topics/tags
 6. Media
 7. Notification/Expo push
@@ -280,7 +281,7 @@ chat spacing, socket reconnect, design size, layout focus의 회귀 의도만 �
 ### 7.4 계획 범위와 contract-gap backlog
 
 - 계획 범위: server contract가 정의한 group·초대·chatroom/message·realtime/delta·topic/tag·
-  media·notification history·Expo push installation은 roadmap의 M7-M13 범위다. M7과 M8은 종료했으며
+  media·notification history·Expo push installation은 roadmap의 M7-M13 범위다. M7-M9는 종료했으며
   focused·aggregate 자동 결과와 native/live 사용자 수용 범위는 구분해 기록한다.
 - contract-gap backlog: Apple login, STT/on-device AI, presence/typing/reaction,
   message edit/delete와 새 push backend, 현재 server contract에 없는 provider·기능
@@ -314,4 +315,6 @@ M4 bootstrap contract와 M5 local chat을 닫을 때 이 문서의 제품 불변
 양 플랫폼 그룹 생성·초대·가입·나가기와 계정 전환의 사용자 확인을 받아 2026-09-10 종료했다.
 구체적인 수용 범위와 미확인 항목은 [M7 evidence](evidence/M7.md)에 기록한다.
 M8도 서버 C3 배포와 양 플랫폼 REST 채팅 수용 후 같은 날 종료했으며 [M8 evidence](evidence/M8.md)에
-별도로 기록한다. 기존 M9-M13은 변경하지 않고 각자의 승인 경계를 유지한다.
+별도로 기록한다. M9도 자동 검사·독립 리뷰 이후 사용자 수용 4/4 확인과 종료 승인을 받아
+같은 날 종료했다. [M9 evidence](evidence/M9.md)에 출처와 한계를 기록하며, 기존 M10-M13의
+범위와 승인 경계는 변경하지 않는다.

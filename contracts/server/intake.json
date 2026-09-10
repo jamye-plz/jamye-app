@@ -12,7 +12,17 @@
     "H2",
     "U1"
   ],
-  "source_git_revision": "3451d3497644e99843e2126b59f129f91f353615",
+  "selective_vendor_sha256": {
+    "fixtures/mobile-sync-handoff.json": "66cad4b60a718568500b32217cf4f1cbe048687270b657a35c81a43637eba860",
+    "fixtures/realtime-lifecycle.json": "5895c11d7d354a04140ec8286c07aad487e6fb00e9511db1ace5e4ef58e79cbe",
+    "fixtures/unknown-event-recovery.json": "dc647447de8e2aa03cb245eff29e96dba08e0024dff72c0f648b2bfe24a2c18f",
+    "realtime/client-frame.schema.json": "cbb6c9966777ae07cfbb66de39b7a16e79b2dbfb95037ac2688ff5457b72b763",
+    "realtime/message.created.schema.json": "b033a3a1bdf40960542bb74922f62bceb78ca63c7f1cd10e837bc0be6f3964a9",
+    "realtime/protocol.json": "00fc9016315cb015e63928fdf0252f834f5118fe5ea480ed3003762d30a67d59",
+    "realtime/server-frame.schema.json": "3db8d44d42d0f6023d9d46aa93c09cb6176d38e1739bcf2bdd3d506a9758aabe",
+    "realtime/topic.created.schema.json": "1db02f6910b016bd1100e45f2354935ba4e2d7b69a89f1d51e22a67ee10d98c5"
+  },
+  "source_git_revision": "5decfbca9e719e7932a941e5af764cca3156f2f6",
   "upstream_artifact_count": 21,
   "upstream_bundle_sha256": "59fb2d4ec755f4e0d7cb5763eae289c59ae1f712e358152449c33e3c7abb3d7f",
   "upstream_bundle_verified": true,

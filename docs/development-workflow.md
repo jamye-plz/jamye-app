@@ -343,7 +343,23 @@ Metro를 재사용해 양 플랫폼을 실행했고, 사용자가 송수신·읽
 만들지 않으며 dependency/native 설정 변경, 재빌드·재설치·실계정 작업·배포도 반복하지 않는다.
 기존 architecture 목록에는 새 종료 문서의 정확한 경로만 추가하고 다른 검사 경계는 유지한다.
 메시지별 상대방 읽음 표시와 주제별 안읽음 표시는 미구현이며 기존 후속 마일스톤에 추가하지 않는다.
-다음 단계는 기존 M9의 계획 검토·승인이다. 앱 전체 출시와 push/배포 승인은 별도다.
+당시 다음 단계였던 M9는 아래의 별도 구현·검증·사용자 승인으로 종료했다.
+
+## M9 검증과 종료 — 2026-09-10
+
+M9는 `COMPLETED / USER_ACCEPTED`다. 기존 app devShell을 재사용한 최종 `bun run check:code`는
+70 suites / 814 tests, architecture 위반 0건으로 통과했다. Coverage는 statements 87.52%,
+branches 82.58%, functions 91.33%, lines 90.82%이며 기존 80% 기준을 유지했다.
+Server/bootstrap 계약 검사, Expo Doctor 21/21, Nix/toolchain 39 diagnostics도 통과했다.
+독립 리뷰를 마쳤으며 기존 image-size High 2건은 원본 감사에 남아 있다. 패치 회귀 PASS와
+audit-zero를 혼동하지 않는다.
+
+Native 입력 변경 없이 기존 Development Builds와 Metro를 재사용했다. 에이전트의 제한된
+양 플랫폼 실행 관찰 이후 사용자는 즉시 송수신, 백그라운드 누락 복구, 오프라인 전송 대기 후
+재시작·재연결, 계정 전환 격리의 4개 항목을 모두 정상으로 확인하고 로컬 커밋·종료를 승인했다.
+종료 문서와 exact-path 검사 목록만 마무리하며 제품 테스트·빌드·실계정 작업·배포를 반복하지 않는다.
+출처별 결과와 검증 한계는 [M9 evidence](evidence/M9.md)를 따른다.
+다음 단계는 기존 M10 주제·태그의 계획 검토·승인이며 앱 전체 출시와 push/배포는 별도다.
 
 ## 4. Dependency와 toolchain script
 

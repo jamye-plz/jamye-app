@@ -75,12 +75,12 @@ async function main(): Promise<void> {
   `);
 
   await runMigrations(adapter, accountMigrations);
-  assert.equal(database.query("PRAGMA user_version").get().user_version, 2);
+  assert.equal(database.query("PRAGMA user_version").get().user_version, 3);
   assert.deepEqual(database.query("SELECT * FROM scope_metadata").get(), {
     singleton: 1,
     origin: PRINCIPAL.origin,
     user_id: PRINCIPAL.userId,
-    schema_version: 2,
+    schema_version: 3,
   });
 
   let active = true;

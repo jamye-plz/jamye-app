@@ -282,6 +282,21 @@ const M6_SERVER_CONTRACT_FILES = Object.freeze([
   "contracts/server/openapi.json",
 ]);
 
+const M9_SERVER_CONTRACT_FILES = Object.freeze([
+  "contracts/server/fixtures/mobile-sync-handoff.json",
+  "contracts/server/fixtures/realtime-lifecycle.json",
+  "contracts/server/fixtures/unknown-event-recovery.json",
+  "contracts/server/realtime/client-frame.schema.json",
+  "contracts/server/realtime/message.created.schema.json",
+  "contracts/server/realtime/protocol.json",
+  "contracts/server/realtime/server-frame.schema.json",
+  "contracts/server/realtime/topic.created.schema.json",
+]);
+const ACTIVE_SERVER_CONTRACT_FILES = Object.freeze([
+  ...M6_SERVER_CONTRACT_FILES,
+  ...M9_SERVER_CONTRACT_FILES,
+]);
+
 const M6_CONTRACT_SOURCE_FILES = Object.freeze([
   "src/core/contracts/generated/server/server-api.ts",
   "src/core/contracts/server/domain.ts",
@@ -437,6 +452,37 @@ const M8_AUTHORED_FILES = Object.freeze([
   "tests/features/chat/model/connected-chat-fixtures.ts",
 ]);
 
+const M9_DATABASE_SOURCE_FILES = Object.freeze([
+  "src/core/database/account/connected-chat-sync-repository.ts",
+  "src/core/database/account/migrations/003-durable-outbox-events.ts",
+]);
+const M9_TEST_PATHS = Object.freeze([
+  "tests/core/database/account/connected-chat-sync-repository.test.ts",
+  "tests/features/sync/model/profile-recovery.test.ts",
+  "tests/features/sync/model/account-sync.test.ts",
+  "tests/features/sync/outbox/outbox-dispatcher.test.ts",
+  "tests/features/sync/realtime/sync-api.test.ts",
+  "tests/features/sync/realtime/realtime-socket.test.ts",
+  "tests/features/sync/realtime/delta-sync.test.ts",
+  "tests/features/sync/realtime/realtime-sync.test.ts",
+  "tests/features/chat/model/connected-chat-sync.test.ts",
+  "tests/quality/sync-boundaries.test.ts",
+]);
+const M9_AUTHORED_FILES = Object.freeze([
+  "docs/evidence/M9.md",
+  ...M9_DATABASE_SOURCE_FILES,
+  ...M9_SERVER_CONTRACT_FILES,
+  ...M9_TEST_PATHS,
+  "tests/core/database/account/connected-chat-sync-repository.bun.ts",
+  "src/features/sync/model/profile-recovery.ts",
+  "src/features/sync/model/account-sync.ts",
+  "src/features/sync/outbox/outbox-dispatcher.ts",
+  "src/features/sync/realtime/sync-api.ts",
+  "src/features/sync/realtime/realtime-socket.ts",
+  "src/features/sync/realtime/delta-sync.ts",
+  "src/features/sync/realtime/realtime-sync.ts",
+]);
+
 const M5_RETIRED_PLACEHOLDER_PATHS = Object.freeze([
   "src/features/development-fixture/model/local-fixture.ts",
   "src/features/development-fixture/ui/development-fixture-screen.tsx",
@@ -485,6 +531,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = Object.freeze([
   "src/core/database/database-provider.tsx",
   ...M6_03_DATABASE_SOURCE_FILES,
   ...M8_DATABASE_SOURCE_FILES,
+  ...M9_DATABASE_SOURCE_FILES,
 ]);
 
 const M5_DESIGN_ARTIFACT_PATHS = Object.freeze([
@@ -524,6 +571,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M6_04_TEST_PATHS,
     ...M7_TEST_PATHS,
     ...M8_TEST_PATHS,
+    ...M9_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
   ]),
@@ -858,6 +906,7 @@ const M5_FEATURE_DATA_DATABASE_PATTERNS = Object.freeze([
   "**/core/database/account/migrations",
   "**/core/database/account/migrations/**",
   "**/core/database/account/connected-chat-repository",
+  "**/core/database/account/connected-chat-sync-repository",
 ]);
 const M5_REPOSITORY_PORT_PATTERN =
   "**/core/database/repositories/database-repository";
@@ -933,6 +982,7 @@ const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   "contracts/bootstrap/realtime-event.schema.json",
   "contracts/server/manifest.json",
   "contracts/server/openapi.json",
+  ...M9_SERVER_CONTRACT_FILES,
   "src/core/contracts/generated/",
   "docs/evidence/",
 ]);
@@ -1001,6 +1051,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M6_04_AUTHORED_FILES,
   ...M7_AUTHORED_FILES,
   ...M8_AUTHORED_FILES,
+  ...M9_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -1562,11 +1613,11 @@ function checkM6Foundation(snapshot, violations) {
     ? m6.sourceInventory
     : {};
 
-  if (!sameStringSet(sourceInventory.server, M6_SERVER_CONTRACT_FILES)) {
+  if (!sameStringSet(sourceInventory.server, ACTIVE_SERVER_CONTRACT_FILES)) {
     pushViolation(
       violations,
       "m6-source-ownership",
-      "contracts/server must contain exactly the preserved upstream manifest/openapi snapshot plus the intake record and generation lock.",
+      "contracts/server must contain exactly the upstream snapshot, intake/generation records and selectively vendored M9 realtime contracts.",
     );
   }
 
@@ -2230,7 +2281,10 @@ function discoverM5AuthoredInventory(root, { fs, path }) {
   );
   return [
     ...retainedM5Paths,
-    ...chatSourcePaths.filter((file) => !M8_AUTHORED_FILES.includes(file)),
+    ...chatSourcePaths.filter(
+      (file) =>
+        !M8_AUTHORED_FILES.includes(file) && !M9_AUTHORED_FILES.includes(file),
+    ),
   ].sort();
 }
 
@@ -2245,7 +2299,10 @@ function discoverM5TestInventory(root, { fs, path }) {
   );
   return [
     ...retainedM5Paths,
-    ...chatTestPaths.filter((file) => !M8_AUTHORED_FILES.includes(file)),
+    ...chatTestPaths.filter(
+      (file) =>
+        !M8_AUTHORED_FILES.includes(file) && !M9_AUTHORED_FILES.includes(file),
+    ),
   ].sort();
 }
 

@@ -2,6 +2,16 @@ import { act, render } from "@testing-library/react-native";
 import React from "react";
 import type { ComponentType, ReactNode } from "react";
 import { Text, useColorScheme } from "react-native";
+import {
+  PRINCIPAL,
+  CHATROOM_ID,
+  pendingEnqueueResult,
+  fakeChatApi,
+  fakeConnectedChatRepository,
+  wireHistoryMessage,
+} from "../features/chat/model/connected-chat-fixtures";
+import type { AccountSyncDependencies } from "@/features/sync/model/account-sync";
+import type { AuthorizedChatRequest } from "@/features/chat/model/connected-chat-store";
 
 jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
   __esModule: true,
@@ -15,6 +25,137 @@ jest.mock("react-native-keyboard-controller", () => {
     KeyboardProvider: ({ children }: { children: unknown }) =>
       mockReact.createElement(mockReact.Fragment, null, children as never),
   };
+});
+
+describe("M9 production sync composition", () => {
+  function setupSync() {
+    const runtimeModule = jest.requireActual<
+      typeof import("@/features/sync/model/account-sync")
+    >("@/features/sync/model/account-sync");
+    let dependencies: AccountSyncDependencies | undefined;
+    jest
+      .spyOn(runtimeModule, "createAccountSync")
+      .mockImplementation((input) => {
+        dependencies = input;
+        return {
+          start: jest.fn(),
+          wake: jest.fn(),
+          setConversations: jest.fn(),
+          pause: jest.fn(),
+          resume: jest.fn(),
+          dispose: jest.fn(),
+        };
+      });
+    const chatApiModule = jest.requireActual<
+      typeof import("@/features/chat/data/chat-api")
+    >("@/features/chat/data/chat-api");
+    const syncApiModule = jest.requireActual<
+      typeof import("@/features/sync/realtime/sync-api")
+    >("@/features/sync/realtime/sync-api");
+    const api = fakeChatApi();
+    const syncApi = {
+      listEvents: jest.fn().mockResolvedValue({ items: [], next_cursor: null }),
+      issueTicket: jest.fn().mockResolvedValue({
+        ticket: "one-time",
+        expires_at: "2026-09-10T00:00:30Z",
+        contract_version: "1",
+      }),
+    };
+    jest.spyOn(chatApiModule, "createChatApi").mockReturnValue(api);
+    jest.spyOn(syncApiModule, "createSyncApi").mockReturnValue(syncApi);
+    const repository = fakeConnectedChatRepository();
+    const authorizeCalls = jest.fn();
+    const authorize: AuthorizedChatRequest = async (run, signal) => {
+      authorizeCalls();
+      return run("authorized", signal ?? new AbortController().signal);
+    };
+    const binding = {
+      principal: PRINCIPAL,
+      repository,
+      isActive: jest.fn(() => true),
+      onChanged: jest.fn(async () => undefined),
+      onState: jest.fn(),
+      authorize,
+    };
+    const providers = jest.requireActual<
+      typeof import("@/core/providers/app-providers")
+    >("@/core/providers/app-providers");
+    providers.createConnectedAccountSync(binding);
+    if (!dependencies)
+      throw new Error("Production composition did not create account sync.");
+    return { dependencies, binding, api, syncApi, repository, authorizeCalls };
+  }
+
+  afterEach(() => jest.restoreAllMocks());
+
+  test("C4/S1/R1 use the existing authorization boundary and C4 preserves server identity for validation", async () => {
+    const f = setupSync();
+    expect(f.api.sendChatMessage).not.toHaveBeenCalled();
+    const signal = new AbortController().signal;
+    const command = {
+      ...pendingEnqueueResult().command,
+      attemptCount: 1,
+      leaseToken: "lease",
+      leaseExpiresAtMs: 30000,
+      nextAttemptAtMs: 0,
+    };
+    const message = wireHistoryMessage({
+      clientMessageId: "server-response-identity",
+    });
+    f.api.sendChatMessage.mockResolvedValue({ status: 200, message });
+    const merged = await f.dependencies.send(command, signal);
+    expect(f.api.sendChatMessage).toHaveBeenCalledWith(
+      "authorized",
+      CHATROOM_ID,
+      { body: command.body, clientMessageId: command.clientMsgId },
+      signal,
+    );
+    expect(merged.clientMsgId).toBe("server-response-identity");
+    expect(merged.localId).toBe(command.localId);
+    await f.dependencies.listEvents(CHATROOM_ID, "opaque-checkpoint", signal);
+    expect(f.syncApi.listEvents).toHaveBeenCalledWith(
+      "authorized",
+      CHATROOM_ID,
+      { after: "opaque-checkpoint", limit: 100 },
+      signal,
+    );
+    const ticket = await f.dependencies.issueTicket(signal);
+    expect(f.dependencies.socketUrl(ticket)).toContain("ticket=one-time");
+    expect(f.authorizeCalls).toHaveBeenCalledTimes(3);
+  });
+
+  test("C2 reconciliation is bounded, continues later, and only reports complete at pagination exhaustion", async () => {
+    const f = setupSync();
+    f.repository.listDirtyReconciliationScopes.mockResolvedValue([
+      { scope: "chat_history", markerEventId: "marker" },
+    ]);
+    let page = 0;
+    f.api.listChatroomMessages.mockImplementation(async () => ({
+      items: [wireHistoryMessage()],
+      nextCursor: `page-${++page}`,
+    }));
+    const signal = new AbortController().signal;
+    expect(
+      (await f.dependencies.refreshHistory(CHATROOM_ID, signal)).complete,
+    ).toBe(false);
+    expect(f.api.listChatroomMessages).toHaveBeenCalledTimes(10);
+    expect(f.repository.mergeHistoryMessages).toHaveBeenCalledTimes(10);
+    f.api.listChatroomMessages.mockResolvedValueOnce({
+      items: [],
+      nextCursor: null,
+    });
+    expect(await f.dependencies.refreshHistory(CHATROOM_ID, signal)).toEqual({
+      complete: true,
+      messages: [],
+    });
+    expect(f.api.listChatroomMessages).toHaveBeenLastCalledWith(
+      "authorized",
+      CHATROOM_ID,
+      { before: "page-10", limit: 100 },
+      signal,
+    );
+    expect(f.repository.reconcileChatHistory).not.toHaveBeenCalled();
+  });
 });
 
 type AppTheme = Readonly<{

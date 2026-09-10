@@ -52,6 +52,10 @@ export function createAuthController(
   let generation = 0;
   let fence: AbortController | null = null;
   let refreshFlight: RefreshFlight | null = null;
+  let profileRetryFlight: Readonly<{
+    generation: number;
+    promise: Promise<void>;
+  }> | null = null;
   const listeners = new Set<(value: AuthState) => void>();
   const publish = (next: AuthState) => {
     state = next;
@@ -433,24 +437,44 @@ export function createAuthController(
     },
     async retryProfile(callerSignal?: AbortSignal) {
       const current = generation;
-      if (!tokens) return;
+      if (!tokens || callerSignal?.aborted) return;
+      if (profileRetryFlight?.generation === current)
+        return profileRetryFlight.promise;
       const signal = requestSignal(callerSignal);
-      publish({ status: "loading", profile: null, message: null });
-      try {
-        const profile = await deps.api.profile(tokens.accessToken, signal);
-        if (active(current))
-          publish({ status: "signed-in", profile, message: null });
-      } catch (error) {
-        if (!active(current)) return;
-        if (isUnauthorized(error)) await this.refresh();
-        else
-          publish({
-            status: "error",
-            profile: null,
-            message: "프로필을 불러올 수 없습니다. 다시 시도해 주세요.",
-            retryAction: "retryProfile",
-          });
-      }
+      const retryableError = () =>
+        publish({
+          status: "error",
+          profile: null,
+          message: "프로필을 불러올 수 없습니다. 다시 시도해 주세요.",
+          retryAction: "retryProfile",
+        });
+      const entry = {
+        generation: current,
+        promise: Promise.resolve()
+          .then(async () => {
+            if (!tokens || !active(current) || signal.aborted) return;
+            publish({ status: "loading", profile: null, message: null });
+            try {
+              const profile = await deps.api.profile(
+                tokens.accessToken,
+                signal,
+              );
+              if (!active(current)) return;
+              if (signal.aborted) retryableError();
+              else publish({ status: "signed-in", profile, message: null });
+            } catch (error) {
+              if (!active(current)) return;
+              if (!signal.aborted && isUnauthorized(error))
+                await this.refresh();
+              else retryableError();
+            }
+          })
+          .finally(() => {
+            if (profileRetryFlight === entry) profileRetryFlight = null;
+          }),
+      };
+      profileRetryFlight = entry;
+      return entry.promise;
     },
   };
 }

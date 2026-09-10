@@ -12,6 +12,24 @@ import type {
   ChatMessage as WireChatMessage,
 } from "@/core/contracts/server";
 import type { ChatApi } from "@/features/chat/data/chat-api";
+import type { ConnectedChatSyncFactory } from "@/features/chat/model/connected-chat-store";
+
+export function fakeConnectedSync() {
+  const runtime = {
+    start: jest.fn(),
+    wake: jest.fn(),
+    setConversations: jest.fn(),
+    pause: jest.fn(),
+    resume: jest.fn(),
+    dispose: jest.fn(),
+  };
+  const bindings: Parameters<ConnectedChatSyncFactory>[0][] = [];
+  const create: ConnectedChatSyncFactory = (binding) => {
+    bindings.push(binding);
+    return runtime;
+  };
+  return { runtime, bindings, create };
+}
 
 export const PRINCIPAL: AccountPrincipal = Object.freeze({
   epoch: 1,
@@ -77,13 +95,25 @@ export function fakeChatApi(): jest.Mocked<ChatApi> {
 
 export function fakeConnectedChatRepository(): jest.Mocked<ConnectedChatRepository> {
   return {
+    applyOrderedMessageCreated: jest.fn(),
+    applyOrderedUnsupportedEvent: jest.fn(),
+    applyRealtimeMessageCreated: jest
+      .fn()
+      .mockResolvedValue({ status: "applied" }),
+    claimDueOutboxCommands: jest.fn().mockResolvedValue([]),
     enqueuePendingMessage: jest.fn(),
+    failClaimedOutboxCommand: jest.fn().mockResolvedValue(true),
+    getEventCheckpoint: jest.fn().mockResolvedValue(null),
     getOutboxCommand: jest.fn(),
     listChatrooms: jest.fn(),
+    listDirtyReconciliationScopes: jest.fn().mockResolvedValue([]),
     listMessagesWindow: jest.fn(),
     markSendFailed: jest.fn().mockResolvedValue(undefined),
     mergeCanonicalMessage: jest.fn(),
     mergeHistoryMessages: jest.fn(),
+    reconcileChatHistory: jest.fn().mockResolvedValue(undefined),
+    releaseOutboxClaims: jest.fn().mockResolvedValue(0),
+    rescheduleClaimedOutboxCommand: jest.fn().mockResolvedValue(true),
     retryFailedMessage: jest.fn(),
     upsertChatrooms: jest.fn(),
   };

@@ -1,5 +1,4 @@
 import { ChatApiError } from "@/features/chat/data/chat-api";
-import type { ChatMessageSendResult } from "@/features/chat/data/chat-api";
 import { createConnectedChatStore } from "@/features/chat/model/connected-chat-store";
 import type {
   AuthorizedChatRequest,
@@ -17,6 +16,7 @@ import {
   fakeChatApi,
   fakeClock,
   fakeConnectedChatRepository,
+  fakeConnectedSync,
   fakeMessageIdentity,
   messageCursor,
   pendingEnqueueResult,
@@ -32,20 +32,30 @@ import {
 const authorized: AuthorizedChatRequest = (execute, signal) =>
   execute("fake-token", signal ?? new AbortController().signal);
 
-describe("M8 task 4 — connected room/history/foreground-send service", () => {
+describe("M8 room/history regressions with M9 queued-send ownership", () => {
   function setup() {
     const chatApi = fakeChatApi();
     const repository = fakeConnectedChatRepository();
     const createApi = jest.fn(() => chatApi);
     const clock = fakeClock();
     const messageIdentity = fakeMessageIdentity();
+    const sync = fakeConnectedSync();
     const store: ConnectedChatStore = createConnectedChatStore({
       clock,
       createApi,
       messageIdentity,
+      createSync: sync.create,
     });
     store.setPrincipal(PRINCIPAL, repository, authorized);
-    return { chatApi, clock, createApi, messageIdentity, repository, store };
+    return {
+      chatApi,
+      clock,
+      createApi,
+      messageIdentity,
+      repository,
+      store,
+      sync,
+    };
   }
 
   test("C1 room list persists the HTTP page to the repository, then renders only from a repository read", async () => {
@@ -170,8 +180,8 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
     expect(store.getState().history.hasMore).toBe(false);
   });
 
-  test("sending enqueues the pending message and outbox command before the single foreground C4 request", async () => {
-    const { chatApi, repository, store } = setup();
+  test("sending enqueues the pending message before waking the only C4 dispatcher", async () => {
+    const { chatApi, repository, store, sync } = setup();
     repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
     await store.actions.openRoom(CHATROOM_ID);
     repository.enqueuePendingMessage.mockResolvedValueOnce(
@@ -188,11 +198,11 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
     await store.actions.sendMessage("메시지");
 
     expect(repository.enqueuePendingMessage).toHaveBeenCalled();
-    expect(chatApi.sendChatMessage).toHaveBeenCalled();
+    expect(sync.runtime.wake).toHaveBeenCalled();
     expect(
       repository.enqueuePendingMessage.mock.invocationCallOrder[0],
-    ).toBeLessThan(chatApi.sendChatMessage.mock.invocationCallOrder[0]!);
-    expect(chatApi.sendChatMessage).toHaveBeenCalledTimes(1);
+    ).toBeLessThan(sync.runtime.wake.mock.invocationCallOrder[0]!);
+    expect(chatApi.sendChatMessage).not.toHaveBeenCalled();
   });
 
   test("a fresh send mints a new id on every call", async () => {
@@ -275,17 +285,12 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
       chatroomId: CHATROOM_ID,
       clientMsgId: "persisted-client-id",
     });
-    expect(chatApi.sendChatMessage).toHaveBeenCalledWith(
-      "fake-token",
-      CHATROOM_ID,
-      { body: exactBody, clientMessageId: "persisted-client-id" },
-      expect.anything(),
-    );
+    expect(chatApi.sendChatMessage).not.toHaveBeenCalled();
   });
 
-  test("both a 201 and a 200 canonical send response merge via the repository, then render from a repository read", async () => {
+  test("canonical updates from either C4 success status render only the dispatcher-committed repository row", async () => {
     for (const status of [201, 200] as const) {
-      const { chatApi, repository, store } = setup();
+      const { chatApi, repository, store, sync } = setup();
       repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
       await store.actions.openRoom(CHATROOM_ID);
       repository.enqueuePendingMessage.mockResolvedValueOnce(
@@ -305,16 +310,20 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
 
       await store.actions.sendMessage("메시지");
 
-      expect(repository.mergeCanonicalMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ serverMessageId: SERVER_MESSAGE_ID }),
-      );
+      repository.listMessagesWindow.mockResolvedValueOnce({
+        hasMore: false,
+        items: [canonicalRow],
+        nextBefore: null,
+      });
+      await sync.bindings[0].onChanged();
+      expect(repository.mergeCanonicalMessage).not.toHaveBeenCalled();
       expect(store.getState().history.items).toEqual([canonicalRow]);
-      expect(chatApi.sendChatMessage).toHaveBeenCalledTimes(1);
+      expect(chatApi.sendChatMessage).not.toHaveBeenCalled();
     }
   });
 
-  test("a 409 response surfaces a visible conflict without reminting a new id or auto-resending", async () => {
-    const { chatApi, repository, store } = setup();
+  test("a dispatcher-committed conflict stays visible and explicit retry never remints its identity", async () => {
+    const { chatApi, repository, store, sync, messageIdentity } = setup();
     repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
     await store.actions.openRoom(CHATROOM_ID);
     repository.enqueuePendingMessage.mockResolvedValueOnce(
@@ -327,16 +336,16 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
 
     await store.actions.sendMessage("충돌 메시지");
 
-    expect(repository.markSendFailed).toHaveBeenCalledWith({
-      clientMsgId: "gen-client-1",
-      errorCode: "conflict",
+    repository.listMessagesWindow.mockResolvedValueOnce({
+      ...emptyMessageWindow(),
+      items: [
+        repositoryHistoryRow({ status: "failed", clientMsgId: "gen-client-1" }),
+      ],
     });
-    expect(store.getState().send).toMatchObject({
-      clientMsgId: "gen-client-1",
-      errorCode: "conflict",
-      status: "failed",
-    });
-    expect(chatApi.sendChatMessage).toHaveBeenCalledTimes(1);
+    await sync.bindings[0].onChanged();
+    expect(store.getState().history.items[0].status).toBe("failed");
+    expect(repository.markSendFailed).not.toHaveBeenCalled();
+    expect(chatApi.sendChatMessage).not.toHaveBeenCalled();
 
     // A subsequent explicit retry reuses the exact same id — it is never reminted.
     repository.getOutboxCommand.mockResolvedValueOnce({
@@ -361,16 +370,17 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
 
     await store.actions.retryMessage("gen-client-1");
 
-    expect(chatApi.sendChatMessage).toHaveBeenLastCalledWith(
-      "fake-token",
-      CHATROOM_ID,
-      { body: "충돌 메시지", clientMessageId: "gen-client-1" },
-      expect.anything(),
-    );
+    expect(repository.retryFailedMessage).toHaveBeenCalledWith({
+      body: "충돌 메시지",
+      chatroomId: CHATROOM_ID,
+      clientMsgId: "gen-client-1",
+    });
+    expect(sync.runtime.wake).toHaveBeenCalledTimes(2);
+    expect(messageIdentity.next).toHaveBeenCalledTimes(1);
   });
 
-  test("an unknown transport outcome is marked uncertain, distinct from a definitive failure, and never auto-retried", async () => {
-    const { chatApi, repository, store } = setup();
+  test("unknown transport delivery belongs to the dispatcher and queued intents are not manually failed by the view", async () => {
+    const { chatApi, repository, store, sync } = setup();
     repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
     await store.actions.openRoom(CHATROOM_ID);
     repository.enqueuePendingMessage.mockResolvedValueOnce(
@@ -382,44 +392,16 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
 
     await store.actions.sendMessage("전송 결과 불명");
 
-    expect(store.getState().send).toMatchObject({
-      clientMsgId: "gen-client-1",
-      status: "uncertain",
-    });
-    // The UI distinguishes uncertainty, but the existing repository retry port accepts
-    // failed commands only. Preserve the same identity as a manually retryable failure.
-    expect(repository.markSendFailed).toHaveBeenCalledWith({
-      clientMsgId: "gen-client-1",
-      errorCode: "network",
-    });
-    expect(chatApi.sendChatMessage).toHaveBeenCalledTimes(1);
-
-    // No automatic drain/backoff: idle time alone must never issue a second request.
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(chatApi.sendChatMessage).toHaveBeenCalledTimes(1);
-
-    repository.getOutboxCommand.mockResolvedValueOnce({
-      ...pendingEnqueueResult().command,
-      state: "failed",
-      errorCode: "network",
-    });
-    repository.retryFailedMessage.mockResolvedValueOnce(pendingEnqueueResult());
-    chatApi.sendChatMessage.mockResolvedValueOnce({
-      status: 200,
-      message: canonicalWireMessage(),
-    });
-    repository.mergeCanonicalMessage.mockResolvedValueOnce(
-      repositoryCanonicalRow(),
+    expect(store.getState().send).toEqual({ status: "idle" });
+    expect(sync.runtime.wake).toHaveBeenCalledTimes(1);
+    expect(repository.markSendFailed).not.toHaveBeenCalled();
+    expect(chatApi.sendChatMessage).not.toHaveBeenCalled();
+    repository.getOutboxCommand.mockResolvedValueOnce(
+      pendingEnqueueResult().command,
     );
     await store.actions.retryMessage("gen-client-1");
-    expect(chatApi.sendChatMessage).toHaveBeenCalledTimes(2);
-    expect(chatApi.sendChatMessage).toHaveBeenLastCalledWith(
-      "fake-token",
-      CHATROOM_ID,
-      { body: "메시지", clientMessageId: "gen-client-1" },
-      expect.anything(),
-    );
+    expect(repository.retryFailedMessage).not.toHaveBeenCalled();
+    expect(sync.runtime.wake).toHaveBeenCalledTimes(1);
   });
 
   test("a stale response for a previous room never replaces the current room's rendered state", async () => {
@@ -484,22 +466,13 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
     expect(store.getState().rooms.items).toEqual([]);
   });
 
-  test("a send response that resolves after an account switch is fenced before merge", async () => {
+  test("an enqueue completion after an account switch cannot wake or publish in the new scope", async () => {
     const { chatApi, repository, store } = setup();
     repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
     await store.actions.openRoom(CHATROOM_ID);
-    repository.enqueuePendingMessage.mockResolvedValueOnce(
-      pendingEnqueueResult(),
-    );
-    const sendResult = deferred<ChatMessageSendResult>();
-    const requestStarted = deferred<void>();
-    chatApi.sendChatMessage.mockImplementationOnce(() => {
-      requestStarted.resolve();
-      return sendResult.promise;
-    });
+    const write = deferred<ReturnType<typeof pendingEnqueueResult>>();
+    repository.enqueuePendingMessage.mockReturnValueOnce(write.promise);
     const sending = store.actions.sendMessage("계정 전환 전 메시지");
-    await requestStarted.promise;
-    const signal = chatApi.sendChatMessage.mock.calls[0]![3] as AbortSignal;
 
     const otherRepository = fakeConnectedChatRepository();
     store.setPrincipal(
@@ -507,13 +480,12 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
       otherRepository,
       authorized,
     );
-    expect(signal.aborted).toBe(true);
-
-    sendResult.resolve({ status: 201, message: canonicalWireMessage() });
+    write.resolve(pendingEnqueueResult());
     await sending;
 
     expect(repository.mergeCanonicalMessage).not.toHaveBeenCalled();
     expect(otherRepository.mergeCanonicalMessage).not.toHaveBeenCalled();
+    expect(chatApi.sendChatMessage).not.toHaveBeenCalled();
   });
 
   test("dispose aborts a pending request and no further repository write can occur", async () => {
@@ -549,11 +521,8 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
     await store.actions.openRoom(CHATROOM_ID);
     expect(store.getState().history.items).toEqual([row]);
 
-    repository.enqueuePendingMessage.mockResolvedValueOnce(
-      pendingEnqueueResult({ clientMsgId: "gen-client-1" }),
-    );
-    chatApi.sendChatMessage.mockRejectedValueOnce(
-      new ChatApiError(500, "server_unavailable"),
+    repository.enqueuePendingMessage.mockRejectedValueOnce(
+      new Error("storage write failed"),
     );
     await store.actions.sendMessage("실패할 메시지");
     expect(store.getState().send.status).toBe("failed");
@@ -572,8 +541,8 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
     expect(repository.retryFailedMessage).not.toHaveBeenCalled();
   });
 
-  test("foreground never automatically resends a previously failed or pending outbox command", async () => {
-    const { chatApi, repository, store } = setup();
+  test("foreground resumes the account dispatcher but does not create a second foreground sender", async () => {
+    const { chatApi, repository, store, sync } = setup();
     repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
     await store.actions.openRoom(CHATROOM_ID);
 
@@ -582,6 +551,7 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
 
     expect(chatApi.sendChatMessage).not.toHaveBeenCalled();
     expect(repository.retryFailedMessage).not.toHaveBeenCalled();
+    expect(sync.runtime.resume).toHaveBeenCalled();
   });
 
   test("C1 load-more uses only the HTTP opaque cursor, independently of the SQLite cursor", async () => {
@@ -676,29 +646,20 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
     expect(store.getState().history.items).toEqual([currentRow]);
   });
 
-  test("changing rooms aborts an in-flight send before its old-room response can merge", async () => {
-    const { chatApi, repository, store } = setup();
+  test("changing rooms preserves an in-progress enqueue without publishing its old-room snapshot", async () => {
+    const { repository, store } = setup();
     repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
     await store.actions.openRoom(CHATROOM_ID);
-    repository.enqueuePendingMessage.mockResolvedValueOnce(
-      pendingEnqueueResult(),
-    );
-    const response = deferred<ChatMessageSendResult>();
-    const started = deferred<void>();
-    chatApi.sendChatMessage.mockImplementationOnce(() => {
-      started.resolve();
-      return response.promise;
-    });
+    const write = deferred<ReturnType<typeof pendingEnqueueResult>>();
+    repository.enqueuePendingMessage.mockReturnValueOnce(write.promise);
     const sending = store.actions.sendMessage("메시지");
-    await started.promise;
-    const signal = chatApi.sendChatMessage.mock.calls[0]![3] as AbortSignal;
-    await store.actions.openRoom(OTHER_CHATROOM_ID);
-    expect(signal.aborted).toBe(true);
-    response.resolve({ status: 201, message: canonicalWireMessage() });
-    await sending;
+    const opening = store.actions.openRoom(OTHER_CHATROOM_ID);
+    write.resolve(pendingEnqueueResult());
+    await Promise.all([sending, opening]);
     expect(repository.mergeCanonicalMessage).not.toHaveBeenCalled();
     expect(store.getState().chatroomId).toBe(OTHER_CHATROOM_ID);
     expect(store.getState().send.status).toBe("idle");
+    expect(repository.markSendFailed).not.toHaveBeenCalled();
   });
 
   test("replacing the repository for the same principal invalidates the old lease's requests", async () => {

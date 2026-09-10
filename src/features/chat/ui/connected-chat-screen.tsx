@@ -112,7 +112,10 @@ export function ConnectedChatScreen({
       controller={controller}
       revealInitialLatest
       blocked={
-        state.send.status === "pending" || state.history.status === "loading"
+        state.send.status === "pending" ||
+        state.history.status === "loading" ||
+        state.sync === "upgrade-required" ||
+        state.sync === "unauthorized"
       }
       onRetryFailedMessage={({ clientMsgId, conversationId }) => {
         if (focused.current === chatroomId && conversationId === chatroomId)
@@ -134,6 +137,24 @@ export function ConnectedChatScreen({
       }
       footer={
         <>
+          {state.sync === "offline" && (
+            <ChatNotice message="연결을 기다리는 중입니다. 메시지는 기기에 저장되고 연결되면 자동으로 전송됩니다." />
+          )}
+          {state.sync === "connecting" && (
+            <ChatNotice message="대화를 동기화하는 중…" />
+          )}
+          {state.sync === "upgrade-required" && (
+            <ChatNotice
+              error
+              message="앱 업데이트가 필요합니다. 전송 대기 중인 메시지는 기기에 보관됩니다."
+            />
+          )}
+          {state.sync === "unauthorized" && (
+            <ChatNotice
+              error
+              message="로그인을 다시 확인해 주세요. 전송 대기 중인 메시지는 기기에 보관됩니다."
+            />
+          )}
           {(state.send.status === "failed" ||
             state.send.status === "uncertain") && (
             <ChatNotice

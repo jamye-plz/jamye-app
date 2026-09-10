@@ -42,7 +42,8 @@ type AjvLike = Readonly<{
     name: string,
     definition:
       | RegExp
-      | Readonly<{ type: "string"; validate: (value: string) => boolean }>,
+      | Readonly<{ type: "string"; validate: (value: string) => boolean }>
+      | Readonly<{ type: "number"; validate: (value: number) => boolean }>,
   ) => unknown;
 }>;
 
@@ -56,4 +57,19 @@ export function registerServerContractFormats(ajv: AjvLike): void {
   ajv.addFormat("uuid", UUID_PATTERN);
   ajv.addFormat("date-time", { type: "string", validate: isValidDateTime });
   ajv.addFormat("uri", { type: "string", validate: isValidUri });
+  // S1/realtime schemas also annotate integer widths. Enforce them rather
+  // than emitting an unknown-format warning for every imported validator.
+  for (const [name, minimum, exclusiveMaximum] of [
+    ["int32", -(2 ** 31), 2 ** 31],
+    ["int64", -(2 ** 63), 2 ** 63],
+    ["uint8", 0, 2 ** 8],
+    ["uint32", 0, 2 ** 32],
+    ["uint64", 0, 2 ** 64],
+  ] as const) {
+    ajv.addFormat(name, {
+      type: "number",
+      validate: (value) =>
+        Number.isInteger(value) && value >= minimum && value < exclusiveMaximum,
+    });
+  }
 }
