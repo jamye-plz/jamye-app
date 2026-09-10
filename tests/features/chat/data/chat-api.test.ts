@@ -1,4 +1,7 @@
-import { createChatApi } from "@/features/chat/data/chat-api";
+import {
+  createChatApi,
+  type ChatReadInput,
+} from "@/features/chat/data/chat-api";
 import {
   canonicalMessage,
   canonicalMessageWire,
@@ -160,6 +163,48 @@ describe("M8 chat transport", () => {
     ).rejects.toMatchObject({ status: 422 });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  test("C3 sends the canonical message ID without guessing an event cursor", async () => {
+    reply(200, readMarkerWire);
+    await expect(
+      api.markChatroomRead("t", chatroomId, {
+        messageId: chatMessage.id,
+      }),
+    ).resolves.toEqual(readMarker);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `https://api.example.com/api/v1/chatrooms/${chatroomId}/read`,
+    );
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ message_id: chatMessage.id });
+    expect(init.headers.Authorization).toBe("Bearer t");
+  });
+
+  test.each([
+    {},
+    null,
+    [],
+    { messageId: "not-a-uuid" },
+    { messageId: "" },
+    { messageId: null },
+    { cursor: "42", messageId: chatMessage.id },
+    { cursor: null, messageId: chatMessage.id },
+    { cursor: undefined, messageId: chatMessage.id },
+    { messageId: chatMessage.id, extra: true },
+    { cursor: "42", extra: true },
+  ])(
+    "C3 rejects invalid or ambiguous read anchors %j before IO",
+    async (input) => {
+      await expect(
+        api.markChatroomRead(
+          "t",
+          chatroomId,
+          input as unknown as ChatReadInput,
+        ),
+      ).rejects.toMatchObject({ status: 422, code: "invalid_read_anchor" });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 
   test.each([0, 101, 1.5])(
     "rejects invalid page limit %s before IO",

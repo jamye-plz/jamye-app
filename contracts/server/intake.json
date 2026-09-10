@@ -12,13 +12,13 @@
     "H2",
     "U1"
   ],
-  "source_git_revision": "7d146ab0040ba49acbc42e40b2408e3e27f6e88d",
+  "source_git_revision": "3451d3497644e99843e2126b59f129f91f353615",
   "upstream_artifact_count": 21,
-  "upstream_bundle_sha256": "d2b88eddfa47bc88ad84f64c4dc80cc853cc86ac42254b7817e7b65b3b6f8d66",
+  "upstream_bundle_sha256": "59fb2d4ec755f4e0d7cb5763eae289c59ae1f712e358152449c33e3c7abb3d7f",
   "upstream_bundle_verified": true,
   "upstream_contract_version": "1",
-  "upstream_manifest_sha256": "3663f7eb6554efc57d0d55f336e56b459ce36244aad2b6852de6a1bce01cf07a",
-  "upstream_openapi_sha256": "5e18e3f0439b52e2cb359721f448100c7f11210b89e9aff173111d8cd1cef6d1",
+  "upstream_manifest_sha256": "a6aaaa5ddf48d903e0ca6b1c6f394a9db95a99a846ab6275bd4bcc8f3bd0a0eb",
+  "upstream_openapi_sha256": "53be8021599c31d8c010072c81ea2fdfc5a120186745c0b091d432c6d20084bb",
   "upstream_server_commit": "dirty",
   "validator_identity": "ajv@8.20.0"
 }

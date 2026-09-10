@@ -14,8 +14,7 @@ const GENERATOR_IDENTITY = "openapi-typescript@7.13.0";
 // (G1-G8, I1-I2) that was already present in the imported OpenAPI snapshot;
 // see contracts/server/intake.json for the frozen intake-time closure this
 // milestone deliberately grows beyond. M8 extends it again with the chat
-// surface (C1-C4). C3 is added as its currently-imported cursor-only shape;
-// the additive message_id anchor is a separate, still-pending intake step.
+// surface (C1-C4), including the additive C3 message_id-or-cursor read anchor.
 const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "A1",
   "A2",

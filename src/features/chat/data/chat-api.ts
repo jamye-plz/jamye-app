@@ -9,7 +9,7 @@ import {
   validateDenormalizedMessagePage,
   validateErrorEnvelope,
   validateMessageCreate,
-  validateReadCursorIn,
+  validateReadAnchorIn,
   validateReadMarker,
 } from "@/core/contracts/server";
 import type {
@@ -41,9 +41,11 @@ export class ChatApiError extends Error {
 export type ChatPageParams = Readonly<{ after?: string; limit?: number }>;
 export type ChatHistoryParams = Readonly<{ before?: string; limit?: number }>;
 
-/** C3 accepts only the currently-imported cursor anchor; a message_id anchor
- * is a pending additive intake step gated on the backend contract handoff. */
-export type ChatReadInput = Readonly<{ cursor: string }>;
+/** C3 resolves a canonical message ID on the server; history page cursors and
+ * SQLite window boundaries must never be substituted for event cursors. */
+export type ChatReadInput = Readonly<
+  { cursor: string; messageId?: never } | { messageId: string; cursor?: never }
+>;
 
 export type ChatSendInput = Readonly<{
   clientMessageId: string;
@@ -206,9 +208,20 @@ export function createChatApi(origin: string): ChatApi {
       return mapChatMessagePage(payload);
     },
     async markChatroomRead(accessToken, chatroomId, input, signal) {
-      const body = { cursor: input.cursor };
-      if (!validateReadCursorIn(body))
-        throw new ChatApiError(422, "invalid_read_cursor");
+      if (
+        input === null ||
+        typeof input !== "object" ||
+        Array.isArray(input) ||
+        Object.keys(input).length !== 1
+      ) {
+        throw new ChatApiError(422, "invalid_read_anchor");
+      }
+      const body =
+        "messageId" in input
+          ? { message_id: input.messageId }
+          : { cursor: input.cursor };
+      if (!validateReadAnchorIn(body))
+        throw new ChatApiError(422, "invalid_read_anchor");
       const { payload } = await request(
         `/api/v1/chatrooms/${identifier(chatroomId)}/read`,
         accessToken,

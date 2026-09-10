@@ -918,6 +918,7 @@ export interface components {
             /** @enum {string} */
             type: "new_topic" | "chat_unread" | "other";
         };
+        ReadAnchorIn: components["schemas"]["ReadCursorIn"] | components["schemas"]["ReadMessageIdIn"];
         ReadCursorIn: {
             cursor: string;
         };
@@ -927,6 +928,10 @@ export interface components {
             last_read_cursor: string;
             /** Format: date-time */
             updated_at: string;
+        };
+        ReadMessageIdIn: {
+            /** Format: uuid */
+            message_id: string;
         };
         ReadinessResponse: {
             checks: components["schemas"]["DependencyChecks"];
@@ -1421,7 +1426,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReadCursorIn"];
+                "application/json": components["schemas"]["ReadAnchorIn"];
             };
         };
         responses: {

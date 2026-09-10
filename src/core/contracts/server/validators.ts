@@ -58,6 +58,7 @@ export type DenormalizedMessagePageWire =
 export type MessageAttachmentWire = components["schemas"]["MessageAttachment"];
 export type MessageCreateWire = components["schemas"]["MessageCreate"];
 export type CanonicalMessageWire = components["schemas"]["CanonicalMessage"];
+export type ReadAnchorInWire = components["schemas"]["ReadAnchorIn"];
 export type ReadCursorInWire = components["schemas"]["ReadCursorIn"];
 export type ReadMarkerWire = components["schemas"]["ReadMarker"];
 
@@ -98,6 +99,7 @@ export const validateDenormalizedMessagePage = compileComponentSchema(
 export const validateMessageCreate = compileComponentSchema("MessageCreate");
 export const validateCanonicalMessage =
   compileComponentSchema("CanonicalMessage");
+export const validateReadAnchorIn = compileComponentSchema("ReadAnchorIn");
 export const validateReadCursorIn = compileComponentSchema("ReadCursorIn");
 export const validateReadMarker = compileComponentSchema("ReadMarker");
 

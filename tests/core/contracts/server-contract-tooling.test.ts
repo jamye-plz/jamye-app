@@ -117,6 +117,30 @@ function readJson(path: string): JsonRecord {
 }
 
 describe("M6-01 deterministic server contract intake, generation, and drift check", () => {
+  test("C3 points to the additive read anchor union, not only the legacy cursor", () => {
+    const openapi = readJson(join(contractRoot, "openapi.json"));
+    expect(openapi).toHaveProperty(
+      [
+        "paths",
+        "/api/v1/chatrooms/{chatroom_id}/read",
+        "post",
+        "requestBody",
+        "content",
+        "application/json",
+        "schema",
+        "$ref",
+      ],
+      "#/components/schemas/ReadAnchorIn",
+    );
+    expect(openapi).toHaveProperty(
+      ["components", "schemas", "ReadAnchorIn", "oneOf"],
+      [
+        { $ref: "#/components/schemas/ReadCursorIn" },
+        { $ref: "#/components/schemas/ReadMessageIdIn" },
+      ],
+    );
+  });
+
   test("checks the checked-in snapshot and generated output without mutating them", () => {
     const generatedDirectory = join(
       repositoryRoot,
@@ -148,9 +172,9 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
       expect.objectContaining({
         generator_identity: "openapi-typescript@7.13.0",
         intake_kind: "server-snapshot",
-        source_git_revision: "7d146ab0040ba49acbc42e40b2408e3e27f6e88d",
+        source_git_revision: "3451d3497644e99843e2126b59f129f91f353615",
         upstream_bundle_sha256:
-          "d2b88eddfa47bc88ad84f64c4dc80cc853cc86ac42254b7817e7b65b3b6f8d66",
+          "59fb2d4ec755f4e0d7cb5763eae289c59ae1f712e358152449c33e3c7abb3d7f",
         upstream_bundle_verified: true,
         upstream_contract_version: "1",
         upstream_server_commit: "dirty",
@@ -177,7 +201,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         server_commit: "dirty",
         server_tag: null,
         sha256:
-          "d2b88eddfa47bc88ad84f64c4dc80cc853cc86ac42254b7817e7b65b3b6f8d66",
+          "59fb2d4ec755f4e0d7cb5763eae289c59ae1f712e358152449c33e3c7abb3d7f",
       }),
     );
   });

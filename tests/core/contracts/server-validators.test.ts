@@ -22,6 +22,7 @@ import {
   validateOAuthAuthorizeIn,
   validateOAuthAuthorizeOut,
   validateOAuthExchangeIn,
+  validateReadAnchorIn,
   validateReadCursorIn,
   validateReadinessResponse,
   validateReadMarker,
@@ -509,6 +510,28 @@ describe("M6-01 server contract runtime validators", () => {
       validateCanonicalMessage({ ...canonical, sender_nickname: "닉네임" }),
     ).toBe(false);
     expect(validateCanonicalMessage({ ...canonical, type: "bot" })).toBe(false);
+  });
+
+  test("C3 ReadAnchorIn accepts exactly one cursor or canonical message ID", () => {
+    expect(validateReadAnchorIn({ cursor: "42" })).toBe(true);
+    expect(validateReadAnchorIn({ message_id: VALID_UUID })).toBe(true);
+    for (const invalid of [
+      {},
+      null,
+      [],
+      { cursor: "0" },
+      { cursor: "01" },
+      { cursor: 42 },
+      { message_id: "not-a-uuid" },
+      { message_id: null },
+      { messageId: VALID_UUID },
+      { cursor: "42", message_id: VALID_UUID },
+      { cursor: null, message_id: VALID_UUID },
+      { message_id: VALID_UUID, extra: true },
+      { cursor: "42", extra: true },
+    ]) {
+      expect(validateReadAnchorIn(invalid)).toBe(false);
+    }
   });
 
   test("C3 ReadCursorIn/ReadMarker accept only a positive decimal string cursor", () => {
