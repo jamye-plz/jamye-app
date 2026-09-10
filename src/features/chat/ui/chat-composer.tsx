@@ -10,15 +10,17 @@ import { appChatComposer, appSpacing } from "@/core/theme/tokens";
 export function ChatComposer({
   controller,
   onMessageCommitted,
+  blocked = false,
 }: Readonly<{
   controller: Pick<ChatSendController, "send">;
   onMessageCommitted?: (localId: string) => void;
+  blocked?: boolean;
 }>) {
   const { colors } = useAppTheme();
   const [draft, setDraft] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const disabled = isSending || draft.trim().length === 0;
+  const disabled = blocked || isSending || draft.trim().length === 0;
 
   const send = async () => {
     if (disabled) return;
@@ -26,7 +28,8 @@ export function ChatComposer({
     try {
       await controller.send({
         body: draft,
-        clearDraft: () => setDraft(""),
+        clearDraft: () =>
+          setDraft((current) => (current === draft ? "" : current)),
         onCommitted: onMessageCommitted,
       });
     } catch {

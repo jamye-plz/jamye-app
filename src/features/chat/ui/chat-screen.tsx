@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { RefObject } from "react";
+import type { RefObject, ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAppRuntime } from "@/core/providers/app-providers";
@@ -19,6 +19,8 @@ import {
   LOCAL_FIXTURE_NOTICE,
 } from "@/features/chat/model/chat-fixture";
 import { createChatSendController } from "@/features/chat/model/chat-send";
+import type { ChatSendController } from "@/features/chat/model/chat-send";
+import type { ChatConversation } from "../use-chat-conversation";
 
 import { useChatConversation } from "../use-chat-conversation";
 import { ChatComposer } from "./chat-composer";
@@ -33,7 +35,7 @@ type MainHeadingTarget = Readonly<{
   nativeRef: RefObject<Text | null>;
   props: Readonly<{
     accessibilityRole: "header";
-    children: "로컬 대화";
+    children: string;
   }>;
 }>;
 
@@ -50,19 +52,6 @@ export function ChatScreen({
   focusMainHeading?: (target: MainHeadingTarget) => void;
 }>) {
   const { repository, clock, messageIdentity } = useAppRuntime();
-  const { colorScheme, colors } = useAppTheme();
-  const { width } = useWindowDimensions();
-  const headingRef = useRef<Text>(null);
-  const [latestMessageRevealTarget, setLatestMessageRevealTarget] = useState<
-    string | null
-  >(null);
-  const headingTarget = useMemo<MainHeadingTarget>(
-    () => ({
-      nativeRef: headingRef,
-      props: { accessibilityRole: "header", children: "로컬 대화" },
-    }),
-    [],
-  );
   const conversation = useChatConversation({
     conversationId: FIXTURE_CONVERSATION_ID,
     repository,
@@ -74,6 +63,74 @@ export function ChatScreen({
     repository,
     senderId: "local-user",
   });
+  return (
+    <ChatConversationScreen
+      title="로컬 대화"
+      notice={LOCAL_FIXTURE_NOTICE}
+      conversation={conversation}
+      controller={controller}
+      onRetryFailedMessage={(input) => {
+        void controller.retryFailedMessage(input);
+      }}
+      focusMainHeading={focusMainHeading}
+    />
+  );
+}
+
+export function ChatConversationScreen({
+  title,
+  notice,
+  conversation,
+  controller,
+  onRetryFailedMessage,
+  toolbar,
+  footer,
+  blocked = false,
+  revealInitialLatest = false,
+  onVisibleCanonicalMessages,
+  focusMainHeading = defaultFocusMainHeading,
+}: Readonly<{
+  title: string;
+  notice?: string;
+  conversation: ChatConversation;
+  controller: Pick<ChatSendController, "send">;
+  onRetryFailedMessage: (
+    input: Readonly<{ clientMsgId: string; conversationId: string }>,
+  ) => void;
+  onVisibleCanonicalMessages?: (ids: readonly string[]) => void;
+  toolbar?: ReactNode;
+  footer?: ReactNode;
+  blocked?: boolean;
+  revealInitialLatest?: boolean;
+  focusMainHeading?: (target: MainHeadingTarget) => void;
+}>) {
+  const { colorScheme, colors } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const headingRef = useRef<Text>(null);
+  const [latestMessageRevealTarget, setLatestMessageRevealTarget] = useState<
+    string | null
+  >(null);
+  const headingTarget = useMemo<MainHeadingTarget>(
+    () => ({
+      nativeRef: headingRef,
+      props: { accessibilityRole: "header", children: title },
+    }),
+    [title],
+  );
+  const revealedInitial = useRef(false);
+  useEffect(() => {
+    if (
+      revealInitialLatest &&
+      !revealedInitial.current &&
+      conversation.initialPageStatus === "ready" &&
+      conversation.items.length > 0
+    ) {
+      revealedInitial.current = true;
+      setLatestMessageRevealTarget(
+        conversation.items[conversation.items.length - 1]!.localId,
+      );
+    }
+  }, [conversation, revealInitialLatest]);
 
   useEffect(() => {
     focusMainHeading(headingTarget);
@@ -104,29 +161,33 @@ export function ChatScreen({
                 accessibilityRole="header"
                 style={{ color: colors.text, ...appTypography.title }}
               >
-                로컬 대화
+                {title}
               </Text>
-              <Text
-                style={{
-                  backgroundColor: colors.noticeSurface,
-                  color: colors.text,
-                  marginTop: appSpacing.sm,
-                  padding: appSpacing.sm,
-                }}
-              >
-                {LOCAL_FIXTURE_NOTICE}
-              </Text>
+              {toolbar}
+              {notice ? (
+                <Text
+                  style={{
+                    backgroundColor: colors.noticeSurface,
+                    color: colors.text,
+                    marginTop: appSpacing.sm,
+                    padding: appSpacing.sm,
+                  }}
+                >
+                  {notice}
+                </Text>
+              ) : null}
               <ChatMessageList
                 conversation={conversation}
                 keyboardOverlap={keyboardOverlap}
                 keyboardState={keyboardState}
                 latestMessageRevealTarget={latestMessageRevealTarget}
-                onRetryFailedMessage={(input) => {
-                  void controller.retryFailedMessage(input);
-                }}
+                onRetryFailedMessage={onRetryFailedMessage}
+                onVisibleCanonicalMessages={onVisibleCanonicalMessages}
               />
+              {footer}
               <ChatComposer
                 controller={controller}
+                blocked={blocked}
                 onMessageCommitted={setLatestMessageRevealTarget}
               />
             </View>

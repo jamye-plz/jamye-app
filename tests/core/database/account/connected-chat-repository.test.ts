@@ -168,6 +168,15 @@ function createRepository(
 }
 
 describe("M8 account-scoped connected chat SQLite repository", () => {
+  test("a cancellation cannot downgrade an already acknowledged command or canonical message", async () => {
+    const db = new ScriptedDatabase();
+    db.queueFirst(outboxRow({ state: "acked" }));
+    await createRepository(db).markSendFailed({
+      clientMsgId: CLIENT_MSG_ID,
+      errorCode: "network",
+    });
+    expect(db.runCalls).toEqual([]);
+  });
   test("passes the disposable real-SQLite migration and repository scenarios", () => {
     const { execFileSync } =
       jest.requireActual<ChildProcessModule>("node:child_process");

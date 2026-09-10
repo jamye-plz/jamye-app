@@ -1,6 +1,13 @@
 import { Pressable, Text, View } from "react-native";
-import type { FlatList } from "react-native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FlatList, ViewToken } from "react-native";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { KeyboardState } from "react-native-keyboard-controller";
 import Animated, {
   scrollTo,
@@ -147,11 +154,13 @@ export function ChatMessageList({
   keyboardState,
   latestMessageRevealTarget,
   onRetryFailedMessage,
+  onVisibleCanonicalMessages,
 }: Readonly<{
   conversation: ChatConversation;
   keyboardOverlap?: SharedValue<number>;
   keyboardState?: SharedValue<number>;
   latestMessageRevealTarget: string | null;
+  onVisibleCanonicalMessages?: (ids: readonly string[]) => void;
   onRetryFailedMessage: (
     input: Readonly<{
       clientMsgId: string;
@@ -160,6 +169,24 @@ export function ChatMessageList({
   ) => void;
 }>) {
   const { colors } = useAppTheme();
+  const visibleCallback = useRef(onVisibleCanonicalMessages);
+  useLayoutEffect(() => {
+    visibleCallback.current = onVisibleCanonicalMessages;
+  }, [onVisibleCanonicalMessages]);
+  const viewabilityConfig = useMemo(
+    () => ({ itemVisiblePercentThreshold: 80, minimumViewTime: 350 }),
+    [],
+  );
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken<ChatMessage>[] }) => {
+      visibleCallback.current?.(
+        viewableItems
+          .filter((token) => token.isViewable && token.item.serverMessageId)
+          .map((token) => token.item.serverMessageId!),
+      );
+    },
+    [],
+  );
   const listRef = useAnimatedRef<FlatList<ChatMessage>>();
   const fallbackKeyboardOverlap = useSharedValue(0);
   const fallbackKeyboardState = useSharedValue(KeyboardState.UNKNOWN);
@@ -317,6 +344,8 @@ export function ChatMessageList({
       {hasReadyMessages ? (
         <Animated.FlatList
           data={conversation.items}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
           inverted={false}
           keyExtractor={(item) => item.localId}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
@@ -354,7 +383,9 @@ export function ChatMessageList({
             <ChatMessageRow
               isGroupedWithPrevious={
                 index > 0 &&
-                conversation.items[index - 1]?.senderId === item.senderId
+                item.senderId !== null &&
+                conversation.items[index - 1]?.senderId === item.senderId &&
+                conversation.items[index - 1]?.senderLabel === item.senderLabel
               }
               message={item}
               onRetryFailedMessage={onRetryFailedMessage}

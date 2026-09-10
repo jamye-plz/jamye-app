@@ -18,8 +18,9 @@ import {
 } from "../groups-fixtures";
 
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ replace: mockReplace }),
+  useRouter: () => ({ replace: mockReplace, push: mockPush }),
   useFocusEffect: (callback: () => () => void) => {
     const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(callback, [callback]);
@@ -74,6 +75,14 @@ describe("M7 group detail management UI", () => {
     expect(screen.getByRole("button", { name: "그룹 나가기" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "그룹 삭제" })).toBeNull();
     expect(screen.queryByRole("button", { name: "초대 코드 발급" })).toBeNull();
+  });
+  test("the loaded group opens its own connected room list", async () => {
+    const { screen } = await setup();
+    await fireEvent.press(screen.getByRole("button", { name: "주제 열기" }));
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/groups/[groupId]/chatrooms",
+      params: { groupId },
+    });
   });
   test("manual refresh keeps detail visible, shows transient error and allows retry", async () => {
     const { api, screen } = await setup();

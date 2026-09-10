@@ -452,6 +452,7 @@ export function createConnectedChatRepository(
         );
         if (!command)
           throw new Error("Connected chat outbox command was not found.");
+        if (command.state === "acked") return;
         await transaction.runAsync(
           `UPDATE connected_chat_outbox_commands SET state = 'failed', error_code = ?
            WHERE command_id = ?`,

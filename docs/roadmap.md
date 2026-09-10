@@ -1,9 +1,9 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 서버 계약·계정 안전 기반 완료, M7 그룹·멤버십·초대 완료 (2026-09-10 사용자 종료 승인)
+- 현재 상태: M0-M5 완료 이력 보존, M6 서버 계약·계정 안전 기반, M7 그룹·멤버십·초대, M8 실제 서버 REST 채팅 완료 (2026-09-10 M8 사용자 종료 승인)
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M8 실제 서버 REST 채팅 — `planned_unapproved`
+- 현재 frontier: M9 영속 outbox·실시간/delta 동기화 — `planned_unapproved`
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-10
@@ -29,7 +29,7 @@
 - **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
-- **미래 계획**: 별도 승인 전에는 구현하지 않는 M8 이후 항목; M7 종료는 M8 구현 승인이 아님
+- **미래 계획**: 별도 승인 전에는 구현하지 않는 M9 이후 항목; M8 종료는 M9 구현 승인이 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
 production readiness의 증거로 재사용하지 않는다.
@@ -71,7 +71,9 @@ shared session과 U1 profile을 제공하며, M6에는 별도의 health 연결 �
 iOS 취소 후 앱 복귀와 Kakao·Google 재로그인도 정상이라고 확인하고 M6 종료를 승인했다. 자세한 기록은
 [OAuth 개발 연결](oauth-development.md)에 있다.
 
-아래 항목은 아직 전체 PASS가 아니다.
+M6 종료 당시 아래 항목은 전체 PASS가 아니었다. 이후 그룹 navigation과 실계정 전환은
+[M7 evidence](evidence/M7.md), REST 채팅 navigation과 사용자 수용은 [M8 evidence](evidence/M8.md)에
+별도 기록하며, 나머지 항목까지 PASS로 확대하지 않는다.
 
 - 실제 token 만료 뒤 refresh
 - 실계정/origin 전환과 네트워크 장애 수용
@@ -87,7 +89,8 @@ iOS 취소 후 앱 복귀와 Kakao·Google 재로그인도 정상이라고 확�
 현재 app mode는 둘이다.
 
 - `local-fixture`: M5의 SQLite local chat을 표시한다. Network 전송이나 로그인은 없다.
-- `connected-auth`: 로그인 선택 또는 profile/logout 화면을 표시한다. 로그인 뒤 group/chat 화면은 없다.
+- `connected-auth`: 로그인 선택 또는 profile/logout 화면에서 그룹으로 이동하고, 주제 목록·메시지
+  조회·텍스트 전송·수동 재시도·내 읽음 위치 저장을 사용한다. 수신은 REST 새로고침이며 실시간 수신은 아직 없다.
 
 `local-fixture`만 기존 `jamye.db`와 fixture conversation을 사용한다. `connected-auth`는
 fixture database/seed를 열지 않고 shared session과 account scope를 사용한다. 계정 namespace는
@@ -100,7 +103,9 @@ fixture database/seed를 열지 않고 shared session과 account scope를 사용
 
 ### 4.1 계약 기준과 provenance
 
-계획 기준은 read-only `jamye-server/contracts/`다.
+최초 로드맵 조사 기준은 read-only `jamye-server/contracts/`의 아래 snapshot이다.
+이후 M8에서 수용한 C3 `message_id` 계약의 source revision과 hash는 현재
+`contracts/server/contract.lock` 및 [M8 evidence](evidence/M8.md)로 구분한다.
 
 - OpenAPI 3.1, contract version `1`
 - HTTP 43 operations, 32 paths
@@ -284,7 +289,7 @@ checker도 `status:ok`, exit 0이며 transport/architecture regression 2 suites/
 
 ### M8. 실제 서버와 연결한 REST 채팅
 
-- 상태: `planned_unapproved`
+- 상태: `completed` — 2026-09-10 양 플랫폼 사용자 확인 및 종료 승인 (`COMPLETED / USER_ACCEPTED`)
 - 선행: M6, M7
 - 사용자 결과: 실제 group chatroom에 들어가 history를 읽고 read state를 갱신하며 text message를
   전송한다. M5의 IME, anchor, keyboard와 accessibility 품질을 유지한다.
@@ -304,6 +309,17 @@ checker도 `status:ok`, exit 0이며 transport/architecture regression 2 suites/
 - Contract validator/mapper, pagination, permission/removed membership와 send idempotency test
 - Local optimistic message가 exactly one canonical server message로 수렴
 - iOS/Android에서 Korean IME, prepend/latest anchor와 error/retry 수동 확인
+
+그룹 → 주제 목록 → 실제 메시지 화면, account-scoped SQLite 저장소와 C1-C4 adapter를 연결했다.
+C3는 실제 보인 서버 `message_id`로 내 읽음 위치를 저장하며, 상대방의 메시지별 읽음 상태를
+표시하는 기능이 아니다. 서버 C3 보강과 리뷰 수정은 별도 승인으로 배포했다.
+앱 자동 통합 검사와 양 플랫폼 실행 확인 이후 사용자가 송수신·읽음 결과 표시,
+한글 입력·줄바꿈, 이전 메시지 로딩·스크롤 유지, 실패 후 재시도를 모두 정상으로 확인했다.
+구현·자동 검사·서버 배포·사용자 수용의 출처와 종료 한계는 [M8 evidence](evidence/M8.md)에 기록한다.
+
+사용자는 M8과 기존 후속 마일스톤의 범위를 유지하기로 결정했다. 메시지별 상대방 읽음 표시와
+주제별 안읽음 표시는 이번에 추가하거나 후속 마일스톤에 배정하지 않는다. 필요할 때 사용자가
+별도로 요청한다. 새 주제 생성은 기존 M10, 실시간/delta와 자동 outbox는 기존 M9 그대로다.
 
 ### M9. 영속 outbox와 실시간·delta 동기화
 
@@ -422,7 +438,7 @@ checker도 `status:ok`, exit 0이며 transport/architecture regression 2 suites/
 | Profile/account         | U1, U2, U3                     | U1 표시만                           | M6 U1, M13 U2/U3                           |
 | Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | M7 완료 — 수용 범위는 evidence 참조 | M7                                         |
 | Invitations             | I1, I2                         | M7 완료 — 양 플랫폼 사용자 수용     | M7                                         |
-| Chatrooms/messages/read | C1, C2, C3, C4                 | local fixture만                     | M8                                         |
+| Chatrooms/messages/read | C1, C2, C3, C4                 | M8 완료 — 양 플랫폼 사용자 수용     | M8                                         |
 | Delta/realtime          | S1, R1 + WebSocket             | 실행 경로 없음                      | M9                                         |
 | Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 없음                                | M10                                        |
 | Media                   | MD1, MD2, MD3, MD4, MD5        | 없음                                | M11                                        |
@@ -480,7 +496,7 @@ Media, push 또는 다른 optional milestone을 release에 포함하지 않았�
 
 이 로드맵과 [README](../README.md), [제품 의도](product-intent.md),
 [개발 workflow](development-workflow.md), [OAuth 개발 연결](oauth-development.md)은
-현재 상태와 다음 계획을 함께 설명한다. M1-M5 evidence는 당시의 기록으로 유지한다.
+현재 상태와 다음 계획을 함께 설명한다. 과거 milestone evidence는 당시의 기록으로 유지한다.
 
 문서만 변경할 때는 변경 경로, `git diff --check`, Prettier, 기존 architecture checker,
 로컬 문서 참조와 위 API 배정표를 확인한다. 이 결과를 test, coverage, dependency audit,
@@ -498,6 +514,9 @@ Android 시작 ANR은 원인 미확정 상태로 보존하며 실제 만료 갱�
 실계정/origin 변경의 자동 검사·실서버 검증 범위를 혼동하지 않는다.
 이후 2026-09-10 사용자가 M7의 양 플랫폼 실서버 그룹 생성·초대·가입·나가기와 계정 전환을
 확인하고 종료 기록·로컬 커밋을 승인했다. M7은 `COMPLETED / USER_ACCEPTED`로 정식 종료했다.
-다음 단계는 M8의 실제 chatroom history/read/send 계획 검토와 승인이다.
+이후 서버 C3 수정 배포와 M8 REST 채팅 구현·자동 검사·양 플랫폼 실행을 완료했다.
+사용자가 남은 원래 M8 수동 항목도 전부 정상이라고 확인하고 종료 기록과 로컬 커밋을 승인하여,
+M8을 `COMPLETED / USER_ACCEPTED`로 정식 종료했다. 상세 결과는 [M8 evidence](evidence/M8.md)를 따른다.
+다음 단계는 기존 M9의 영속 outbox·실시간/delta 동기화 계획 검토와 승인이다.
 
-이번 종료 승인은 M8 구현, 앱 전체 출시, push 또는 배포를 뜻하지 않는다.
+이번 종료 승인은 M9 구현, 기존 후속 마일스톤 변경, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.

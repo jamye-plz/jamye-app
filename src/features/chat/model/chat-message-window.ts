@@ -1,6 +1,21 @@
 import type { Message as RepositoryMessage } from "@/core/database/repositories/database-repository";
 
-export type ChatMessage = RepositoryMessage;
+/** Presentation-only fields shared by the fixture and REST conversations. */
+export type ChatMessage = Pick<
+  RepositoryMessage,
+  | "body"
+  | "clientMsgId"
+  | "conversationId"
+  | "createdAtMs"
+  | "localId"
+  | "status"
+> &
+  Readonly<{
+    senderId: string | null;
+    isOutgoing?: boolean;
+    senderLabel?: string;
+    serverMessageId?: string | null;
+  }>;
 
 export type MessageWindowItem = Readonly<{
   createdAtMs: number;

@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type {
-  DatabaseRepository,
-  Message,
-} from "@/core/database/repositories/database-repository";
+import type { DatabaseRepository } from "@/core/database/repositories/database-repository";
+import type { ChatMessage } from "./model/chat-message-window";
 
 import { mergeMessageWindow } from "./model/chat-message-window";
 
@@ -14,7 +12,7 @@ type MessageCursor = Readonly<{ createdAtMs: number; localId: string }>;
 export type ChatConversation = Readonly<{
   hasMore: boolean;
   initialPageStatus: "error" | "loading" | "ready";
-  items: Message[];
+  items: readonly ChatMessage[];
   loadOlder: () => Promise<void>;
   olderPageStatus: "error" | "idle" | "loading";
   retryInitialPage: () => Promise<void>;

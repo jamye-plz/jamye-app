@@ -24,6 +24,7 @@ type ChatComposer = (
   props: Readonly<{
     controller: ChatSendController;
     onMessageCommitted?: (localId: string) => void;
+    blocked?: boolean;
   }>,
 ) => React.JSX.Element;
 
@@ -74,6 +75,50 @@ function loadChatComposer(): ChatComposer {
 }
 
 describe("M5-UI-1 explicit-send Korean IME composer", () => {
+  test("does not erase text typed after the committed draft, and honors the connected send gate", async () => {
+    const ChatComposer = loadChatComposer();
+    const pending = createDeferred<ChatSendOutcome>();
+    let clearDraft!: () => void;
+    const send = jest.fn((input: { body: string; clearDraft: () => void }) => {
+      clearDraft = input.clearDraft;
+      return pending.promise;
+    });
+    const screen = await render(
+      <AppThemeProvider>
+        <ChatComposer controller={{ send }} />
+      </AppThemeProvider>,
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("메시지 입력"),
+      "첫 메시지",
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "메시지 보내기" }),
+    );
+    await fireEvent.changeText(
+      screen.getByLabelText("메시지 입력"),
+      "다음 메시지",
+    );
+    await act(() => {
+      clearDraft();
+      pending.resolve({ outcome: "committed" });
+    });
+    expect(screen.getByLabelText("메시지 입력").props.value).toBe(
+      "다음 메시지",
+    );
+    await screen.rerender(
+      <AppThemeProvider>
+        <ChatComposer controller={{ send }} blocked />
+      </AppThemeProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "메시지 보내기" }),
+    ).toBeDisabled();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "메시지 보내기" }),
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+  });
   test("uses one multiline named input and one disabled empty explicit-send control", async () => {
     const ChatComposer = loadChatComposer();
     const controller: ChatSendController = {

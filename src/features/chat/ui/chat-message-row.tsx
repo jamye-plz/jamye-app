@@ -49,7 +49,7 @@ export function ChatMessageRow({
     }
   }, [message.status]);
 
-  const isOutgoing = message.clientMsgId !== null;
+  const isOutgoing = message.isOutgoing ?? message.clientMsgId !== null;
   const bubbleMaxWidth =
     width >= appChatLayout.conversationMaxWidth + appSpacing.huge
       ? appChatLayout.wideBubbleMaxWidth
@@ -80,6 +80,9 @@ export function ChatMessageRow({
           padding: appSpacing.sm,
         }}
       >
+        {!isGroupedWithPrevious && message.senderLabel ? (
+          <Text style={{ color }}>{message.senderLabel}</Text>
+        ) : null}
         <Text
           style={{
             color,
@@ -93,7 +96,7 @@ export function ChatMessageRow({
           {statusLabels[message.status]}
         </Text>
       </View>
-      {message.status === "failed" && message.clientMsgId ? (
+      {isOutgoing && message.status === "failed" && message.clientMsgId ? (
         <Pressable
           accessibilityLabel="메시지 다시 보내기"
           accessibilityRole="button"

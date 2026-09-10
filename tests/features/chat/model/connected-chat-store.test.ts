@@ -428,6 +428,7 @@ describe("M8 task 4 — connected room/history/foreground-send service", () => {
       deferred<Awaited<ReturnType<typeof chatApi.listChatroomMessages>>>();
     chatApi.listChatroomMessages.mockReturnValueOnce(firstFetch.promise);
     const openingFirst = store.actions.openRoom(CHATROOM_ID);
+    await Promise.resolve();
     const firstSignal = chatApi.listChatroomMessages.mock
       .calls[0]![3] as AbortSignal;
 

@@ -4,6 +4,7 @@ import type {
   ConnectedChatMedia,
   ConnectedChatMessage,
   ConnectedChatRepository,
+  ConnectedMessageAndCommand,
   ConnectedChatroom,
   ConnectedChatroomCursor,
   ConnectedChatroomUpsert,
@@ -20,6 +21,8 @@ import type {
 import { ChatApiError } from "@/features/chat/data/chat-api";
 import type { ChatApi } from "@/features/chat/data/chat-api";
 import type { ClockPort } from "@/features/chat/model/chat-send";
+import { createConnectedChatRead, emptyReadState } from "./connected-chat-read";
+import type { ConnectedChatReadState } from "./connected-chat-read";
 
 const ROOMS_PAGE_LIMIT = 30;
 const HISTORY_WINDOW_LIMIT = 50;
@@ -70,19 +73,28 @@ export type ConnectedChatSendState =
     }>;
 
 export type ConnectedChatState = Readonly<{
+  groupId: string | null;
+  accessLost: boolean;
   chatroomId: string | null;
   rooms: ConnectedChatRoomsState;
   history: ConnectedChatHistoryState;
   send: ConnectedChatSendState;
+  read: ConnectedChatReadState;
 }>;
 
 export type ConnectedChatStoreActions = Readonly<{
   loadRooms: (groupId: string) => Promise<void>;
   loadMoreRooms: () => Promise<void>;
+  closeRooms: () => void;
   openRoom: (chatroomId: string) => Promise<void>;
   loadOlderHistory: () => Promise<void>;
-  sendMessage: (body: string) => Promise<void>;
+  sendMessage: (
+    body: string,
+    onCommitted?: (localId: string) => void,
+  ) => Promise<void>;
   retryMessage: (clientMsgId: string) => Promise<void>;
+  markVisibleMessages: (ids: readonly string[]) => Promise<void>;
+  retryRead: () => Promise<void>;
   closeRoom: () => void;
   background: () => void;
   foreground: () => Promise<void>;
@@ -102,6 +114,8 @@ export type ConnectedChatStore = Readonly<{
 
 function initialState(): ConnectedChatState {
   return {
+    groupId: null,
+    accessLost: false,
     chatroomId: null,
     rooms: {
       status: "idle",
@@ -119,6 +133,7 @@ function initialState(): ConnectedChatState {
       error: null,
     },
     send: { status: "idle" },
+    read: emptyReadState(),
   };
 }
 
@@ -246,6 +261,43 @@ export function createConnectedChatStore(
   let historyHttpCursor: string | null = null;
   let historyRepoNextBefore: ConnectedMessageCursor | null = null;
   let historyBlocked = false;
+  let active = true;
+  let sendPreparation: Readonly<{
+    identity: string;
+    repo: ConnectedChatRepository;
+    chatroomId: string;
+    clientMsgId: string;
+    write: Promise<ConnectedMessageAndCommand>;
+  }> | null = null;
+  let interruptedWrite: Promise<void> = Promise.resolve();
+  const read = createConnectedChatRead({
+    currentRoom: () => state.chatroomId,
+    messages: () => state.history.items,
+    enabled: () =>
+      active && !historyBlocked && state.history.status !== "loading",
+    begin: () => {
+      const ticket = begin("read");
+      return (
+        ticket && {
+          current: ticket.current,
+          execute: (roomId: string, messageId: string) =>
+            ticket.run((service, token, signal) =>
+              service.markChatroomRead(token, roomId, { messageId }, signal),
+            ),
+        }
+      );
+    },
+    publish: (next) => publish({ ...state, read: next }),
+    errorCode: mapSendErrorCode,
+    onError: (error) => {
+      if (isMembershipLost(error))
+        publish({
+          ...state,
+          history: historyErrorPatch(state.history, error),
+          accessLost: true,
+        });
+    },
+  });
 
   function publish(next: ConnectedChatState): void {
     state = next;
@@ -258,8 +310,53 @@ export function createConnectedChatStore(
   function cancelAll(): void {
     for (const key of [...requests.keys()]) cancel(key);
   }
+  function interruptSend(persist = true): void {
+    cancel("send");
+    const attempt = sendPreparation;
+    sendPreparation = null;
+    if (!persist) return;
+    if (!attempt) {
+      if (state.send.status === "pending")
+        publish({ ...state, send: { status: "idle" } });
+      return;
+    }
+    interruptedWrite = interruptedWrite
+      .then(async () => {
+        await attempt.write;
+        if (identity !== attempt.identity || repository !== attempt.repo)
+          return;
+        await attempt.repo.markSendFailed({
+          clientMsgId: attempt.clientMsgId,
+          errorCode: "network",
+        });
+      })
+      .catch(() => {
+        if (
+          identity === attempt.identity &&
+          repository === attempt.repo &&
+          state.chatroomId === attempt.chatroomId
+        ) {
+          publish({
+            ...state,
+            send: {
+              status: "failed",
+              clientMsgId: attempt.clientMsgId,
+              errorCode: "unknown",
+            },
+          });
+        }
+      });
+    publish({
+      ...state,
+      send: {
+        status: "uncertain",
+        clientMsgId: attempt.clientMsgId,
+        errorCode: "network",
+      },
+    });
+  }
   function begin(key: string) {
-    if (!api || !authorize || !repository) return null;
+    if (!active || !api || !authorize || !repository) return null;
     cancel(key);
     const controller = new AbortController();
     requests.set(key, controller);
@@ -303,13 +400,13 @@ export function createConnectedChatStore(
     const key = valid
       ? JSON.stringify([origin, nextPrincipal.userId, nextPrincipal.epoch])
       : "";
-    if (
-      key === identity &&
-      repository === nextRepository &&
-      authorize === nextAuthorize
-    )
+    if (key === identity && repository === nextRepository) {
+      authorize = valid ? nextAuthorize : null;
       return;
+    }
+    interruptSend(false);
     cancelAll();
+    read.reset();
     identity = key;
     authorize = valid ? nextAuthorize : null;
     repository = valid ? nextRepository : null;
@@ -319,6 +416,7 @@ export function createConnectedChatStore(
     historyHttpCursor = null;
     historyRepoNextBefore = null;
     historyBlocked = false;
+    interruptedWrite = Promise.resolve();
     publish(initialState());
   }
 
@@ -328,8 +426,9 @@ export function createConnectedChatStore(
   ): ConnectedChatHistoryState {
     const errorCode = mapSendErrorCode(error);
     if (isMembershipLost(error)) {
-      cancel("send");
+      interruptSend();
       historyBlocked = true;
+      cancel("read");
       historyHttpCursor = null;
       historyRepoNextBefore = null;
       return {
@@ -388,6 +487,8 @@ export function createConnectedChatStore(
     }
     publish({
       ...state,
+      groupId,
+      accessLost: false,
       rooms: {
         ...previous,
         status: more ? "ready" : "loading",
@@ -439,8 +540,10 @@ export function createConnectedChatStore(
       if (!ticket.current()) return;
       publish({
         ...state,
+        accessLost: isMembershipLost(error),
         rooms: {
           ...previous,
+          items: isMembershipLost(error) ? [] : previous.items,
           status: "error",
           loadingMore: false,
           error: mapSendErrorCode(error),
@@ -451,15 +554,19 @@ export function createConnectedChatStore(
 
   async function openRoom(chatroomId: string): Promise<void> {
     const roomChanged = state.chatroomId !== chatroomId;
-    if (roomChanged) cancel("send");
+    if (roomChanged) interruptSend();
     const ticket = begin("history");
     if (!ticket) return;
+    cancel("read");
+    read.reset();
     historyBlocked = false;
     historyHttpCursor = null;
     historyRepoNextBefore = null;
     publish({
       ...state,
       chatroomId,
+      accessLost: false,
+      read: emptyReadState(),
       send: roomChanged ? { status: "idle" } : state.send,
       history: {
         status: "loading",
@@ -470,6 +577,8 @@ export function createConnectedChatStore(
       },
     });
     try {
+      await interruptedWrite;
+      if (!ticket.current()) return;
       const page = await ticket.run((service, token, signal) =>
         service.listChatroomMessages(token, chatroomId, {}, signal),
       );
@@ -483,7 +592,11 @@ export function createConnectedChatStore(
       publish({ ...state, history });
     } catch (error) {
       if (!ticket.current()) return;
-      publish({ ...state, history: historyErrorPatch(state.history, error) });
+      publish({
+        ...state,
+        history: historyErrorPatch(state.history, error),
+        accessLost: historyBlocked,
+      });
     }
   }
 
@@ -542,19 +655,31 @@ export function createConnectedChatStore(
       });
     } catch (error) {
       if (!ticket.current()) return;
-      publish({ ...state, history: historyErrorPatch(state.history, error) });
+      publish({
+        ...state,
+        history: historyErrorPatch(state.history, error),
+        accessLost: historyBlocked,
+      });
     }
   }
 
-  async function sendMessage(body: string): Promise<void> {
-    if (historyBlocked || state.send.status === "pending") return;
+  async function sendMessage(
+    body: string,
+    onCommitted?: (localId: string) => void,
+  ): Promise<void> {
+    if (historyBlocked || state.send.status === "pending" || !body.trim())
+      return;
     const chatroomId = state.chatroomId;
     if (!chatroomId) return;
     const ticket = begin("send");
     if (!ticket) return;
     const identityInput = deps.messageIdentity.next();
+    publish({
+      ...state,
+      send: { status: "pending", clientMsgId: identityInput.clientMsgId },
+    });
     try {
-      const enqueueResult = await ticket.repo.enqueuePendingMessage({
+      const write = ticket.repo.enqueuePendingMessage({
         body,
         chatroomId,
         clientMsgId: identityInput.clientMsgId,
@@ -562,11 +687,18 @@ export function createConnectedChatStore(
         localCreatedAtMs: deps.clock.nowMs(),
         localId: identityInput.localId,
       });
+      sendPreparation = {
+        identity,
+        repo: ticket.repo,
+        chatroomId,
+        clientMsgId: identityInput.clientMsgId,
+        write,
+      };
+      const enqueueResult = await write;
       if (!ticket.current()) return;
-      publish({
-        ...state,
-        send: { status: "pending", clientMsgId: identityInput.clientMsgId },
-      });
+      onCommitted?.(enqueueResult.message.localId);
+      await refreshAfterWrite(ticket, chatroomId);
+      if (!ticket.current()) return;
       const result = await ticket.run((service, token, signal) =>
         service.sendChatMessage(
           token,
@@ -590,6 +722,8 @@ export function createConnectedChatStore(
       await publishSendSuccess(ticket, chatroomId, identityInput.clientMsgId);
     } catch (error) {
       await publishSendFailure(ticket, identityInput.clientMsgId, error);
+    } finally {
+      if (ticket.current()) sendPreparation = null;
     }
   }
 
@@ -599,6 +733,7 @@ export function createConnectedChatStore(
     if (!chatroomId) return;
     const ticket = begin("send");
     if (!ticket) return;
+    publish({ ...state, send: { status: "pending", clientMsgId } });
     try {
       const command = await ticket.repo.getOutboxCommand(clientMsgId);
       if (!ticket.current()) return;
@@ -606,17 +741,29 @@ export function createConnectedChatStore(
         !command ||
         command.state !== "failed" ||
         command.chatroomId !== chatroomId
-      )
+      ) {
+        publish({ ...state, send: { status: "idle" } });
         return;
+      }
       publish({
         ...state,
         send: { status: "pending", clientMsgId: command.clientMsgId },
       });
-      const retryResult = await ticket.repo.retryFailedMessage({
+      const write = ticket.repo.retryFailedMessage({
         body: command.body,
         chatroomId: command.chatroomId,
         clientMsgId: command.clientMsgId,
       });
+      sendPreparation = {
+        identity,
+        repo: ticket.repo,
+        chatroomId,
+        clientMsgId,
+        write,
+      };
+      const retryResult = await write;
+      if (!ticket.current()) return;
+      await refreshAfterWrite(ticket, chatroomId);
       if (!ticket.current()) return;
       const result = await ticket.run((service, token, signal) =>
         service.sendChatMessage(
@@ -638,6 +785,8 @@ export function createConnectedChatStore(
       await publishSendSuccess(ticket, command.chatroomId, command.clientMsgId);
     } catch (error) {
       await publishSendFailure(ticket, clientMsgId, error);
+    } finally {
+      if (ticket.current()) sendPreparation = null;
     }
   }
 
@@ -648,9 +797,33 @@ export function createConnectedChatStore(
     clientMsgId: string,
   ): Promise<void> {
     if (!ticket.current() || state.chatroomId !== chatroomId) return;
-    const history = await readHistoryWindow(ticket, chatroomId, null);
-    if (!history) return;
-    publish({ ...state, history, send: { status: "sent", clientMsgId } });
+    await refreshAfterWrite(ticket, chatroomId);
+    if (ticket.current())
+      publish({ ...state, send: { status: "sent", clientMsgId } });
+  }
+
+  async function refreshAfterWrite(
+    ticket: NonNullable<ReturnType<typeof begin>>,
+    chatroomId: string,
+  ): Promise<void> {
+    const window = await ticket.repo.listMessagesWindow({
+      before: null,
+      chatroomId,
+      limit: HISTORY_WINDOW_LIMIT,
+    });
+    if (!ticket.current()) return;
+    const keys = new Set(window.items.map((row) => row.localId));
+    const previous = state.history;
+    publish({
+      ...state,
+      history: {
+        ...previous,
+        items: [
+          ...previous.items.filter((row) => !keys.has(row.localId)),
+          ...window.items,
+        ].slice(-MAX_RENDERED_ROWS),
+      },
+    });
   }
 
   async function publishSendFailure(
@@ -660,9 +833,14 @@ export function createConnectedChatStore(
   ): Promise<void> {
     if (!ticket.current()) return;
     const errorCode = mapSendErrorCode(error);
-    await ticket.repo
-      .markSendFailed({ clientMsgId, errorCode })
-      .catch(() => undefined);
+    try {
+      await ticket.repo.markSendFailed({ clientMsgId, errorCode });
+      if (ticket.current() && state.chatroomId)
+        await refreshAfterWrite(ticket, state.chatroomId);
+    } catch {
+      if (ticket.current())
+        publish({ ...state, history: { ...state.history, error: "unknown" } });
+    }
     if (!ticket.current()) return;
     const history = isMembershipLost(error)
       ? historyErrorPatch(state.history, error)
@@ -670,6 +848,7 @@ export function createConnectedChatStore(
     publish({
       ...state,
       history,
+      accessLost: historyBlocked,
       send: {
         status: isUncertainSendOutcome(errorCode) ? "uncertain" : "failed",
         clientMsgId,
@@ -680,22 +859,30 @@ export function createConnectedChatStore(
 
   function closeRoom(): void {
     cancel("history");
-    cancel("send");
+    cancel("read");
+    read.reset();
+    interruptSend();
     historyHttpCursor = null;
     historyRepoNextBefore = null;
     historyBlocked = false;
     publish({
       ...state,
       chatroomId: null,
+      accessLost: false,
+      read: emptyReadState(),
       history: initialState().history,
       send: { status: "idle" },
     });
   }
 
   function background(): void {
+    active = false;
+    interruptSend();
     cancelAll();
+    read.reset();
     publish({
       ...state,
+      read: emptyReadState(),
       rooms: {
         ...state.rooms,
         status: state.rooms.status === "loading" ? "ready" : state.rooms.status,
@@ -711,7 +898,9 @@ export function createConnectedChatStore(
   }
 
   async function foreground(): Promise<void> {
+    active = true;
     if (state.chatroomId) await openRoom(state.chatroomId);
+    else if (roomsGroupId) await loadRooms(roomsGroupId, false);
   }
 
   return {
@@ -729,10 +918,22 @@ export function createConnectedChatStore(
       loadRooms: (groupId) => loadRooms(groupId, false),
       loadMoreRooms: () =>
         roomsGroupId ? loadRooms(roomsGroupId, true) : Promise.resolve(),
+      closeRooms: () => {
+        cancel("rooms");
+        roomsGroupId = null;
+        publish({
+          ...state,
+          groupId: null,
+          rooms: initialState().rooms,
+          accessLost: false,
+        });
+      },
       openRoom,
       loadOlderHistory,
       sendMessage,
       retryMessage,
+      markVisibleMessages: read.markVisibleMessages,
+      retryRead: read.retryRead,
       closeRoom,
       background,
       foreground,

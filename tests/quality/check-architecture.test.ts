@@ -224,6 +224,11 @@ const M8_TEST_PATHS = [
   "tests/core/database/account/connected-chat-repository.test.ts",
   "tests/features/chat/data/chat-api.test.ts",
   "tests/features/chat/model/connected-chat-store.test.ts",
+  "tests/features/chat/model/connected-chat-lifecycle.test.ts",
+  "tests/features/chat/model/connected-chat-read.test.ts",
+  "tests/features/chat/model/connected-chat-provider.test.tsx",
+  "tests/features/chat/model/connected-chat-presentation.test.ts",
+  "tests/features/chat/connected-chat-screens.test.tsx",
   "tests/quality/chat-boundaries.test.ts",
 ];
 
@@ -1372,12 +1377,22 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     ).toBe(false);
   });
 
-  test("authorizes the bounded M8 REST foundation but not a realtime dispatcher", () => {
+  test("authorizes the bounded M8 REST screens and lifecycle but not a realtime dispatcher", () => {
     for (const path of [
       ...M8_DATABASE_SOURCE_FILES,
       ...M8_TEST_PATHS,
+      "docs/evidence/M8.md",
       "src/features/chat/data/chat-api.ts",
       "src/features/chat/model/connected-chat-store.ts",
+      "src/features/chat/model/connected-chat-read.ts",
+      "src/features/chat/model/connected-chat-provider.tsx",
+      "src/features/chat/model/connected-chat-presentation.ts",
+      "src/features/chat/ui/chat-controls.tsx",
+      "src/features/chat/ui/chat-route-guard.tsx",
+      "src/features/chat/ui/chat-rooms-screen.tsx",
+      "src/features/chat/ui/connected-chat-screen.tsx",
+      "src/app/groups/[groupId]/chatrooms/index.tsx",
+      "src/app/groups/[groupId]/chatrooms/[chatroomId].tsx",
       "tests/core/database/account/connected-chat-repository.bun.ts",
       "tests/features/chat/chat-api-fixtures.ts",
       "tests/features/chat/model/connected-chat-fixtures.ts",

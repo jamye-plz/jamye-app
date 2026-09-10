@@ -10,11 +10,12 @@ contract, M5의 SQLite 기반 로컬 채팅 읽기·쓰기와 M6의 server contr
 shared session/account-safe connected-auth shell이 구현돼 있다. `local-fixture` mode는
 보존된 fixture SQLite chat을, `connected-auth` mode는 shared OAuth session, U1 profile,
 origin+UUID account namespace와 authenticated home을 표시한다. M7 connected-auth mode는
-server-backed group navigation을 구현했으며 server-backed chat은 아직 없다. 아래 명령은 실행 절차이며
+server-backed group navigation을 제공하고, M8은 실제 주제 목록·메시지 조회·전송·내 읽음 위치 저장까지 연결했다. 아래 명령은 실행 절차이며
 그 자체로 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제 관찰 결과는
 각 마일스톤 증거에 기록한다: [M3](docs/evidence/M3.md),
 [M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md),
-[M6 네이티브·로그인 검증](docs/oauth-development.md), [M7 그룹·계정 전환 검증](docs/evidence/M7.md).
+[M6 네이티브·로그인 검증](docs/oauth-development.md), [M7 그룹·계정 전환 검증](docs/evidence/M7.md),
+[M8 REST 채팅 검증](docs/evidence/M8.md).
 
 ## 현재 범위
 
@@ -29,8 +30,8 @@ exclusive transaction에 기록한다. 실패 재시도는 기존 identity와 co
 입력창을 함께 이동하고 전송 뒤에도 keyboard focus를 유지한다.
 
 M5의 queued outbox는 전송 의도를 로컬에 보존할 뿐 네트워크 전송 성공을 뜻하지 않는다.
-Server-backed chat navigation, realtime/delta 실행과
-reconnect/restart 수렴은 아직 없다. 자동 mobile E2E와 실기기 acceptance도 전체 제품에
+M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도를 제공한다. Realtime/delta 실행과
+재연결·재시작 후 자동 전송 수렴은 아직 없다. 자동 mobile E2E와 실기기 acceptance도 전체 제품에
 대해 완료하지 않았다.
 
 현재 범위와 다음 사용자 여정은 [전체 로드맵](docs/roadmap.md)을 따른다.
@@ -39,12 +40,14 @@ reconnect/restart 수렴은 아직 없다. 자동 mobile E2E와 실기기 accept
 - M5: 로컬 채팅 읽기·쓰기 — 완료
 - M6: server contract intake, shared session/profile/logout, account/origin 데이터 분리 — 완료 (2026-09-09 사용자 종료 승인)
 - M7: authenticated groups, membership, invitations — 완료 (2026-09-10 양 플랫폼 그룹 작업·계정 전환 사용자 확인 및 종료 승인)
-- 아직 없음: chatrooms/messages/realtime/topics/media/notification/push
+- M8: 실제 주제 목록·메시지 조회·전송·내 읽음 위치 저장 — 완료 (2026-09-10 양 플랫폼 사용자 확인 및 종료 승인)
+- 다음: M9 영속 outbox·실시간/delta 동기화 — 계획·구현 승인 대기
+- 아직 없음: realtime/delta, 주제 생성·관리, media/notification/push
 
 Apple login, STT/on-device AI, presence/typing/reaction, message edit/delete와 새 push
 backend는 현재 서버 계약 밖의 별도 backlog다. 의존성 보안 수정 후에도 원본 감사의 image-size
 High 2건과 Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용 및 배포 revision binding은
-남아 있어 production readiness는 `NOT READY`다. M6·M7 종료는 이 출시 항목들의 완료를 뜻하지 않는다.
+남아 있어 production readiness는 `NOT READY`다. M6·M7·M8 종료는 이 출시 항목들의 완료를 뜻하지 않는다.
 패치 검증과 감사 결과는 [개발 검증 기록](docs/development-workflow.md)에 구분한다. 자세한 경계는
 [`docs/roadmap.md`](docs/roadmap.md)와
 [`docs/product-intent.md`](docs/product-intent.md)를 기준으로 한다.
@@ -109,6 +112,21 @@ self-leave/delete 성공, foreground/manual refetch 범위에서 처리한다. W
 group cache/outbox는 이 범위에 포함하지 않는다. 다른 관리 기능의 개별 실사용 확인과 검증 한계는
 [M7 evidence](docs/evidence/M7.md)와 [개발 검증 기록](docs/development-workflow.md)을 따른다.
 
+## M8 실제 서버 REST 채팅
+
+M8은 `COMPLETED / USER_ACCEPTED`다. 그룹 상세에서 주제 목록으로 들어가 이전 메시지를
+읽고 텍스트를 전송하며, 화면에 보인 서버 메시지까지 자신의 읽음 위치를 저장한다. C1-C4
+계약을 사용하는 account-scoped adapter/store와 SQLite 메시지 저장소를 연결했다.
+전송 실패 후 수동 재시도는 같은 UUID `client_msg_id`와 내용을 사용한다.
+
+2026-09-10 서버 C3 수정 배포와 양 플랫폼 실행을 확인했고, 사용자가 실제 송수신·읽음 결과
+표시, 한글 입력·줄바꿈, 이전 메시지 로딩·스크롤 유지, 실패 후 재시도를 모두 정상으로 확인했다.
+앱의 사용자용 명칭은 '주제'이며 API 경로와 내부 `chatroom` 식별자는 유지한다.
+
+읽음 결과는 **내 읽음 위치 저장**을 뜻한다. 메시지별 상대방 읽음 표시와 주제별 안읽음 표시는
+구현하지 않았고 기존 마일스톤에도 추가하지 않는다. 새 주제 생성은 기존 M10, 실시간 수신과
+자동 outbox 처리는 기존 M9에 남는다. 결과 출처와 검증 한계는 [M8 evidence](docs/evidence/M8.md)를 따른다.
+
 ## M4 local bootstrap contract
 
 M4의 local bootstrap wire contract는 `status = bootstrap`,
@@ -123,8 +141,9 @@ non-null tag만을 필수 조건으로 두지 않고 exact source revision, cont
 hash를 기록한다. 현재 manifest의 dirty/null provenance는 배포 binding을 증명하지 않는다.
 M6 generated type/validator는 구현됐으며 bootstrap source/fixture는 변경하지 않았다.
 
-이 bootstrap의 메시지/recovery 경로를 실제 서버에 연결하는 후속 M8-M9 작업은 다음 조건을
-**모두 충족한 뒤에만** 진행한다. 현재 M6 인증 경로의 승인과는 별개다.
+Bootstrap 자체는 실제 서버에 연결하지 않는다. M8은 별도 승인된 C1-C4 server snapshot과
+account-scoped 저장소로 REST 채팅을 연결했고, bootstrap source/fixture는 보존했다.
+후속 M9 recovery 연결도 다음 조건을 모두 충족한 뒤 별도 결정으로 진행한다.
 
 1. 별도 승인된 source가 non-bootstrap production contract version과 authenticated source
    ownership(인증된 source ownership)을 제공한다.
@@ -411,7 +430,8 @@ src/core/contracts/server/        server wire type·validator·domain mapper
 src/core/http/                    account-safe authorized request boundary
 src/core/providers/               theme·database·keyboard·runtime provider composition
 src/core/theme/                   semantic light/dark token과 system theme provider
-src/features/chat/model/          fixture identity, send policy, message-window 계산
+src/features/chat/data/           C1-C4 server adapter
+src/features/chat/model/          fixture 및 connected chat state, send/read/lifecycle
 src/features/chat/ui/             native list, row, composer, platform keyboard adapter
 src/features/chat/                repository 구독 기반 conversation hook
 src/features/auth/                login/profile/logout UI와 callback landing
@@ -431,15 +451,15 @@ src/shared/ui/                    native screen/text primitive
 - Local fixture는 production server, HTTP, WebSocket 또는 auth를 사용하지 않는다.
 - `src/app/index.tsx`는 `local-fixture`의 M5 chat과 `connected-auth`의 로그인·인증 home을
   구분한다. 인증 후에는 account-scoped M7 group route로 이동할 수 있다.
-- `AppProviders`는 connected mode에서 shared session, account scope와 groups store를 조합한다.
+- `AppProviders`는 connected mode에서 shared session, account scope와 groups/chat store를 조합한다.
   fixture DB/seed는 local-fixture mode에서만 사용하며, 실제 계정 namespace와 분리한다.
 - ESLint가 `app.config.ts`와 route/UI 계층의 직접 transport를 금지한다. 현재 허용된 실제
-  네트워크 호출은 auth·health·groups의 지정 adapter와 `src/core/http/` 경계를 통과한다.
+  네트워크 호출은 auth·health·groups·chat의 지정 adapter와 `src/core/http/` 경계를 통과한다.
   이후 server adapter도 별도 boundary로 승인·검증한다.
 
-M8-M9는 이 경계를 유지한 채 server-backed chat adapter, persistent outbox processor와
-canonical event/delta recovery를 별도 승인 후 추가한다. 실제 `jamye-server`의 OAuth·profile·group
-연결은 M6·M7에서 수용했으며, credential과 session/token은 fixture나 문서에 보존하지 않는다.
+M8은 이 경계 안에서 server-backed REST chat을 연결했다. M9의 persistent outbox processor와
+canonical event/delta recovery는 별도 승인 후 추가한다. 실제 `jamye-server`의 OAuth·profile·group·REST chat
+연결은 M6·M7·M8에서 수용했으며, credential과 session/token은 fixture나 문서에 보존하지 않는다.
 
 ## 품질 명령과 coverage 계약
 

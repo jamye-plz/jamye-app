@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { PropsWithChildren } from "react";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { randomUUID } from "expo-crypto";
 
 import { getPublicEnv } from "@/core/config/public-env";
 import { createAccountScope as createDefaultAccountScope } from "@/core/database/account/account-scope";
@@ -13,6 +14,9 @@ import { createGroupsApi } from "@/features/groups/data/groups-api";
 import { createGroupsStore } from "@/features/groups/model/groups-store";
 import type { GroupsStore } from "@/features/groups/model/groups-store";
 import { GroupsProvider } from "@/features/groups/model/groups-provider";
+import { createChatApi } from "@/features/chat/data/chat-api";
+import { createConnectedChatStore } from "@/features/chat/model/connected-chat-store";
+import { ConnectedChatProvider } from "@/features/chat/model/connected-chat-provider";
 import {
   createMonotonicMessageIdentity,
   createSystemClock,
@@ -61,6 +65,19 @@ const AccountScopeContext = createContext<AccountScopeContextValue | undefined>(
 );
 function createDefaultGroupsStore(): GroupsStore {
   return createGroupsStore({ createApi: createGroupsApi });
+}
+function createDefaultChatStore() {
+  return createConnectedChatStore({
+    createApi: createChatApi,
+    clock: createSystemClock(),
+    messageIdentity: {
+      next: () => ({
+        clientMsgId: randomUUID(),
+        commandId: randomUUID(),
+        localId: randomUUID(),
+      }),
+    },
+  });
 }
 
 export function AppProviders({
@@ -149,10 +166,27 @@ function ConnectedRuntimeProviders({
           origin={origin}
           groupsStoreFactory={groupsStoreFactory}
         >
-          {children}
+          <ChatStoreBridge>{children}</ChatStoreBridge>
         </GroupsStoreBridge>
       </AccountScopeBridge>
     </SessionProvider>
+  );
+}
+
+function ChatStoreBridge({ children }: PropsWithChildren) {
+  const { principal, authorizedRequest } = useSession();
+  const { state } = useAccountScope();
+  return (
+    <ConnectedChatProvider
+      principal={principal}
+      repository={
+        state?.status === "ready" ? state.connectedChatRepository : null
+      }
+      authorizedRequest={authorizedRequest}
+      createStore={createDefaultChatStore}
+    >
+      {children}
+    </ConnectedChatProvider>
   );
 }
 

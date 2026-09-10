@@ -118,6 +118,16 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
                     {owner ? "그룹 소유자" : "멤버"}
                   </AppText>
                   <GroupButton
+                    label="주제 열기"
+                    disabled={busy}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/groups/[groupId]/chatrooms",
+                        params: { groupId },
+                      })
+                    }
+                  />
+                  <GroupButton
                     label="그룹 새로고침"
                     disabled={busy}
                     busy={detail.status === "loading"}

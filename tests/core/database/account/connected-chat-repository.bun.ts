@@ -186,6 +186,21 @@ async function main(): Promise<void> {
     (await repository.getOutboxCommand(pending.command.clientMsgId))?.state,
     "acked",
   );
+  // A cancellation racing with a committed canonical response must not undo it.
+  await repository.markSendFailed({
+    clientMsgId: pending.command.clientMsgId,
+    errorCode: "network",
+  });
+  assert.equal(
+    (await repository.getOutboxCommand(pending.command.clientMsgId))?.state,
+    "acked",
+  );
+  assert.equal(
+    (
+      await repository.listMessagesWindow({ chatroomId: ROOM_ID, limit: 10 })
+    ).items.find((row) => row.localId === "local-one")?.status,
+    "sent",
+  );
 
   const responseFirst = await repository.mergeCanonicalMessage({
     body: "response first",

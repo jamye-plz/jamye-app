@@ -327,6 +327,24 @@ M7에는 dependency/native configuration 변경이 없어 clean prebuild·재빌
 [M7 evidence](evidence/M7.md)를 따른다. 다른 관리 기능의 개별 실사용 확인과 검증 데이터 정리는
 보고받지 않았다. 앱 전체 production readiness, M8 구현과 push/배포는 이번 종료 범위가 아니다.
 
+## M8 검증과 종료 — 2026-09-10
+
+M8은 `COMPLETED / USER_ACCEPTED`로 종료했다. C1-C4 server contract를 사용하는
+주제 목록·메시지 조회·전송·수동 재시도·내 읽음 위치 저장을 기존 화면에 연결했다.
+화면의 메시지 원본은 account-scoped SQLite이며 bootstrap/fixture와 계정 데이터는 분리한다.
+
+통합 구현의 `rtk proxy bun run check:code`는 60 suites / 673 tests, architecture 위반 0건과
+coverage 기준을 통과했다. 서버 C3 보강·리뷰 수정 배포 이후 기존 Development Build와
+Metro를 재사용해 양 플랫폼을 실행했고, 사용자가 송수신·읽음 결과 표시, 한글 입력·줄바꿈,
+이전 메시지 로딩·스크롤 유지, 실패 후 재시도를 모두 정상으로 확인하고 종료를 승인했다.
+명령별 결과, 배포 revision, 관찰 출처와 종료 커밋 전 재검증은 [M8 evidence](evidence/M8.md)에 기록한다.
+
+종료 기록에서는 기존 app devShell을 재사용한다. 새로운 Nix 환경이나 검증 프레임워크를
+만들지 않으며 dependency/native 설정 변경, 재빌드·재설치·실계정 작업·배포도 반복하지 않는다.
+기존 architecture 목록에는 새 종료 문서의 정확한 경로만 추가하고 다른 검사 경계는 유지한다.
+메시지별 상대방 읽음 표시와 주제별 안읽음 표시는 미구현이며 기존 후속 마일스톤에 추가하지 않는다.
+다음 단계는 기존 M9의 계획 검토·승인이다. 앱 전체 출시와 push/배포 승인은 별도다.
+
 ## 4. Dependency와 toolchain script
 
 | 명령                             | 분류        | 결과와 선행 조건                                                  |
