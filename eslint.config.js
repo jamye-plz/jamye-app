@@ -25,6 +25,7 @@ const AUTH_TRANSPORT_FILES = [
 const HTTP_ADAPTER_FILES = [
   "src/core/health/health-api.ts",
   "src/features/groups/data/groups-api.ts",
+  "src/features/chat/data/chat-api.ts",
 ];
 
 const FORBIDDEN_TRANSPORT_GLOBALS = [
@@ -138,6 +139,10 @@ const RESERVED_CORE_FEATURE_DATA_DATABASE_PATTERNS = [
   "**/core/database/migrations/**",
   "**/core/database/types",
   "**/core/database/database-provider",
+  "**/core/database/account/open-account-database",
+  "**/core/database/account/migrations",
+  "**/core/database/account/migrations/**",
+  "**/core/database/account/connected-chat-repository",
 ];
 
 const RESERVED_CORE_SCREEN_DATABASE_PATTERNS = [

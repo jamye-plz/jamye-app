@@ -130,6 +130,10 @@ const M5_FEATURE_DATA_DATABASE_PATTERNS = [
   "**/core/database/migrations/**",
   "**/core/database/types",
   "**/core/database/database-provider",
+  "**/core/database/account/open-account-database",
+  "**/core/database/account/migrations",
+  "**/core/database/account/migrations/**",
+  "**/core/database/account/connected-chat-repository",
 ];
 const M5_REPOSITORY_PORT_PATTERN =
   "**/core/database/repositories/database-repository";
@@ -210,6 +214,19 @@ const M7_TEST_PATHS = [
   "tests/quality/groups-boundaries.test.ts",
 ];
 
+const M8_DATABASE_SOURCE_FILES = [
+  "src/core/database/account/migrations/002-connected-chat-schema.ts",
+  "src/core/database/account/connected-chat-types.ts",
+  "src/core/database/account/connected-chat-repository.ts",
+];
+
+const M8_TEST_PATHS = [
+  "tests/core/database/account/connected-chat-repository.test.ts",
+  "tests/features/chat/data/chat-api.test.ts",
+  "tests/features/chat/model/connected-chat-store.test.ts",
+  "tests/quality/chat-boundaries.test.ts",
+];
+
 const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M3_TEST_PATHS.filter(
     (path) => path !== "tests/features/development-fixture-screen.test.tsx",
@@ -224,6 +241,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M6_03_TEST_PATHS,
   ...M6_04_TEST_PATHS,
   ...M7_TEST_PATHS,
+  ...M8_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
 ].filter((path, index, paths) => paths.indexOf(path) === index);
@@ -432,6 +450,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = [
   ...M4_DATABASE_SOURCE_FILES,
   "src/core/database/database-provider.tsx",
   ...M6_03_DATABASE_SOURCE_FILES,
+  ...M8_DATABASE_SOURCE_FILES,
 ];
 const M4_CONTRACT_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
   path.startsWith("src/core/contracts/"),
@@ -492,7 +511,7 @@ function buildValidRepositorySnapshot() {
         "check:code":
           "bun run typecheck && bun run lint && bun run format:check && bun run check:architecture && bun run test:coverage",
         "deps:install:frozen": "bun install --frozen-lockfile",
-        "toolchain:flake": "nix flake check path:.",
+        "toolchain:flake": "nix flake check . --no-write-lock-file",
         "toolchain:check": "./tools/diagnostics/toolchain-check.sh",
         "toolchain:check:native":
           "./tools/diagnostics/toolchain-check.sh --native-build",
@@ -1350,6 +1369,28 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     ).toBe(false);
     expect(
       isAuthorizedWorkingTreePath("src/core/database/retry-dispatcher.ts"),
+    ).toBe(false);
+  });
+
+  test("authorizes the bounded M8 REST foundation but not a realtime dispatcher", () => {
+    for (const path of [
+      ...M8_DATABASE_SOURCE_FILES,
+      ...M8_TEST_PATHS,
+      "src/features/chat/data/chat-api.ts",
+      "src/features/chat/model/connected-chat-store.ts",
+      "tests/core/database/account/connected-chat-repository.bun.ts",
+      "tests/features/chat/chat-api-fixtures.ts",
+      "tests/features/chat/model/connected-chat-fixtures.ts",
+    ]) {
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    }
+    expect(
+      isAuthorizedWorkingTreePath(
+        "src/features/chat/model/realtime-dispatcher.ts",
+      ),
+    ).toBe(false);
+    expect(
+      isAuthorizedWorkingTreePath("src/core/database/account/reset-all.ts"),
     ).toBe(false);
   });
 

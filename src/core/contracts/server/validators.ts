@@ -49,6 +49,17 @@ export type MemberRolePatchWire = components["schemas"]["MemberRolePatch"];
 export type InviteWire = components["schemas"]["Invite"];
 export type InviteCreateWire = components["schemas"]["InviteCreate"];
 export type InviteJoinResultWire = components["schemas"]["InviteJoinResult"];
+export type ChatroomWire = components["schemas"]["Chatroom"];
+export type ChatroomPageWire = components["schemas"]["ChatroomPage"];
+export type DenormalizedMessageWire =
+  components["schemas"]["DenormalizedMessage"];
+export type DenormalizedMessagePageWire =
+  components["schemas"]["DenormalizedMessagePage"];
+export type MessageAttachmentWire = components["schemas"]["MessageAttachment"];
+export type MessageCreateWire = components["schemas"]["MessageCreate"];
+export type CanonicalMessageWire = components["schemas"]["CanonicalMessage"];
+export type ReadCursorInWire = components["schemas"]["ReadCursorIn"];
+export type ReadMarkerWire = components["schemas"]["ReadMarker"];
 
 export const validateLivenessResponse =
   compileComponentSchema("LivenessResponse");
@@ -76,6 +87,19 @@ export const validateInvite = compileComponentSchema("Invite");
 export const validateInviteCreate = compileComponentSchema("InviteCreate");
 export const validateInviteJoinResult =
   compileComponentSchema("InviteJoinResult");
+export const validateChatroom = compileComponentSchema("Chatroom");
+export const validateChatroomPage = compileComponentSchema("ChatroomPage");
+export const validateDenormalizedMessage = compileComponentSchema(
+  "DenormalizedMessage",
+);
+export const validateDenormalizedMessagePage = compileComponentSchema(
+  "DenormalizedMessagePage",
+);
+export const validateMessageCreate = compileComponentSchema("MessageCreate");
+export const validateCanonicalMessage =
+  compileComponentSchema("CanonicalMessage");
+export const validateReadCursorIn = compileComponentSchema("ReadCursorIn");
+export const validateReadMarker = compileComponentSchema("ReadMarker");
 
 const OAUTH_STATE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 // I2's path parameter (GET /api/v1/invites/{code}/join) is declared with only

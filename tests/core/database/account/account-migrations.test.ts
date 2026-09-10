@@ -140,17 +140,22 @@ function tableNames(schema: string): string[] {
     .sort();
 }
 
-describe("M6-03 independent account v1 migration registry", () => {
-  test("creates exactly one scope_metadata table with the singleton/origin/user_id/schema_version columns", async () => {
+describe("M8 additive account v2 migration registry", () => {
+  test("retains scope_metadata and adds only the connected chat tables", async () => {
     const runMigrations = loadRunMigrations();
     const accountMigrations = loadAccountMigrations();
     const database = new RecordingSqliteDatabase();
 
     await runMigrations(database, accountMigrations);
 
-    expect(database.userVersion).toBe(1);
+    expect(database.userVersion).toBe(2);
     const schema = schemaOf(database);
-    expect(tableNames(schema)).toEqual(["scope_metadata"]);
+    expect(tableNames(schema)).toEqual([
+      "connected_chat_messages",
+      "connected_chat_outbox_commands",
+      "connected_chatrooms",
+      "scope_metadata",
+    ]);
     expect(schema).toMatch(
       /singleton\s+INTEGER\s+PRIMARY\s+KEY\s+NOT\s+NULL\s+CHECK\s*\(\s*singleton\s*=\s*1\s*\)/i,
     );
@@ -163,12 +168,13 @@ describe("M6-03 independent account v1 migration registry", () => {
     expect(schema).toMatch(
       /schema_version\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*schema_version\s*>=\s*1\s*\)/i,
     );
-    expect(schema).not.toMatch(
-      /conversations|messages|outbox_commands|applied_events|sync_cursors/i,
-    );
+    expect(schema).not.toMatch(/applied_events|sync_cursors/i);
+    expect(schema).toMatch(/server_message_id\s+TEXT\s+UNIQUE/i);
+    expect(schema).toMatch(/connected_chat_messages_room_window_idx/i);
+    expect(schema).toMatch(/connected_chatrooms_group_window_idx/i);
   });
 
-  test("is a no-op after version 1 instead of replaying DDL", async () => {
+  test("is a no-op after version 2 instead of replaying DDL", async () => {
     const runMigrations = loadRunMigrations();
     const accountMigrations = loadAccountMigrations();
     const database = new RecordingSqliteDatabase();
@@ -182,7 +188,7 @@ describe("M6-03 independent account v1 migration registry", () => {
     expect(retryStatements.join("\n")).not.toMatch(
       /PRAGMA\s+user_version\s*=/i,
     );
-    expect(database.userVersion).toBe(1);
+    expect(database.userVersion).toBe(2);
   });
 
   test("does not modify the preserved fixture migration registry or its five-table schema", async () => {
@@ -220,7 +226,7 @@ describe("M6-03 independent account v1 migration registry", () => {
 
     expect(schemaOf(fixtureDatabase)).not.toMatch(/scope_metadata/i);
     expect(schemaOf(accountDatabase)).not.toMatch(
-      /conversations|messages|outbox_commands|applied_events|sync_cursors/i,
+      /applied_events|sync_cursors/i,
     );
     expect(fixtureDatabase.committedStatements).not.toEqual(
       accountDatabase.committedStatements,

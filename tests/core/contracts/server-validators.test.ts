@@ -1,6 +1,11 @@
 import {
   isValidInviteJoinCode,
   parseOAuthCallbackQuery,
+  validateCanonicalMessage,
+  validateChatroom,
+  validateChatroomPage,
+  validateDenormalizedMessage,
+  validateDenormalizedMessagePage,
   validateErrorEnvelope,
   validateGroup,
   validateGroupCreate,
@@ -13,10 +18,13 @@ import {
   validateMember,
   validateMemberPage,
   validateMemberRolePatch,
+  validateMessageCreate,
   validateOAuthAuthorizeIn,
   validateOAuthAuthorizeOut,
   validateOAuthExchangeIn,
+  validateReadCursorIn,
   validateReadinessResponse,
+  validateReadMarker,
   validateRefreshIn,
   validateTokenPair,
   validateUser,
@@ -369,5 +377,153 @@ describe("M6-01 server contract runtime validators", () => {
           state: "short",
         }) as Record<string, unknown>),
     ).toBe(true);
+  });
+
+  test("C1 Chatroom/ChatroomPage enforce the main|topic enum and a nullable topic_id", () => {
+    const chatroom = {
+      created_at: VALID_DATE_TIME,
+      group_id: VALID_UUID,
+      id: VALID_UUID,
+      topic_id: null,
+      type: "main",
+    };
+    expect(validateChatroom(chatroom)).toBe(true);
+    expect(
+      validateChatroom({ ...chatroom, type: "topic", topic_id: VALID_UUID }),
+    ).toBe(true);
+    expect(validateChatroom({ ...chatroom, type: "direct" })).toBe(false);
+    const { topic_id: _topicId, ...missingTopicId } = chatroom;
+    expect(validateChatroom(missingTopicId)).toBe(false);
+    expect(validateChatroom({ ...chatroom, extra: true })).toBe(false);
+
+    expect(
+      validateChatroomPage({ items: [chatroom], next_cursor: "opaque-token" }),
+    ).toBe(true);
+    expect(validateChatroomPage({ items: [chatroom] })).toBe(false);
+    expect(
+      validateChatroomPage({
+        items: [{ ...chatroom, type: "bad" }],
+        next_cursor: null,
+      }),
+    ).toBe(false);
+  });
+
+  test("C2 DenormalizedMessage requires nullable body/sender/nickname/avatar/client_msg_id and caps media at 4 items", () => {
+    const message = {
+      body: null,
+      chatroom_id: VALID_UUID,
+      client_msg_id: null,
+      created_at: "2024-01-01T00:00:00.123456Z",
+      id: VALID_UUID,
+      media: [],
+      sender_avatar_url: null,
+      sender_id: null,
+      sender_nickname: null,
+      type: "system",
+    };
+    expect(validateDenormalizedMessage(message)).toBe(true);
+    expect(
+      validateDenormalizedMessage({
+        ...message,
+        body: "안녕 emoji 😀",
+        client_msg_id: VALID_UUID,
+        sender_avatar_url: "https://example.com/a.png",
+        sender_id: VALID_UUID,
+        sender_nickname: "닉네임",
+        type: "user",
+      }),
+    ).toBe(true);
+    const { body: _body, ...missingBody } = message;
+    expect(validateDenormalizedMessage(missingBody)).toBe(false);
+    expect(validateDenormalizedMessage({ ...message, type: "bot" })).toBe(
+      false,
+    );
+    expect(
+      validateDenormalizedMessage({
+        ...message,
+        media: new Array(5).fill({
+          byte_size: 1,
+          duration: null,
+          filename: null,
+          height: null,
+          id: VALID_UUID,
+          media_upload_id: VALID_UUID,
+          position: 0,
+          type: "image/png",
+          width: null,
+        }),
+      }),
+    ).toBe(false);
+
+    expect(
+      validateDenormalizedMessagePage({ items: [message], next_cursor: null }),
+    ).toBe(true);
+    expect(
+      validateDenormalizedMessagePage({
+        items: [{ ...message, sender_id: "not-a-uuid" }],
+        next_cursor: null,
+      }),
+    ).toBe(false);
+  });
+
+  test("C4 MessageCreate requires a UUID client_msg_id and a non-empty body when media is absent", () => {
+    expect(
+      validateMessageCreate({ body: "안녕", client_msg_id: VALID_UUID }),
+    ).toBe(true);
+    expect(validateMessageCreate({ body: "", client_msg_id: VALID_UUID })).toBe(
+      false,
+    );
+    expect(validateMessageCreate({ client_msg_id: VALID_UUID })).toBe(false);
+    expect(validateMessageCreate({ body: "안녕" })).toBe(false);
+    expect(
+      validateMessageCreate({ body: "안녕", client_msg_id: "not-a-uuid" }),
+    ).toBe(false);
+  });
+
+  test("C4 CanonicalMessage permits absent/null body, sender_id and client_msg_id but no sender nickname/avatar", () => {
+    const canonical = {
+      chatroom_id: VALID_UUID,
+      created_at: VALID_DATE_TIME,
+      id: VALID_UUID,
+      media: [],
+      type: "user",
+    };
+    expect(validateCanonicalMessage(canonical)).toBe(true);
+    expect(
+      validateCanonicalMessage({
+        ...canonical,
+        body: null,
+        client_msg_id: null,
+        sender_id: null,
+      }),
+    ).toBe(true);
+    expect(
+      validateCanonicalMessage({
+        ...canonical,
+        body: "안녕",
+        client_msg_id: VALID_UUID,
+        sender_id: VALID_UUID,
+      }),
+    ).toBe(true);
+    expect(
+      validateCanonicalMessage({ ...canonical, sender_nickname: "닉네임" }),
+    ).toBe(false);
+    expect(validateCanonicalMessage({ ...canonical, type: "bot" })).toBe(false);
+  });
+
+  test("C3 ReadCursorIn/ReadMarker accept only a positive decimal string cursor", () => {
+    expect(validateReadCursorIn({ cursor: "1" })).toBe(true);
+    expect(validateReadCursorIn({ cursor: "0" })).toBe(false);
+    expect(validateReadCursorIn({ cursor: "01" })).toBe(false);
+    expect(validateReadCursorIn({ cursor: -1 })).toBe(false);
+    expect(validateReadCursorIn({ cursor: 1 })).toBe(false);
+
+    const marker = {
+      chatroom_id: VALID_UUID,
+      last_read_cursor: "42",
+      updated_at: VALID_DATE_TIME,
+    };
+    expect(validateReadMarker(marker)).toBe(true);
+    expect(validateReadMarker({ ...marker, last_read_cursor: 42 })).toBe(false);
   });
 });

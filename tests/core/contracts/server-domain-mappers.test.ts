@@ -1,5 +1,11 @@
 import {
   isKnownOAuthProvider,
+  mapCanonicalChatMessage,
+  mapChatMessage,
+  mapChatMessagePage,
+  mapChatReadMarker,
+  mapChatroom,
+  mapChatroomPage,
   mapGroup,
   mapGroupPage,
   mapInvite,
@@ -186,5 +192,139 @@ describe("M6-01 server contract domain mappers", () => {
     expect(isKnownOAuthProvider("kakao")).toBe(true);
     expect(isKnownOAuthProvider("google")).toBe(true);
     expect(isKnownOAuthProvider("apple")).toBe(false);
+  });
+
+  test("C1 maps Chatroom wire fields to camelCase and preserves next_cursor through ChatroomPage", () => {
+    const chatroomWire = {
+      created_at: "2024-01-01T00:00:00Z",
+      group_id: "11111111-1111-4111-8111-111111111111",
+      id: "22222222-2222-4222-8222-222222222222",
+      topic_id: null,
+      type: "main" as const,
+    };
+    expect(mapChatroom(chatroomWire)).toEqual({
+      createdAt: "2024-01-01T00:00:00Z",
+      groupId: "11111111-1111-4111-8111-111111111111",
+      id: "22222222-2222-4222-8222-222222222222",
+      topicId: null,
+      type: "main",
+    });
+    expect(
+      mapChatroomPage({ items: [chatroomWire], next_cursor: "opaque-token" }),
+    ).toEqual({
+      items: [mapChatroom(chatroomWire)],
+      nextCursor: "opaque-token",
+    });
+    expect(
+      mapChatroomPage({ items: [], next_cursor: null }).nextCursor,
+    ).toBeNull();
+  });
+
+  test("C2 maps DenormalizedMessage's nullable sender/nickname/avatar/client_msg_id fields and raw sub-ms timestamp verbatim", () => {
+    const messageWire = {
+      body: "안녕하세요 😀\n",
+      chatroom_id: "11111111-1111-4111-8111-111111111111",
+      client_msg_id: "22222222-2222-4222-8222-222222222222",
+      created_at: "2024-01-01T00:00:00.123456Z",
+      id: "33333333-3333-4333-8333-333333333333",
+      media: [
+        {
+          byte_size: 1024,
+          duration: null,
+          filename: null,
+          height: 100,
+          id: "44444444-4444-4444-8444-444444444444",
+          media_upload_id: "55555555-5555-4555-8555-555555555555",
+          position: 0,
+          type: "image/png" as const,
+          width: 100,
+        },
+      ],
+      sender_avatar_url: null,
+      sender_id: "66666666-6666-4666-8666-666666666666",
+      sender_nickname: "닉네임",
+      type: "user" as const,
+    };
+    expect(mapChatMessage(messageWire)).toEqual({
+      body: "안녕하세요 😀\n",
+      chatroomId: "11111111-1111-4111-8111-111111111111",
+      clientMessageId: "22222222-2222-4222-8222-222222222222",
+      createdAt: "2024-01-01T00:00:00.123456Z",
+      id: "33333333-3333-4333-8333-333333333333",
+      media: [
+        {
+          byteSize: 1024,
+          duration: null,
+          filename: null,
+          height: 100,
+          id: "44444444-4444-4444-8444-444444444444",
+          mediaUploadId: "55555555-5555-4555-8555-555555555555",
+          position: 0,
+          type: "image/png",
+          width: 100,
+        },
+      ],
+      senderAvatarUrl: null,
+      senderId: "66666666-6666-4666-8666-666666666666",
+      senderNickname: "닉네임",
+      type: "user",
+    });
+    expect(
+      mapChatMessagePage({ items: [messageWire], next_cursor: "older-token" }),
+    ).toEqual({
+      items: [mapChatMessage(messageWire)],
+      nextCursor: "older-token",
+    });
+  });
+
+  test("C4 maps CanonicalMessage's absent sparse fields to null without inventing sender nickname/avatar", () => {
+    const canonicalWire = {
+      chatroom_id: "11111111-1111-4111-8111-111111111111",
+      created_at: "2024-01-01T00:00:00.5Z",
+      id: "22222222-2222-4222-8222-222222222222",
+      media: [],
+      type: "user" as const,
+    };
+    expect(mapCanonicalChatMessage(canonicalWire)).toEqual({
+      body: null,
+      chatroomId: "11111111-1111-4111-8111-111111111111",
+      clientMessageId: null,
+      createdAt: "2024-01-01T00:00:00.5Z",
+      id: "22222222-2222-4222-8222-222222222222",
+      media: [],
+      senderId: null,
+      type: "user",
+    });
+    expect(
+      mapCanonicalChatMessage({
+        ...canonicalWire,
+        body: "본문",
+        client_msg_id: "33333333-3333-4333-8333-333333333333",
+        sender_id: "44444444-4444-4444-8444-444444444444",
+      }),
+    ).toEqual({
+      body: "본문",
+      chatroomId: "11111111-1111-4111-8111-111111111111",
+      clientMessageId: "33333333-3333-4333-8333-333333333333",
+      createdAt: "2024-01-01T00:00:00.5Z",
+      id: "22222222-2222-4222-8222-222222222222",
+      media: [],
+      senderId: "44444444-4444-4444-8444-444444444444",
+      type: "user",
+    });
+  });
+
+  test("C3 maps ReadMarker's last_read_cursor as an opaque decimal string, never a parsed number", () => {
+    expect(
+      mapChatReadMarker({
+        chatroom_id: "11111111-1111-4111-8111-111111111111",
+        last_read_cursor: "9007199254740993",
+        updated_at: "2024-01-01T00:00:00Z",
+      }),
+    ).toEqual({
+      chatroomId: "11111111-1111-4111-8111-111111111111",
+      lastReadCursor: "9007199254740993",
+      updatedAt: "2024-01-01T00:00:00Z",
+    });
   });
 });

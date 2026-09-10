@@ -231,6 +231,10 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         "G8",
         "I1",
         "I2",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
       ]);
     } finally {
       rmSync(temporary.root, { force: true, recursive: true });

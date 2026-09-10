@@ -1,6 +1,6 @@
 import type { SqliteRepositoryDatabase } from "../types";
 
-export const ACCOUNT_SCHEMA_VERSION = 1;
+export const ACCOUNT_SCHEMA_VERSION = 2;
 
 type ScopeMetadataRow = Readonly<{
   origin: string;
@@ -38,9 +38,9 @@ export async function validateScopeMetadata(
     return;
   }
 
-  if (existing.schema_version > ACCOUNT_SCHEMA_VERSION) {
+  if (existing.schema_version !== ACCOUNT_SCHEMA_VERSION) {
     throw new Error(
-      `Account schema version ${existing.schema_version} is newer than the supported version ${ACCOUNT_SCHEMA_VERSION}.`,
+      `Account schema version ${existing.schema_version} does not match the supported version ${ACCOUNT_SCHEMA_VERSION}.`,
     );
   }
 

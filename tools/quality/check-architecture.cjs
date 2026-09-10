@@ -29,7 +29,7 @@ const EXACT_PACKAGE_SCRIPTS = Object.freeze({
   "check:code":
     "bun run typecheck && bun run lint && bun run format:check && bun run check:architecture && bun run test:coverage",
   "deps:install:frozen": "bun install --frozen-lockfile",
-  "toolchain:flake": "nix flake check path:.",
+  "toolchain:flake": "nix flake check . --no-write-lock-file",
   "toolchain:check": "./tools/diagnostics/toolchain-check.sh",
   "toolchain:check:native":
     "./tools/diagnostics/toolchain-check.sh --native-build",
@@ -399,6 +399,29 @@ const M7_AUTHORED_FILES = Object.freeze([
   "docs/evidence/M7.md",
 ]);
 
+const M8_DATABASE_SOURCE_FILES = Object.freeze([
+  "src/core/database/account/migrations/002-connected-chat-schema.ts",
+  "src/core/database/account/connected-chat-types.ts",
+  "src/core/database/account/connected-chat-repository.ts",
+]);
+
+const M8_TEST_PATHS = Object.freeze([
+  "tests/core/database/account/connected-chat-repository.test.ts",
+  "tests/features/chat/data/chat-api.test.ts",
+  "tests/features/chat/model/connected-chat-store.test.ts",
+  "tests/quality/chat-boundaries.test.ts",
+]);
+
+const M8_AUTHORED_FILES = Object.freeze([
+  ...M8_DATABASE_SOURCE_FILES,
+  ...M8_TEST_PATHS,
+  "src/features/chat/data/chat-api.ts",
+  "src/features/chat/model/connected-chat-store.ts",
+  "tests/core/database/account/connected-chat-repository.bun.ts",
+  "tests/features/chat/chat-api-fixtures.ts",
+  "tests/features/chat/model/connected-chat-fixtures.ts",
+]);
+
 const M5_RETIRED_PLACEHOLDER_PATHS = Object.freeze([
   "src/features/development-fixture/model/local-fixture.ts",
   "src/features/development-fixture/ui/development-fixture-screen.tsx",
@@ -446,6 +469,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = Object.freeze([
   ...M4_DATABASE_SOURCE_FILES,
   "src/core/database/database-provider.tsx",
   ...M6_03_DATABASE_SOURCE_FILES,
+  ...M8_DATABASE_SOURCE_FILES,
 ]);
 
 const M5_DESIGN_ARTIFACT_PATHS = Object.freeze([
@@ -484,6 +508,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M6_03_TEST_PATHS,
     ...M6_04_TEST_PATHS,
     ...M7_TEST_PATHS,
+    ...M8_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
   ]),
@@ -814,6 +839,10 @@ const M5_FEATURE_DATA_DATABASE_PATTERNS = Object.freeze([
   "**/core/database/migrations/**",
   "**/core/database/types",
   "**/core/database/database-provider",
+  "**/core/database/account/open-account-database",
+  "**/core/database/account/migrations",
+  "**/core/database/account/migrations/**",
+  "**/core/database/account/connected-chat-repository",
 ]);
 const M5_REPOSITORY_PORT_PATTERN =
   "**/core/database/repositories/database-repository";
@@ -956,6 +985,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M6_03_AUTHORED_FILES,
   ...M6_04_AUTHORED_FILES,
   ...M7_AUTHORED_FILES,
+  ...M8_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -1473,7 +1503,7 @@ function checkM4Foundation(snapshot, violations) {
     pushViolation(
       violations,
       "m4-source-ownership",
-      "M4 database, bootstrap-contract, and contract-tool inventories must exactly equal the approved M4 baseline plus the sole M5 database-provider and M6 server-contract-tool extensions.",
+      "Active database and contract-tool inventories must equal the approved M4/M5/M6 baseline plus the bounded M8 connected-chat extension; fixture ownership remains unchanged.",
     );
   }
 
@@ -2183,7 +2213,10 @@ function discoverM5AuthoredInventory(root, { fs, path }) {
     { fs, path },
     "src/features/chat",
   );
-  return [...retainedM5Paths, ...chatSourcePaths].sort();
+  return [
+    ...retainedM5Paths,
+    ...chatSourcePaths.filter((file) => !M8_AUTHORED_FILES.includes(file)),
+  ].sort();
 }
 
 function discoverM5TestInventory(root, { fs, path }) {
@@ -2195,7 +2228,10 @@ function discoverM5TestInventory(root, { fs, path }) {
     { fs, path },
     "tests/features/chat",
   );
-  return [...retainedM5Paths, ...chatTestPaths].sort();
+  return [
+    ...retainedM5Paths,
+    ...chatTestPaths.filter((file) => !M8_AUTHORED_FILES.includes(file)),
+  ].sort();
 }
 
 function discoverM4DatabaseTables(root, { fs, path }) {
