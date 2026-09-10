@@ -123,6 +123,19 @@ describe("development workflow contract", () => {
     );
   });
 
+  test("uses Git-filtered flake inputs without rewriting the lockfile", () => {
+    const manifest = JSON.parse(
+      readRepositoryFile("package.json"),
+    ) as PackageManifest;
+
+    expect(manifest.scripts["toolchain:flake"]).toBe(
+      "nix flake check . --no-write-lock-file",
+    );
+    for (const command of Object.values(manifest.scripts)) {
+      expect(command).not.toContain("path:.");
+    }
+  });
+
   test("documents every script, its environment source, and version authorities", () => {
     const { existsSync } = jest.requireActual("node:fs") as {
       existsSync: (path: string) => boolean;

@@ -192,11 +192,15 @@ Development variant의 simulator/emulator 식별자는 다음 네 값으로만 �
 CLI 개발 환경의 진입점은 repository root의 Nix flake다.
 
 ```sh
-nix develop path:.
+nix develop .
 ```
 
 devShell 진입 뒤 사용하는 정식 Bun script, 상태 변경 범위와 표준 검증 순서는
 [`docs/development-workflow.md`](docs/development-workflow.md)에 있다.
+
+에이전트는 app과 server의 devShell 세션을 각각 한 번 열어 후속 명령에 재사용한다. 명령마다
+새 환경을 만들거나 `path:.`로 로컬 산출물까지 가져오지 않는다. 상세 규칙은
+[에이전트의 devShell 세션 재사용](docs/development-workflow.md#에이전트의-devshell-세션-재사용)을 따른다.
 
 devShell은 Bun, Node.js, JDK, CocoaPods와 Android CLI·build SDK·Emulator·system image를
 고정한다. Android 실행 도구의 원본은 `ANDROID_HOME`과 `ANDROID_SDK_ROOT`가 가리키는
@@ -234,7 +238,7 @@ AVD `config.ini`에는 composed SDK의 매번 달라지는 absolute store 경로
 검증한다. 따라서 CMake·NDK·Build Tools처럼 skin과 무관한 SDK component 변경만으로는 AVD
 reconcile이 필요하지 않다.
 
-다음 명령은 모두 새 `nix develop path:.` session에서 실행한다. `verify`와 기본 diagnostic은
+다음 명령은 모두 현재 프로젝트의 재사용 중인 devShell에서 실행한다. `verify`와 기본 diagnostic은
 project/AVD state를 바꾸지 않는다. Strict diagnostic은 연결 target을 열거하면서 Nix ADB
 server를 시작할 수 있지만 package를 설치하거나 AVD/project file을 쓰지 않는다. `create`는
 project state에 AVD가 완전히 없을 때만 한 번 만들며 partial state를 덮어쓰거나 `--force`로

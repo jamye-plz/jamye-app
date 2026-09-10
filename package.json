@@ -52,7 +52,7 @@
     "check:architecture": "bun tools/quality/check-architecture.cjs",
     "check:code": "bun run typecheck && bun run lint && bun run format:check && bun run check:architecture && bun run test:coverage",
     "deps:install:frozen": "bun install --frozen-lockfile",
-    "toolchain:flake": "nix flake check path:.",
+    "toolchain:flake": "nix flake check . --no-write-lock-file",
     "toolchain:check": "./tools/diagnostics/toolchain-check.sh",
     "toolchain:check:native": "./tools/diagnostics/toolchain-check.sh --native-build",
     "check:toolchain": "bun run toolchain:flake && bun run toolchain:check",

@@ -6,16 +6,38 @@ README는 빠른 시작만 제공하고 세부 절차는 이 문서를 참조한
 
 ## 1. 명령 권위와 환경 진입
 
-Nix가 Bun을 공급하므로 저장소 바깥의 전역 Bun이 아니라 다음 순서로 시작한다.
+Nix가 Bun을 공급하므로 저장소 바깥의 전역 Bun이 아니라 프로젝트 루트에서 devShell을 한 번
+열고 작업이 끝날 때까지 재사용한다.
 
 ```sh
-nix flake check path:.
-nix develop path:.
+rtk proxy nix develop . --no-write-lock-file --command bash --noprofile --norc
 ```
 
-`nix develop path:.`은 Bun script보다 앞선 bootstrap 명령이라 `package.json` alias를 두지
+`nix develop .`은 Bun script보다 앞선 bootstrap 명령이라 `package.json` alias를 두지
 않는다. devShell에 들어온 뒤에는 직접 `bunx`나 도구 binary를 조합하지 않고 이 문서의
-`bun run <script>` 진입점을 사용한다.
+`bun run <script>` 진입점을 사용한다. 에이전트가 실행하는 shell 명령에는 `rtk`를 붙인다.
+
+### 에이전트의 devShell 세션 재사용
+
+- 에이전트는 `jamye-app`과 `jamye-server`의 터미널 세션을 각각 유지하고 후속 명령을 같은
+  세션에 보낸다. 명령마다 `nix develop`을 호출하거나 서로 다른 프로젝트 환경을 중첩하지 않는다.
+- 사용자가 별도로 연 터미널을 상속한다고 가정하지 않는다. 실행 에이전트가 세션 ID와 작업
+  디렉터리를 관리하고 첫 진입 때 `IN_NIX_SHELL`과 도구 버전을 확인한다. 전체 환경 변수는
+  비밀 노출 위험이 있으므로 출력하지 않는다.
+- 하위 에이전트는 새 devShell을 개별 생성하지 않고 필요한 검사를 coordinator에 요청한다.
+  한 세션에는 한 실행 주체만 입력하며 검사 명령을 순서대로 실행한다.
+- 세션 종료 또는 `flake.lock`, devShell·toolchain 설정 변경 때만 해당 세션을 다시 연다.
+  일반 소스 수정, 검사 재시도, Gradle daemon 종료만으로 새 환경을 열지 않는다.
+
+Git 저장소에서는 `path:.` 대신 `.`을 사용한다. flake 입력은 Git 추적 파일의 working tree이므로
+ignored `node_modules/`, `ios/`, `android/` 같은 산출물을 제외한다. 추적 파일의 미커밋 수정도
+사용하지만 새 Nix 입력 파일은 Git 추적 여부를 확인해야 한다. 전체 `path:.` 입력으로 우회하거나
+관련 없는 파일을 자동 stage하지 않는다. devShell 안의 로컬 도구는 원래 작업 디렉터리를 읽으므로
+새 소스 파일도 검사할 수 있다.
+
+환경 진입은 앱 빌드나 Metro·AVD 시작이 아니다. GC 이후에는 고정 도구를 다시 다운로드하거나
+개발 환경을 구성할 수 있다. `nix flake check`는 별도의 검증 명령이며 매번 shell 진입 전에
+실행하지 않는다. 테스트·native build·실계정 작업·정리·SCM·배포의 기존 승인 경계는 유지한다.
 
 ### dotenv 설정
 
@@ -109,11 +131,11 @@ server checkout이나 실제 API를 호출하지 않는다.
 
 ```sh
 # 이미 intake된 sibling contract를 변경하지 않고 snapshot을 갱신해야 할 때만 별도 승인
-nix develop . --command node tools/contracts/intake-server-contract.mjs
-nix develop . --command node tools/contracts/generate-server-contract.mjs
+rtk proxy bun tools/contracts/intake-server-contract.mjs
+rtk proxy bun tools/contracts/generate-server-contract.mjs
 
 # 현재 checked-in snapshot/generated output의 read-only drift check
-nix develop . --command node tools/contracts/check-server-contract.mjs
+rtk proxy bun tools/contracts/check-server-contract.mjs
 ```
 
 M6 runtime schema closure는 H1/H2 health, A1-A5 OAuth/session, U1 profile이다. Generated
@@ -324,8 +346,9 @@ directory가 존재할 때 다음 exact recovery를 별도로 실행한 뒤 stri
 bun run android:gradle:stop
 ```
 
-그다음 현재 devShell에서 `exit`하고 repository root에서 `nix develop path:.`로 새 session에
-진입한다. Boot된 project Emulator는 그대로 둔 채 새 devShell에서 strict 검사를 재시도한다.
+그다음 같은 devShell에서 strict 검사를 재시도한다. Boot된 project Emulator는 그대로 둔다.
+Nix/toolchain 설정이 바뀌었거나 환경이 오염된 경우에만 해당 세션을 종료하고 프로젝트 루트에서
+`nix develop .`로 다시 진입한다.
 
 ```sh
 bun run toolchain:check:native
