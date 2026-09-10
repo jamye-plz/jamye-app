@@ -236,6 +236,49 @@ function neverRefreshHistory(): Promise<
 }
 
 describe("createDeltaSync", () => {
+  it.each([false, true])(
+    "notifies the topic consumer after committing group_topics, leaving its marker intact (duplicate=%s)",
+    async (duplicate) => {
+      const { checkpoints, dirty, repository } = createFakeRepository();
+      const eventId = "70000000-0000-4000-8000-000000000009";
+      if (duplicate) {
+        await repository.applyOrderedUnsupportedEvent({
+          chatroomId: ROOM,
+          cursor: "0",
+          eventId,
+          expectedCursor: null,
+          reconcileScope: "group_topics",
+        });
+      }
+      const onChanged = jest.fn(() => ({
+        checkpoint: checkpoints.get(ROOM),
+        marker: dirty.get(ROOM)?.get("group_topics"),
+      }));
+      const deltaSync = createDeltaSync({
+        isActive: alwaysActive,
+        listEvents: async () => ({
+          items: [unsupportedItem({ reconcile_scope: "group_topics" })],
+          next_cursor: null,
+        }),
+        mapMessage,
+        onChanged,
+        refreshHistory: neverRefreshHistory,
+        repository,
+      });
+
+      expect(await deltaSync.drain(ROOM, new AbortController().signal)).toEqual(
+        { exhausted: true },
+      );
+      expect(onChanged).toHaveBeenCalledTimes(1);
+      expect(onChanged).toHaveBeenCalledWith(ROOM);
+      expect(onChanged).toHaveReturnedWith({
+        checkpoint: "1",
+        marker: eventId,
+      });
+      expect(dirty.get(ROOM)?.get("group_topics")).toBe(eventId);
+    },
+  );
+
   it("drains multiple pages in order to exhaustion, applying every item once", async () => {
     const { checkpoints, mergedMessages, repository } = createFakeRepository();
     const pages: Record<string, EventPageWire> = {

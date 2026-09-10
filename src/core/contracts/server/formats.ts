@@ -37,6 +37,12 @@ function isValidUri(value: string): boolean {
   }
 }
 
+export function isServerDate(value: string): boolean {
+  return (
+    /^\d{4}-\d{2}-\d{2}$/.test(value) && isValidDateTime(`${value}T00:00:00Z`)
+  );
+}
+
 type AjvLike = Readonly<{
   addFormat: (
     name: string,
@@ -56,6 +62,7 @@ type AjvLike = Readonly<{
 export function registerServerContractFormats(ajv: AjvLike): void {
   ajv.addFormat("uuid", UUID_PATTERN);
   ajv.addFormat("date-time", { type: "string", validate: isValidDateTime });
+  ajv.addFormat("date", { type: "string", validate: isServerDate });
   ajv.addFormat("uri", { type: "string", validate: isValidUri });
   // S1/realtime schemas also annotate integer widths. Enforce them rather
   // than emitting an unknown-format warning for every imported validator.

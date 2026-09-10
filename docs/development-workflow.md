@@ -359,7 +359,105 @@ Native 입력 변경 없이 기존 Development Builds와 Metro를 재사용했�
 재시작·재연결, 계정 전환 격리의 4개 항목을 모두 정상으로 확인하고 로컬 커밋·종료를 승인했다.
 종료 문서와 exact-path 검사 목록만 마무리하며 제품 테스트·빌드·실계정 작업·배포를 반복하지 않는다.
 출처별 결과와 검증 한계는 [M9 evidence](evidence/M9.md)를 따른다.
-다음 단계는 기존 M10 주제·태그의 계획 검토·승인이며 앱 전체 출시와 push/배포는 별도다.
+M9 종료 이후 M10 주제·태그 계획을 검토했고, 아래와 같이 문서 확정 승인을 받았다.
+앱 전체 출시와 push/배포는 별도다.
+
+## M10 구현과 focused 검증 — 2026-09-10
+
+M10은 `COMPLETED / USER_ACCEPTED`다. 사용자는 계약·데이터 연결 → 주제·태그
+화면 → M9 동기화 연결 → 자동 검증·양 플랫폼 수용의 범위·순서를 확정한 뒤 별도로 구현을 승인했다.
+기능, API 권한, 재조회·재시도 경계, 제외 범위와 완료 조건은 [로드맵의 M10 계획](roadmap.md#m10-주제태그)을 따른다.
+
+계획 확정 시의 문서 검사와 이후 구현 검사를 구분한다. 구현에서는 app devShell을 재사용해
+T1-T7 validator/mapper/API, additive account v4 주제 캐시, 목록·생성·상세·제목/본문·태그 편집과
+기존 M9 신호 연결을 추가했다. 세션이 종료된 뒤에만 새 세션을 한 번 열었고 명령마다 Nix를 다시 호출하지 않았다.
+기존 source/generated 계약 hash와 native/dependency 입력은 유지했다. Generator로 schema closure에 T1-T7만 추가했다.
+
+### 최초 로컬 구현 검사
+
+에이전트가 fake transport·in-memory SQLite로 실행한 관련 회귀 묶음은 **46 suites / 573 tests PASS**다.
+주제 API/입력/권한/페이지/멱등 재시도, 계정·epoch 격리, 화면·route, M7 그룹, M8/M9 채팅·outbox·delta,
+session/provider와 계약 회귀를 포함한다. 별도 실행들의 테스트 수를 더한 값이 아니라 아래 한 실행의 결과다.
+
+```sh
+rtk proxy bun run test --runInBand tests/features/topics tests/core/database/account tests/core/contracts tests/features/chat tests/features/sync tests/features/groups tests/quality/topics-boundaries.test.ts tests/core/providers tests/core/app-providers.test.tsx tests/app/thin-routes.test.tsx
+```
+
+실제 임시 SQLite에서는 v3 → v4 후 기존 room/message/outbox/checkpoint 보존, 재실행,
+다른 계정/그룹 거부, 캐시 재사용, 새 marker 보존, 쓰기 실패·도중 취소의 transaction rollback을 확인했다.
+이 focused 검사 단계에서는 실계정 DB 파일을 열거나 migration하지 않았다. 앱 실행 시 v4 migration이 적용되며
+이전 앱으로의 DB downgrade는 제공하지 않는다. 아래의 native 실행은 이후 별도로 승인받아 진행한 단계다.
+
+추가 회귀에서 재현하고 수정한 것은 S1 `group_topics` commit 후 UI 알림 누락, M9 구독 함수 변경 시
+topic store 조기 dispose, 동일 그룹 복귀 후 생성 상태가 pending에 갇히는 경우, SQLite 작업 도중 취소 시 marker 해제다.
+화면의 title/body/tag 입력은 단위 UI 검사이며 실제 한글 IME·키보드·VoiceOver/TalkBack 수용을 대신하지 않는다.
+
+`typecheck`·lint·architecture·format는 모두 PASS, architecture 위반은 0건이다.
+Server/bootstrap contract drift 검사는 각각 `status: ok`이며, `oma docs verify --no-urls`는
+변경 문서 4개 / 참조 151개 / 기존 skip 2개 / broken 0건이다. 외부 URL은 검사하지 않았다.
+이 최초 구현 검사에는 전체 coverage·독립 리뷰·native 실행을 포함하지 않았다. 이후 아래 결과를 별도로 기록하며
+M9 PASS를 M10 증거로 재사용하지 않는다.
+
+### 전체 자동 검증과 독립 리뷰
+
+사용자의 “전체 coverage·독립 리뷰 → iOS·Android 실행 검증 진행해” 승인으로 app devShell을 재사용했다.
+첫 전체 실행은 실제 architecture 검사를 통과했지만 품질 검사 자체의 synthetic fixture가 새 M10 경로를
+반영하지 않아 실패했다. 정책을 완화하지 않고 해당 fixture의 source/test/lint 목록만 맞췄다.
+주제·날짜 pagination의 페이지 합치기·중복 제거·중복 요청·이전 날짜 응답 격리·순환 cursor·빈 중간 page
+거부와 재시도 회귀도 보강했다.
+
+- 최종 `bun run check:code`: **76 suites / 902 tests PASS**, architecture 위반 0건.
+- Coverage: **statements 85.54%, branches 81.46%, functions 87.59%, lines 89.00%**. 기존 전역 80% 기준과
+  측정 대상을 유지했다. 실제 SQLite 회귀를 실행하는 Bun subprocess는 Jest instrumentation에 완전히 포함되지
+  않으므로 해당 실행 성공을 임의의 SQLite coverage 수치로 바꾸지 않는다.
+- Typecheck·lint·Prettier·architecture, server/bootstrap contract drift 검사 모두 PASS.
+- Expo package compatibility·Doctor **21/21 PASS**, 설치·빌드 없는 toolchain diagnostics **39/39 PASS**.
+- `bun audit`는 기존 **image-size High 2건**으로 exit 1이다. 설치된 mitigation patch 회귀는 전체 검사에 포함돼
+  통과했지만 audit-zero나 앱 출시 승인으로 해석하지 않는다. 이번에 의존성·native 입력은 변경하지 않았다.
+
+별도 Claude QA context에서 독립 정적 리뷰와 수정 재리뷰를 마쳤으며 최종 판정은 **PASS**다.
+리뷰어는 테스트·빌드·native 앱을 실행하지 않았고 자동 실행 결과는 coordinator의 위 결과와 구분한다.
+
+1. **MEDIUM 수정:** 생성 요청이 403/404/422로 확정 거부된 뒤에도 이전 생성 시도를 유지해 수정한 제목을
+   제출하지 못하는 문제를 회귀로 재현했다(RED 3건). 해당 확정 거부에서만 intent를 해제한다.
+   HTTP 409와 결과가 불확실한 네트워크 오류는 같은 key/payload를 유지하며 새 키로 자동 우회하지 않는다.
+   수정 후 관련 2 suites / 51 tests 및 위 최종 전체 검사가 통과했다.
+2. **LOW 제안 기각:** 본문 trim 제안은 읽기 전용 server source와 대조했다. 서버가 title만 정규화하고
+   body 공백·줄바꿈을 보존하므로 앱도 이를 유지한다. 원본 body 전송 회귀를 추가했고 재리뷰도 기각에 동의했다.
+3. Create 5xx/미상 오류의 개별 테스트 추가는 비차단 권고다. 오프라인 주제 큐 미보유, 그룹 단위 query cache
+   무효화와 단일 account sync 신호의 coalescing은 명시된 범위이며 새 기능으로 확대하지 않는다.
+
+### 양 플랫폼 실행 관찰과 사용자 수용
+
+Native/dependency 입력 변경 없이 기존 Development Builds를 재사용하고 Metro 8081에서 최신 번들을 다시 불러왔다.
+Clean prebuild·재빌드·재설치·앱 데이터 초기화는 하지 않았다.
+
+| 에이전트 관찰              | iOS                                                     | Android                                         |
+| -------------------------- | ------------------------------------------------------- | ----------------------------------------------- |
+| 기기                       | iPhone 17 / iOS 26.5                                    | jamye_pixel_9_api_36 / emulator-5554            |
+| 기존 로그인 세션 복원      | Kakao                                                   | Google                                          |
+| 서버 진단                  | live / ready, postgres·redis·minio ready                | live / ready, postgres·redis·minio ready        |
+| 기존 같은 그룹의 주제 화면 | 기본 주제 진입 버튼·빈 목록·서울 날짜 필터 정상         | 기본 주제 진입 버튼·빈 목록·서울 날짜 필터 정상 |
+| 작성 진입·취소             | 빈 제목 제출 차단, 미전송 제목 입력·비우기 후 목록 복귀 | 빈 제목 제출 차단, 입력·제출 없이 목록 복귀     |
+| 홈 화면 → 앱 복귀          | 날짜 선택 유지, 목록 정상                               | 날짜 선택 유지, 재조회 busy 후 정상 목록        |
+
+두 앱을 같은 기존 그룹의 전체 날짜 목록에 두고 Metro와 app devShell을 유지했다. 관찰 중 기능 오류 화면이나
+Metro 앱 오류는 발견하지 않았다. Android light theme의 상태표시줄 아이콘은 밝은 배경에서 대비가 낮게 보였다.
+이번 실행에서 원인 수정·접근성 수용을 완료한 것은 아니다. 이는 자동 mobile E2E, 한국어 IME 전체 조합, VoiceOver/TalkBack 또는
+기존 Android 시작 ANR 이슈의 해소 판정이 아니다. 실서버 주제·태그·메시지 생성/수정/삭제와 새 로그인은 하지 않았다.
+
+이후 사용자가 [로드맵의 네 사용자 수용 항목](roadmap.md#m10-주제태그)을 **양 플랫폼 모두** 확인하고
+“양 플랫폼에서 모두 확인했어. 제대로 작동해. M10 종료하고 커밋해”라고 보고·승인했다.
+생성·상세·대화 송수신, 제목/본문·태그/권한, 다른 계정의 신규 주제·복귀 복구, 그룹·계정 전환 격리를
+사용자 보고 기준 4/4 PASS로 기록하고 M10을 정식 종료한다. 에이전트가 이를 재실행한 결과는 아니다.
+구체적 자동 로그·리뷰·제한된 실행 캡처는 현재 run의 `.agents/results/m10-validation-20260910.md`에 연결했다.
+출처별 종료 기록과 검증 한계는 [M10 evidence](evidence/M10.md)를 따른다. 종료 작업에서는 문서와
+새 evidence 문서의 exact-path 품질 목록만 확인하고 로컬 커밋하며 제품 코드·native·실계정 검사를 반복하지 않는다.
+Push·서버 배포·장치 종료는 요청 범위가 아니다. 다음 단계는 M11 계획 검토이며 구현은 미승인이다.
+
+Native 입력을 변경하면 기존 clean prebuild와 양 플랫폼 재빌드·설치 규칙을 따르며, 변경하지 않은 입력 때문에
+재빌드를 자동 요구하지 않는다. 의존성·toolchain이 바뀌면 해당 검사도 수행하되 문서 변경마다 새 manifest/lock
+승인 절차를 만들지 않는다.
 
 ## 4. Dependency와 toolchain script
 

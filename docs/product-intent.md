@@ -1,9 +1,9 @@
 # 잼얘좀 모바일 — 서버 연결 제품 여정과 보존할 native 의도
 
 - 작성 목적: M1에서 기존 `jamye-plz`의 제품 의미와 회귀 의도를 읽기 전용으로 추출
-- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat, M9 durable outbox/realtime/delta
+- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat, M9 durable outbox/realtime/delta, M10 topics/tags
 - M5 이후: Kakao/Google login/profile/logout과 M6 범위의 native/user 세션 수용 완료
-- 현재 frontier: M9 completed / user accepted (2026-09-10), M10 planned / unapproved
+- 현재 frontier: M10 completed / user accepted, 다음 M11 계획 검토 대기 (2026-09-10)
 - 기준 저장소: [sibling `jamye-plz`](../../jamye-plz/) repository (수정하지 않음)
 
 ## 1. 먼저 고정할 해석 원칙
@@ -47,10 +47,20 @@ API의 `chatroom`/`topic` 식별자는 유지한다. 다음 사용자 여정은 
 2. Group 생성·참여와 membership — M7 완료, 양 플랫폼 그룹 작업·계정 전환 사용자 확인
 3. 실제 chatroom history/read/send — M8 완료, 양 플랫폼 사용자 확인
 4. Offline/realtime convergence — M9 완료, 사용자 수용 4/4 확인
-5. Topics/tags
+5. Topics/tags — M10 완료, 양 플랫폼 사용자 수용 4/4 확인 및 종료 승인
 6. Media
 7. Notification/Expo push
 8. Account profile update와 deletion lifecycle
+
+2026-09-10 사용자가 [M10 계획](roadmap.md#m10-주제태그)의 범위와 순서를 확정했다.
+서울 날짜 기준 주제 조회·제목으로 생성·상세·작성자의 제목/본문 수정·작성자 또는 소유자의
+태그 관리 후 기존 대화 화면으로 이동한다. 새 주제 발견과 목록 복구는 M9 경계에 연결한다.
+메시지별 상대방 읽음 표시와 주제별 안읽음 배지, AI 태그 생성, 오프라인 주제 생성 예약은
+추가하지 않으며 M11-M13도 유지한다. 이후 별도 구현 승인으로 T1-T7·계정 캐시·화면·동기화 연결을 구현했다.
+전체 자동 검사 76 suites / 902 tests와 독립 리뷰·수정 재리뷰를 통과했다. 기존 양 플랫폼 설치본에서
+최신 번들로 세션 복원·주제 조회·작성 화면·앱 복귀를 관찰했다. 이어 사용자가 실제 생성·편집·다른 계정
+동기화 등 네 항목을 양 플랫폼에서 정상으로 확인하고 종료를 승인해 M10을 정식 종료했다.
+에이전트 관찰과 사용자 보고는 [M10 evidence](evidence/M10.md)에 구분하며, 앱 전체 출시 판정은 별도다.
 
 Release-facing provider/platform/session matrix, E2E, physical-device/accessibility, current
 dependency audit, migration/rollback, deployment binding과 signing/store decision은 특정
@@ -316,5 +326,6 @@ M4 bootstrap contract와 M5 local chat을 닫을 때 이 문서의 제품 불변
 구체적인 수용 범위와 미확인 항목은 [M7 evidence](evidence/M7.md)에 기록한다.
 M8도 서버 C3 배포와 양 플랫폼 REST 채팅 수용 후 같은 날 종료했으며 [M8 evidence](evidence/M8.md)에
 별도로 기록한다. M9도 자동 검사·독립 리뷰 이후 사용자 수용 4/4 확인과 종료 승인을 받아
-같은 날 종료했다. [M9 evidence](evidence/M9.md)에 출처와 한계를 기록하며, 기존 M10-M13의
-범위와 승인 경계는 변경하지 않는다.
+같은 날 종료했다. [M9 evidence](evidence/M9.md)에 출처와 한계를 기록한다. M10도 구현·자동 검사·독립 리뷰와
+양 플랫폼 사용자 수용 4/4 및 종료 승인을 마쳐 [M10 evidence](evidence/M10.md)에 기록한다.
+기존 M11-M13의 범위와 승인 경계는 변경하지 않는다.

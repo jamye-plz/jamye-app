@@ -1,9 +1,9 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화 완료 (2026-09-10 M9 사용자 종료 승인)
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인)
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M10 주제·태그 — `planned_unapproved`
+- 현재 frontier: M10 주제·태그 `COMPLETED / USER_ACCEPTED`; 다음 M11 계획 검토 대기 (2026-09-10)
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-10
@@ -29,7 +29,8 @@
 - **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
-- **미래 계획**: 별도 승인 전에는 구현하지 않는 M10 이후 항목; M9 종료는 M10 구현 승인이 아님
+- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인
+- **미래 계획**: M11 이후 항목은 `planned_unapproved`; M10 계획 확정이 후속 범위 승인은 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
 production readiness의 증거로 재사용하지 않는다.
@@ -90,7 +91,8 @@ M6 종료 당시 아래 항목은 전체 PASS가 아니었다. 이후 그룹 nav
 
 - `local-fixture`: M5의 SQLite local chat을 표시한다. Network 전송이나 로그인은 없다.
 - `connected-auth`: 로그인 선택 또는 profile/logout 화면에서 그룹으로 이동하고, 주제 목록·메시지
-  조회·텍스트 전송·수동 재시도·내 읽음 위치 저장을 사용한다. 수신은 REST 새로고침이며 실시간 수신은 아직 없다.
+  조회·텍스트 전송·수동 재시도·내 읽음 위치 저장을 사용한다. M9의 실시간·delta 복구를 재사용하며
+  M10은 날짜별 주제 생성·상세·제목/본문·태그 관리와 해당 주제 대화 진입을 추가했고 양 플랫폼 사용자 수용을 마쳤다.
 
 `local-fixture`만 기존 `jamye.db`와 fixture conversation을 사용한다. `connected-auth`는
 fixture database/seed를 열지 않고 shared session과 account scope를 사용한다. 계정 namespace는
@@ -354,21 +356,163 @@ C3는 실제 보인 서버 `message_id`로 내 읽음 위치를 저장하며, �
 
 ### M10. 주제·태그
 
-- 상태: `planned_unapproved`
+- 상태: `COMPLETED / USER_ACCEPTED` — 2026-09-10 양 플랫폼 사용자 수용 4/4 및 종료·로컬 커밋 승인
+- 구현 상태: 1-3 구현, 전체 76 suites / 902 tests 및 독립 재리뷰 PASS; 양 플랫폼 실행 관찰 이후 사용자 확인 완료
 - 선행: M7, M9
 - 사용자 결과: 날짜별 topic을 보고 생성·상세·수정·tag 관리 후 topic chatroom에 들어간다.
-- 계약 범위: Topics/tags와 `topic.created`
+- 계약 범위: 기존 server v1 T1-T7, `topic.created`, S1의 `group_topics` 복구 표시
+- 난이도: Complex — 계약·계정별 저장소·화면·동기화가 연결되지만 새 채팅 엔진이나 서버 API를 만들지 않음
+- 결정권자: 사용자; 계획·구현·전체 검증·양 플랫폼 실행·종료·로컬 커밋을 순서대로 승인했으며 push·배포는 별도
 
-핵심 작업:
+#### 승인 기준과 사용자 흐름
 
-- Date/list/create/detail/update/tag replace/list
-- `topic.created`를 M9의 same validator/checkpoint/recovery 경계에 연결
-- Group main room과 topic room navigation, stale group/account result 차단
+M9 종료 기준 앱 commit은 `33e0ce2cf2a13cd57a6f17e5f00397005f51dff0`이고, 검토한 서버 checkout은
+`5decfbca9e719e7932a941e5af764cca3156f2f6`다. 앱에 보관된 [OpenAPI](../contracts/server/openapi.json)와
+`topic.created` schema는 검토한 서버 사본과 byte가 같았다. 이는 저장소 정적 확인이며 현재 배포
+revision을 검증했다는 뜻은 아니다. 새 intake나 server contract 변경을 기본 선행 작업으로 두지 않는다.
 
-완료 증거:
+그룹 → 기본 주제 또는 날짜별 주제 목록 → 주제 생성·상세·편집 → 해당 주제의 대화로 이동한다.
+기본 주제는 날짜별 topic 목록과 구분해 유지하며, 기존 M8/M9의 메시지·읽음·outbox·동기화를 재사용한다.
+새 주제 카드에는 ID 대신 제목과 작성자 등 계약의 표시 데이터를 사용한다. API의 `topic`/`chatroom`
+식별자는 바꾸지 않으며 화면에서는 '주제', main room은 '기본 주제'라고 부른다.
 
-- Date/list/detail 일관성, permission/error와 realtime/delta recovery test
-- 생성된 topic과 chatroom으로의 user-visible navigation
+#### 승인 API와 입력 규칙
+
+모든 요청은 기존 shared session의 Bearer 인증을 사용한다. 표의 경로는 `/api/v1` 기준이다.
+Wire schema가 권위 원본이며 앱 내부 이름 변환은 mapper가 맡는다.
+
+| API | Method / path                                   | 요청과 성공 응답                                              | 권한                    |
+| --- | ----------------------------------------------- | ------------------------------------------------------------- | ----------------------- |
+| T1  | POST `/groups/{group_id}/topics`                | `TopicCreate` → 201 생성 / 200 동일 재시도의 `CanonicalTopic` | 그룹 멤버               |
+| T2  | GET `/groups/{group_id}/topics/dates`           | `after`, `limit` → `TopicDatePage`                            | 그룹 멤버               |
+| T3  | GET `/groups/{group_id}/topics`                 | `after`, `limit`, 선택 `date` → `TopicPage`                   | 그룹 멤버               |
+| T4  | GET `/groups/{group_id}/topics/{topic_id}`      | → `CanonicalTopic`                                            | 그룹 멤버               |
+| T5  | PATCH `/groups/{group_id}/topics/{topic_id}`    | `TopicPatch` → `CanonicalTopic`                               | 작성자만                |
+| T6  | PUT `/groups/{group_id}/topics/{topic_id}/tags` | `TagReplace` → `TagPage`                                      | 작성자 또는 그룹 소유자 |
+| T7  | GET `/groups/{group_id}/topics/{topic_id}/tags` | `after`, `limit` → `TagPage`                                  | 그룹 멤버               |
+
+- 날짜는 서울 달력 기준이며 T2의 `today`를 사용한다. 날짜 선택은 조회 필터이지 과거 날짜로 생성하는 기능이 아니다.
+- T2 page limit은 기본 31/최대 366, T3은 20/100, T7은 50/100이다. 모두 최소 1이며 `after`와
+  `next_cursor`는 서버 값을 그대로 사용한다. 날짜를 바꾸면 이전 목록 page cursor를 재사용하지 않는다.
+- T1은 제목만 받는다. Trim 후 1-256 Unicode 문자이며 새 주제는 `seed`, 본문은 null이다.
+  같은 생성 시도의 UUID `Idempotency-Key`와 요청 payload를 재시도에도 유지하고 중복 submit을 막는다.
+  제목을 바꾼 새 시도와 결과를 모르는 이전 시도를 구분하며 409를 새 key로 자동 우회하지 않는다.
+- T5는 작성자만 제목·본문을 수정한다. 그룹 소유자라도 다른 작성자의 본문은 수정할 수 없다.
+  필드 생략/null은 변경 없음이고 빈 본문은 거부된다. 본문 추가 시 `enriched`가 되며 본문 비우기나 주제 삭제를 제공하지 않는다.
+- T6는 태그 전체 목록 교체다. 전체 기존 태그를 확인한 뒤 저장하며 일부 page만 읽고 나머지를 삭제하지 않는다.
+  태그는 trim 후 1-64 문자, 중복을 거부하고 사용자 입력은 `source: user`로 보낸다. 변경하지 않은
+  태그의 `source`/`confidence`를 보존하며 AI 생성 기능은 추가하지 않는다. 빈 배열은 태그 전체 제거다.
+- 응답의 group/topic/chatroom identity와 runtime schema를 검증한다. 수정 버튼 노출만으로 권한을 신뢰하지 않는다.
+  401은 기존 인증 복구, 403/404는 접근 상실·없는 대상, 409는 멱등 충돌, 422는 입력 오류,
+  통신 오류/503은 입력을 보존한 재시도로 구분한다. Raw response, token, 사용자 입력을 진단 로그에 남기지 않는다.
+- 주제 생성·편집은 온라인 요청과 명시적 재시도까지다. M9 메시지 outbox에 주제 command를 추가하거나
+  오프라인 생성·수정 예약을 만들지 않는다.
+
+#### 데이터와 동기화 경계
+
+기존 origin + U1 UUID + session epoch 격리를 재사용한다. 주제 snapshot과 날짜별 page 상태,
+태그는 계정별 repository 경계에서 관리하고 채팅 메시지의 SQLite 원본을 유지한다. 필요한 저장소
+변경은 기존 DB·메시지·outbox·checkpoint를 보존하는 additive migration으로 구현·검증한다.
+구체적인 table/file inventory는 구현 단계에서 필요한 최소한으로 정하며 새 저장 엔진은 추가하지 않는다.
+
+`topic.created`는 새 topic chatroom의 event이고 기본 주제에는 별도의 안내 `message.created`가 온다.
+새 방을 아직 모르는 앱이 `topic.created`만 구독해서 모든 새 주제를 발견할 수 있다고 가정하지 않는다.
+이 구조는 [주제 계약 fixture](../../jamye-server/contracts/contributions/task-7/fixtures/topic-flow.json)와
+[서버 event 생성](../../jamye-server/src/adapters/postgres/topics/mutation.rs)에 근거한다.
+
+1. 목록 진입·앱 복귀·재연결과 생성 성공 후 T2/T3 및 필요한 C1/T4를 재조회한다.
+2. 선택한 그룹의 기본 주제와 필요한 topic room을 기존 account sync에서 관리한다. 기본 주제의
+   이벤트는 목록 갱신 신호로 사용하되 연속 요청을 single-flight/coalescing으로 합친다.
+   안내 문장의 Markdown 링크를 파싱해 주제 식별자나 데이터를 만들지 않는다.
+3. WS의 `topic.created`는 기존 validator를 거쳐 S1 복구를 요청한다. WS cursor를 바로 checkpoint로 저장하지 않는다.
+   현재 S1은 topic event 전문이 아니라 `reconcile_scope: group_topics` 표시를 반환하므로 그 schema를 유지한다.
+4. M9에 영속된 `group_topics` 복구 표시를 해당 그룹의 주제 재조회에 연결한다. 검증된 결과를 저장한 뒤
+   해당 표시만 해제하고, 실패·취소·새 event 도착 시 표시를 잃지 않도록 한다. 오래된 표시는 재시작 뒤에도 복구한다.
+5. T5/T6 변경에는 별도 realtime event를 가정하지 않는다. 저장 직후 해당 목록·상세를 갱신하고
+   다른 기기의 변경은 화면 복귀·새로고침에서 확인한다. 항상 즉시 원격 편집이 반영된다고 약속하지 않는다.
+6. 그룹·날짜·topic·계정이 바뀐 뒤 늦게 도착한 조회/편집 결과를 현재 화면에 적용하지 않는다.
+   권한 상실 시 이전 주제·태그·입력을 숨기고 해당 작업을 취소하며 기본 채팅의 생명주기를 훼손하지 않는다.
+
+#### 확정 작업 순서
+
+| #   | 작업                               | 담당 역할  | Priority | 의존          | 상태                      |
+| --- | ---------------------------------- | ---------- | -------- | ------------- | ------------------------- |
+| 1   | 계약·데이터 연결                   | mobile     | 1        | 완료된 M7, M9 | COMPLETED                 |
+| 2   | 주제·태그 화면과 대화 진입         | mobile     | 2        | 1             | COMPLETED                 |
+| 3   | M9 동기화와 주제 재조회 연결       | mobile     | 3        | 1, 2          | COMPLETED                 |
+| 4   | 자동 검증·독립 리뷰·양 플랫폼 수용 | qa, 사용자 | 4        | 1, 2, 3       | COMPLETED / USER_ACCEPTED |
+
+담당은 역할 표기다. 구현과 최종 자동 검사는 coordinator가, 독립 정적 리뷰·수정 재리뷰는 별도
+Claude QA context가 수행했다. 리뷰어는 테스트나 native 실행을 대신 수행하지 않았다.
+
+- **1 — 계약·데이터:** T1-T7 runtime validator, mapper와 API adapter를 추가한다. 저장소·API는
+  UI와 분리하고 auth/token을 중복 관리하지 않는다. 날짜·입력·권한·멱등 재시도·계정 격리와
+  기존 row 보존을 focused test로 확인한다. Generated file은 generator로만 갱신한다.
+- **2 — 화면:** 기본 주제 진입을 보존하면서 날짜별 목록·더 보기·생성·상세·작성자 편집·태그 편집을
+  연결한다. 로딩·빈 목록·오류·재시도, 한글 입력·명시적 저장, 접근성 이름과 테마를 확인한다.
+  생성된 서버 `chatroom_id`로 기존 채팅을 열고 그룹/계정 전환 시 stale navigation을 막는다.
+- **3 — 동기화:** 신규 방 발견, `group_topics` 재조회, 중복 event와 실패 후 복구를 연결한다.
+  Fake transport와 실제 SQLite test에서 WS/delta 중복·오래된 응답·재시작·복구 중 새 event를 확인한다.
+  M9의 checkpoint, 메시지 dedupe, outbox와 account lifecycle 회귀를 유지한다.
+- **4 — 최종 확인:** 앞선 작업의 focused test와 기존 전체 quality/contract 검사를 확인하고 독립 리뷰를
+  수행한다. 리뷰 수정은 해당 작업 범위로 되돌린다. 이후 승인된 iOS·Android 실행에서 아래 네 항목을
+  사용자에게 확인받고 자동 검사·에이전트 관찰·사용자 확인을 나눠 종료 기록한다.
+
+수정 범위는 app의 계약 adapter/validator·계정 DB, 주제 feature·얇은 route, 필요한 기존 group/chat/sync
+접점과 대응 테스트·품질 inventory·문서다. 검증 정책은 새 실제 경로를 반영할 때만 최소 변경하고
+범위 제한이나 coverage 기준을 완화하지 않는다. Server, homelab, legacy PWA는 읽기 전용이며
+패키지·native 설정 변경은 기본 계획에 포함하지 않는다.
+
+#### 완료 조건과 사용자 수용
+
+- [x] T1-T7 계약 검사와 날짜·입력·권한·멱등·pagination·mapper focused 회귀 통과
+- [x] 계정 저장소 migration/격리, `group_topics` 재시도·중복·checkpoint 및 관련 M7-M9 focused 회귀 통과
+- [x] 기존 `bun run check:code`, server/bootstrap contract 검사와 독립 리뷰 완료; coverage 80% 기준 유지
+- [x] 양 플랫폼에서 아래 네 사용자 수용 항목 확인, 결과 출처를 구분해 기록
+- [x] 사용자 M10 종료 승인; 구현 완료와 앱 전체 출시 판정을 구분
+
+| 사용자 확인 항목                                                                            | iOS  | Android |
+| ------------------------------------------------------------------------------------------- | ---- | ------- |
+| 1. 기본 주제 접근을 유지하고 새 주제 생성 → 목록·상세 → 해당 주제 대화·송수신               | PASS | PASS    |
+| 2. 서울 날짜별 조회·더 보기와 제목/본문·태그 저장·재조회, 작성자/소유자/일반 멤버 권한 차이 | PASS | PASS    |
+| 3. 다른 계정이 만든 새 주제 발견, 백그라운드·네트워크 복귀 후 목록 복구와 중복 없음         | PASS | PASS    |
+| 4. 그룹·계정 전환 및 재로그인 후 이전 주제·태그·편집 입력·늦은 결과 격리                    | PASS | PASS    |
+
+실제 provider 로그인과 실서버 데이터 변경은 사용자가 승인한 계정으로 확인하며, 테스트 데이터 삭제는
+별도 승인 없이 수행하지 않는다. Native 입력이 바뀌면 기존 clean prebuild와 양 플랫폼 재빌드 규칙을
+적용하고, 바뀌지 않았다면 기존 Development Build를 사용할 수 있다. 구체적인 명령과 기록 경계는
+[개발 검증 절차](development-workflow.md)를 따른다. 위 PASS는 2026-09-10 사용자가
+“양 플랫폼에서 모두 확인했어. 제대로 작동해. M10 종료하고 커밋해”라고 보고·승인한 결과다.
+플랫폼별 상세 trace를 별도로 받은 것은 아니며 자동 E2E 결과로 확대하지 않는다.
+
+#### 유지하는 제외 범위와 승인 기록
+
+메시지별 상대방 읽음 표시와 주제별 안읽음 배지는 추가하지 않는다. 응답의 `unread` field를
+계약대로 검증하더라도 이를 새 배지 기능으로 노출하지 않는다. 주제 삭제·본문 삭제·AI 태그 생성·
+태그 검색 API·오프라인 주제 생성/편집 예약·새 WebSocket은 제외한다. 미디어는 M11, 알림·푸시는
+M12, 프로필·계정 삭제는 M13 그대로이며 bootstrap 정리와 기존 출시 blocker도 이번 범위에 합치지 않는다.
+
+| 날짜       | 결정                                                                    | 의미                                                                                    |
+| ---------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 2026-09-10 | 사용자: 이 범위와 순서로 M10 계획을 문서에 확정                         | T1-T7 기반 네 단계와 제외 범위 승인; 구현·빌드·실계정 작업·SCM는 별도                   |
+| 2026-09-10 | 사용자: 계획 승인할게. 구현 착수해                                      | 1-3 구현 및 관련 로컬 검사 진행; native/user 수용·종료·SCM는 미실행                     |
+| 2026-09-10 | 사용자: 전체 coverage·독립 리뷰 → iOS·Android 실행 검증 진행해          | 전체 검사·독립 재리뷰 PASS, 기존 설치본으로 제한된 실행 관찰; 사용자 수용·종료·SCM 대기 |
+| 2026-09-10 | 사용자: 양 플랫폼에서 모두 확인했어. 제대로 작동해. M10 종료하고 커밋해 | 네 사용자 수용 항목 양 플랫폼 PASS, M10 종료·로컬 커밋 승인; push·배포 미승인           |
+
+구현은 T1-T7 adapter/validator, account v4 additive cache, 목록·생성·상세·편집 route와 M9 신호 연결이다.
+캐시 갱신과 matching `group_topics` marker 해제는 한 transaction이며 저장 도중 취소도 rollback한다.
+기존 메시지·outbox·checkpoint를 유지하고 생성 결과가 불명확하면 같은 key/payload로만 명시적 재시도한다.
+구현 focused 회귀 46 suites / 573 tests 이후 최종 전체 검사는 76 suites / 902 tests로 통과했다.
+Coverage는 statements 85.54%, branches 81.46%, functions 87.59%, lines 89.00%다. 독립 리뷰가 찾은
+확정적 생성 거부 후 새 시도 차단을 수정했고, 서버 계약에 맞춰 본문 공백·줄바꿈 보존을 유지했다.
+기존 iOS·Android 설치본에서 최신 번들의 세션 복원, 주제 목록·날짜 필터, 작성 화면·빈 제목 차단,
+홈 화면에서 앱으로 복귀 후 목록 재조회를 관찰했다. 이 제한된 관찰에서 에이전트가 실서버 주제·태그·메시지를
+생성하거나 수정하지 않았으며 실제 변경은 이후 사용자 수용과 구분한다.
+구체적인 검사·한계는
+[개발 검증 기록](development-workflow.md#m10-구현과-focused-검증--2026-09-10)을 따른다.
+이후 양 플랫폼 사용자 수용 네 항목과 종료 승인을 받아 M10을 정식 종료한다.
+[M10 evidence](evidence/M10.md)에 출처와 한계를 보존한다. 종료 작업은 문서·exact-path 품질 목록과
+로컬 커밋까지이며 제품 테스트·native 실행·실계정 작업을 반복하지 않는다. 다음은 M11 계획 검토이고 구현은 미승인이다.
 
 ### M11. 미디어 업로드·첨부·접근
 
@@ -446,7 +590,7 @@ C3는 실제 보인 서버 `message_id`로 내 읽음 위치를 저장하며, �
 | Invitations             | I1, I2                         | M7 완료 — 양 플랫폼 사용자 수용     | M7                                         |
 | Chatrooms/messages/read | C1, C2, C3, C4                 | M8 완료 — 양 플랫폼 사용자 수용     | M8                                         |
 | Delta/realtime          | S1, R1 + WebSocket             | M9 완료 — 사용자 수용 4/4 확인      | M9                                         |
-| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 없음                                | M10                                        |
+| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 완료, 양 플랫폼 사용자 수용 PASS    | M10                                        |
 | Media                   | MD1, MD2, MD3, MD4, MD5        | 없음                                | M11                                        |
 | Notification history    | N1, N2                         | 없음                                | M12                                        |
 | Push installation       | P2, P3, P4                     | 없음                                | M12                                        |
@@ -525,7 +669,9 @@ Android 시작 ANR은 원인 미확정 상태로 보존하며 실제 만료 갱�
 M8을 `COMPLETED / USER_ACCEPTED`로 정식 종료했다. 상세 결과는 [M8 evidence](evidence/M8.md)를 따른다.
 이후 M9 구현·자동 통합 검사·독립 리뷰·양 플랫폼 실행 준비를 마쳤다. 사용자가 안내한 수용
 4개 항목이 모두 정상이라고 확인하고 “M9 커밋하고 종료해”라고 승인하여 M9를 정식 종료했다.
-상세 결과와 한계는 [M9 evidence](evidence/M9.md)를 따른다. 다음 단계는 기존 M10 주제·태그의
-계획 검토와 승인이다.
+상세 결과와 한계는 [M9 evidence](evidence/M9.md)를 따른다. 이후 M10 계획·구현·전체 자동 검사·독립 리뷰와
+양 플랫폼 실행을 진행했고 사용자가 네 수용 항목의 정상 동작 및 종료·로컬 커밋을 승인했다.
+M10은 `COMPLETED / USER_ACCEPTED`이며 [M10 evidence](evidence/M10.md)에 출처와 한계를 기록한다.
+다음 단계는 기존 M11 미디어 업로드·첨부·접근 계획 검토와 승인이다.
 
-이번 종료 승인은 M10 구현, 기존 후속 마일스톤 변경, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.
+이번 종료 승인은 M11 구현, 기존 후속 마일스톤 변경, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.

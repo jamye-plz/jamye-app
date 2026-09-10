@@ -52,6 +52,29 @@ const VERIFIER = "v".repeat(43);
 
 describe("M6-01 server contract runtime validators", () => {
   test.each([
+    ["2024-02-29", true],
+    ["2000-02-29", true],
+    ["2026-09-10", true],
+    ["1900-02-29", false],
+    ["2026-02-29", false],
+    ["2026-04-31", false],
+    ["2026-00-10", false],
+    ["2026-13-10", false],
+    ["2026-01-00", false],
+    ["2026-9-10", false],
+    ["2026-09-10T00:00:00Z", false],
+  ])(
+    "M10 date format validates calendar dates without device timezone: %s",
+    (date, expected) => {
+      const ajv = new Ajv2020();
+      registerServerContractFormats(ajv);
+      expect(ajv.compile({ type: "string", format: "date" })(date)).toBe(
+        expected,
+      );
+    },
+  );
+
+  test.each([
     ["int32", -(2 ** 31), 2 ** 31],
     ["int64", -(2 ** 63), 2 ** 63],
     ["uint8", 0, 2 ** 8],

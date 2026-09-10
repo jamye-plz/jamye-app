@@ -140,7 +140,7 @@ function tableNames(schema: string): string[] {
     .sort();
 }
 
-describe("M9 additive account v3 migration registry", () => {
+describe("M10 additive account v4 migration registry", () => {
   test("retains scope_metadata and adds only account-scoped connected chat tables", async () => {
     const runMigrations = loadRunMigrations();
     const accountMigrations = loadAccountMigrations();
@@ -148,7 +148,7 @@ describe("M9 additive account v3 migration registry", () => {
 
     await runMigrations(database, accountMigrations);
 
-    expect(database.userVersion).toBe(3);
+    expect(database.userVersion).toBe(4);
     const schema = schemaOf(database);
     expect(tableNames(schema)).toEqual([
       "connected_chat_applied_events",
@@ -157,6 +157,8 @@ describe("M9 additive account v3 migration registry", () => {
       "connected_chat_outbox_commands",
       "connected_chat_reconciliation_scopes",
       "connected_chatrooms",
+      "connected_topic_queries",
+      "connected_topics",
       "scope_metadata",
     ]);
     expect(schema).toMatch(
@@ -179,7 +181,7 @@ describe("M9 additive account v3 migration registry", () => {
     expect(schema).toMatch(/connected_chatrooms_group_window_idx/i);
   });
 
-  test("is a no-op after version 3 instead of replaying DDL", async () => {
+  test("is a no-op after version 4 instead of replaying DDL", async () => {
     const runMigrations = loadRunMigrations();
     const accountMigrations = loadAccountMigrations();
     const database = new RecordingSqliteDatabase();
@@ -193,7 +195,7 @@ describe("M9 additive account v3 migration registry", () => {
     expect(retryStatements.join("\n")).not.toMatch(
       /PRAGMA\s+user_version\s*=/i,
     );
-    expect(database.userVersion).toBe(3);
+    expect(database.userVersion).toBe(4);
   });
 
   test("does not modify the preserved fixture migration registry or its five-table schema", async () => {

@@ -24,6 +24,7 @@ type AccountScopeHandle = Readonly<{
   close: () => Promise<void>;
   database: SqliteRepositoryDatabase;
   connectedChatRepository?: unknown;
+  topicsRepository?: unknown;
 }>;
 
 type AccountScopeOpenPort = (
@@ -36,6 +37,7 @@ type AccountScopeRenderedState =
   | Readonly<{
       database: SqliteRepositoryDatabase;
       connectedChatRepository?: unknown;
+      topicsRepository?: unknown;
       status: "ready";
     }>
   | Readonly<{ error: Error; status: "error" }>;
@@ -135,21 +137,25 @@ async function flush(): Promise<void> {
 }
 
 describe("M6-03 injected account scope lifecycle fenced by SessionPrincipal.epoch", () => {
-  test("forwards the handle's already-fenced chat repository without creating a second adapter", async () => {
+  test("forwards the handle's already-fenced chat and topic repositories without creating a second adapter", async () => {
     const { createAccountScope } = loadAccountScopeContract();
     const repository = Object.freeze({ owner: "opened-account-handle" });
+    const topicsRepository = Object.freeze({ owner: "opened-account-topics" });
     const close = jest.fn().mockResolvedValue(undefined);
     const scope = createAccountScope(async () => ({
       database: fakeDatabase("ready"),
       close,
       connectedChatRepository: repository,
+      topicsRepository,
     }));
     scope.setPrincipal(principal());
     await flush();
     const state = scope.getState();
     expect(state?.status).toBe("ready");
-    if (state?.status === "ready")
+    if (state?.status === "ready") {
       expect(state.connectedChatRepository).toBe(repository);
+      expect(state.topicsRepository).toBe(topicsRepository);
+    }
     scope.setPrincipal(null);
     expect(scope.getState()).toBeNull();
     await flush();

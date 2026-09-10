@@ -1,12 +1,14 @@
 import { openAccountDatabase as defaultOpenAccountDatabase } from "./open-account-database";
 import type { AccountPrincipal } from "./types";
 import type { ConnectedChatRepository } from "./connected-chat-types";
+import type { TopicsRepository } from "./topics-types";
 import type { SqliteRepositoryDatabase } from "../types";
 
 export type AccountScopeHandle = Readonly<{
   close: () => Promise<void>;
   database: SqliteRepositoryDatabase;
   connectedChatRepository: ConnectedChatRepository;
+  topicsRepository: TopicsRepository;
 }>;
 
 export type AccountScopeOpenPort = (
@@ -19,6 +21,7 @@ export type AccountScopeRenderedState =
   | Readonly<{
       database: SqliteRepositoryDatabase;
       connectedChatRepository: ConnectedChatRepository;
+      topicsRepository: TopicsRepository;
       status: "ready";
     }>
   | Readonly<{ error: Error; status: "error" }>;
@@ -88,6 +91,7 @@ export function createAccountScope(
         publish({
           database: handle.database,
           connectedChatRepository: handle.connectedChatRepository,
+          topicsRepository: handle.topicsRepository,
           status: "ready",
         });
       } catch (error) {

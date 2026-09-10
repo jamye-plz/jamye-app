@@ -1,4 +1,32 @@
 export {
+  mapTopic,
+  mapTopicDates,
+  mapTopicPage,
+  mapTopicTag,
+  mapTopicTags,
+  type Topic,
+  type TopicDatePage,
+  type TopicMedia,
+  type TopicPage,
+  type TopicTag,
+  type TopicTagPage,
+} from "./topics";
+export {
+  validateCanonicalTopic,
+  validateTopicTag,
+  validateTopicPage,
+  validateTopicDatePage,
+  validateTagPage,
+  validateTopicCreate,
+  validateTopicPatch,
+  validateTagReplace,
+  type CanonicalTopicWire,
+  type TopicTagWire,
+  type TopicPageWire,
+  type TopicDatePageWire,
+  type TagPageWire,
+} from "./validators";
+export {
   mapCanonicalChatMessage,
   mapChatMessage,
   mapChatMessagePage,

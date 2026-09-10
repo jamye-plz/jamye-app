@@ -182,11 +182,11 @@ async function migrateWithoutLosingV2Rows() {
   });
 
   await runMigrations(adapter, accountMigrations);
-  assert.equal(database.query("PRAGMA user_version").get().user_version, 3);
+  assert.equal(database.query("PRAGMA user_version").get().user_version, 4);
   assert.equal(
     database.query("SELECT schema_version FROM scope_metadata").get()
       .schema_version,
-    3,
+    4,
   );
   assert.deepEqual(
     database

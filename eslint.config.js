@@ -10,6 +10,7 @@ const ROUTE_FILES = ["src/app/**/*.ts", "src/app/**/*.tsx"];
 const FEATURE_DATA_FILES = [
   "src/features/chat/model/**/*.ts",
   "src/features/chat/use-*.ts",
+  "src/features/topics/model/**/*.ts",
 ];
 const SCREEN_AND_COMPONENT_FILES = [
   "src/features/**/ui/**/*.ts",
@@ -26,6 +27,7 @@ const HTTP_ADAPTER_FILES = [
   "src/core/health/health-api.ts",
   "src/features/groups/data/groups-api.ts",
   "src/features/chat/data/chat-api.ts",
+  "src/features/topics/data/topics-api.ts",
   "src/features/sync/realtime/sync-api.ts",
 ];
 
@@ -155,6 +157,7 @@ const RESERVED_CORE_FEATURE_DATA_DATABASE_PATTERNS = [
   "**/core/database/account/migrations/**",
   "**/core/database/account/connected-chat-repository",
   "**/core/database/account/connected-chat-sync-repository",
+  "**/core/database/account/topics-repository",
 ];
 
 const RESERVED_CORE_SCREEN_DATABASE_PATTERNS = [

@@ -108,6 +108,20 @@ export const validateReadAnchorIn = compileComponentSchema("ReadAnchorIn");
 export const validateReadCursorIn = compileComponentSchema("ReadCursorIn");
 export const validateReadMarker = compileComponentSchema("ReadMarker");
 
+export type CanonicalTopicWire = components["schemas"]["CanonicalTopic"];
+export type TopicTagWire = components["schemas"]["TopicTag"];
+export type TopicPageWire = components["schemas"]["TopicPage"];
+export type TopicDatePageWire = components["schemas"]["TopicDatePage"];
+export type TagPageWire = components["schemas"]["TagPage"];
+export const validateCanonicalTopic = compileComponentSchema("CanonicalTopic");
+export const validateTopicTag = compileComponentSchema("TopicTag");
+export const validateTopicPage = compileComponentSchema("TopicPage");
+export const validateTopicDatePage = compileComponentSchema("TopicDatePage");
+export const validateTagPage = compileComponentSchema("TagPage");
+export const validateTopicCreate = compileComponentSchema("TopicCreate");
+export const validateTopicPatch = compileComponentSchema("TopicPatch");
+export const validateTagReplace = compileComponentSchema("TagReplace");
+
 // S1 (GET /api/v1/conversations/{conversation_id}/events) and R1
 // (POST /api/v1/realtime/tickets) wire shapes. 426/401/403/503 for both
 // operations reuse the existing ErrorEnvelope validated above.

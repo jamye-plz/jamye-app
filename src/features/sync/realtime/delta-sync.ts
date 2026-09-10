@@ -144,6 +144,14 @@ export function createDeltaSync(deps: DeltaSyncDependencies): DeltaSync {
       expectedCursor,
       reconcileScope: item.reconcile_scope,
     });
+    if (
+      item.reconcile_scope === "group_topics" &&
+      (result.status === "applied" || result.status === "duplicate")
+    ) {
+      // The topic consumer owns refetch + matching-marker clearance. Notify
+      // only after the ordered event and its durable marker have committed.
+      reportChanged(conversationId, signal);
+    }
     return result;
   }
 

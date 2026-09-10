@@ -44,6 +44,13 @@ const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "C4",
   "S1",
   "R1",
+  "T1",
+  "T2",
+  "T3",
+  "T4",
+  "T5",
+  "T6",
+  "T7",
 ]);
 
 function isRecord(value) {

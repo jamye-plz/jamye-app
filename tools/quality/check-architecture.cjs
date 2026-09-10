@@ -327,6 +327,7 @@ const M6_01_AUTHORED_FILES = Object.freeze([
 const ACTIVE_CONTRACT_SOURCE_FILES = Object.freeze([
   ...M4_CONTRACT_SOURCE_FILES,
   ...M6_CONTRACT_SOURCE_FILES,
+  "src/core/contracts/server/topics.ts",
 ]);
 
 const ACTIVE_CONTRACT_TOOL_FILES = Object.freeze([
@@ -483,6 +484,41 @@ const M9_AUTHORED_FILES = Object.freeze([
   "src/features/sync/realtime/realtime-sync.ts",
 ]);
 
+const M10_DATABASE_SOURCE_FILES = Object.freeze([
+  "src/core/database/account/migrations/004-topics-cache.ts",
+  "src/core/database/account/topics-types.ts",
+  "src/core/database/account/topics-repository.ts",
+]);
+const M10_TEST_PATHS = Object.freeze([
+  "tests/core/database/account/topics-repository.test.ts",
+  "tests/features/topics/data/topics-api.test.ts",
+  "tests/features/topics/model/topics-store.test.ts",
+  "tests/features/topics/model/topics-provider.test.tsx",
+  "tests/features/topics/ui/topics-screens.test.tsx",
+  "tests/quality/topics-boundaries.test.ts",
+]);
+const M10_AUTHORED_FILES = Object.freeze([
+  "docs/evidence/M10.md",
+  ...M10_DATABASE_SOURCE_FILES,
+  ...M10_TEST_PATHS,
+  "src/core/contracts/server/topics.ts",
+  "src/features/topics/data/topics-api.ts",
+  "src/features/topics/model/topics-input.ts",
+  "src/features/topics/model/topics-state.ts",
+  "src/features/topics/model/topics-store.ts",
+  "src/features/topics/model/topics-provider.tsx",
+  "src/features/topics/ui/topic-controls.tsx",
+  "src/features/topics/ui/use-topic-screen.ts",
+  "src/features/topics/ui/topics-screen.tsx",
+  "src/features/topics/ui/topic-create-screen.tsx",
+  "src/features/topics/ui/topic-detail-screen.tsx",
+  "src/app/groups/[groupId]/topics/new.tsx",
+  "src/app/groups/[groupId]/topics/[topicId].tsx",
+  "tests/core/database/account/topics-repository.bun.ts",
+  "tests/features/topics/topics-fixtures.ts",
+  "tests/features/topics/topics-harness.ts",
+]);
+
 const M5_RETIRED_PLACEHOLDER_PATHS = Object.freeze([
   "src/features/development-fixture/model/local-fixture.ts",
   "src/features/development-fixture/ui/development-fixture-screen.tsx",
@@ -532,6 +568,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = Object.freeze([
   ...M6_03_DATABASE_SOURCE_FILES,
   ...M8_DATABASE_SOURCE_FILES,
   ...M9_DATABASE_SOURCE_FILES,
+  ...M10_DATABASE_SOURCE_FILES,
 ]);
 
 const M5_DESIGN_ARTIFACT_PATHS = Object.freeze([
@@ -572,6 +609,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M7_TEST_PATHS,
     ...M8_TEST_PATHS,
     ...M9_TEST_PATHS,
+    ...M10_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
   ]),
@@ -894,6 +932,7 @@ const REQUIRED_ROUTE_CORE_PATTERNS = Object.freeze([
 const M5_FEATURE_DATA_FILES = Object.freeze([
   "src/features/chat/model/**/*.ts",
   "src/features/chat/use-*.ts",
+  "src/features/topics/model/**/*.ts",
 ]);
 const M5_FEATURE_DATA_DATABASE_PATTERNS = Object.freeze([
   "**/core/database/open-database",
@@ -907,6 +946,7 @@ const M5_FEATURE_DATA_DATABASE_PATTERNS = Object.freeze([
   "**/core/database/account/migrations/**",
   "**/core/database/account/connected-chat-repository",
   "**/core/database/account/connected-chat-sync-repository",
+  "**/core/database/account/topics-repository",
 ]);
 const M5_REPOSITORY_PORT_PATTERN =
   "**/core/database/repositories/database-repository";
@@ -1052,6 +1092,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M7_AUTHORED_FILES,
   ...M8_AUTHORED_FILES,
   ...M9_AUTHORED_FILES,
+  ...M10_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);

@@ -122,6 +122,7 @@ const M5_AUTHORED_FILES = [
 const M5_FEATURE_DATA_FILES = [
   "src/features/chat/model/**/*.ts",
   "src/features/chat/use-*.ts",
+  "src/features/topics/model/**/*.ts",
 ];
 const M5_FEATURE_DATA_DATABASE_PATTERNS = [
   "**/core/database/open-database",
@@ -135,6 +136,7 @@ const M5_FEATURE_DATA_DATABASE_PATTERNS = [
   "**/core/database/account/migrations/**",
   "**/core/database/account/connected-chat-repository",
   "**/core/database/account/connected-chat-sync-repository",
+  "**/core/database/account/topics-repository",
 ];
 const M5_REPOSITORY_PORT_PATTERN =
   "**/core/database/repositories/database-repository";
@@ -243,6 +245,15 @@ const M8_TEST_PATHS = [
   "tests/quality/chat-boundaries.test.ts",
 ];
 
+const M10_TEST_PATHS = [
+  "tests/core/database/account/topics-repository.test.ts",
+  "tests/features/topics/data/topics-api.test.ts",
+  "tests/features/topics/model/topics-store.test.ts",
+  "tests/features/topics/model/topics-provider.test.tsx",
+  "tests/features/topics/ui/topics-screens.test.tsx",
+  "tests/quality/topics-boundaries.test.ts",
+];
+
 const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M3_TEST_PATHS.filter(
     (path) => path !== "tests/features/development-fixture-screen.test.tsx",
@@ -268,6 +279,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   "tests/features/sync/realtime/realtime-sync.test.ts",
   "tests/features/chat/model/connected-chat-sync.test.ts",
   "tests/quality/sync-boundaries.test.ts",
+  ...M10_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
 ].filter((path, index, paths) => paths.indexOf(path) === index);
@@ -479,6 +491,9 @@ const ACTIVE_DATABASE_SOURCE_FILES = [
   ...M8_DATABASE_SOURCE_FILES,
   "src/core/database/account/connected-chat-sync-repository.ts",
   "src/core/database/account/migrations/003-durable-outbox-events.ts",
+  "src/core/database/account/migrations/004-topics-cache.ts",
+  "src/core/database/account/topics-types.ts",
+  "src/core/database/account/topics-repository.ts",
 ];
 const M4_CONTRACT_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
   path.startsWith("src/core/contracts/"),
@@ -492,6 +507,7 @@ const M4_CONTRACT_TOOL_FILES = M4_AUTHORED_FILES.filter((path: string) =>
 const ACTIVE_CONTRACT_SOURCE_FILES = [
   ...M4_CONTRACT_SOURCE_FILES,
   ...M6_CONTRACT_SOURCE_FILES,
+  "src/core/contracts/server/topics.ts",
 ];
 const ACTIVE_CONTRACT_TOOL_FILES = [
   ...M4_CONTRACT_TOOL_FILES,
@@ -1458,6 +1474,14 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
         "src/features/development-fixture/model/legacy-fixture.ts",
       ),
     ).toBe(false);
+  });
+
+  test("authorizes M10 closure evidence without opening future evidence paths", () => {
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M10.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M11.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M10-private.md")).toBe(
+      false,
+    );
   });
 
   test("authorizes only the exact M9 sync boundary and preserves adjacent prohibitions", () => {

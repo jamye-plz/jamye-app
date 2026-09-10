@@ -26,6 +26,7 @@ type Props = PropsWithChildren<
   }>
 >;
 type Value = Readonly<{
+  subscribeSync: ConnectedChatStore["subscribeSync"];
   state: ConnectedChatState;
   actions: ConnectedChatStoreActions;
   ready: boolean;
@@ -81,6 +82,7 @@ function ScopedChatProvider({
   }, [store]);
   const value = useMemo(
     () => ({
+      subscribeSync: store.subscribeSync,
       state,
       actions: store.actions,
       ready: Boolean(principal && repository),

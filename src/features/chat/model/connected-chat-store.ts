@@ -130,6 +130,9 @@ export type ConnectedChatStoreActions = Readonly<{
 }>;
 
 export type ConnectedChatStore = Readonly<{
+  subscribeSync: (
+    listener: (event: "changed" | "connected" | "evicted") => void,
+  ) => () => void;
   getState: () => ConnectedChatState;
   setPrincipal: (
     principal: AccountPrincipal | null,
@@ -283,6 +286,9 @@ export function createConnectedChatStore(
   let sync: ConnectedChatSync | null = null;
   let state = initialState();
   const listeners = new Set<() => void>();
+  const syncListeners = new Set<
+    (event: "changed" | "connected" | "evicted") => void
+  >();
   const requests = new Map<string, AbortController>();
 
   let roomsGroupId: string | null = null;
@@ -431,13 +437,16 @@ export function createConnectedChatStore(
         },
         isActive: current,
         onChanged: async () => {
-          if (!current() || historyBlocked || !state.chatroomId) return;
+          if (!current()) return;
+          syncListeners.forEach((listener) => listener("changed"));
+          if (historyBlocked || !state.chatroomId) return;
           const roomId = state.chatroomId;
           const ticket = begin("sync-read");
           if (ticket) await refreshAfterWrite(ticket, roomId);
         },
         onConversationEvicted: (roomId) => {
           if (!current()) return;
+          syncListeners.forEach((listener) => listener("evicted"));
           const rooms = {
             ...state.rooms,
             items: state.rooms.items.filter(
@@ -468,7 +477,10 @@ export function createConnectedChatStore(
         },
         onState: (next) => {
           if (!current()) return;
+          if (next === "connected" && state.sync !== "connected")
+            syncListeners.forEach((listener) => listener("connected"));
           if (next === "membership-evicted") {
+            syncListeners.forEach((listener) => listener("evicted"));
             interruptSend();
             cancelAll();
             read.reset();
@@ -566,9 +578,9 @@ export function createConnectedChatStore(
     const ticket = begin("rooms");
     if (!ticket) return;
     if (!more) {
+      if (roomsGroupId !== groupId) sync?.setConversations([]);
       roomsGroupId = groupId;
       roomsHttpCursor = null;
-      sync?.setConversations([]);
     }
     publish({
       ...state,
@@ -967,6 +979,10 @@ export function createConnectedChatStore(
   }
 
   return {
+    subscribeSync(listener) {
+      syncListeners.add(listener);
+      return () => syncListeners.delete(listener);
+    },
     getState: () => state,
     setPrincipal,
     subscribe(listener) {
@@ -976,6 +992,7 @@ export function createConnectedChatStore(
     dispose() {
       setPrincipal(null, null, null);
       listeners.clear();
+      syncListeners.clear();
     },
     actions: {
       loadRooms: (groupId) => loadRooms(groupId, false),

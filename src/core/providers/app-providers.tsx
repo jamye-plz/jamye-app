@@ -10,7 +10,19 @@ import type {
   AccountScopeRenderedState,
 } from "@/core/database/account/account-scope";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
-import { createGroupsApi } from "@/features/groups/data/groups-api";
+import {
+  createGroupsApi,
+  GroupsApiError,
+} from "@/features/groups/data/groups-api";
+import {
+  createTopicsApi,
+  TopicsApiError,
+} from "@/features/topics/data/topics-api";
+import { createTopicsStore } from "@/features/topics/model/topics-store";
+import {
+  TopicsProvider,
+  type TopicsStoreFactory,
+} from "@/features/topics/model/topics-provider";
 import { createGroupsStore } from "@/features/groups/model/groups-store";
 import type { GroupsStore } from "@/features/groups/model/groups-store";
 import { GroupsProvider } from "@/features/groups/model/groups-provider";
@@ -28,7 +40,10 @@ import {
   realtimeSocketUrl,
 } from "@/features/sync/realtime/sync-api";
 import { createRealtimeSocket } from "@/features/sync/realtime/realtime-socket";
-import { ConnectedChatProvider } from "@/features/chat/model/connected-chat-provider";
+import {
+  ConnectedChatProvider,
+  useConnectedChat,
+} from "@/features/chat/model/connected-chat-provider";
 import {
   createMonotonicMessageIdentity,
   createSystemClock,
@@ -78,6 +93,38 @@ const AccountScopeContext = createContext<AccountScopeContextValue | undefined>(
 function createDefaultGroupsStore(): GroupsStore {
   return createGroupsStore({ createApi: createGroupsApi });
 }
+
+const createDefaultTopicsStore: TopicsStoreFactory = (
+  principal,
+  repository,
+  authorize,
+  watchGroup,
+) => {
+  const groupsApi = createGroupsApi(principal.origin);
+  return createTopicsStore({
+    api: createTopicsApi(principal.origin),
+    repository,
+    userId: principal.userId,
+    authorize,
+    newKey: randomUUID,
+    watchGroup,
+    async getOwner(groupId, signal) {
+      try {
+        const group = await authorize(
+          (token, authSignal) => groupsApi.getGroup(token, groupId, authSignal),
+          signal,
+        );
+        if (group.id !== groupId)
+          throw new TopicsApiError(502, "invalid_group_identity");
+        return group.ownerId;
+      } catch (error) {
+        if (error instanceof GroupsApiError)
+          throw new TopicsApiError(error.status, error.code);
+        throw error;
+      }
+    },
+  });
+};
 
 /** Concrete IO is connected only here; sync models receive account-fenced ports. */
 export const createConnectedAccountSync: ConnectedChatSyncFactory = (
@@ -280,10 +327,30 @@ function ConnectedRuntimeProviders({
           origin={origin}
           groupsStoreFactory={groupsStoreFactory}
         >
-          <ChatStoreBridge>{children}</ChatStoreBridge>
+          <ChatStoreBridge>
+            <TopicsStoreBridge>{children}</TopicsStoreBridge>
+          </ChatStoreBridge>
         </GroupsStoreBridge>
       </AccountScopeBridge>
     </SessionProvider>
+  );
+}
+
+function TopicsStoreBridge({ children }: PropsWithChildren) {
+  const { principal, authorizedRequest } = useSession();
+  const { state } = useAccountScope();
+  const chat = useConnectedChat();
+  return (
+    <TopicsProvider
+      principal={principal}
+      repository={state?.status === "ready" ? state.topicsRepository : null}
+      authorize={authorizedRequest}
+      createStore={createDefaultTopicsStore}
+      watchGroup={chat.actions.loadRooms}
+      subscribeSync={chat.subscribeSync}
+    >
+      {children}
+    </TopicsProvider>
   );
 }
 

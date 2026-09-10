@@ -30,6 +30,7 @@ import ChatroomRoute from "@/app/groups/[groupId]/chatrooms/[chatroomId]";
 
 const mockRouter = { push: jest.fn(), replace: jest.fn() };
 const mockRedirect = jest.fn();
+const mockTopicsRoute = jest.fn();
 const mockObserveList = jest.fn<void, [FlatListProps<ChatMessage>]>();
 const mockObserveComposer = jest.fn<
   void,
@@ -67,6 +68,14 @@ jest.mock("@/core/providers/app-providers", () => ({
 }));
 jest.mock("@/features/chat/model/connected-chat-provider", () => ({
   useConnectedChat: () => mockChat,
+}));
+// M10 owns the group topic-list view; these legacy tests retain the existing
+// chat screens and check only the thin route's delegation to that new view.
+jest.mock("@/features/topics/ui/topics-screen", () => ({
+  TopicsScreen: (props: { groupId: string }) => {
+    mockTopicsRoute(props);
+    return null;
+  },
 }));
 jest.mock("@/features/chat/ui/chat-composer", () => {
   const React = jest.requireActual<typeof import("react")>("react");
@@ -497,7 +506,7 @@ test("thin routes use real params and reject malformed arrays; fixture and signe
       <ChatroomsRoute />
     </AppThemeProvider>,
   );
-  expect(mockChat.actions.loadRooms).toHaveBeenCalledWith(GROUP_ID);
+  expect(mockTopicsRoute).toHaveBeenLastCalledWith({ groupId: GROUP_ID });
   await screen.rerender(
     <AppThemeProvider>
       <ChatroomRoute />
@@ -516,7 +525,7 @@ test("thin routes use real params and reject malformed arrays; fixture and signe
       <ChatroomsRoute />
     </AppThemeProvider>,
   );
-  expect(screen.getByText("올바르지 않은 그룹 주소입니다.")).toBeTruthy();
+  expect(mockTopicsRoute).toHaveBeenLastCalledWith({ groupId: "" });
   mockPrincipal = null;
   await screen.rerender(
     <ChatRouteGuard>

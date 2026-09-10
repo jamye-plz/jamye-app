@@ -3,6 +3,8 @@ import { openDatabaseAsync, type SQLiteDatabase } from "expo-sqlite";
 import { runMigrations } from "../migrate";
 import { createConnectedChatRepository } from "./connected-chat-repository";
 import type { ConnectedChatRepository } from "./connected-chat-types";
+import { createTopicsRepository } from "./topics-repository";
+import type { TopicsRepository } from "./topics-types";
 import { accountMigrations } from "./migrations";
 import { resolveAccountDatabaseFilename } from "./namespace";
 import type { AccountPrincipal } from "./types";
@@ -11,6 +13,7 @@ import { validateScopeMetadata } from "./validate-scope-metadata";
 export type AccountDatabaseHandle = Readonly<{
   close: () => Promise<void>;
   connectedChatRepository: ConnectedChatRepository;
+  topicsRepository: TopicsRepository;
   database: SQLiteDatabase;
 }>;
 
@@ -41,6 +44,11 @@ export async function openAccountDatabase(
         await database.closeAsync();
       },
       connectedChatRepository,
+      topicsRepository: createTopicsRepository(
+        database,
+        principal,
+        assertActive,
+      ),
       database,
     };
   } catch (error) {

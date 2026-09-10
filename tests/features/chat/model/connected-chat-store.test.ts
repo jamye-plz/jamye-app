@@ -93,6 +93,27 @@ describe("M8 room/history regressions with M9 queued-send ownership", () => {
     expect(store.getState().rooms.nextAfter).toBeNull();
   });
 
+  test("M10 receives applied-event activity without an open conversation and keeps same-group subscriptions", async () => {
+    const { repository, store, sync } = setup();
+    repository.listChatrooms.mockResolvedValue({
+      hasMore: false,
+      items: [repositoryChatroom()],
+      nextAfter: null,
+    });
+    const observer = jest.fn();
+    const unsubscribe = store.subscribeSync(observer);
+    await store.actions.loadRooms(GROUP_ID);
+    sync.runtime.setConversations.mockClear();
+    await store.actions.loadRooms(GROUP_ID);
+    expect(sync.runtime.setConversations).not.toHaveBeenCalledWith([]);
+    await sync.bindings[0]!.onChanged();
+    expect(observer).toHaveBeenCalledWith("changed");
+    unsubscribe();
+    await sync.bindings[0]!.onChanged();
+    expect(observer).toHaveBeenCalledTimes(1);
+    store.dispose();
+  });
+
   test("opening a room fetches the newest C2 page, persists it, then renders exclusively from a repository read", async () => {
     const { chatApi, repository, store } = setup();
     chatApi.listChatroomMessages.mockResolvedValueOnce({

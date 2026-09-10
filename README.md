@@ -11,12 +11,14 @@ shared session/account-safe connected-auth shell이 구현돼 있다. `local-fix
 보존된 fixture SQLite chat을, `connected-auth` mode는 shared OAuth session, U1 profile,
 origin+UUID account namespace와 authenticated home을 표시한다. M7 connected-auth mode는
 server-backed group navigation을 제공하고, M8은 실제 주제 목록·메시지 조회·전송·내 읽음 위치 저장,
-M9는 영속 outbox와 실시간·누락 복구를 연결했다. 아래 명령은 실행 절차이며
+M9는 영속 outbox와 실시간·누락 복구를 연결했다. M10 주제·태그는 전체 자동 검증·독립 리뷰와
+양 플랫폼 사용자 수용 4/4 확인과 종료 승인을 받아 완료했다. 아래 명령은 실행 절차이며
 그 자체로 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제 관찰 결과는
 각 마일스톤 증거에 기록한다: [M3](docs/evidence/M3.md),
 [M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md),
 [M6 네이티브·로그인 검증](docs/oauth-development.md), [M7 그룹·계정 전환 검증](docs/evidence/M7.md),
-[M8 REST 채팅 검증](docs/evidence/M8.md), [M9 동기화 검증](docs/evidence/M9.md).
+[M8 REST 채팅 검증](docs/evidence/M8.md), [M9 동기화 검증](docs/evidence/M9.md),
+[M10 주제·태그 검증](docs/evidence/M10.md).
 
 ## 현재 범위
 
@@ -43,13 +45,23 @@ M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도�
 - M7: authenticated groups, membership, invitations — 완료 (2026-09-10 양 플랫폼 그룹 작업·계정 전환 사용자 확인 및 종료 승인)
 - M8: 실제 주제 목록·메시지 조회·전송·내 읽음 위치 저장 — 완료 (2026-09-10 양 플랫폼 사용자 확인 및 종료 승인)
 - M9: 영속 outbox·실시간/delta 동기화 — 완료 (2026-09-10 사용자 수용 4/4 확인 및 종료 승인)
-- 다음: M10 주제·태그 — 계획·구현 승인 대기
-- 아직 없음: 주제 생성·관리, media/notification/push
+- M10: 주제·태그 — 완료 (2026-09-10 양 플랫폼 사용자 수용 4/4 확인 및 종료 승인)
+- 다음: M11 미디어 업로드·첨부·접근 계획 검토 — 구현 미승인
+- 아직 없음: media/notification/push
+
+M10의 확정 범위와 순서는 [로드맵의 M10 계획](docs/roadmap.md#m10-주제태그)에 있다.
+계약·데이터 연결 → 주제·태그 화면 → M9 동기화 연결 → 자동 검증·양 플랫폼 수용 순서이며,
+계획 확정 후 별도 구현 승인을 받아 T1-T7, 계정별 주제 캐시, 생성·편집 화면과 기존 동기화 연결을 구현했다.
+최종 전체 검사는 76 suites / 902 tests PASS이며 coverage 80% 기준을 유지했다. 독립 리뷰 수정과
+재리뷰를 마쳤고, 기존 iOS·Android 설치본에서 최신 번들의 로그인 세션 복원·주제 조회·작성 화면·앱 복귀를 확인했다.
+이후 사용자가 실제 생성·편집·다른 계정 동기화 등 네 항목이 양 플랫폼에서 정상이라고 확인하고
+M10 종료·로컬 커밋을 승인했다. 출처별 결과와 한계는 [M10 evidence](docs/evidence/M10.md)와
+[개발 검증 기록](docs/development-workflow.md#m10-구현과-focused-검증--2026-09-10)에 있다. Push·배포는 별도다.
 
 Apple login, STT/on-device AI, presence/typing/reaction, message edit/delete와 새 push
 backend는 현재 서버 계약 밖의 별도 backlog다. 의존성 보안 수정 후에도 원본 감사의 image-size
 High 2건과 Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용 및 배포 revision binding은
-남아 있어 production readiness는 `NOT READY`다. M6-M9 종료는 이 출시 항목들의 완료를 뜻하지 않는다.
+남아 있어 production readiness는 `NOT READY`다. M6-M10 종료는 이 출시 항목들의 완료를 뜻하지 않는다.
 패치 검증과 감사 결과는 [개발 검증 기록](docs/development-workflow.md)에 구분한다. 자세한 경계는
 [`docs/roadmap.md`](docs/roadmap.md)와
 [`docs/product-intent.md`](docs/product-intent.md)를 기준으로 한다.
@@ -471,7 +483,7 @@ src/shared/ui/                    native screen/text primitive
 - `AppProviders`는 connected mode에서 shared session, account scope와 groups/chat store를 조합한다.
   fixture DB/seed는 local-fixture mode에서만 사용하며, 실제 계정 namespace와 분리한다.
 - ESLint가 `app.config.ts`와 route/UI 계층의 직접 transport를 금지한다. 현재 허용된 실제
-  네트워크 호출은 auth·health·groups·chat·sync의 지정 adapter와 `src/core/http/` 경계를 통과한다.
+  네트워크 호출은 auth·health·groups·chat·sync·topics의 지정 adapter와 `src/core/http/` 경계를 통과한다.
   이후 server adapter도 별도 boundary로 승인·검증한다.
 
 M8은 이 경계 안에서 server-backed REST chat을, M9는 persistent outbox processor와
