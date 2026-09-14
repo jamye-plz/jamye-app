@@ -3,6 +3,7 @@ export type PublicAppMode = "local-fixture" | "connected-auth";
 export type PublicEnv = Readonly<{
   appMode: PublicAppMode;
   apiOrigin?: string;
+  mediaOrigin?: string;
 }>;
 
 export function parsePublicAppMode(value: string | undefined): PublicAppMode {
@@ -51,5 +52,21 @@ export function getPublicEnv(): PublicEnv {
     ...(appMode === "connected-auth"
       ? { apiOrigin: parsePublicApiOrigin(process.env.EXPO_PUBLIC_API_ORIGIN) }
       : {}),
+    ...(appMode === "connected-auth" && process.env.EXPO_PUBLIC_MEDIA_ORIGIN
+      ? {
+          mediaOrigin: parsePublicMediaOrigin(
+            process.env.EXPO_PUBLIC_MEDIA_ORIGIN,
+          ),
+        }
+      : {}),
   };
+}
+
+/** A missing origin disables media only; it never expands the signed-URL allowlist. */
+export function parsePublicMediaOrigin(value: string | undefined): string {
+  try {
+    return parsePublicApiOrigin(value);
+  } catch {
+    throw new Error("EXPO_PUBLIC_MEDIA_ORIGIN must be a bare HTTPS origin.");
+  }
 }

@@ -124,6 +124,48 @@ describe("M8 chat transport", () => {
     );
   });
 
+  test("M11 C4 preserves the confirmed upload order and idempotency identity across retries", async () => {
+    const mediaUploadIds = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+    ];
+    const input = { body: "", clientMessageId, mediaUploadIds };
+    reply(201, canonicalMessageWire);
+    await api.sendChatMessage("t", chatroomId, input);
+    reply(200, canonicalMessageWire);
+    await api.sendChatMessage("t", chatroomId, input);
+    const first = fetchMock.mock.calls[0][1];
+    const second = fetchMock.mock.calls[1][1];
+    expect(JSON.parse(first.body)).toEqual({
+      body: "",
+      client_msg_id: clientMessageId,
+      media: mediaUploadIds.map((id) => ({ media_upload_id: id })),
+    });
+    expect(second.body).toBe(first.body);
+    expect(second.headers["Idempotency-Key"]).toBe(clientMessageId);
+  });
+
+  test.each([
+    ["not-a-uuid"],
+    Array(5).fill("11111111-1111-4111-8111-111111111111"),
+    [
+      "11111111-1111-4111-8111-111111111111",
+      "11111111-1111-4111-8111-111111111111",
+    ],
+  ])(
+    "M11 rejects malformed, excessive or duplicate media before sending (%j)",
+    async (...mediaUploadIds) => {
+      await expect(
+        api.sendChatMessage("t", chatroomId, {
+          body: "",
+          clientMessageId,
+          mediaUploadIds,
+        }),
+      ).rejects.toMatchObject({ status: 422 });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
   test("C4 surfaces 409 as a visible conflict rather than reminting a new id", async () => {
     reply(409, {
       error: {

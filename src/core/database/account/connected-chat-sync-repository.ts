@@ -33,6 +33,7 @@ type ClaimedOutboxRow = SqliteRow & {
   lease_expires_at_ms: number | null;
   lease_token: string | null;
   local_id: string;
+  media_upload_ids_json: string;
   next_attempt_at_ms: number;
   state: "queued" | "in_flight" | "acked" | "failed";
 };
@@ -49,8 +50,8 @@ type SyncRepositoryDependencies = Readonly<{
 }>;
 
 const CLAIMED_OUTBOX_COLUMNS = `command_id, local_id, chatroom_id,
-  client_msg_id, body, state, error_code, attempt_count, next_attempt_at_ms,
-  lease_token, lease_expires_at_ms`;
+  client_msg_id, body, media_upload_ids_json, state, error_code, attempt_count,
+  next_attempt_at_ms, lease_token, lease_expires_at_ms`;
 
 function assertNonEmpty(value: string, name: string): void {
   if (value.length === 0) throw new Error(`${name} must not be empty.`);
@@ -80,6 +81,13 @@ function mapClaimedOutbox(
   ) {
     throw new Error("Claimed outbox row is missing its active lease.");
   }
+  const mediaUploadIds: unknown = JSON.parse(row.media_upload_ids_json);
+  if (
+    !Array.isArray(mediaUploadIds) ||
+    mediaUploadIds.some((item) => typeof item !== "string")
+  ) {
+    throw new Error("Claimed outbox upload references are not a string array.");
+  }
   return {
     attemptCount: row.attempt_count,
     body: row.body,
@@ -90,6 +98,7 @@ function mapClaimedOutbox(
     leaseExpiresAtMs: row.lease_expires_at_ms,
     leaseToken: row.lease_token,
     localId: row.local_id,
+    ...(mediaUploadIds.length > 0 ? { mediaUploadIds } : {}),
     nextAttemptAtMs: row.next_attempt_at_ms,
     state: row.state,
   };

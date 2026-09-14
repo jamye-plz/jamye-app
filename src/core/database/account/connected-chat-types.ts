@@ -10,6 +10,16 @@ export type ConnectedChatMedia = Readonly<{
   width: number | null;
 }>;
 
+export type ConnectedPendingAttachment = Readonly<{
+  byteSize: number;
+  duration: number | null;
+  filename: string | null;
+  height: number | null;
+  mediaUploadId: string;
+  type: string;
+  width: number | null;
+}>;
+
 export type ConnectedChatroom = Readonly<{
   chatroomId: string;
   createdAtRaw: string;
@@ -35,6 +45,7 @@ export type ConnectedChatMessage = Readonly<{
   localCreatedAtMs: number;
   localId: string;
   media: readonly ConnectedChatMedia[];
+  pendingMedia?: readonly ConnectedPendingAttachment[];
   senderAvatarUrl: string | null;
   senderId: string | null;
   senderNickname: string | null;
@@ -76,6 +87,7 @@ export type ConnectedChatOutboxCommand = Readonly<{
   commandId: string;
   errorCode: ConnectedSendErrorCode | null;
   localId: string;
+  mediaUploadIds?: readonly string[];
   state: "queued" | "in_flight" | "acked" | "failed";
 }>;
 
@@ -103,6 +115,7 @@ export type ConnectedPendingMessageInput = Readonly<{
   commandId: string;
   localCreatedAtMs: number;
   localId: string;
+  media?: readonly ConnectedPendingAttachment[];
 }>;
 
 export type ConnectedMessageAndCommand = Readonly<{

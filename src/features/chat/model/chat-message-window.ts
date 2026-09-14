@@ -1,6 +1,11 @@
 import type { Message as RepositoryMessage } from "@/core/database/repositories/database-repository";
+import type {
+  ConnectedChatMedia,
+  ConnectedPendingAttachment,
+} from "@/core/database/account/connected-chat-types";
 
-/** Presentation-only fields shared by the fixture and REST conversations. */
+/** Presentation-only fields shared by the fixture and REST conversations. `media` is
+ * always `[]` for the local M5 fixture path, which never carries attachments. */
 export type ChatMessage = Pick<
   RepositoryMessage,
   | "body"
@@ -15,6 +20,8 @@ export type ChatMessage = Pick<
     isOutgoing?: boolean;
     senderLabel?: string;
     serverMessageId?: string | null;
+    media?: readonly ConnectedChatMedia[];
+    pendingMedia?: readonly ConnectedPendingAttachment[];
   }>;
 
 export type MessageWindowItem = Readonly<{

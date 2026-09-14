@@ -2,6 +2,11 @@ import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 import type { ComponentType, ReactNode } from "react";
 
+// Keep native image gestures outside thin route/provider wiring tests.
+jest.mock("@/features/media/ui/media-image-viewer", () => ({
+  MediaImageViewer: () => null,
+}));
+
 let mockRouterShouldThrow = false;
 const mockShellRepository = {
   ensureFixtureConversation: jest.fn(async () => undefined),
@@ -135,7 +140,13 @@ jest.mock("expo-router", () => {
     );
   }
 
-  return { Stack };
+  return {
+    Stack,
+    useFocusEffect: (callback: () => (() => void) | void) =>
+      jest
+        .requireActual<typeof import("react")>("react")
+        .useEffect(callback, [callback]),
+  };
 });
 
 type DefaultComponentModule = { default?: unknown };

@@ -24,6 +24,10 @@ type ValidateScopeMetadataModule = {
   validateScopeMetadata?: unknown;
 };
 
+type AccountMigrationsModule = Readonly<{
+  accountMigrations: readonly Readonly<{ version: number }>[];
+}>;
+
 type ValidateScopeMetadata = (
   database: SqliteRepositoryDatabase,
   principal: Readonly<{ origin: string; userId: string }>,
@@ -115,6 +119,15 @@ const PRINCIPAL = Object.freeze({
 });
 
 describe("M6-03 scope metadata identity validation on every open", () => {
+  test("derives its supported version from the latest account migration", () => {
+    const { ACCOUNT_SCHEMA_VERSION } = loadValidateScopeMetadataContract();
+    const { accountMigrations } = jest.requireActual<AccountMigrationsModule>(
+      "../../../../src/core/database/account/migrations",
+    );
+
+    expect(ACCOUNT_SCHEMA_VERSION).toBe(accountMigrations.at(-1)?.version);
+  });
+
   test("creates the sole singleton metadata row when none exists yet", async () => {
     const { validateScopeMetadata, ACCOUNT_SCHEMA_VERSION } =
       loadValidateScopeMetadataContract();

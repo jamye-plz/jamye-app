@@ -123,6 +123,7 @@ const M5_FEATURE_DATA_FILES = [
   "src/features/chat/model/**/*.ts",
   "src/features/chat/use-*.ts",
   "src/features/topics/model/**/*.ts",
+  "src/features/media/model/**/*.ts",
 ];
 const M5_FEATURE_DATA_DATABASE_PATTERNS = [
   "**/core/database/open-database",
@@ -254,6 +255,41 @@ const M10_TEST_PATHS = [
   "tests/quality/topics-boundaries.test.ts",
 ];
 
+const M11_TEST_PATHS = [
+  "tests/core/contracts/server-media-validators.test.ts",
+  "tests/core/public-media-env.test.ts",
+  "tests/core/database/account/connected-chat-media-migration.test.ts",
+  "tests/features/media/media-mapper.test.ts",
+  "tests/features/media/data/media-api.test.ts",
+  "tests/features/media/data/media-transport.test.ts",
+  "tests/features/media/model/media-policy.test.ts",
+  "tests/features/media/model/media-attachment.test.ts",
+  "tests/features/media/model/media-upload-controller.test.ts",
+  "tests/features/media/model/media-draft-queue.test.ts",
+  "tests/features/media/model/media-lifetime.test.ts",
+  "tests/features/media/platform/audio-file-picker.test.ts",
+  "tests/features/media/platform/image-video-picker.test.ts",
+  "tests/features/media/platform/media-image-normalizer.test.ts",
+  "tests/features/media/platform/media-downloads.test.ts",
+  "tests/features/media/platform/native-video-player.test.tsx",
+  "tests/features/media/platform/native-video-thumbnail.test.ts",
+  "tests/features/media/ui/media-video-thumbnail.test.tsx",
+  "tests/features/media/ui/media-image-viewer.test.tsx",
+  "tests/features/media/platform/media-object-transfer.test.ts",
+  "tests/features/media/platform/native-file-put.test.ts",
+  "tests/features/media/platform/media-policy.test.ts",
+  "tests/features/media/platform/media-share.test.ts",
+  "tests/features/media/platform/media-staging.test.ts",
+  "tests/features/media/platform/native-media-transport.test.ts",
+  "tests/features/media/ui/chat-composer-attachments.test.tsx",
+  "tests/features/media/ui/media-composition.test.ts",
+  "tests/features/media/ui/media-access-lifecycle.test.tsx",
+  "tests/features/media/ui/media-video-card.test.tsx",
+  "tests/features/media/ui/message-media-presentation.test.tsx",
+  "tests/features/media/ui/media-provider.test.tsx",
+  "tests/quality/media-boundaries.test.ts",
+];
+
 const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M3_TEST_PATHS.filter(
     (path) => path !== "tests/features/development-fixture-screen.test.tsx",
@@ -280,6 +316,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   "tests/features/chat/model/connected-chat-sync.test.ts",
   "tests/quality/sync-boundaries.test.ts",
   ...M10_TEST_PATHS,
+  ...M11_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
 ].filter((path, index, paths) => paths.indexOf(path) === index);
@@ -322,13 +359,19 @@ const APPROVED_DEPENDENCIES = {
   "expo-constants": "~57.0.17",
   "expo-crypto": "~57.0.2",
   "expo-dev-client": "~57.0.18",
+  "expo-document-picker": "~57.0.1",
+  "expo-file-system": "~57.0.6",
+  "expo-image-picker": "~57.0.16",
+  "expo-sharing": "~57.0.18",
   "expo-font": "~57.0.3",
+  "expo-image-manipulator": "~57.0.16",
   "expo-linking": "~57.0.9",
   "expo-router": "~57.0.20",
   "expo-secure-store": "~57.0.3",
   "expo-splash-screen": "~57.0.8",
   "expo-sqlite": "~57.0.2",
   "expo-system-ui": "~57.0.3",
+  "expo-video": "~57.0.3",
   "expo-web-browser": "~57.0.2",
   react: "19.2.3",
   "react-dom": "19.2.3",
@@ -363,7 +406,7 @@ const APPROVED_DEPENDENCY_OVERRIDES = {
 };
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "3fbc9103b255b6a85ee8ee8fc53c7539afb96f1cd7ee0197efee0fe578312d34";
+  "513f83fda5be1c9687d619e75c14cb1be0f9ca91ec02d8ff423150995d86d130";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -403,6 +446,7 @@ const REQUIRED_TRANSPORT_MODULES = [
   "node:dgram",
   "undici",
   "expo-network",
+  "expo/fetch",
   "@react-native-community/netinfo",
 ];
 const REQUIRED_SCREEN_HTTP_CLIENT_MODULES = [
@@ -422,6 +466,13 @@ const REQUIRED_ROUTE_PERSISTENCE_MODULES = [
   "expo-secure-store",
   "expo-auth-session",
   "expo-notifications",
+  "expo-file-system",
+  "expo-file-system/legacy",
+  "expo-image-picker",
+  "expo-image-manipulator",
+  "expo-video",
+  "expo-document-picker",
+  "expo-sharing",
 ];
 
 const COVERAGE_DECLARATION_RATIONALE =
@@ -492,6 +543,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = [
   "src/core/database/account/connected-chat-sync-repository.ts",
   "src/core/database/account/migrations/003-durable-outbox-events.ts",
   "src/core/database/account/migrations/004-topics-cache.ts",
+  "src/core/database/account/migrations/005-connected-chat-media.ts",
   "src/core/database/account/topics-types.ts",
   "src/core/database/account/topics-repository.ts",
 ];
@@ -508,6 +560,7 @@ const ACTIVE_CONTRACT_SOURCE_FILES = [
   ...M4_CONTRACT_SOURCE_FILES,
   ...M6_CONTRACT_SOURCE_FILES,
   "src/core/contracts/server/topics.ts",
+  "src/core/contracts/server/media.ts",
 ];
 const ACTIVE_CONTRACT_TOOL_FILES = [
   ...M4_CONTRACT_TOOL_FILES,
@@ -538,6 +591,15 @@ function buildValidRepositorySnapshot() {
     ["expo-dev-client", { addGeneratedScheme: true }],
     "expo-web-browser",
     "expo-secure-store",
+    [
+      "expo-image-picker",
+      {
+        photosPermission:
+          "선택한 사진과 동영상을 주제에 첨부하기 위해 접근합니다.",
+        cameraPermission: false,
+        microphonePermission: false,
+      },
+    ],
   ];
   resolvedDevelopment.scheme = "jamye";
 
@@ -1476,9 +1538,10 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     ).toBe(false);
   });
 
-  test("authorizes M10 closure evidence without opening future evidence paths", () => {
+  test("authorizes M10 closure and M11 implementation evidence without opening future paths", () => {
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10.md")).toBe(true);
-    expect(isAuthorizedWorkingTreePath("docs/evidence/M11.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M11.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M12.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10-private.md")).toBe(
       false,
     );

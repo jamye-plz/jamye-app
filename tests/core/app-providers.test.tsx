@@ -124,6 +124,38 @@ describe("M9 production sync composition", () => {
     expect(f.authorizeCalls).toHaveBeenCalledTimes(3);
   });
 
+  test("M11 dispatcher sends the stored attachment order without minting another identity", async () => {
+    const f = setupSync();
+    const mediaUploadIds = [
+      "77777777-7777-4777-8777-777777777777",
+      "88888888-8888-4888-8888-888888888888",
+    ];
+    const command = {
+      ...pendingEnqueueResult({ body: "" }).command,
+      mediaUploadIds,
+      attemptCount: 2,
+      leaseToken: "lease",
+      leaseExpiresAtMs: 30000,
+      nextAttemptAtMs: 0,
+    };
+    f.api.sendChatMessage.mockResolvedValue({
+      status: 200,
+      message: wireHistoryMessage(),
+    });
+    const signal = new AbortController().signal;
+    await f.dependencies.send(command, signal);
+    expect(f.api.sendChatMessage).toHaveBeenCalledWith(
+      "authorized",
+      CHATROOM_ID,
+      {
+        body: "",
+        clientMessageId: command.clientMsgId,
+        mediaUploadIds,
+      },
+      signal,
+    );
+  });
+
   test("C2 reconciliation is bounded, continues later, and only reports complete at pagination exhaustion", async () => {
     const f = setupSync();
     f.repository.listDirtyReconciliationScopes.mockResolvedValue([

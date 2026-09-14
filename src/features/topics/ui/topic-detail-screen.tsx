@@ -1,6 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import type { Topic, TopicTag } from "@/core/contracts/server";
+import type { UploadFinalizeResult } from "@/core/contracts/server/media";
+import { TopicMediaList } from "@/features/media/ui/topic-media-list";
+import { TopicImageUploadButton } from "@/features/media/ui/topic-image-upload-button";
+import { useMediaUploadQueue } from "@/features/media/model/use-media-upload-queue";
 import {
   isTopicPatch,
   isTopicTags,
@@ -20,12 +24,46 @@ import { useTopicScreen } from "./use-topic-screen";
 export function TopicDetailScreen({
   groupId,
   topicId,
-}: Readonly<{ groupId: string; topicId: string }>) {
+}: Readonly<{
+  groupId: string;
+  topicId: string;
+}>) {
   const screen = useTopicScreen(groupId, topicId);
   const { state, store } = screen;
   const detail =
     screen.scoped && state.detail.id === topicId ? state.detail : null;
   const topic = detail?.topic;
+  // MD1/MD2 use the same topic-author OR live-group-owner rule as T7 tags.
+  const canManageImage =
+    state.permissions.canManageTags &&
+    detail?.status === "ready" &&
+    topic?.id === topicId;
+  const [mediaRefreshToken, setMediaRefreshToken] = useState(0);
+  const isScreenCurrent = screen.current;
+  const onImageConfirmed = useCallback(
+    (result: UploadFinalizeResult) => {
+      const latest = store?.getState();
+      if (
+        !isScreenCurrent() ||
+        !latest ||
+        latest.accessLost ||
+        latest.detail.topic?.id !== topicId ||
+        !latest.permissions.canManageTags ||
+        result.scope !== "topic" ||
+        result.topicMedia.topicId !== topicId
+      )
+        return;
+      setMediaRefreshToken((value) => value + 1);
+      void store?.actions.refreshDetail();
+    },
+    [store, topicId, isScreenCurrent],
+  );
+  const imageUpload = useMediaUploadQueue(
+    "topic",
+    topicId,
+    canManageImage && screen.ready && !state.accessLost,
+    onImageConfirmed,
+  );
   return (
     <TopicLayout>
       <TopicButton
@@ -85,6 +123,12 @@ export function TopicDetailScreen({
                 topic={topic}
                 tags={detail.tags}
               />
+              <AppText variant="label">주제 이미지</AppText>
+              <TopicImageUploadButton
+                canManage={canManageImage}
+                controller={imageUpload}
+              />
+              <TopicMediaList key={mediaRefreshToken} topicId={topicId} />
             </>
           ) : null}
         </>

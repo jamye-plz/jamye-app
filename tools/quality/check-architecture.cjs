@@ -328,6 +328,7 @@ const ACTIVE_CONTRACT_SOURCE_FILES = Object.freeze([
   ...M4_CONTRACT_SOURCE_FILES,
   ...M6_CONTRACT_SOURCE_FILES,
   "src/core/contracts/server/topics.ts",
+  "src/core/contracts/server/media.ts",
 ]);
 
 const ACTIVE_CONTRACT_TOOL_FILES = Object.freeze([
@@ -519,6 +520,99 @@ const M10_AUTHORED_FILES = Object.freeze([
   "tests/features/topics/topics-harness.ts",
 ]);
 
+const M11_DATABASE_SOURCE_FILES = Object.freeze([
+  "src/core/database/account/migrations/005-connected-chat-media.ts",
+]);
+const M11_TEST_PATHS = Object.freeze([
+  "tests/core/contracts/server-media-validators.test.ts",
+  "tests/core/public-media-env.test.ts",
+  "tests/core/database/account/connected-chat-media-migration.test.ts",
+  "tests/features/media/media-mapper.test.ts",
+  "tests/features/media/data/media-api.test.ts",
+  "tests/features/media/data/media-transport.test.ts",
+  "tests/features/media/model/media-policy.test.ts",
+  "tests/features/media/model/media-attachment.test.ts",
+  "tests/features/media/model/media-upload-controller.test.ts",
+  "tests/features/media/model/media-draft-queue.test.ts",
+  "tests/features/media/model/media-lifetime.test.ts",
+  "tests/features/media/platform/audio-file-picker.test.ts",
+  "tests/features/media/platform/image-video-picker.test.ts",
+  "tests/features/media/platform/media-image-normalizer.test.ts",
+  "tests/features/media/platform/native-video-player.test.tsx",
+  "tests/features/media/platform/native-video-thumbnail.test.ts",
+  "tests/features/media/ui/media-video-thumbnail.test.tsx",
+  "tests/features/media/ui/media-image-viewer.test.tsx",
+  "tests/features/media/platform/media-downloads.test.ts",
+  "tests/features/media/platform/media-object-transfer.test.ts",
+  "tests/features/media/platform/native-file-put.test.ts",
+  "tests/features/media/platform/media-policy.test.ts",
+  "tests/features/media/platform/media-share.test.ts",
+  "tests/features/media/platform/media-staging.test.ts",
+  "tests/features/media/platform/native-media-transport.test.ts",
+  "tests/features/media/ui/chat-composer-attachments.test.tsx",
+  "tests/features/media/ui/media-composition.test.ts",
+  "tests/features/media/ui/media-access-lifecycle.test.tsx",
+  "tests/features/media/ui/message-media-presentation.test.tsx",
+  "tests/features/media/ui/media-video-card.test.tsx",
+  "tests/features/media/ui/media-provider.test.tsx",
+  "tests/quality/media-boundaries.test.ts",
+]);
+const M11_AUTHORED_FILES = Object.freeze([
+  "modules/jamye-file-put/.gitignore",
+  "modules/jamye-file-put/expo-module.config.json",
+  "modules/jamye-file-put/ios/JamyeFilePut.podspec",
+  "modules/jamye-file-put/ios/JamyeFilePutModule.swift",
+  "modules/jamye-file-put/android/build.gradle",
+  "modules/jamye-file-put/android/src/main/java/dev/jamye/fileput/JamyeFilePutModule.kt",
+  "docs/evidence/M11.md",
+  ...M11_DATABASE_SOURCE_FILES,
+  ...M11_TEST_PATHS,
+  "tests/core/database/account/connected-chat-media-migration.bun.ts",
+  "tests/features/media/media-fixtures.ts",
+  "src/core/contracts/server/media.ts",
+  "src/features/media/data/media-api.ts",
+  "src/features/media/data/media-transport.ts",
+  "src/features/media/model/media-attachment.ts",
+  "src/features/media/model/media-policy.ts",
+  "src/features/media/model/media-runtime.tsx",
+  "src/features/media/model/media-upload-controller.ts",
+  "src/features/media/model/media-upload-ports.ts",
+  "src/features/media/model/use-media-access.ts",
+  "src/features/media/model/use-media-upload-queue.ts",
+  "src/features/media/platform/audio-file-picker.ts",
+  "src/features/media/platform/image-video-picker.ts",
+  "src/features/media/platform/media-image-normalizer.ts",
+  "src/features/media/platform/native-video-player.tsx",
+  "src/features/media/platform/native-video-thumbnail.ts",
+  "src/features/media/model/media-image-zoom.ts",
+  "src/features/media/model/video-thumbnail-queue.ts",
+  "src/features/media/ui/media-viewer-modal.tsx",
+  "src/features/media/ui/media-image-viewer.tsx",
+  "src/features/media/ui/use-media-video-thumbnail.ts",
+  "src/features/media/platform/media-downloads.ts",
+  "src/features/media/platform/media-file-stat.ts",
+  "src/features/media/platform/media-object-transfer.ts",
+  "src/features/media/platform/native-file-put.ts",
+  "src/features/media/platform/media-policy.ts",
+  "src/features/media/platform/media-share.ts",
+  "src/features/media/platform/media-staging.ts",
+  "src/features/media/platform/native-media-transport.ts",
+  "src/features/media/ui/attachment-picker-button.tsx",
+  "src/features/media/ui/attachment-queue-list.tsx",
+  "src/features/media/ui/media-attachment-types.ts",
+  "src/features/media/ui/media-composition.ts",
+  "src/features/media/ui/media-image.tsx",
+  "src/features/media/ui/media-video-card.tsx",
+  "src/features/media/ui/use-media-video.ts",
+  "src/features/media/ui/media-open-save-button.tsx",
+  "src/features/media/ui/media-provider.tsx",
+  "src/features/media/ui/topic-image-upload-button.tsx",
+  "src/features/media/ui/topic-media-list.tsx",
+  "src/features/media/ui/use-media-attachment-queue.ts",
+  "src/features/media/ui/use-media-download.ts",
+  "src/features/media/ui/use-media-picker.ts",
+]);
+
 const M5_RETIRED_PLACEHOLDER_PATHS = Object.freeze([
   "src/features/development-fixture/model/local-fixture.ts",
   "src/features/development-fixture/ui/development-fixture-screen.tsx",
@@ -569,6 +663,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = Object.freeze([
   ...M8_DATABASE_SOURCE_FILES,
   ...M9_DATABASE_SOURCE_FILES,
   ...M10_DATABASE_SOURCE_FILES,
+  ...M11_DATABASE_SOURCE_FILES,
 ]);
 
 const M5_DESIGN_ARTIFACT_PATHS = Object.freeze([
@@ -610,6 +705,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M8_TEST_PATHS,
     ...M9_TEST_PATHS,
     ...M10_TEST_PATHS,
+    ...M11_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
   ]),
@@ -657,13 +753,19 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   "expo-constants": "~57.0.17",
   "expo-crypto": "~57.0.2",
   "expo-dev-client": "~57.0.18",
+  "expo-document-picker": "~57.0.1",
+  "expo-file-system": "~57.0.6",
   "expo-font": "~57.0.3",
+  "expo-image-manipulator": "~57.0.16",
+  "expo-image-picker": "~57.0.16",
   "expo-linking": "~57.0.9",
   "expo-router": "~57.0.20",
   "expo-secure-store": "~57.0.3",
+  "expo-sharing": "~57.0.18",
   "expo-splash-screen": "~57.0.8",
   "expo-sqlite": "~57.0.2",
   "expo-system-ui": "~57.0.3",
+  "expo-video": "~57.0.3",
   "expo-web-browser": "~57.0.2",
   react: "19.2.3",
   "react-dom": "19.2.3",
@@ -730,7 +832,7 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "3fbc9103b255b6a85ee8ee8fc53c7539afb96f1cd7ee0197efee0fe578312d34";
+  "513f83fda5be1c9687d619e75c14cb1be0f9ca91ec02d8ff423150995d86d130";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -746,6 +848,14 @@ const APPROVED_DEV_CLIENT_PLUGIN = Object.freeze([
 const APPROVED_OAUTH_NATIVE_PLUGINS = Object.freeze([
   "expo-web-browser",
   "expo-secure-store",
+]);
+const APPROVED_MEDIA_PICKER_PLUGIN = Object.freeze([
+  "expo-image-picker",
+  Object.freeze({
+    photosPermission: "선택한 사진과 동영상을 주제에 첨부하기 위해 접근합니다.",
+    cameraPermission: false,
+    microphonePermission: false,
+  }),
 ]);
 
 const APPROVED_PREBUILD_ANDROID_PERMISSIONS = Object.freeze([
@@ -876,6 +986,7 @@ const REQUIRED_TRANSPORT_MODULES = Object.freeze([
   "node:dgram",
   "undici",
   "expo-network",
+  "expo/fetch",
   "@react-native-community/netinfo",
 ]);
 const REQUIRED_SCREEN_HTTP_CLIENT_MODULES = Object.freeze([
@@ -895,6 +1006,13 @@ const REQUIRED_ROUTE_PERSISTENCE_MODULES = Object.freeze([
   "expo-secure-store",
   "expo-auth-session",
   "expo-notifications",
+  "expo-file-system",
+  "expo-file-system/legacy",
+  "expo-image-picker",
+  "expo-image-manipulator",
+  "expo-video",
+  "expo-document-picker",
+  "expo-sharing",
 ]);
 
 const REQUIRED_SCREEN_FILES_GLOBS = Object.freeze([
@@ -933,6 +1051,7 @@ const M5_FEATURE_DATA_FILES = Object.freeze([
   "src/features/chat/model/**/*.ts",
   "src/features/chat/use-*.ts",
   "src/features/topics/model/**/*.ts",
+  "src/features/media/model/**/*.ts",
 ]);
 const M5_FEATURE_DATA_DATABASE_PATTERNS = Object.freeze([
   "**/core/database/open-database",
@@ -1093,6 +1212,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M8_AUTHORED_FILES,
   ...M9_AUTHORED_FILES,
   ...M10_AUTHORED_FILES,
+  ...M11_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -2045,12 +2165,13 @@ function checkExpoBasePreservation(snapshot, violations) {
     ...APPROVED_EXPO_BASE.plugins,
     APPROVED_DEV_CLIENT_PLUGIN,
     ...APPROVED_OAUTH_NATIVE_PLUGINS,
+    APPROVED_MEDIA_PICKER_PLUGIN,
   ];
   if (!deepEqual(plugins, expectedPlugins)) {
     pushViolation(
       violations,
       "expo-base-preservation",
-      "Development config plugins must equal the preserved base plugins followed by the fixed dev client and OAuth native plugins.",
+      "Development config plugins must equal the preserved base plugins followed by the fixed dev client, OAuth and selection-only media plugin.",
     );
   }
 

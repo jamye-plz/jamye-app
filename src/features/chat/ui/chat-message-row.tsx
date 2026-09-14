@@ -14,6 +14,10 @@ import {
   appControl,
   appSpacing,
 } from "@/core/theme/tokens";
+import type { ConnectedChatMedia } from "@/features/chat/model/connected-chat-presentation";
+import { MediaImage } from "@/features/media/ui/media-image";
+import { MediaOpenSaveButton } from "@/features/media/ui/media-open-save-button";
+import { MediaVideoCard } from "@/features/media/ui/media-video-card";
 import type { ChatMessage } from "../model/chat-message-window";
 
 const statusLabels = {
@@ -22,12 +26,59 @@ const statusLabels = {
   sent: "전송됨",
 } as const;
 
+/** `item.type` is the wire MIME `content_type` string (e.g. `"image/jpeg"`), never
+ * the coarse image/video/audio kind — see media-attachment.ts's mapping note. */
+function isImageMime(contentType: string): boolean {
+  return contentType.startsWith("image/");
+}
+
+function MessageAttachments({
+  media,
+  isOutgoing,
+  previewEnabled,
+}: Readonly<{
+  media: readonly ConnectedChatMedia[];
+  isOutgoing: boolean;
+  previewEnabled: boolean;
+}>) {
+  if (media.length === 0) return null;
+  const ordered = [...media].sort(
+    (left, right) => left.position - right.position,
+  );
+  return (
+    <View style={{ gap: appSpacing.xxs, marginTop: appSpacing.xxs }}>
+      {ordered.map((item) => (
+        <View key={item.id}>
+          {isImageMime(item.type) ? (
+            <MediaImage filename={item.filename} mediaId={item.id} />
+          ) : null}
+          {item.type === "video/mp4" ? (
+            <MediaVideoCard
+              mediaId={item.id}
+              filename={item.filename}
+              thumbnailEnabled={previewEnabled}
+            />
+          ) : null}
+          <MediaOpenSaveButton
+            contentType={item.type}
+            filename={item.filename}
+            mediaId={item.id}
+            onPrimary={isOutgoing}
+          />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function ChatMessageRow({
   isGroupedWithPrevious = false,
+  mediaPreviewEnabled = false,
   message,
   onRetryFailedMessage,
 }: Readonly<{
   isGroupedWithPrevious?: boolean;
+  mediaPreviewEnabled?: boolean;
   message: ChatMessage;
   onRetryFailedMessage: (
     input: Readonly<{
@@ -83,15 +134,28 @@ export function ChatMessageRow({
         {!isGroupedWithPrevious && message.senderLabel ? (
           <Text style={{ color }}>{message.senderLabel}</Text>
         ) : null}
-        <Text
-          style={{
-            color,
-            fontSize: appChatMessage.fontSize,
-            lineHeight: appChatMessage.lineHeight,
-          }}
-        >
-          {message.body}
-        </Text>
+        {message.body ? (
+          <Text
+            style={{
+              color,
+              fontSize: appChatMessage.fontSize,
+              lineHeight: appChatMessage.lineHeight,
+            }}
+          >
+            {message.body}
+          </Text>
+        ) : null}
+        <MessageAttachments
+          previewEnabled={mediaPreviewEnabled}
+          media={message.media ?? []}
+          isOutgoing={isOutgoing}
+        />
+        {(message.media?.length ?? 0) === 0 &&
+          message.pendingMedia?.map((item, index) => (
+            <Text key={item.mediaUploadId} style={{ color }}>
+              첨부 {index + 1}: {item.filename ?? "첨부 파일"} · 서버 전송 대기
+            </Text>
+          ))}
         <Text style={{ color, fontSize: appChatMessage.timestampFontSize }}>
           {statusLabels[message.status]}
         </Text>

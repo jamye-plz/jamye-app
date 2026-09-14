@@ -5,13 +5,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "@/core/providers/session-provider";
 import { useAccountScope } from "@/core/providers/app-providers";
 import { useAppTheme } from "@/core/theme/theme-provider";
+import { useMediaUploadQueue } from "@/features/media/model/use-media-upload-queue";
 import { useConnectedChat } from "../model/connected-chat-provider";
 import {
   chatErrorMessage,
   isChatIdentifier,
   toChatConversation,
 } from "../model/connected-chat-presentation";
-import type { ChatSendController } from "../model/chat-send";
+import type { ConnectedPendingAttachment } from "../model/connected-chat-presentation";
 import { ChatConversationScreen } from "./chat-screen";
 import { ChatButton, ChatNotice } from "./chat-controls";
 
@@ -26,6 +27,11 @@ export function ConnectedChatScreen({
   const router = useRouter();
   const focused = useRef<string | null>(null);
   const valid = isChatIdentifier(groupId) && isChatIdentifier(chatroomId);
+  const attachments = useMediaUploadQueue(
+    "chat",
+    chatroomId,
+    valid && ready && state.chatroomId === chatroomId && !state.accessLost,
+  );
   useFocusEffect(
     useCallback(() => {
       focused.current = chatroomId;
@@ -44,22 +50,36 @@ export function ConnectedChatScreen({
     () => toChatConversation(state, actions, principal?.userId ?? ""),
     [state, actions, principal?.userId],
   );
-  const controller = useMemo<Pick<ChatSendController, "send">>(
+  const controller = useMemo(
     () => ({
-      send: ({ body, clearDraft, onCommitted }) =>
-        new Promise((resolve) => {
+      send: ({
+        body,
+        clearDraft,
+        onCommitted,
+        media,
+      }: Readonly<{
+        body: string;
+        clearDraft: () => void;
+        onCommitted?: (localId: string) => void;
+        media?: readonly ConnectedPendingAttachment[];
+      }>) =>
+        new Promise<Readonly<{ outcome: "committed" | "empty" }>>((resolve) => {
           if (focused.current !== chatroomId) {
             resolve({ outcome: "empty" });
             return;
           }
           void actions
-            .sendMessage(body, (id) => {
-              if (focused.current === chatroomId) {
-                clearDraft();
-                onCommitted?.(id);
-              }
-              resolve({ outcome: "committed" });
-            })
+            .sendMessage(
+              body,
+              (id) => {
+                if (focused.current === chatroomId) {
+                  clearDraft();
+                  onCommitted?.(id);
+                }
+                resolve({ outcome: "committed" });
+              },
+              media,
+            )
             .then(
               () => resolve({ outcome: "empty" }),
               () => resolve({ outcome: "empty" }),
@@ -110,6 +130,7 @@ export function ConnectedChatScreen({
       title="대화"
       conversation={conversation}
       controller={controller}
+      attachmentController={attachments}
       revealInitialLatest
       blocked={
         state.send.status === "pending" ||

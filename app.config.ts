@@ -15,6 +15,14 @@ const DEV_CLIENT_PLUGIN = [
 ] as const;
 
 const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"] as const;
+const MEDIA_PICKER_PLUGIN = [
+  "expo-image-picker",
+  {
+    photosPermission: "선택한 사진과 동영상을 주제에 첨부하기 위해 접근합니다.",
+    cameraPermission: false,
+    microphonePermission: false,
+  },
+] as const;
 
 function parseAppVariant(value: string | undefined): AppVariant {
   if (!value) {
@@ -62,6 +70,7 @@ export default function resolveExpoConfig() {
       ...baseConfig.plugins,
       DEV_CLIENT_PLUGIN,
       ...OAUTH_NATIVE_PLUGINS,
+      MEDIA_PICKER_PLUGIN,
     ],
   };
 }

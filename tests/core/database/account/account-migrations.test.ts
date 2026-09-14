@@ -130,17 +130,23 @@ class RecordingSqliteDatabase implements SqliteDatabase {
 
 function schemaOf(database: RecordingSqliteDatabase): string {
   return database.committedStatements
-    .filter((statement) => /CREATE\s+(?:TABLE|INDEX)/i.test(statement))
+    .filter((statement) =>
+      /CREATE\s+(?:TABLE|INDEX|TRIGGER)|ALTER\s+TABLE/i.test(statement),
+    )
     .join("\n");
 }
 
 function tableNames(schema: string): string[] {
-  return [...schema.matchAll(/CREATE\s+TABLE\s+([a-z_]+)/gi)]
-    .map((match) => match[1] as string)
-    .sort();
+  return [
+    ...new Set(
+      [...schema.matchAll(/CREATE\s+TABLE\s+([a-z_]+)/gi)].map(
+        (match) => match[1] as string,
+      ),
+    ),
+  ].sort();
 }
 
-describe("M10 additive account v4 migration registry", () => {
+describe("M11 account v5 migration registry", () => {
   test("retains scope_metadata and adds only account-scoped connected chat tables", async () => {
     const runMigrations = loadRunMigrations();
     const accountMigrations = loadAccountMigrations();
@@ -148,7 +154,7 @@ describe("M10 additive account v4 migration registry", () => {
 
     await runMigrations(database, accountMigrations);
 
-    expect(database.userVersion).toBe(4);
+    expect(database.userVersion).toBe(5);
     const schema = schemaOf(database);
     expect(tableNames(schema)).toEqual([
       "connected_chat_applied_events",
@@ -179,9 +185,12 @@ describe("M10 additive account v4 migration registry", () => {
     expect(schema).toMatch(/server_message_id\s+TEXT\s+UNIQUE/i);
     expect(schema).toMatch(/connected_chat_messages_room_window_idx/i);
     expect(schema).toMatch(/connected_chatrooms_group_window_idx/i);
+    expect(schema).toMatch(/pending_media_json\s+TEXT\s+NOT\s+NULL/i);
+    expect(schema).toMatch(/media_upload_ids_json\s+TEXT\s+NOT\s+NULL/i);
+    expect(schema).toMatch(/connected_chat_outbox_immutable_intent/i);
   });
 
-  test("is a no-op after version 4 instead of replaying DDL", async () => {
+  test("is a no-op after version 5 instead of replaying DDL", async () => {
     const runMigrations = loadRunMigrations();
     const accountMigrations = loadAccountMigrations();
     const database = new RecordingSqliteDatabase();
@@ -195,7 +204,7 @@ describe("M10 additive account v4 migration registry", () => {
     expect(retryStatements.join("\n")).not.toMatch(
       /PRAGMA\s+user_version\s*=/i,
     );
-    expect(database.userVersion).toBe(4);
+    expect(database.userVersion).toBe(5);
   });
 
   test("does not modify the preserved fixture migration registry or its five-table schema", async () => {

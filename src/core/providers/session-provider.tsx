@@ -135,6 +135,14 @@ export function SessionProvider({
     };
   }, [state, apiOrigin, controller]);
 
+  // Feature runtimes must survive a token refresh for the same account.
+  const authorizedRequest = useCallback<
+    SessionContextValue["authorizedRequest"]
+  >(
+    (execute, signal) => controller.authorizedRequest(execute, signal),
+    [controller],
+  );
+
   const value = useMemo<SessionContextValue>(
     () => ({
       state,
@@ -144,10 +152,9 @@ export function SessionProvider({
       logout: (signal) => controller.logout(signal),
       restore: (signal) => controller.restore(signal),
       retryProfile: (signal) => controller.retryProfile(signal),
-      authorizedRequest: (execute, signal) =>
-        controller.authorizedRequest(execute, signal),
+      authorizedRequest,
     }),
-    [state, principal, controller],
+    [state, principal, controller, authorizedRequest],
   );
 
   return (

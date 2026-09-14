@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["JamyeFilePutModule"] },
+  "android": { "modules": ["dev.jamye.fileput.JamyeFilePutModule"] }
+}

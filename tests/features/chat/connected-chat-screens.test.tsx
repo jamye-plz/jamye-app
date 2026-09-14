@@ -69,6 +69,11 @@ jest.mock("@/core/providers/app-providers", () => ({
 jest.mock("@/features/chat/model/connected-chat-provider", () => ({
   useConnectedChat: () => mockChat,
 }));
+// Native image gestures have their own viewer tests; these tests exercise chat
+// visibility/read receipts without initializing a native gesture detector.
+jest.mock("@/features/media/ui/media-image-viewer", () => ({
+  MediaImageViewer: () => null,
+}));
 // M10 owns the group topic-list view; these legacy tests retain the existing
 // chat screens and check only the thin route's delegation to that new view.
 jest.mock("@/features/topics/ui/topics-screen", () => ({
@@ -363,12 +368,12 @@ test("the connected conversation uses existing chat UI, visible canonical IDs an
   const list = lastList();
   const rows = list.data!;
   expect(list.keyExtractor!(rows[1], 1)).toBe("local-failed");
-  expect(list.viewabilityConfig).toEqual({
+  expect(list.viewabilityConfigCallbackPairs![0].viewabilityConfig).toEqual({
     minimumViewTime: 350,
     itemVisiblePercentThreshold: 80,
   });
   await act(() =>
-    list.onViewableItemsChanged!({
+    list.viewabilityConfigCallbackPairs![0].onViewableItemsChanged!({
       viewableItems: [
         visible(rows[0]),
         visible(rows[1]),
@@ -380,6 +385,19 @@ test("the connected conversation uses existing chat UI, visible canonical IDs an
   expect(mockChat.actions.markVisibleMessages).toHaveBeenCalledWith([
     SERVER_MESSAGE_ID,
   ]);
+  jest.mocked(mockChat.actions.markVisibleMessages).mockClear();
+  expect(list.viewabilityConfigCallbackPairs![1].viewabilityConfig).toEqual({
+    itemVisiblePercentThreshold: 1,
+    minimumViewTime: 200,
+  });
+  await act(() =>
+    list.viewabilityConfigCallbackPairs![1].onViewableItemsChanged!({
+      viewableItems: [visible(rows[0])],
+      changed: [],
+    }),
+  );
+  expect(mockChat.actions.markVisibleMessages).not.toHaveBeenCalled();
+  expect(lastList().extraData.has(rows[0].localId)).toBe(true);
   await fireEvent.press(
     screen.getByRole("button", { name: "메시지 다시 보내기" }),
   );
@@ -485,7 +503,8 @@ test("a retained controller or viewability callback cannot act on a different or
   const screen = await render(roomTree());
   const oldController = lastController();
   const oldList = lastList();
-  const oldViewability = oldList.onViewableItemsChanged!;
+  const oldViewability =
+    oldList.viewabilityConfigCallbackPairs![0].onViewableItemsChanged!;
   mockChat.state = { ...mockChat.state, chatroomId: OTHER_CHATROOM_ID };
   await screen.rerender(roomTree(OTHER_CHATROOM_ID));
   await act(async () => {

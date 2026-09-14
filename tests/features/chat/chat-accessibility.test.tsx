@@ -3,6 +3,19 @@ import React from "react";
 import type { ComponentType, ReactNode } from "react";
 import { AccessibilityInfo, StatusBar, useColorScheme } from "react-native";
 
+// Gesture behavior is covered by media-image-viewer.test.tsx, independently of
+// these chat keyboard and accessibility tests' minimal Reanimated mock.
+jest.mock("@/features/media/ui/media-image-viewer", () => ({
+  MediaImageViewer: () => null,
+}));
+
+jest.mock("expo-router", () => ({
+  useFocusEffect: (callback: () => (() => void) | void) =>
+    jest
+      .requireActual<typeof import("react")>("react")
+      .useEffect(callback, [callback]),
+}));
+
 jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
   __esModule: true,
   default: jest.fn(),

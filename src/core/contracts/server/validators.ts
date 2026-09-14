@@ -122,6 +122,32 @@ export const validateTopicCreate = compileComponentSchema("TopicCreate");
 export const validateTopicPatch = compileComponentSchema("TopicPatch");
 export const validateTagReplace = compileComponentSchema("TagReplace");
 
+// M11: imported MD1-MD5 schemas remain authoritative. In particular MD2
+// accepts dimensions, never client-supplied audio duration or object metadata.
+export type UploadIntentCreateWire =
+  components["schemas"]["UploadIntentCreate"];
+export type UploadIntentWithPresignedPutWire =
+  components["schemas"]["UploadIntentWithPresignedPut"];
+export type UploadFinalizeWire = components["schemas"]["UploadFinalize"];
+export type UploadFinalizeResultWire =
+  components["schemas"]["UploadFinalizeResult"];
+export type ConfirmedUploadWire = components["schemas"]["ConfirmedUpload"];
+export type TopicMediaWire = components["schemas"]["TopicMedia"];
+export type TopicMediaPageWire = components["schemas"]["TopicMediaPage"];
+export type MediaAccessUrlWire = components["schemas"]["MediaAccessUrl"];
+export const validateUploadIntentCreate =
+  compileComponentSchema("UploadIntentCreate");
+export const validateUploadIntentWithPresignedPut = compileComponentSchema(
+  "UploadIntentWithPresignedPut",
+);
+export const validateUploadFinalize = compileComponentSchema("UploadFinalize");
+export const validateUploadFinalizeResult = compileComponentSchema(
+  "UploadFinalizeResult",
+);
+export const validateTopicMedia = compileComponentSchema("TopicMedia");
+export const validateTopicMediaPage = compileComponentSchema("TopicMediaPage");
+export const validateMediaAccessUrl = compileComponentSchema("MediaAccessUrl");
+
 // S1 (GET /api/v1/conversations/{conversation_id}/events) and R1
 // (POST /api/v1/realtime/tickets) wire shapes. 426/401/403/503 for both
 // operations reuse the existing ErrorEnvelope validated above.

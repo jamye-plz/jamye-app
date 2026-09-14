@@ -4,6 +4,13 @@ import { Keyboard } from "react-native";
 
 import { AppThemeProvider } from "../../../src/core/theme/theme-provider";
 
+jest.mock("expo-router", () => ({
+  useFocusEffect: (callback: () => (() => void) | void) =>
+    jest
+      .requireActual<typeof import("react")>("react")
+      .useEffect(callback, [callback]),
+}));
+
 type FileSystemModule = Readonly<{
   readFileSync: (path: string, encoding: "utf8") => string;
 }>;
@@ -331,6 +338,9 @@ describe("M5-UI-1 explicit-send Korean IME composer", () => {
       /appChatComposer|composerMinHeight|composerMaxHeight/,
     );
     expect(source).toMatch(/44/);
-    expect(source).not.toMatch(/microphone|media|recording|skeleton/i);
+    // M11 adds attachment UI; "media" is no longer excluded here (see
+    // media-attachment-types.ts and the M11 UI seam note). Capture/record/skeleton
+    // remain out of scope.
+    expect(source).not.toMatch(/microphone|recording|skeleton/i);
   });
 });

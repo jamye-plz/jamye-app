@@ -27,6 +27,7 @@ import { createGroupsStore } from "@/features/groups/model/groups-store";
 import type { GroupsStore } from "@/features/groups/model/groups-store";
 import { GroupsProvider } from "@/features/groups/model/groups-provider";
 import { createChatApi } from "@/features/chat/data/chat-api";
+import { MediaProvider } from "@/features/media/ui/media-provider";
 import {
   createConnectedChatStore,
   toCanonicalUpsert,
@@ -167,6 +168,9 @@ export const createConnectedAccountSync: ConnectedChatSyncFactory = (
           {
             body: command.body,
             clientMessageId: command.clientMsgId,
+            ...(command.mediaUploadIds?.length
+              ? { mediaUploadIds: command.mediaUploadIds }
+              : {}),
           },
           authSignal,
         );
@@ -322,16 +326,18 @@ function ConnectedRuntimeProviders({
 >) {
   return (
     <SessionProvider createController={createSessionController} origin={origin}>
-      <AccountScopeBridge accountScopeFactory={accountScopeFactory}>
-        <GroupsStoreBridge
-          origin={origin}
-          groupsStoreFactory={groupsStoreFactory}
-        >
-          <ChatStoreBridge>
-            <TopicsStoreBridge>{children}</TopicsStoreBridge>
-          </ChatStoreBridge>
-        </GroupsStoreBridge>
-      </AccountScopeBridge>
+      <MediaProvider>
+        <AccountScopeBridge accountScopeFactory={accountScopeFactory}>
+          <GroupsStoreBridge
+            origin={origin}
+            groupsStoreFactory={groupsStoreFactory}
+          >
+            <ChatStoreBridge>
+              <TopicsStoreBridge>{children}</TopicsStoreBridge>
+            </ChatStoreBridge>
+          </GroupsStoreBridge>
+        </AccountScopeBridge>
+      </MediaProvider>
     </SessionProvider>
   );
 }

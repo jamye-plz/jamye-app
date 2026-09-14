@@ -12,6 +12,11 @@ import { groupId, topicId, roomId, otherId } from "../topics-fixtures";
 import TopicCreateRoute from "@/app/groups/[groupId]/topics/new";
 import TopicDetailRoute from "@/app/groups/[groupId]/topics/[topicId]";
 
+// Native photo gestures are exercised by the focused viewer tests.
+jest.mock("@/features/media/ui/media-image-viewer", () => ({
+  MediaImageViewer: () => null,
+}));
+
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockCloseRooms = jest.fn();

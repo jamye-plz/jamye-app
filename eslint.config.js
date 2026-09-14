@@ -11,6 +11,7 @@ const FEATURE_DATA_FILES = [
   "src/features/chat/model/**/*.ts",
   "src/features/chat/use-*.ts",
   "src/features/topics/model/**/*.ts",
+  "src/features/media/model/**/*.ts",
 ];
 const SCREEN_AND_COMPONENT_FILES = [
   "src/features/**/ui/**/*.ts",
@@ -90,6 +91,7 @@ const FORBIDDEN_TRANSPORT_PROPERTIES = [
 ];
 
 const FORBIDDEN_TRANSPORT_MODULES = [
+  "expo/fetch",
   "http",
   "node:http",
   "https",
@@ -115,6 +117,13 @@ const FORBIDDEN_HTTP_CLIENT_MODULES = [
 ];
 
 const FORBIDDEN_PERSISTENCE_MODULES = [
+  "expo-file-system",
+  "expo-file-system/legacy",
+  "expo-image-picker",
+  "expo-image-manipulator",
+  "expo-video",
+  "expo-document-picker",
+  "expo-sharing",
   "expo-sqlite",
   "react-native-sqlite-storage",
   "realm",
@@ -337,6 +346,30 @@ module.exports = defineConfig([
     },
   },
   {
+    // Only native media adapters can use Expo fetch. Global RN fetch is still
+    // forbidden here: its redirect/cookie behavior does not satisfy MD5.
+    files: ["src/features/media/platform/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: toRestrictedImportPaths(
+            FORBIDDEN_TRANSPORT_MODULES.filter((name) => name !== "expo/fetch"),
+            "Media native adapters must use the dedicated Expo transport.",
+          ),
+        },
+      ],
+      "local/no-restricted-transport-require": [
+        "error",
+        {
+          modules: FORBIDDEN_TRANSPORT_MODULES,
+          message:
+            "Media transport must be an explicit static Expo fetch import.",
+        },
+      ],
+    },
+  },
+  {
     files: HTTP_ADAPTER_FILES,
     rules: {
       "no-restricted-globals": [
@@ -471,6 +504,17 @@ module.exports = defineConfig([
           message:
             "Screens/components must not require/dynamically import HTTP, transport, persistence, or core database implementations.",
         },
+      ],
+    },
+  },
+  {
+    // Only this adapter conditionally loads the SDK after checking native
+    // availability, so pre-existing development binaries can show a safe error.
+    files: ["src/features/media/platform/native-video-player.tsx"],
+    rules: {
+      "@typescript-eslint/no-require-imports": [
+        "error",
+        { allow: ["^expo-video$"] },
       ],
     },
   },

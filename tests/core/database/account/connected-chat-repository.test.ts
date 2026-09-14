@@ -99,6 +99,7 @@ function messageRow(overrides: Partial<SqliteRow> = {}): SqliteRow {
     local_created_at_ms: 1_788_998_400_123,
     local_id: "local-one",
     media_json: "[]",
+    pending_media_json: "[]",
     sender_avatar_url: "https://cdn.example/avatar.png",
     sender_id: PRINCIPAL.userId,
     sender_nickname: "포비",
@@ -119,6 +120,7 @@ function outboxRow(overrides: Partial<SqliteRow> = {}): SqliteRow {
     command_id: "ffffffff-6666-4666-8666-666666666666",
     error_code: null,
     local_id: "local-one",
+    media_upload_ids_json: "[]",
     state: "queued",
     ...overrides,
   };
@@ -379,12 +381,23 @@ describe("M8 account-scoped connected chat SQLite repository", () => {
     failingDatabase.failRunAt = 2;
     await expect(
       createRepository(failingDatabase).enqueuePendingMessage({
-        body: "body",
+        body: "",
         chatroomId: CHATROOM_ID,
         clientMsgId: CLIENT_MSG_ID,
         commandId: "command-fail",
         localCreatedAtMs: 123,
         localId: "local-fail",
+        media: [
+          {
+            byteSize: 1,
+            duration: null,
+            filename: "rollback.png",
+            height: 1,
+            mediaUploadId: "upload-rollback",
+            type: "image/png",
+            width: 1,
+          },
+        ],
       }),
     ).rejects.toThrow(/synthetic SQL write failure/i);
     expect(failingDatabase.rollbacks).toBe(1);
@@ -401,6 +414,131 @@ describe("M8 account-scoped connected chat SQLite repository", () => {
         localId: "local-missing",
       }),
     ).rejects.toThrow(/both rows/i);
+  });
+
+  test("persists ordered confirmed media and rejects invalid attachment compositions before writes", async () => {
+    const media = [
+      {
+        byteSize: 120,
+        duration: null,
+        filename: "one.png",
+        height: 20,
+        mediaUploadId: "upload-one",
+        type: "image/png",
+        width: 30,
+      },
+      {
+        byteSize: 240,
+        duration: 2.5,
+        filename: "two.mp4",
+        height: 40,
+        mediaUploadId: "upload-two",
+        type: "video/mp4",
+        width: 50,
+      },
+    ];
+    const database = new ScriptedDatabase();
+    database.queueFirst(
+      messageRow({
+        body: "",
+        created_at_raw: null,
+        pending_media_json: JSON.stringify(media),
+        server_message_id: null,
+        status: "pending",
+      }),
+      outboxRow({
+        body: "",
+        media_upload_ids_json: '["upload-one","upload-two"]',
+      }),
+    );
+    const result = await createRepository(database).enqueuePendingMessage({
+      body: "",
+      chatroomId: CHATROOM_ID,
+      clientMsgId: CLIENT_MSG_ID,
+      commandId: "command-media",
+      localCreatedAtMs: 123,
+      localId: "local-media",
+      media,
+    });
+
+    media[0]!.mediaUploadId = "mutated-after-enqueue";
+    expect(result.command.mediaUploadIds).toEqual(["upload-one", "upload-two"]);
+    expect(
+      result.message.pendingMedia?.map(({ mediaUploadId }) => mediaUploadId),
+    ).toEqual(["upload-one", "upload-two"]);
+    expect(database.runCalls[0]?.values).toContain(
+      JSON.stringify([{ ...media[0], mediaUploadId: "upload-one" }, media[1]]),
+    );
+    expect(database.runCalls[1]?.values).toContain(
+      '["upload-one","upload-two"]',
+    );
+
+    const invalidDatabase = new ScriptedDatabase();
+    const repository = createRepository(invalidDatabase);
+    const attachment = {
+      byteSize: 1,
+      duration: null,
+      filename: null,
+      height: null,
+      mediaUploadId: "upload-one",
+      type: "image/jpeg",
+      width: null,
+    };
+    const input = {
+      body: "",
+      chatroomId: CHATROOM_ID,
+      clientMsgId: CLIENT_MSG_ID,
+      commandId: "command-invalid",
+      localCreatedAtMs: 123,
+      localId: "local-invalid",
+    };
+    await expect(
+      repository.enqueuePendingMessage({
+        ...input,
+        media: [attachment, attachment],
+      }),
+    ).rejects.toThrow(/unique/i);
+    await expect(
+      repository.enqueuePendingMessage({
+        ...input,
+        media: Array.from({ length: 5 }, (_, index) => ({
+          ...attachment,
+          mediaUploadId: `upload-${index}`,
+        })),
+      }),
+    ).rejects.toThrow(/at most four/i);
+    const audio = {
+      ...attachment,
+      duration: 10,
+      mediaUploadId: "audio-upload",
+      type: "audio/ogg",
+    };
+    await expect(
+      repository.enqueuePendingMessage({
+        ...input,
+        body: "caption",
+        media: [audio],
+      }),
+    ).rejects.toThrow(/audio.*only attachment.*no body/i);
+    await expect(
+      repository.enqueuePendingMessage({
+        ...input,
+        media: [audio, attachment],
+      }),
+    ).rejects.toThrow(/audio.*only attachment.*no body/i);
+    await expect(
+      repository.enqueuePendingMessage({
+        ...input,
+        media: [{ ...audio, duration: 331 }],
+      }),
+    ).rejects.toThrow(/330/i);
+    await expect(
+      repository.enqueuePendingMessage({
+        ...input,
+        media: [{ ...attachment, byteSize: 10 * 1_024 * 1_024 + 1 }],
+      }),
+    ).rejects.toThrow(/supported limit/i);
+    expect(invalidDatabase.transactions).toBe(0);
   });
 
   test("converges history-first and response-first canonical rows while applying source-aware profile semantics", async () => {

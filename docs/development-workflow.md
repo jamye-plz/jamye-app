@@ -453,11 +453,78 @@ Metro 앱 오류는 발견하지 않았다. Android light theme의 상태표시�
 구체적 자동 로그·리뷰·제한된 실행 캡처는 현재 run의 `.agents/results/m10-validation-20260910.md`에 연결했다.
 출처별 종료 기록과 검증 한계는 [M10 evidence](evidence/M10.md)를 따른다. 종료 작업에서는 문서와
 새 evidence 문서의 exact-path 품질 목록만 확인하고 로컬 커밋하며 제품 코드·native·실계정 검사를 반복하지 않는다.
-Push·서버 배포·장치 종료는 요청 범위가 아니다. 다음 단계는 M11 계획 검토이며 구현은 미승인이다.
+Push·서버 배포·장치 종료는 요청 범위가 아니다. 이 M10 종료 당시에는 M11 구현을 승인하지 않았다.
+
+## M11 검증 이력과 형식 호환성 재빌드 대기 — 2026-09-11
+
+이후 미디어 계획 검토를 거쳐 사용자의 “구현 착수해” 승인을 받았다.
+범위와 순서는 [M11 로드맵](roadmap.md#m11-미디어-업로드첨부접근), 실제 실행 결과는
+[M11 evidence](evidence/M11.md)를 따른다. 같은 app devShell에서 scoped 의존성 설치,
+계약 generation, focused 테스트·type/lint를 실행했다. 최종 focused 55 suites / 616 tests,
+typecheck·lint·architecture·server contract 검사가 통과했다. 이후 전체/native 검증 승인으로
+PUT-only 수정 후 전체 100 suites / 1,115 tests, coverage 85.77/81.15/87.09/88.94%와 독립 리뷰·보완을 마쳤다.
+이후 사용자 수용 중 발견한 picker 버튼 무반응은 화면 생명주기 정리 후 종료된 상태를 재사용한
+문제였다. JS 생명주기 보완 후 전체 101 suites / 1,119 tests, coverage 85.88/81.31/87.19/88.98%와
+독립 정적 리뷰가 통과했다. iOS 사진·음성 선택창 열기/취소는 관찰했으며 양 플랫폼 실제 첨부는 재검증 대기다.
+서버 Rust compile이나 새 Nix 환경은 필요하지 않았다.
+
+Connected mode의 API와 별도로 다음 공개 origin을 설정한다.
+
+```dotenv
+EXPO_PUBLIC_MEDIA_ORIGIN=https://jamye-media.ridewithmin.com
+```
+
+이 값은 signed URL의 허용 origin이다. URL 경로나 query를 붙이지 않는다. 값이 없으면
+로그인·텍스트 대화는 유지하되 미디어 기능을 사용할 수 없다고 표시하며 임의 host를 허용하지 않는다.
+로컬 ignored `.env`에는 이 공개 값만 추가했다. secret은 앱 환경에 넣지 않는다.
+
+추가 패키지는 Expo SDK 57의 image-picker, document-picker, file-system, sharing이다.
+이미지·동영상 선택과 기존 오디오 파일에 한정하며 카메라·마이크 권한은 비활성화한다.
+기존 라우터/보안 패치는 유지한다. 승인 후 양 플랫폼 clean prebuild·재빌드·설치를 통과했고,
+새 바이너리에서 기존 세션·로컬 저장소와 서버 연결이 정상임을 확인했다. 통제된 로컬 endpoint로
+307/credential isolation·다운로드 취소는 통과했지만 File PUT의 MIME 덮어쓰기와 전체 JS buffering을 발견했다.
+후속 승인으로 PUT에만 local Expo module을 연결했다. Swift URLSession 파일 업로드와 Kotlin OkHttp 파일
+전송을 사용하며 서버 계약·API·다운로드·기존 outbox 구조는 유지했다. 외부 의존성을 추가하지 않았다.
+새 모듈을 포함한 clean prebuild·양 플랫폼 빌드/설치, Android 경로 별칭 보완 후 재빌드까지 통과했다.
+실제 native 합성 시험에서 정확한 MIME·50 MiB PUT·인증 분리·redirect 금지·취소를 확인했다.
+이는 peak RSS 측정이나 실제 사용자 첨부 수용을 대신하지 않는다. 사용자 수용과 M11 종료는 남아 있다.
+임시 probe는 앱에서 분리하고 로컬 probe 서버를 종료했다. 기존 app devShell과 Metro·에뮬레이터는 유지한다.
 
 Native 입력을 변경하면 기존 clean prebuild와 양 플랫폼 재빌드·설치 규칙을 따르며, 변경하지 않은 입력 때문에
 재빌드를 자동 요구하지 않는다. 의존성·toolchain이 바뀌면 해당 검사도 수행하되 문서 변경마다 새 manifest/lock
 승인 절차를 만들지 않는다.
+
+### iOS HEIC/MOV 형식 호환성 보완
+
+사용자의 후속 native 호환성 수정 승인으로 `expo-image-manipulator ~57.0.16`을 추가했다.
+공통 이미지 변환기는 HEIC 등 OS가 해독 가능한 형식을 native JPEG로 준비하고, iOS picker는 영상을
+최대 1080p H.264/AAC MP4로 내보낸다. Android 기존 선택 경로와 서버 계약·PUT 전송은 유지한다.
+원본을 건드리지 않고 변환 출력의 실제 크기·형식을 검사하며, 화면 이탈 등 늦은 결과의 임시 파일을 정리한다.
+
+재사용 중인 app devShell에서 `bun run check:code` 102 suites / 1,165 tests PASS,
+coverage 86.05/81.60/87.25/89.11%, `bun run check:expo` SDK 일치·Doctor 21/21 PASS,
+`bun install --frozen-lockfile` 변경 없음까지 확인했다. 실제 native API는 자동 회귀에서 대역을 사용했다.
+
+새 native 의존성 때문에 **별도 승인 후 양 플랫폼 clean prebuild·재빌드·설치가 필요**하다.
+이번 수정에서는 빌드·생성·실계정 파일 업로드·commit/push를 실행하지 않았다. Metro 새로고침이나
+위의 이전 PUT native PASS만으로 새 HEIC/MOV 변환 검증을 완료했다고 판단하지 않는다.
+재빌드 후 사용자가 iOS HEIC/MOV 첨부와 상대 플랫폼 열기, Android 기존 첨부 회귀를 확인한다.
+위 내용은 2026-09-11 당시 기록이며 후속 실행과 남은 수용 항목은 [M11 evidence](evidence/M11.md)에 기록한다.
+
+### 영상 표시·native 재생 보완 — 2026-09-14
+
+사용자 승인 후 이미지 변환 모듈을 포함한 양 플랫폼 clean prebuild·재빌드·설치를 마쳤다.
+사용자가 송수신 성공과 양 플랫폼 영상 재생 불가를 보고해, 별도 승인된 버튼 대비·영상 카드·기본 native
+재생을 추가했다. 기존 화면에는 video player가 없었으므로 당시 재생 불가는 codec 실패로 단정하지 않는다.
+
+`expo-video ~57.0.3`은 platform adapter 안에서만 사용한다. 재생 탭 후 MD4와 기존 인증 분리 GET으로 받은
+앱 소유 MP4를 native player에 연결한다. Native 기본 컨트롤·닫기만 제공하고 background·계정/화면 이탈 시
+중단·정리한다. 서버 계약과 기존 OS 저장 동작은 유지하며, 최신 검사 결과는 [M11 evidence](evidence/M11.md)를 따른다.
+
+같은 app devShell에서 검증했다. Online Expo 검사는 기존 SDK 패키지 18개의 새 patch를 권고해 실패했다.
+고정 SDK의 로컬 manifest 검사와 최신 upstream 검사를 구분하며 SDK 전체/라우터 패치를 임의 갱신하지 않는다.
+새 player는 이전 바이너리에 없으므로 별도 승인 후 양 플랫폼 clean prebuild·재빌드·설치와 사용자 재생/소리
+확인이 필요하다. 이번 영상 재생 수정에서는 native 빌드·서버 배포·commit/push를 실행하지 않았다.
 
 ## 4. Dependency와 toolchain script
 

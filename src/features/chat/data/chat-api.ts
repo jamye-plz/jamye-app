@@ -50,6 +50,8 @@ export type ChatReadInput = Readonly<
 export type ChatSendInput = Readonly<{
   clientMessageId: string;
   body: string;
+  /** Confirmed upload IDs, in the immutable order committed to the outbox. */
+  mediaUploadIds?: readonly string[];
 }>;
 
 export type ChatMessageSendResult = Readonly<{
@@ -234,9 +236,21 @@ export function createChatApi(origin: string): ChatApi {
       return mapChatReadMarker(payload);
     },
     async sendChatMessage(accessToken, chatroomId, input, signal) {
+      if (
+        input.mediaUploadIds &&
+        new Set(input.mediaUploadIds).size !== input.mediaUploadIds.length
+      )
+        throw new ChatApiError(422, "invalid_message_input");
       const body = {
         body: input.body,
         client_msg_id: input.clientMessageId,
+        ...(input.mediaUploadIds?.length
+          ? {
+              media: input.mediaUploadIds.map((id) => ({
+                media_upload_id: id,
+              })),
+            }
+          : {}),
       };
       if (!validateMessageCreate(body))
         throw new ChatApiError(422, "invalid_message_create");

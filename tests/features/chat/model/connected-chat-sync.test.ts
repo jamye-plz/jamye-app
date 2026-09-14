@@ -87,6 +87,47 @@ test("manual retry requeues the stored body and id, then wakes the dispatcher", 
   f.store.dispose();
 });
 
+test("M11 confirmed bodyless attachments enter the existing atomic queue before waking sync", async () => {
+  const f = setup();
+  await f.store.actions.openRoom(CHATROOM_ID);
+  const pending = deferred<ReturnType<typeof pendingEnqueueResult>>();
+  f.repository.enqueuePendingMessage.mockReturnValue(pending.promise);
+  const attachment = {
+    mediaUploadId: "77777777-7777-4777-8777-777777777777",
+    type: "audio/ogg",
+    byteSize: 100,
+    filename: "voice.ogg",
+    width: null,
+    height: null,
+    duration: 30,
+  };
+  const committed = jest.fn();
+  const sending = f.store.actions.sendMessage("", committed, [attachment]);
+  expect(f.repository.enqueuePendingMessage).toHaveBeenCalledWith(
+    expect.objectContaining({ body: "", media: [attachment] }),
+  );
+  const savedAttachment =
+    f.repository.enqueuePendingMessage.mock.calls[0][0].media?.[0];
+  expect(savedAttachment).not.toBe(attachment);
+  expect(committed).not.toHaveBeenCalled();
+  expect(f.runtimes[0].wake).not.toHaveBeenCalled();
+  pending.resolve(pendingEnqueueResult({ body: "" }));
+  await sending;
+  expect(committed).toHaveBeenCalledWith("gen-local-1");
+  expect(f.runtimes[0].wake).toHaveBeenCalledTimes(1);
+  expect(f.api.sendChatMessage).not.toHaveBeenCalled();
+  f.store.dispose();
+});
+
+test("M11 empty text without media still does not create an intent", async () => {
+  const f = setup();
+  await f.store.actions.openRoom(CHATROOM_ID);
+  await f.store.actions.sendMessage("", undefined, []);
+  expect(f.repository.enqueuePendingMessage).not.toHaveBeenCalled();
+  expect(f.runtimes[0].wake).not.toHaveBeenCalled();
+  f.store.dispose();
+});
+
 test("background does not turn a durable enqueue into failed or release it to a second sender", async () => {
   const f = setup();
   await f.store.actions.openRoom(CHATROOM_ID);

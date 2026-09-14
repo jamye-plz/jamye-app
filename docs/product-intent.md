@@ -1,9 +1,9 @@
 # 잼얘좀 모바일 — 서버 연결 제품 여정과 보존할 native 의도
 
 - 작성 목적: M1에서 기존 `jamye-plz`의 제품 의미와 회귀 의도를 읽기 전용으로 추출
-- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat, M9 durable outbox/realtime/delta, M10 topics/tags
+- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat, M9 durable outbox/realtime/delta, M10 topics/tags, M11 media (자동·native 검증 완료, 사용자 수용 대기)
 - M5 이후: Kakao/Google login/profile/logout과 M6 범위의 native/user 세션 수용 완료
-- 현재 frontier: M10 completed / user accepted, 다음 M11 계획 검토 대기 (2026-09-10)
+- 현재 frontier: M10 completed / user accepted, M11 automated pass / native pass / user acceptance pending (2026-09-11)
 - 기준 저장소: [sibling `jamye-plz`](../../jamye-plz/) repository (수정하지 않음)
 
 ## 1. 먼저 고정할 해석 원칙
@@ -24,7 +24,8 @@
   늦은 응답·open/close 작업이 새 account에 노출되지 않도록 session epoch와 scope drain으로
   fence한다. 유효한 profile 없는 cold restore는 authenticated account data를 표시하지 않는다.
 - 화면의 메시지 원본은 SQLite뿐이다. HTTP cache나 메모리 배열을 경쟁 원본으로 두지 않는다.
-- 텍스트 메시지만 읽고 보낸다.
+- M11은 서버가 확정한 미디어 첨부까지 기존 메시지/outbox 경로에 연결한다. 파일 업로드는 foreground에서 완료하고,
+  완료 전 첨부를 전송 의도로 저장하지 않는다. Native·사용자 수용은 [M11 evidence](evidence/M11.md)에서 별도로 판정한다.
 - 전송 버튼을 누르면 optimistic message와 outbox command를 하나의 transaction으로 만든다.
 - M5는 오프라인 전송 의도를 기기에 남긴다. 재시작·재연결 뒤 같은 `client_msg_id`로
   canonical message 하나에 수렴시키는 processor는 M9에서 구현·수용했다.
@@ -48,7 +49,7 @@ API의 `chatroom`/`topic` 식별자는 유지한다. 다음 사용자 여정은 
 3. 실제 chatroom history/read/send — M8 완료, 양 플랫폼 사용자 확인
 4. Offline/realtime convergence — M9 완료, 사용자 수용 4/4 확인
 5. Topics/tags — M10 완료, 양 플랫폼 사용자 수용 4/4 확인 및 종료 승인
-6. Media
+6. Media — M11 전체 검사·재빌드 완료, native MIME/버퍼링 문제의 수정안 승인과 양 플랫폼 수용 대기
 7. Notification/Expo push
 8. Account profile update와 deletion lifecycle
 
@@ -133,9 +134,10 @@ M5에는 WebSocket·REST delta·network lifecycle 실행 경로가 없다.
 - foreground 복귀, network regain, reconnect 때 delta sync를 요청한다.
 - room 또는 화면이 바뀐 뒤 도착한 오래된 비동기 결과는 현재 상태에 적용하지 않는다.
 
-현재 transport는 M6 OAuth/profile/logout·health, M7 groups와 M8 REST chat까지다. 기존 PWA의
-cookie, endpoint, socket frame은 모바일 계약으로 사용하지 않는다. WebSocket/delta,
-자동 outbox dispatch, media/push와 offline authenticated restore는 아직 구현하지 않았다.
+M8 당시 transport는 M6 OAuth/profile/logout·health, M7 groups와 REST chat까지였다. 기존 PWA의
+cookie, endpoint, socket frame은 모바일 계약으로 사용하지 않는다. 이후 WebSocket/delta와
+자동 outbox dispatch는 M9에서 완료했고, media는 M11 native 업로드 문제를 해결한 뒤 사용자 수용을 진행한다.
+Push와 offline authenticated restore는 아직 구현하지 않았다.
 
 ### 3.4 읽던 위치를 잃지 않는다
 

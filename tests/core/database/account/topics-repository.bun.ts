@@ -80,19 +80,32 @@ await chat.applyOrderedUnsupportedEvent({
   reconcileScope: "group_topics",
 });
 const before = db.query("SELECT * FROM connected_chatrooms").all();
-await chat.enqueuePendingMessage({
-  body: "보존할 메시지",
-  chatroomId: roomId,
-  clientMsgId: "pending-client",
-  commandId: "pending-command",
-  localId: "pending-local",
-  localCreatedAtMs: 10,
+// Seed the historical v3 wire directly: the current repository writes v5 columns.
+await adapter.withExclusiveTransactionAsync(async (transaction) => {
+  await transaction.runAsync(
+    `INSERT INTO connected_chat_messages (
+      local_id, chatroom_id, client_msg_id, sender_id, body, kind,
+      local_created_at_ms, sort_seconds, sort_nanos, sort_tiebreaker, status
+    ) VALUES ('pending-local', ?, 'pending-client', ?, '보존할 메시지', 'user',
+      10, 0, 10000000, 'pending-local', 'pending')`,
+    roomId,
+    authorId,
+  );
+  await transaction.runAsync(
+    `INSERT INTO connected_chat_outbox_commands (
+      command_id, local_id, chatroom_id, client_msg_id, sender_id, body,
+      state, created_at_ms, next_attempt_at_ms
+    ) VALUES ('pending-command', 'pending-local', ?, 'pending-client', ?,
+      '보존할 메시지', 'queued', 10, 10)`,
+    roomId,
+    authorId,
+  );
 });
 const beforeMessages = db.query("SELECT * FROM connected_chat_messages").all();
 const beforeOutbox = db
   .query("SELECT * FROM connected_chat_outbox_commands")
   .all();
-await runMigrations(adapter, accountMigrations);
+await runMigrations(adapter, accountMigrations.slice(0, 4));
 assert.equal(db.query("PRAGMA user_version").get().user_version, 4);
 assert.deepEqual(db.query("SELECT * FROM connected_chatrooms").all(), before);
 assert.deepEqual(
@@ -199,11 +212,11 @@ assert.deepEqual(await repository.listDirtyMarkers(groupId), []);
 assert.equal(await chat.getEventCheckpoint(roomId), "cursor-2");
 assert.deepEqual(
   db.query("SELECT * FROM connected_chat_messages").all(),
-  beforeMessages,
+  beforeMessages.map((message) => ({ ...message, pending_media_json: "[]" })),
 );
 assert.deepEqual(
   db.query("SELECT * FROM connected_chat_outbox_commands").all(),
-  beforeOutbox,
+  beforeOutbox.map((command) => ({ ...command, media_upload_ids_json: "[]" })),
 );
 const wrong = createTopicsRepository(
   adapter,

@@ -22,6 +22,8 @@ import { createChatSendController } from "@/features/chat/model/chat-send";
 import type { ChatSendController } from "@/features/chat/model/chat-send";
 import type { ChatConversation } from "../use-chat-conversation";
 
+import type { MediaAttachmentController } from "@/features/media/ui/media-attachment-types";
+
 import { useChatConversation } from "../use-chat-conversation";
 import { ChatComposer } from "./chat-composer";
 import { ChatKeyboardFrame as AndroidChatKeyboardFrame } from "./chat-keyboard-frame.android";
@@ -89,6 +91,7 @@ export function ChatConversationScreen({
   revealInitialLatest = false,
   onVisibleCanonicalMessages,
   focusMainHeading = defaultFocusMainHeading,
+  attachmentController = null,
 }: Readonly<{
   title: string;
   notice?: string;
@@ -103,6 +106,7 @@ export function ChatConversationScreen({
   blocked?: boolean;
   revealInitialLatest?: boolean;
   focusMainHeading?: (target: MainHeadingTarget) => void;
+  attachmentController?: MediaAttachmentController | null;
 }>) {
   const { colorScheme, colors } = useAppTheme();
   const { width } = useWindowDimensions();
@@ -189,6 +193,7 @@ export function ChatConversationScreen({
                 controller={controller}
                 blocked={blocked}
                 onMessageCommitted={setLatestMessageRevealTarget}
+                attachmentController={attachmentController}
               />
             </View>
           )}

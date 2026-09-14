@@ -9,6 +9,14 @@ import type {
 } from "./connected-chat-store";
 import type { ChatConversation } from "../use-chat-conversation";
 
+/** UI-tier files cannot import `@/core/database/**` directly (architecture policy);
+ * this model-tier file re-exports the two attachment-shaped types the media UI and
+ * chat UI need so they only ever depend on this port, not the database module. */
+export type {
+  ConnectedChatMedia,
+  ConnectedPendingAttachment,
+} from "@/core/database/account/connected-chat-types";
+
 export const isChatIdentifier = (value: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
@@ -16,13 +24,12 @@ export function toChatMessage(
   row: ConnectedChatMessage,
   userId: string,
 ): ChatMessage {
-  const attachment = row.media.length
-    ? `첨부 파일 ${row.media.length}개 · 이 단계에서는 열 수 없습니다.`
-    : "";
   return {
     body:
-      [row.body, attachment].filter(Boolean).join("\n") ||
-      "표시할 수 없는 메시지입니다.",
+      row.body ||
+      (row.media.length > 0 || (row.pendingMedia?.length ?? 0) > 0
+        ? ""
+        : "표시할 수 없는 메시지입니다."),
     clientMsgId: row.clientMsgId,
     conversationId: row.chatroomId,
     // Display only. Repository ordering retains the original sub-millisecond timestamp.
@@ -30,6 +37,8 @@ export function toChatMessage(
       ? Date.parse(row.createdAtRaw)
       : row.localCreatedAtMs,
     localId: row.localId,
+    media: row.media,
+    pendingMedia: row.pendingMedia,
     senderId: row.senderId,
     senderLabel:
       row.kind === "system"

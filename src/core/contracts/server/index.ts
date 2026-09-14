@@ -1,4 +1,21 @@
 export {
+  validateUploadIntentCreate,
+  validateUploadIntentWithPresignedPut,
+  validateUploadFinalize,
+  validateUploadFinalizeResult,
+  validateTopicMedia,
+  validateTopicMediaPage,
+  validateMediaAccessUrl,
+  type UploadIntentCreateWire,
+  type UploadIntentWithPresignedPutWire,
+  type UploadFinalizeWire,
+  type UploadFinalizeResultWire,
+  type ConfirmedUploadWire,
+  type TopicMediaWire,
+  type TopicMediaPageWire,
+  type MediaAccessUrlWire,
+} from "./validators";
+export {
   mapTopic,
   mapTopicDates,
   mapTopicPage,
@@ -149,3 +166,25 @@ export {
   type UnsupportedEventMarkerWire,
   type UserWire,
 } from "./validators";
+export {
+  mapUploadIntent,
+  mapUploadIntentWithPresignedPut,
+  mapConfirmedUpload,
+  mapUploadFinalizeResult,
+  mapTopicMediaEntry,
+  mapTopicMediaEntryPage,
+  mapMediaAccessUrl,
+} from "./media";
+export type {
+  MediaScope,
+  MediaKind,
+  UploadIntent,
+  UploadIntentWithPresignedPut,
+  ConfirmedUpload,
+  ChatUploadFinalizeResult,
+  TopicUploadFinalizeResult,
+  UploadFinalizeResult,
+  TopicMediaEntry,
+  TopicMediaEntryPage,
+  MediaAccessUrl,
+} from "./media";

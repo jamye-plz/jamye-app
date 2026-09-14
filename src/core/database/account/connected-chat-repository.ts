@@ -1,3 +1,4 @@
+import { getMediaContentPolicy } from "../../contracts/server/media";
 import type { SqliteRepositoryDatabase, SqliteRow } from "../types";
 import type { AccountPrincipal } from "./types";
 import { createConnectedChatSyncRepository } from "./connected-chat-sync-repository";
@@ -6,6 +7,7 @@ import type {
   ConnectedChatMedia,
   ConnectedChatMessage,
   ConnectedChatOutboxCommand,
+  ConnectedPendingAttachment,
   ConnectedChatRepository,
   ConnectedChatroom,
   ConnectedChatroomUpsert,
@@ -37,6 +39,7 @@ type MessageRow = SqliteRow & {
   local_created_at_ms: number;
   local_id: string;
   media_json: string;
+  pending_media_json: string;
   sender_avatar_url: string | null;
   sender_id: string | null;
   sender_nickname: string | null;
@@ -54,6 +57,7 @@ type OutboxRow = SqliteRow & {
   command_id: string;
   error_code: ConnectedSendErrorCode | null;
   local_id: string;
+  media_upload_ids_json: string;
   state: "queued" | "in_flight" | "acked" | "failed";
 };
 
@@ -62,8 +66,11 @@ const RFC3339 =
 
 const MESSAGE_COLUMNS = `local_id, server_message_id, chatroom_id,
   client_msg_id, sender_id, sender_nickname, sender_avatar_url, body, kind,
-  media_json, created_at_raw, local_created_at_ms, sort_seconds, sort_nanos,
-  sort_tiebreaker, status`;
+  media_json, pending_media_json, created_at_raw, local_created_at_ms,
+  sort_seconds, sort_nanos, sort_tiebreaker, status`;
+
+const OUTBOX_COLUMNS = `command_id, local_id, chatroom_id, client_msg_id,
+  body, media_upload_ids_json, state, error_code`;
 
 function parseTimestampSort(raw: string): TimestampSort {
   const match = RFC3339.exec(raw);
@@ -108,7 +115,120 @@ function parseMedia(value: string): readonly ConnectedChatMedia[] {
   return parsed as ConnectedChatMedia[];
 }
 
+function parsePendingMedia(
+  value: string,
+): readonly ConnectedPendingAttachment[] {
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed)) {
+    throw new Error("Connected pending media metadata is not an array.");
+  }
+  return parsed as ConnectedPendingAttachment[];
+}
+
+function parseMediaUploadIds(value: string): readonly string[] {
+  const parsed: unknown = JSON.parse(value);
+  if (
+    !Array.isArray(parsed) ||
+    parsed.some((item) => typeof item !== "string")
+  ) {
+    throw new Error("Connected chat upload references are not a string array.");
+  }
+  return parsed;
+}
+
+function snapshotPendingMedia(
+  body: string,
+  media: readonly ConnectedPendingAttachment[] | undefined,
+): readonly ConnectedPendingAttachment[] {
+  if (typeof body !== "string") {
+    throw new Error("Connected chat message body must be a string.");
+  }
+  const snapshot = (media ?? []).map((item) => ({ ...item }));
+  if (snapshot.length === 0) {
+    if (body.length === 0) {
+      throw new Error(
+        "Connected chat message body must not be empty unless media is included.",
+      );
+    }
+    return snapshot;
+  }
+  if (snapshot.length > 4) {
+    throw new Error(
+      "Connected chat message supports at most four attachments.",
+    );
+  }
+
+  const uploadIds = new Set<string>();
+  for (const item of snapshot) {
+    if (
+      typeof item.mediaUploadId !== "string" ||
+      item.mediaUploadId.length === 0
+    ) {
+      throw new Error("Connected chat media upload id must not be empty.");
+    }
+    if (uploadIds.has(item.mediaUploadId)) {
+      throw new Error("Connected chat media upload ids must be unique.");
+    }
+    uploadIds.add(item.mediaUploadId);
+    const contentPolicy =
+      typeof item.type === "string" ? getMediaContentPolicy(item.type) : null;
+    if (contentPolicy === null) {
+      throw new Error("Connected chat media type is unsupported.");
+    }
+    if (
+      !Number.isSafeInteger(item.byteSize) ||
+      item.byteSize <= 0 ||
+      item.byteSize > contentPolicy.maxBytes
+    ) {
+      throw new Error(
+        "Connected chat media byte size is outside the supported limit.",
+      );
+    }
+    if (
+      item.filename !== null &&
+      (typeof item.filename !== "string" || item.filename.length > 255)
+    ) {
+      throw new Error(
+        "Connected chat media filename must be a string of at most 255 characters.",
+      );
+    }
+    for (const [name, value] of [
+      ["width", item.width],
+      ["height", item.height],
+    ] as const) {
+      if (value !== null && (!Number.isSafeInteger(value) || value <= 0)) {
+        throw new Error(
+          `Connected chat media ${name} must be a positive safe integer.`,
+        );
+      }
+    }
+    if (
+      item.duration !== null &&
+      (!Number.isFinite(item.duration) || item.duration <= 0)
+    ) {
+      throw new Error("Connected chat media duration must be positive.");
+    }
+  }
+
+  const audio = snapshot.filter((item) => item.type.startsWith("audio/"));
+  if (audio.length > 0) {
+    if (snapshot.length !== 1 || body.length !== 0) {
+      throw new Error(
+        "Connected chat audio must be the only attachment and have no body.",
+      );
+    }
+    const duration = audio[0]?.duration;
+    if (duration === null || duration === undefined || duration > 330) {
+      throw new Error(
+        "Connected chat audio duration must be positive and at most 330 seconds.",
+      );
+    }
+  }
+  return snapshot;
+}
+
 function mapMessage(row: MessageRow): ConnectedChatMessage {
+  const pendingMedia = parsePendingMedia(row.pending_media_json);
   return {
     body: row.body,
     chatroomId: row.chatroom_id,
@@ -118,6 +238,7 @@ function mapMessage(row: MessageRow): ConnectedChatMessage {
     localCreatedAtMs: row.local_created_at_ms,
     localId: row.local_id,
     media: parseMedia(row.media_json),
+    ...(pendingMedia.length > 0 ? { pendingMedia } : {}),
     senderAvatarUrl: row.sender_avatar_url,
     senderId: row.sender_id,
     senderNickname: row.sender_nickname,
@@ -127,6 +248,7 @@ function mapMessage(row: MessageRow): ConnectedChatMessage {
 }
 
 function mapOutbox(row: OutboxRow): ConnectedChatOutboxCommand {
+  const mediaUploadIds = parseMediaUploadIds(row.media_upload_ids_json);
   return {
     body: row.body,
     chatroomId: row.chatroom_id,
@@ -134,6 +256,7 @@ function mapOutbox(row: OutboxRow): ConnectedChatOutboxCommand {
     commandId: row.command_id,
     errorCode: row.error_code,
     localId: row.local_id,
+    ...(mediaUploadIds.length > 0 ? { mediaUploadIds } : {}),
     state: row.state,
   };
 }
@@ -195,8 +318,8 @@ export function createConnectedChatRepository(
         `UPDATE connected_chat_messages SET
           server_message_id = ?, chatroom_id = ?, client_msg_id = ?, sender_id = ?,
           sender_nickname = ?, sender_avatar_url = ?, body = ?, kind = ?, media_json = ?,
-          created_at_raw = ?, sort_seconds = ?, sort_nanos = ?, sort_tiebreaker = ?,
-          status = 'sent'
+          pending_media_json = '[]', created_at_raw = ?, sort_seconds = ?,
+          sort_nanos = ?, sort_tiebreaker = ?, status = 'sent'
          WHERE local_id = ?`,
         input.serverMessageId,
         input.chatroomId,
@@ -216,7 +339,7 @@ export function createConnectedChatRepository(
     } else {
       await transaction.runAsync(
         `INSERT INTO connected_chat_messages (${MESSAGE_COLUMNS})
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, 'sent')`,
         localId,
         input.serverMessageId,
         input.chatroomId,
@@ -390,8 +513,11 @@ export function createConnectedChatRepository(
 
     async enqueuePendingMessage(input: ConnectedPendingMessageInput) {
       assertActive();
-      if (input.body.length === 0)
-        throw new Error("Connected text message body must not be empty.");
+      const pendingMedia = snapshotPendingMedia(input.body, input.media);
+      const pendingMediaJson = JSON.stringify(pendingMedia);
+      const mediaUploadIdsJson = JSON.stringify(
+        pendingMedia.map((item) => item.mediaUploadId),
+      );
       if (!Number.isSafeInteger(input.localCreatedAtMs))
         throw new Error("Local creation time must be a safe integer.");
       const seconds = Math.floor(input.localCreatedAtMs / 1_000);
@@ -400,12 +526,13 @@ export function createConnectedChatRepository(
       await database.withExclusiveTransactionAsync(async (transaction) => {
         await transaction.runAsync(
           `INSERT INTO connected_chat_messages (${MESSAGE_COLUMNS})
-           VALUES (?, NULL, ?, ?, ?, NULL, NULL, ?, 'user', '[]', NULL, ?, ?, ?, ?, 'pending')`,
+           VALUES (?, NULL, ?, ?, ?, NULL, NULL, ?, 'user', '[]', ?, NULL, ?, ?, ?, ?, 'pending')`,
           input.localId,
           input.chatroomId,
           input.clientMsgId,
           principal.userId,
           input.body,
+          pendingMediaJson,
           input.localCreatedAtMs,
           seconds,
           nanos,
@@ -414,14 +541,15 @@ export function createConnectedChatRepository(
         await transaction.runAsync(
           `INSERT INTO connected_chat_outbox_commands (
             command_id, local_id, chatroom_id, client_msg_id, sender_id, body,
-            state, error_code, created_at_ms, next_attempt_at_ms
-          ) VALUES (?, ?, ?, ?, ?, ?, 'queued', NULL, ?, ?)`,
+            media_upload_ids_json, state, error_code, created_at_ms, next_attempt_at_ms
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', NULL, ?, ?)`,
           input.commandId,
           input.localId,
           input.chatroomId,
           input.clientMsgId,
           principal.userId,
           input.body,
+          mediaUploadIdsJson,
           input.localCreatedAtMs,
           input.localCreatedAtMs,
         );
@@ -431,7 +559,7 @@ export function createConnectedChatRepository(
         input.localId,
       );
       const command = await database.getFirstAsync<OutboxRow>(
-        `SELECT command_id, local_id, chatroom_id, client_msg_id, body, state, error_code
+        `SELECT ${OUTBOX_COLUMNS}
          FROM connected_chat_outbox_commands WHERE sender_id = ? AND client_msg_id = ?`,
         principal.userId,
         input.clientMsgId,
@@ -446,7 +574,7 @@ export function createConnectedChatRepository(
     async getOutboxCommand(clientMsgId) {
       assertActive();
       const row = await database.getFirstAsync<OutboxRow>(
-        `SELECT command_id, local_id, chatroom_id, client_msg_id, body, state, error_code
+        `SELECT ${OUTBOX_COLUMNS}
          FROM connected_chat_outbox_commands WHERE sender_id = ? AND client_msg_id = ?`,
         principal.userId,
         clientMsgId,
@@ -458,7 +586,7 @@ export function createConnectedChatRepository(
       assertActive();
       await database.withExclusiveTransactionAsync(async (transaction) => {
         const command = await transaction.getFirstAsync<OutboxRow>(
-          `SELECT command_id, local_id, chatroom_id, client_msg_id, body, state, error_code
+          `SELECT ${OUTBOX_COLUMNS}
            FROM connected_chat_outbox_commands WHERE sender_id = ? AND client_msg_id = ?`,
           principal.userId,
           clientMsgId,
@@ -486,7 +614,7 @@ export function createConnectedChatRepository(
       let result: ConnectedMessageAndCommand | null = null;
       await database.withExclusiveTransactionAsync(async (transaction) => {
         const command = await transaction.getFirstAsync<OutboxRow>(
-          `SELECT command_id, local_id, chatroom_id, client_msg_id, body, state, error_code
+          `SELECT ${OUTBOX_COLUMNS}
            FROM connected_chat_outbox_commands WHERE sender_id = ? AND client_msg_id = ?`,
           principal.userId,
           clientMsgId,
@@ -515,7 +643,7 @@ export function createConnectedChatRepository(
           command.local_id,
         );
         const updated = await transaction.getFirstAsync<OutboxRow>(
-          `SELECT command_id, local_id, chatroom_id, client_msg_id, body, state, error_code
+          `SELECT ${OUTBOX_COLUMNS}
            FROM connected_chat_outbox_commands WHERE command_id = ?`,
           command.command_id,
         );

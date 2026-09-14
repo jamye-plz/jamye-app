@@ -1,6 +1,7 @@
 import type { SqliteRepositoryDatabase } from "../types";
+import { ACCOUNT_SCHEMA_VERSION } from "./migrations";
 
-export const ACCOUNT_SCHEMA_VERSION = 4;
+export { ACCOUNT_SCHEMA_VERSION } from "./migrations";
 
 type ScopeMetadataRow = Readonly<{
   origin: string;

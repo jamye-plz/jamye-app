@@ -187,6 +187,37 @@ export function ChatMessageList({
     },
     [],
   );
+  const [previewIds, setPreviewIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const onPreviewItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken<ChatMessage>[] }) => {
+      const next = new Set(
+        viewableItems
+          .filter((token) => token.isViewable)
+          .map((token) => token.item.localId),
+      );
+      setPreviewIds((previous) =>
+        previous.size === next.size && [...next].every((id) => previous.has(id))
+          ? previous
+          : next,
+      );
+    },
+    [],
+  );
+  const viewabilityConfigCallbackPairs = useMemo(
+    () => [
+      { viewabilityConfig, onViewableItemsChanged },
+      {
+        viewabilityConfig: {
+          itemVisiblePercentThreshold: 1,
+          minimumViewTime: 200,
+        },
+        onViewableItemsChanged: onPreviewItemsChanged,
+      },
+    ],
+    [viewabilityConfig, onViewableItemsChanged, onPreviewItemsChanged],
+  );
   const listRef = useAnimatedRef<FlatList<ChatMessage>>();
   const fallbackKeyboardOverlap = useSharedValue(0);
   const fallbackKeyboardState = useSharedValue(KeyboardState.UNKNOWN);
@@ -344,8 +375,8 @@ export function ChatMessageList({
       {hasReadyMessages ? (
         <Animated.FlatList
           data={conversation.items}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
+          viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs}
+          extraData={previewIds}
           inverted={false}
           keyExtractor={(item) => item.localId}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
@@ -388,6 +419,7 @@ export function ChatMessageList({
                 conversation.items[index - 1]?.senderLabel === item.senderLabel
               }
               message={item}
+              mediaPreviewEnabled={previewIds.has(item.localId)}
               onRetryFailedMessage={onRetryFailedMessage}
             />
           )}

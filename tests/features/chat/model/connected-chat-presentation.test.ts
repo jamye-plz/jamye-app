@@ -56,7 +56,7 @@ test("tombstoned and system messages need neither a sender nor a body; no event 
   ).toBe("시스템");
 });
 
-test("media is a safe placeholder and timestamps are display-only", () => {
+test("media retains canonical IDs for M11 access and timestamps are display-only", () => {
   const row = repositoryHistoryRow({
     createdAtRaw: "2026-09-10T00:00:00.123456789Z",
     body: null,
@@ -69,13 +69,18 @@ test("media is a safe placeholder and timestamps are display-only", () => {
         id: "media",
         mediaUploadId: "upload",
         position: 0,
-        type: "image",
+        type: "image/jpeg",
         width: null,
       },
     ],
   });
   const result = toChatMessage(row, PRINCIPAL.userId);
-  expect(result.body).toBe("첨부 파일 1개 · 이 단계에서는 열 수 없습니다.");
+  expect(result.body).toBe("");
+  expect(result.media).toEqual(row.media);
+  expect(result.media?.[0]).toMatchObject({
+    id: "media",
+    mediaUploadId: "upload",
+  });
   expect(row.createdAtRaw).toBe("2026-09-10T00:00:00.123456789Z");
   expect(result.serverMessageId).toBe(row.serverMessageId);
   expect(
@@ -84,6 +89,15 @@ test("media is a safe placeholder and timestamps are display-only", () => {
       PRINCIPAL.userId,
     ).createdAtMs,
   ).toBe(100);
+});
+
+test("an empty text-only historical row keeps its safe placeholder", () => {
+  expect(
+    toChatMessage(
+      repositoryHistoryRow({ body: "", media: [] }),
+      PRINCIPAL.userId,
+    ).body,
+  ).toBe("표시할 수 없는 메시지입니다.");
 });
 
 test("initial, pagination and retry states adapt to the existing chat list without altering SQLite order", async () => {

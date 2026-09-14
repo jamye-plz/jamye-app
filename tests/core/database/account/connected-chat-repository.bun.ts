@@ -75,12 +75,12 @@ async function main(): Promise<void> {
   `);
 
   await runMigrations(adapter, accountMigrations);
-  assert.equal(database.query("PRAGMA user_version").get().user_version, 4);
+  assert.equal(database.query("PRAGMA user_version").get().user_version, 5);
   assert.deepEqual(database.query("SELECT * FROM scope_metadata").get(), {
     singleton: 1,
     origin: PRINCIPAL.origin,
     user_id: PRINCIPAL.userId,
-    schema_version: 4,
+    schema_version: 5,
   });
 
   let active = true;
@@ -306,6 +306,94 @@ async function main(): Promise<void> {
       .query("SELECT count(*) AS count FROM connected_chat_messages")
       .get().count,
     4,
+  );
+
+  const pendingMedia = [
+    {
+      byteSize: 100,
+      duration: null,
+      filename: "image.png",
+      height: 20,
+      mediaUploadId: "upload-image",
+      type: "image/png",
+      width: 30,
+    },
+    {
+      byteSize: 200,
+      duration: 2.5,
+      filename: "video.mp4",
+      height: 40,
+      mediaUploadId: "upload-video",
+      type: "video/mp4",
+      width: 50,
+    },
+  ];
+  const pendingAttachmentMessage = await repository.enqueuePendingMessage({
+    body: "",
+    chatroomId: ROOM_ID,
+    clientMsgId: "client-media",
+    commandId: "command-media",
+    localCreatedAtMs: 1_757_462_402_000,
+    localId: "local-media",
+    media: pendingMedia,
+  });
+  assert.deepEqual(pendingAttachmentMessage.command.mediaUploadIds, [
+    "upload-image",
+    "upload-video",
+  ]);
+  assert.deepEqual(pendingAttachmentMessage.message.pendingMedia, pendingMedia);
+
+  await repository.markSendFailed({
+    clientMsgId: "client-media",
+    errorCode: "network",
+  });
+  const retriedMedia = await repository.retryFailedMessage({
+    body: "",
+    chatroomId: ROOM_ID,
+    clientMsgId: "client-media",
+  });
+  assert.deepEqual(retriedMedia.command.mediaUploadIds, [
+    "upload-image",
+    "upload-video",
+  ]);
+  assert.deepEqual(retriedMedia.message.pendingMedia, pendingMedia);
+
+  const reopenedRepository = createConnectedChatRepository(
+    adapter,
+    PRINCIPAL,
+    () => {},
+  );
+  assert.deepEqual(
+    (await reopenedRepository.getOutboxCommand("client-media"))?.mediaUploadIds,
+    ["upload-image", "upload-video"],
+  );
+  const acknowledgedMedia = await reopenedRepository.mergeCanonicalMessage({
+    body: null,
+    chatroomId: ROOM_ID,
+    clientMsgId: "client-media",
+    createdAtRaw: "2026-09-10T00:00:02Z",
+    kind: "user",
+    localId: "server-proposed-media-local",
+    media: [
+      {
+        ...pendingMedia[0],
+        id: "canonical-media-id",
+        position: 0,
+      },
+    ],
+    senderId: PRINCIPAL.userId,
+    serverMessageId: "server-media-message",
+  });
+  assert.equal(acknowledgedMedia.pendingMedia, undefined);
+  assert.equal(acknowledgedMedia.media[0]?.id, "canonical-media-id");
+  assert.equal(acknowledgedMedia.media[0]?.mediaUploadId, "upload-image");
+  assert.deepEqual(
+    (await reopenedRepository.getOutboxCommand("client-media"))?.mediaUploadIds,
+    ["upload-image", "upload-video"],
+  );
+  assert.equal(
+    (await reopenedRepository.getOutboxCommand("client-media"))?.state,
+    "acked",
   );
 
   active = false;

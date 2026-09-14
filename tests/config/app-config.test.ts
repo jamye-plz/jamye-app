@@ -42,6 +42,14 @@ const DEVELOPMENT_IDENTITY = {
 
 const DEV_CLIENT_PLUGIN = ["expo-dev-client", { addGeneratedScheme: true }];
 const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"];
+const MEDIA_PICKER_PLUGIN = [
+  "expo-image-picker",
+  {
+    photosPermission: "선택한 사진과 동영상을 주제에 첨부하기 위해 접근합니다.",
+    cameraPermission: false,
+    microphonePermission: false,
+  },
+];
 const INITIAL_APP_VARIANT = process.env.APP_VARIANT;
 const INITIAL_PUBLIC_APP_MODE = process.env.EXPO_PUBLIC_APP_MODE;
 
@@ -214,6 +222,7 @@ describe("M3-I1 Expo configuration contract", () => {
         ...(base.plugins as unknown[]),
         DEV_CLIENT_PLUGIN,
         ...OAUTH_NATIVE_PLUGINS,
+        MEDIA_PICKER_PLUGIN,
       ],
     });
     expect(resolved).toMatchObject({
@@ -227,6 +236,7 @@ describe("M3-I1 Expo configuration contract", () => {
       ...PINNED_BASE.plugins,
       DEV_CLIENT_PLUGIN,
       ...OAUTH_NATIVE_PLUGINS,
+      MEDIA_PICKER_PLUGIN,
     ]);
   });
 

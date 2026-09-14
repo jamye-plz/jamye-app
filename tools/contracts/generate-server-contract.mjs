@@ -19,6 +19,7 @@ const GENERATOR_IDENTITY = "openapi-typescript@7.13.0";
 // R1 POST realtime ticket); the realtime WebSocket frame/protocol schemas
 // are not OpenAPI operations and are validated separately from the
 // selectively vendored contracts/server/realtime/*.json artifacts.
+// M10 adds topics/tags; M11 adds MD1-MD5 media operations from the same snapshot.
 const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "A1",
   "A2",
@@ -51,6 +52,11 @@ const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "T5",
   "T6",
   "T7",
+  "MD1",
+  "MD2",
+  "MD3",
+  "MD4",
+  "MD5",
 ]);
 
 function isRecord(value) {

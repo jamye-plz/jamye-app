@@ -3,10 +3,10 @@
 - 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인)
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M10 주제·태그 `COMPLETED / USER_ACCEPTED`; 다음 M11 계획 검토 대기 (2026-09-10)
+- 현재 frontier: M10 `COMPLETED / USER_ACCEPTED`; M11 미디어 업로드·첨부·접근 `AUTOMATED_PASS / NATIVE_REBUILD_PENDING / USER_ACCEPTANCE_PENDING`
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-09-10
+- 최종 수정일: 2026-09-11
 
 ## 1. 이 문서가 답하는 것
 
@@ -29,8 +29,8 @@
 - **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
-- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인
-- **미래 계획**: M11 이후 항목은 `planned_unapproved`; M10 계획 확정이 후속 범위 승인은 아님
+- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11 형식 호환성 보완 후 전체 102 suites / 1,165 tests 및 Expo Doctor 21/21 PASS. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존하되, 새 이미지 변환 모듈의 양 플랫폼 재빌드·실행과 사용자 미디어 재검증은 대기
+- **미래 계획**: M12 이후 항목은 `planned_unapproved`; M11 구현 승인이 후속 범위 승인은 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
 production readiness의 증거로 재사용하지 않는다.
@@ -516,23 +516,75 @@ Coverage는 statements 85.54%, branches 81.46%, functions 87.59%, lines 89.00%�
 
 ### M11. 미디어 업로드·첨부·접근
 
-- 상태: `planned_unapproved`
+- 상태: `IMPLEMENTED / NATIVE_REBUILD_PENDING / USER_ACCEPTANCE_PENDING`; 형식 호환성 재빌드 이후 승인된 기본 native 영상 재생을 추가, 새 플레이어의 재빌드·실행 확인은 별도 단계
 - 선행: M8, M10
 - 사용자 결과: 지원하는 media를 선택해 upload를 완료하고 contract가 허용하는 message/topic에
   연결하며, 이후 안전하게 열거나 내려받는다.
-- 계약 범위: Media
+- 계약 범위: MD1-MD5, 기존 C4의 ordered `media_upload_id` 참조. 서버 snapshot은 그대로 소비한다.
 
-핵심 작업:
+승인된 구현 순서:
 
-- Presigned upload create/finalize, topic media list와 media URL/download
-- System picker 우선, permission은 기능 사용 시점에 요청
-- Signed URL 전체를 그대로 사용하고 API credential을 media host에 전달하지 않음
-- Expiry, retry, cancellation, duplicate finalize와 partial upload cleanup
+1. **계약·통신**: MD1 upload intent → credential-free PUT → MD2 finalize,
+   MD3 주제 미디어 목록, MD4 짧은 접근 URL, MD5 307 다운로드를 typed port로 연결한다.
+2. **선택·업로드**: system picker로 이미지·동영상, document picker로 기존 오디오 파일을
+   선택한다. 승인된 형식 호환성 변환 후 실제 MIME·크기를 확인하고 foreground 업로드 진행·취소·재시도를 표시한다.
+3. **메시지 연결**: 모든 첨부가 confirmed된 후 기존 account SQLite/outbox에 메시지와
+   첨부 순서를 한 번에 저장한다. v005가 v004 데이터·lease·재시도 정보를 보존한다.
+   C4 재시도는 동일 `client_msg_id`와 upload ID 순서를 재사용하며 파일을 다시 업로드하지 않는다.
+4. **표시·주제 첨부**: 기존 첨부 placeholder를 이미지 표시와 OS 열기·공유/저장으로 바꾼다.
+   주제에는 권한 있는 사용자의 이미지 첨부와 MD3 페이지 조회를 연결한다.
+5. **후속 승인된 기본 영상 재생**: 송신 말풍선의 버튼 대비를 보정하고 MP4 첨부에 영상 카드·재생
+   버튼을 표시한다. 앱 내 전체 화면에서 iOS/Android native player의 기본 재생·일시정지·탐색 컨트롤을 사용한다.
+   별도 custom player UI나 오디오 재생 기능은 추가하지 않는다.
+
+입력·수명주기 경계:
+
+- 이미지 JPEG/PNG/WebP/GIF 최대 10 MiB, chat 동영상 MP4 최대 50 MiB,
+  chat 오디오 WebM/MP4/Ogg 최대 15 MiB. 서버의 MIME·용량 제한은 변경하지 않는다.
+- 사용자 후속 승인으로 HEIC/HEIF·AVIF·TIFF·BMP 등은 OS가 해독할 수 있을 때 Expo native 모듈로
+  JPEG(quality 0.9)로 변환한다. 이 변환 입력은 로컬 파일·최대 50 MiB로 제한하고, 출력의 JPEG 헤더와
+  실제 크기를 확인한 뒤 이미지 10 MiB 제한을 적용한다. 지원되는 JPEG/PNG/WebP/GIF는 그대로 유지한다.
+- iOS 동영상은 MOV 등을 최대 1080p H.264/AAC MP4로 내보낸다. Android의 기존 picker 설정과 MP4
+  경로는 유지하며, 공통 이미지 변환기는 양 플랫폼에서 사용한다. 모든 입력 형식의 해독을 보장하거나
+  확장자/MIME만 바꾸지 않는다. OS 변환 실패·허용되지 않은 출력은 업로드 전에 거절한다.
+- chat visual 첨부는 순서 있는 최대 4개. 오디오는 정확히 1개, 텍스트·다른 첨부와 혼합하지 않는다.
+  길이는 MD2가 검사한 값만 사용하며 양수·최대 330초다. 주제 첨부는 이미지만 허용한다.
+- canonical `media.id`와 `media_upload_id`를 구분한다. MD4/MD5에는 canonical ID만 사용한다.
+- MD5의 API bearer 요청은 307에서 멈추고, `Location`은 별도의 credential-free 요청으로 받는다.
+  configured HTTPS media origin을 확인한 뒤 signed URL 전체를 그대로 사용한다. URL·토큰은 DB/로그에 저장하지 않는다.
+- 계정/대상 변경, 화면 이탈과 background에서 진행 중 전송을 취소하고 늦은 응답을 폐기한다.
+  앱이 만든 임시 파일만 정리하며 선택 원본을 삭제하지 않는다. 원격 미완료 upload 삭제 API는
+  계약에 없으므로 원격 삭제 완료라고 표시하지 않는다.
+- 파일 선택·변환 중에는 진행 문구와 중복 선택 방지를 유지한다. Native 변환 자체의 즉시 중단을
+  보장하지는 않으며, 완료 시 화면/계정이 유효하지 않으면 결과를 폐기하고 변환 임시 파일만 정리한다.
+- 영상은 사용자가 재생을 눌렀을 때만 MD4 인증 후 기존 bounded GET으로 임시 MP4를 받는다.
+  player에는 앱 소유 로컬 파일만 전달한다. 목록 자동재생·PiP·background 재생·외부 전송은 사용하지 않으며,
+  닫기·화면/계정 변경·background에서 중단하고 native player 해제 뒤 파일을 정리한다.
+- MD1은 멱등성을 보장하지 않는다. 특히 topic MD2 응답 유실은 이미 bind되었을 수 있어
+  같은 upload ID finalize 재시도·MD3 재조회로 확인한다.
+
+제외 범위: 녹음·카메라·일반 미디어 편집(위 형식 호환성 변환만 포함), 백그라운드/분할/재개 업로드, 앱 종료 후 미완료 업로드 복원,
+새 큐·동기화 엔진·상태 관리 프레임워크, 자체 audio player·custom video player UI, 서버·homelab 변경,
+M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 완료 증거:
 
-- Contract/content validation, credential isolation과 failure recovery test
-- 선택한 platform/device의 picker, upload, render/download와 접근성 수동 결과
+- focused 계약·policy·credential isolation·취소/재시도·SQLite upgrade 테스트와 type/lint.
+- 별도 승인 후 전체 coverage·독립 리뷰, 양 플랫폼 clean prebuild·재빌드·설치.
+- iOS·Android에서 Expo transport의 no-follow/credential isolation 실제 동작과
+  picker → upload → 송수신/주제 첨부 → 접근/저장, 취소·실패 복구를 확인한다.
+- 사용자 수용 후 종료·커밋은 별도 요청으로 진행한다. 현재 결과는 [M11 evidence](evidence/M11.md)에 기록한다.
+
+2026-09-11 실행에서 Expo File PUT의 Content-Type 덮어쓰기와 전체 JS buffering을 발견했고,
+사용자 승인 후 파일 PUT 전용의 작은 native 모듈로 교체했다. 서버 계약·기존 구조·다운로드는 유지했다.
+양 플랫폼에서 정확한 MIME·50 MiB 파일·credential isolation·redirect 금지·취소를 합성 endpoint로 확인했다.
+실제 사용자 첨부·OS 저장 검증과 M11 종료는 남아 있다.
+
+이후 사용자가 iOS HEIC/MOV 거절을 보고하고 “ios 네이티브를 지원하도록 수정해줘. 최대한 모든
+플랫폼에 호환되도록”을 승인했다. 앱에 Expo SDK 57용 이미지 변환 모듈을 추가하고 iOS 영상 내보내기를
+연결했다. 2026-09-14 양 플랫폼 clean prebuild·재빌드·설치를 마쳤고 사용자는 송수신 성공과 영상 재생
+불가를 보고했다. 당시 화면에는 native video player가 없었다. 후속 승인으로 `expo-video`를 추가했으며,
+이 새 의존성의 재빌드·실제 재생 확인은 이전 형식 호환성 빌드나 자동 테스트로 대체하지 않는다.
 
 ### M12. 알림함과 Expo 푸시
 
@@ -591,7 +643,7 @@ Coverage는 statements 85.54%, branches 81.46%, functions 87.59%, lines 89.00%�
 | Chatrooms/messages/read | C1, C2, C3, C4                 | M8 완료 — 양 플랫폼 사용자 수용     | M8                                         |
 | Delta/realtime          | S1, R1 + WebSocket             | M9 완료 — 사용자 수용 4/4 확인      | M9                                         |
 | Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 완료, 양 플랫폼 사용자 수용 PASS    | M10                                        |
-| Media                   | MD1, MD2, MD3, MD4, MD5        | 없음                                | M11                                        |
+| Media                   | MD1, MD2, MD3, MD4, MD5        | 자동 검사 PASS, native 업로드 보류  | M11                                        |
 | Notification history    | N1, N2                         | 없음                                | M12                                        |
 | Push installation       | P2, P3, P4                     | 없음                                | M12                                        |
 
@@ -672,6 +724,7 @@ M8을 `COMPLETED / USER_ACCEPTED`로 정식 종료했다. 상세 결과는 [M8 e
 상세 결과와 한계는 [M9 evidence](evidence/M9.md)를 따른다. 이후 M10 계획·구현·전체 자동 검사·독립 리뷰와
 양 플랫폼 실행을 진행했고 사용자가 네 수용 항목의 정상 동작 및 종료·로컬 커밋을 승인했다.
 M10은 `COMPLETED / USER_ACCEPTED`이며 [M10 evidence](evidence/M10.md)에 출처와 한계를 기록한다.
-다음 단계는 기존 M11 미디어 업로드·첨부·접근 계획 검토와 승인이다.
+이후 M11 미디어 계획 검토·구현·검증 및 PUT-only native 수정 승인을 받아 전체 coverage·독립 리뷰와 양 플랫폼 재빌드·전송 재검증을 마쳤다.
+실제 사용자 미디어 수용과 M11 종료는 남아 있다. [M11 evidence](evidence/M11.md)에 구분해 기록한다.
 
 이번 종료 승인은 M11 구현, 기존 후속 마일스톤 변경, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.

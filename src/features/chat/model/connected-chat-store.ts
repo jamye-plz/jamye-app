@@ -10,6 +10,7 @@ import type {
   ConnectedChatroomUpsert,
   ConnectedHistoryMessageUpsert,
   ConnectedMessageCursor,
+  ConnectedPendingAttachment,
   ConnectedSendErrorCode,
 } from "@/core/database/account/connected-chat-types";
 import type {
@@ -120,6 +121,7 @@ export type ConnectedChatStoreActions = Readonly<{
   sendMessage: (
     body: string,
     onCommitted?: (localId: string) => void,
+    media?: readonly ConnectedPendingAttachment[],
   ) => Promise<void>;
   retryMessage: (clientMsgId: string) => Promise<void>;
   markVisibleMessages: (ids: readonly string[]) => Promise<void>;
@@ -788,12 +790,13 @@ export function createConnectedChatStore(
   async function sendMessage(
     body: string,
     onCommitted?: (localId: string) => void,
+    media?: readonly ConnectedPendingAttachment[],
   ): Promise<void> {
     if (
       historyBlocked ||
       state.sync === "upgrade-required" ||
       state.send.status === "pending" ||
-      !body.trim()
+      (!body.trim() && !media?.length)
     )
       return;
     const chatroomId = state.chatroomId;
@@ -808,6 +811,7 @@ export function createConnectedChatStore(
     try {
       const write = ticket.repo.enqueuePendingMessage({
         body,
+        ...(media?.length ? { media: media.map((item) => ({ ...item })) } : {}),
         chatroomId,
         clientMsgId: identityInput.clientMsgId,
         commandId: identityInput.commandId,
