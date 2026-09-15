@@ -1,9 +1,9 @@
 # 잼얘좀 모바일 — 서버 연결 제품 여정과 보존할 native 의도
 
 - 작성 목적: M1에서 기존 `jamye-plz`의 제품 의미와 회귀 의도를 읽기 전용으로 추출
-- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat, M9 durable outbox/realtime/delta, M10 topics/tags, M11 media (자동·native 검증 완료, 사용자 수용 대기)
+- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat, M9 durable outbox/realtime/delta, M10 topics/tags, M11 media (2026-09-16 사용자 수용·종료 승인)
 - M5 이후: Kakao/Google login/profile/logout과 M6 범위의 native/user 세션 수용 완료
-- 현재 frontier: M10 completed / user accepted, M11 automated pass / native pass / user acceptance pending (2026-09-11)
+- 현재 frontier: M11 completed / user accepted (2026-09-16); M12 notification/Expo push planned_unapproved
 - 기준 저장소: [sibling `jamye-plz`](../../jamye-plz/) repository (수정하지 않음)
 
 ## 1. 먼저 고정할 해석 원칙
@@ -49,7 +49,7 @@ API의 `chatroom`/`topic` 식별자는 유지한다. 다음 사용자 여정은 
 3. 실제 chatroom history/read/send — M8 완료, 양 플랫폼 사용자 확인
 4. Offline/realtime convergence — M9 완료, 사용자 수용 4/4 확인
 5. Topics/tags — M10 완료, 양 플랫폼 사용자 수용 4/4 확인 및 종료 승인
-6. Media — M11 전체 검사·재빌드 완료, native MIME/버퍼링 문제의 수정안 승인과 양 플랫폼 수용 대기
+6. Media — M11 완료, 2026-09-16 양 플랫폼 사용자 수용 및 종료 승인
 7. Notification/Expo push
 8. Account profile update와 deletion lifecycle
 
@@ -136,7 +136,7 @@ M5에는 WebSocket·REST delta·network lifecycle 실행 경로가 없다.
 
 M8 당시 transport는 M6 OAuth/profile/logout·health, M7 groups와 REST chat까지였다. 기존 PWA의
 cookie, endpoint, socket frame은 모바일 계약으로 사용하지 않는다. 이후 WebSocket/delta와
-자동 outbox dispatch는 M9에서 완료했고, media는 M11 native 업로드 문제를 해결한 뒤 사용자 수용을 진행한다.
+자동 outbox dispatch는 M9에서 완료했고, media는 M11에서 native 업로드 문제를 해결하고 2026-09-16 사용자 수용을 마쳤다.
 Push와 offline authenticated restore는 아직 구현하지 않았다.
 
 ### 3.4 읽던 위치를 잃지 않는다

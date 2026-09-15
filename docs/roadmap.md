@@ -1,9 +1,9 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인)
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인)
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M10 `COMPLETED / USER_ACCEPTED`; M11 미디어 업로드·첨부·접근 `AUTOMATED_PASS / NATIVE_REBUILD_PENDING / USER_ACCEPTANCE_PENDING`
+- 현재 frontier: M11 미디어 업로드·첨부·접근 `COMPLETED / USER_ACCEPTED` (2026-09-16); 다음 M12 알림함과 Expo 푸시 `planned_unapproved`
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-11
@@ -29,7 +29,7 @@
 - **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
-- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11 형식 호환성 보완 후 전체 102 suites / 1,165 tests 및 Expo Doctor 21/21 PASS. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존하되, 새 이미지 변환 모듈의 양 플랫폼 재빌드·실행과 사용자 미디어 재검증은 대기
+- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11은 2026-09-15 expo-image·expo-video 포함 양 플랫폼 clean prebuild·재빌드·설치, 포스터 송수신·realtime 반영 검증(전체 129 suites / 1,370 tests PASS)을 거쳐 2026-09-16 사용자 종료 승인. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존
 - **미래 계획**: M12 이후 항목은 `planned_unapproved`; M11 구현 승인이 후속 범위 승인은 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
@@ -516,7 +516,7 @@ Coverage는 statements 85.54%, branches 81.46%, functions 87.59%, lines 89.00%�
 
 ### M11. 미디어 업로드·첨부·접근
 
-- 상태: `IMPLEMENTED / NATIVE_REBUILD_PENDING / USER_ACCEPTANCE_PENDING`; 형식 호환성 재빌드 이후 승인된 기본 native 영상 재생을 추가, 새 플레이어의 재빌드·실행 확인은 별도 단계
+- 상태: `COMPLETED / USER_ACCEPTED` — 2026-09-16 사용자 수용 및 종료 기록 승인. 2026-09-15 expo-image·expo-video 포함 양 플랫폼 재빌드, 포스터 송수신·realtime 반영 검증 완료
 - 선행: M8, M10
 - 사용자 결과: 지원하는 media를 선택해 upload를 완료하고 contract가 허용하는 message/topic에
   연결하며, 이후 안전하게 열거나 내려받는다.
@@ -578,7 +578,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 2026-09-11 실행에서 Expo File PUT의 Content-Type 덮어쓰기와 전체 JS buffering을 발견했고,
 사용자 승인 후 파일 PUT 전용의 작은 native 모듈로 교체했다. 서버 계약·기존 구조·다운로드는 유지했다.
 양 플랫폼에서 정확한 MIME·50 MiB 파일·credential isolation·redirect 금지·취소를 합성 endpoint로 확인했다.
-실제 사용자 첨부·OS 저장 검증과 M11 종료는 남아 있다.
+이후 2026-09-15 재빌드와 포스터·realtime 반영 검증을 거쳐 2026-09-16 M11을 종료했다. 상세는 [M11 evidence](evidence/M11.md)에 기록한다.
 
 이후 사용자가 iOS HEIC/MOV 거절을 보고하고 “ios 네이티브를 지원하도록 수정해줘. 최대한 모든
 플랫폼에 호환되도록”을 승인했다. 앱에 Expo SDK 57용 이미지 변환 모듈을 추가하고 iOS 영상 내보내기를
