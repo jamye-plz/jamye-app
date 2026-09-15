@@ -3,6 +3,11 @@ import React from "react";
 import { Keyboard } from "react-native";
 
 import { AppThemeProvider } from "../../../src/core/theme/theme-provider";
+import type { MediaAttachmentController } from "../../../src/features/media/ui/media-attachment-types";
+import {
+  listItemMountLog,
+  resetListItemMountLog,
+} from "../../__mocks__/@expo/ui";
 
 jest.mock("expo-router", () => ({
   useFocusEffect: (callback: () => (() => void) | void) =>
@@ -32,8 +37,24 @@ type ChatComposer = (
     controller: ChatSendController;
     onMessageCommitted?: (localId: string) => void;
     blocked?: boolean;
+    attachmentController?: MediaAttachmentController | null;
   }>,
 ) => React.JSX.Element;
+
+function fakeAttachmentController(): MediaAttachmentController {
+  return {
+    items: [],
+    addImageOrVideo: jest.fn(),
+    addAudio: jest.fn(),
+    cancel: jest.fn(),
+    retry: jest.fn(),
+    remove: jest.fn(),
+  };
+}
+
+function mountCountFor(testID: string): number {
+  return listItemMountLog.filter((entry) => entry.testID === testID).length;
+}
 
 function createDeferred<Value>() {
   let reject: (error: Error) => void = () => undefined;
@@ -342,5 +363,77 @@ describe("M5-UI-1 explicit-send Korean IME composer", () => {
     // media-attachment-types.ts and the M11 UI seam note). Capture/record/skeleton
     // remain out of scope.
     expect(source).not.toMatch(/microphone|recording|skeleton/i);
+  });
+
+  test("remounts (not prop-updates) the attach-sheet ListItem when availability flips, and keeps handlers wired on available options", async () => {
+    // Regression test for the upstream @expo/ui Android bug: ListItem.android.tsx
+    // forwards `modifiers={undefined}` when `onPress` goes from present to absent
+    // on an already-mounted instance, which expo-modules-core's
+    // `ListTypeConverter.convertFromDynamic` cannot cast, crashing the app. The
+    // fix keys each option by its own availability so React remounts instead of
+    // diffing `onPress` away. This test fails (RED) without the `key` fix because
+    // the mount count does not increase when availability flips -- the mocked
+    // ListItem is updated in place rather than remounted.
+    resetListItemMountLog();
+    const ChatComposer = loadChatComposer();
+    const send = jest.fn(async () => ({ outcome: "empty" as const }));
+    const attachment = fakeAttachmentController();
+
+    const screen = await render(
+      <AppThemeProvider>
+        <ChatComposer controller={{ send }} attachmentController={attachment} />
+      </AppThemeProvider>,
+    );
+
+    await fireEvent.press(screen.getByLabelText("첨부 추가"));
+
+    // Initial mount while both options are available.
+    expect(mountCountFor("attachment-option-image")).toBe(1);
+    expect(mountCountFor("attachment-option-audio")).toBe(1);
+    expect(screen.queryByText("지금은 추가할 수 없습니다")).toBeNull();
+
+    await act(async () => {
+      await screen.rerender(
+        <AppThemeProvider>
+          <ChatComposer
+            controller={{ send }}
+            attachmentController={attachment}
+            blocked
+          />
+        </AppThemeProvider>,
+      );
+    });
+
+    // Availability flipped to unavailable (blocked gates both options): the
+    // ListItem must have been torn down and reconstructed, not merely
+    // updated in place -- this is the exact transition that crashes on
+    // Android upstream without the availability-keyed remount.
+    expect(mountCountFor("attachment-option-image")).toBe(2);
+    expect(mountCountFor("attachment-option-audio")).toBe(2);
+    expect(screen.getAllByText("지금은 추가할 수 없습니다")).toHaveLength(2);
+
+    await act(async () => {
+      await screen.rerender(
+        <AppThemeProvider>
+          <ChatComposer
+            controller={{ send }}
+            attachmentController={attachment}
+          />
+        </AppThemeProvider>,
+      );
+    });
+
+    // Availability flipped back to available: another remount.
+    expect(mountCountFor("attachment-option-image")).toBe(3);
+    expect(mountCountFor("attachment-option-audio")).toBe(3);
+    expect(screen.queryByText("지금은 추가할 수 없습니다")).toBeNull();
+
+    // The remounted, now-available option still calls its real handler:
+    // pressing it closes the sheet (the composer's `addImageOrVideo`
+    // callback runs `setSheetOpen(false)` synchronously before staging).
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId("attachment-option-image"));
+    });
+    expect(screen.queryByTestId("attachment-option-image")).toBeNull();
   });
 });

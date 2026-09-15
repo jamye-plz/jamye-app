@@ -8,6 +8,7 @@
  * explicit `jest.mock("@expo/ui")` call in the consuming test file.
  */
 import type { PropsWithChildren, ReactNode } from "react";
+import { useEffect } from "react";
 import {
   Pressable,
   Switch as RNSwitch,
@@ -104,6 +105,22 @@ type ListItemProps = Readonly<{
   testID?: string;
 }>;
 
+/**
+ * Records one entry per `ListItem` mount (a new component instance being
+ * constructed), via a `useEffect` with an empty dependency array. A prop
+ * *update* delivered to an already-mounted instance never appends here --
+ * only a remount (e.g. triggered by a changed `key`) does. The chat-composer
+ * attach-sheet regression test uses this log to prove the availability-keyed
+ * `key` workaround (see chat-composer.tsx) forces React to remount the
+ * ListItem instead of diffing `onPress` away in place, which is what
+ * upstream @expo/ui's Android bug crashes on.
+ */
+export const listItemMountLog: { testID: string | undefined }[] = [];
+
+export function resetListItemMountLog(): void {
+  listItemMountLog.length = 0;
+}
+
 export function ListItem({
   children,
   supportingText,
@@ -112,6 +129,10 @@ export function ListItem({
   trailing,
   testID,
 }: ListItemProps) {
+  useEffect(() => {
+    listItemMountLog.push({ testID });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- record on mount only, not on testID prop updates
+  }, []);
   return (
     <Pressable
       accessibilityRole={onPress ? "button" : undefined}

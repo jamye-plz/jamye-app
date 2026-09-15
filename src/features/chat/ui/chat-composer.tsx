@@ -231,7 +231,22 @@ export function ChatComposer({
             onDismiss={() => setSheetOpen(false)}
           >
             <List>
+              {/*
+                Workaround for an upstream @expo/ui Android bug: when `onPress`
+                goes from present to absent on an already-mounted ListItem,
+                ListItem.android.tsx computes
+                `modifiers={itemModifiers.length ? itemModifiers : undefined}`
+                and forwards `modifiers=undefined`; expo-modules-core's
+                `ListTypeConverter.convertFromDynamic` cannot cast that prop
+                update and crashes ("Cannot set prop 'modifiers' ...
+                DynamicFromMap"). Keying each item by its own availability
+                forces React to unmount+remount instead of diffing `onPress`
+                away. Drop these keys once upstream @expo/ui passes `[]`
+                instead of `undefined` for a ListItem without `onPress`.
+              */}
               <ListItem
+                key={canAddImageOrVideo ? "image-on" : "image-off"}
+                testID="attachment-option-image"
                 {...(canAddImageOrVideo
                   ? { onPress: addImageOrVideo }
                   : { supportingText: ATTACHMENT_OPTION_UNAVAILABLE })}
@@ -239,6 +254,8 @@ export function ChatComposer({
                 <UIText>{"사진·동영상 첨부"}</UIText>
               </ListItem>
               <ListItem
+                key={canAddAudio ? "audio-on" : "audio-off"}
+                testID="attachment-option-audio"
                 {...(canAddAudio
                   ? { onPress: addAudio }
                   : { supportingText: ATTACHMENT_OPTION_UNAVAILABLE })}
