@@ -3,9 +3,12 @@ import { createNativeVideoThumbnail } from "@/features/media/platform/native-vid
 const mockLoad = jest.fn();
 const mockManipulate = jest.fn();
 const mockOwned = jest.fn();
+const mockOwnedStaged = jest.fn();
 const mockHold = jest.fn();
+const mockHoldStaged = jest.fn();
 const mockDelete = jest.fn();
 const mockRemove = jest.fn();
+const mockRemoveStaged = jest.fn();
 const mockCopy = jest.fn();
 let mockSize = 100;
 jest.mock("expo", () => ({
@@ -20,6 +23,14 @@ jest.mock("@/features/media/platform/media-downloads", () => ({
   removeDownloadedFile: (uri: string) => mockRemove(uri),
   allocateDownloadDestination: () => ({
     uri: "file:///cache/media-downloads/thumb.jpg",
+  }),
+}));
+jest.mock("@/features/media/platform/media-staging", () => ({
+  isOwnedStagedFile: (uri: string) => mockOwnedStaged(uri),
+  retainStagedFile: () => mockHoldStaged(),
+  removeStagedFile: (uri: string) => mockRemoveStaged(uri),
+  allocateStagingDestination: () => ({
+    uri: "file:///cache/media-staging/thumb.jpg",
   }),
 }));
 jest.mock("expo-file-system", () => ({
@@ -78,6 +89,8 @@ beforeEach(() => {
   mockCopy.mockResolvedValue(undefined);
   mockSize = 100;
   mockOwned.mockReturnValue(true);
+  mockOwnedStaged.mockReturnValue(false);
+  mockHoldStaged.mockReturnValue(jest.fn());
 });
 
 test("uses a timestamp array accepted by the installed iOS and Android native bridges", async () => {
@@ -93,7 +106,7 @@ test("uses a timestamp array accepted by the installed iOS and Android native br
   await expect(
     createNativeVideoThumbnail(source, new AbortController().signal),
   ).resolves.toBe("file:///cache/media-downloads/thumb.jpg");
-  expect(player.generateThumbnailsAsync).toHaveBeenCalledWith([0], {
+  expect(player.generateThumbnailsAsync).toHaveBeenCalledWith([0.5], {
     maxWidth: 320,
     maxHeight: 320,
   });
@@ -111,7 +124,7 @@ test("extracts a bounded native JPEG without playback/base64 and releases the de
     uri: source,
     useCaching: false,
   });
-  expect(player.generateThumbnailsAsync).toHaveBeenCalledWith([0], {
+  expect(player.generateThumbnailsAsync).toHaveBeenCalledWith([0.5], {
     maxWidth: 320,
     maxHeight: 320,
   });
@@ -201,7 +214,7 @@ test("handles an asynchronous native copy rejection without exposing paths or re
   );
   await started.promise;
   copying.reject(new Error("FileSystemFile.copy: private native path"));
-  expect(await result).toEqual({ error: "thumbnail_unavailable" });
+  expect(await result).toEqual({ error: "thumbnail_unavailable:copy:unknown" });
   expect(mockRemove).toHaveBeenCalledWith(
     "file:///cache/media-downloads/thumb.jpg",
   );
@@ -230,7 +243,9 @@ test("cancellation during an in-flight copy waits before removing its source and
     copying.resolve();
     await result;
   }
-  expect(await result).toEqual({ error: "thumbnail_unavailable" });
+  expect(await result).toEqual({
+    error: "thumbnail_unavailable:cancelled:aborted",
+  });
   expect(mockRemove).toHaveBeenCalledWith(
     "file:///cache/media-downloads/thumb.jpg",
   );
@@ -349,4 +364,80 @@ test("aborted work never creates native resources; empty frames also clean up", 
     createNativeVideoThumbnail(source, new AbortController().signal),
   ).rejects.toThrow("thumbnail_unavailable");
   expect(releaseFile).toHaveBeenCalled();
+});
+
+test("falls back to a 1.5s frame when the 0.5s attempt fails, and only fails after both", async () => {
+  const { player, frame } = setup();
+  player.generateThumbnailsAsync
+    .mockRejectedValueOnce(new Error("decoder busy"))
+    .mockResolvedValueOnce([frame]);
+  await expect(
+    createNativeVideoThumbnail(source, new AbortController().signal),
+  ).resolves.toBe("file:///cache/media-downloads/thumb.jpg");
+  expect(player.generateThumbnailsAsync).toHaveBeenNthCalledWith(1, [0.5], {
+    maxWidth: 320,
+    maxHeight: 320,
+  });
+  expect(player.generateThumbnailsAsync).toHaveBeenNthCalledWith(2, [1.5], {
+    maxWidth: 320,
+    maxHeight: 320,
+  });
+});
+
+test("fails with a generate-stage code only after both the 0.5s and 1.5s attempts are exhausted", async () => {
+  const { player } = setup();
+  player.generateThumbnailsAsync.mockResolvedValue([]);
+  await expect(
+    createNativeVideoThumbnail(source, new AbortController().signal),
+  ).rejects.toThrow("thumbnail_unavailable:generate:frame_unavailable");
+  expect(player.generateThumbnailsAsync).toHaveBeenCalledTimes(2);
+});
+
+test("accepts an owned staged file and retains/releases it via the staging share-hold", async () => {
+  setup();
+  mockOwned.mockReturnValue(false);
+  mockOwnedStaged.mockReturnValue(true);
+  const stagedSource = "file:///cache/media-staging/movie.mp4";
+  const releaseStaged = jest.fn();
+  mockHoldStaged.mockReturnValue(releaseStaged);
+  await expect(
+    createNativeVideoThumbnail(stagedSource, new AbortController().signal),
+  ).resolves.toBe("file:///cache/media-downloads/thumb.jpg");
+  expect(mockHoldStaged).toHaveBeenCalledTimes(1);
+  expect(mockHold).not.toHaveBeenCalled();
+  expect(releaseStaged).toHaveBeenCalledTimes(1);
+});
+
+test("writes the generated JPEG into the staging directory when destination is staging", async () => {
+  setup();
+  await expect(
+    createNativeVideoThumbnail(source, new AbortController().signal, {
+      destination: "staging",
+    }),
+  ).resolves.toBe("file:///cache/media-staging/thumb.jpg");
+  expect(mockDelete).toHaveBeenCalledWith(generated);
+});
+
+test("a staging-destination copy failure cleans up via removeStagedFile, not removeDownloadedFile", async () => {
+  setup();
+  mockCopy.mockImplementation(() => {
+    throw new Error("private native path");
+  });
+  await expect(
+    createNativeVideoThumbnail(source, new AbortController().signal, {
+      destination: "staging",
+    }),
+  ).rejects.toThrow("thumbnail_unavailable");
+  expect(mockRemoveStaged).toHaveBeenCalledWith(
+    "file:///cache/media-staging/thumb.jpg",
+  );
+  expect(mockRemove).not.toHaveBeenCalled();
+});
+
+test("preserves the invalid-size failure as copy:invalid_size", async () => {
+  setup();
+  mockSize = 0;
+  await expect(
+    createNativeVideoThumbnail(source, new AbortController().signal),
+  ).rejects.toThrow("thumbnail_unavailable:copy:invalid_size");
 });

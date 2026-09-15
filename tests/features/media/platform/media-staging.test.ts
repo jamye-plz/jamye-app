@@ -1,9 +1,11 @@
 import { MAX_VIDEO_BYTES } from "@/features/media/model/media-policy";
 import {
+  allocateStagingDestination,
   cleanupAllStagedFiles,
   createNativeMediaFileCleanupPort,
   isOwnedStagedFile,
   removeStagedFile,
+  retainStagedFile,
   stageOwnedCopy,
 } from "@/features/media/platform/media-staging";
 
@@ -240,5 +242,31 @@ describe("M11 app-owned staging directory", () => {
     expect(mockFsState.deleteCalls).toContain(STAGING_DIRECTORY);
     expect(mockFsState.directories.has(STAGING_DIRECTORY)).toBe(false);
     expect(mockFsState.files.get(source)).toBe(1);
+  });
+
+  test("allocateStagingDestination reserves an owned path that does not exist yet", () => {
+    const destination = allocateStagingDestination({ filename: "thumb.jpg" });
+    expect(isOwnedStagedFile(destination.uri)).toBe(true);
+    expect(destination.uri).toContain("thumb.jpg");
+    expect(destination.exists).toBe(false);
+  });
+
+  test("retainStagedFile defers removal until the last holder releases", () => {
+    const destination = allocateStagingDestination({ filename: "thumb.jpg" });
+    mockFsState.files.set(destination.uri, 10);
+    const releaseA = retainStagedFile(destination.uri);
+    const releaseB = retainStagedFile(destination.uri);
+    removeStagedFile(destination.uri);
+    expect(mockFsState.files.has(destination.uri)).toBe(true);
+    releaseA();
+    expect(mockFsState.files.has(destination.uri)).toBe(true);
+    releaseB();
+    expect(mockFsState.files.has(destination.uri)).toBe(false);
+  });
+
+  test("retainStagedFile rejects a non-owned uri", () => {
+    expect(() => retainStagedFile("file:///picked/original.jpg")).toThrow(
+      "invalid_staged_file",
+    );
   });
 });

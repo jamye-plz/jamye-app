@@ -17,18 +17,26 @@ export function MediaVideoCard({
   filename,
   thumbnailEnabled = false,
   onPrimary = false,
+  posterMediaId = null,
 }: Readonly<{
   mediaId: string;
   filename: string | null;
   thumbnailEnabled?: boolean;
   /** Render captions for placement on the Berry (outgoing bubble) surface. */
   onPrimary?: boolean;
+  /** Server-provided poster image id; when present the thumbnail is a direct
+   * JPEG download instead of a locally-extracted video frame. */
+  posterMediaId?: string | null;
 }>) {
   const { colors } = useAppTheme();
   const { state, available, open, close, playbackFailed } =
     useMediaVideo(mediaId);
   const label = filename?.trim() || "첨부 동영상";
-  const thumbnail = useMediaVideoThumbnail(mediaId, thumbnailEnabled);
+  const thumbnail = useMediaVideoThumbnail(
+    mediaId,
+    thumbnailEnabled,
+    posterMediaId,
+  );
   return (
     <>
       <Pressable

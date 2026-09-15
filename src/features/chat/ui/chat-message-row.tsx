@@ -54,6 +54,7 @@ function MessageAttachments({
               filename={item.filename}
               onPrimary={isOutgoing}
               thumbnailEnabled={previewEnabled}
+              posterMediaId={item.posterMediaId}
             />
           ) : null}
           <MediaOpenSaveButton

@@ -3,6 +3,23 @@ import {
   type MediaUploadState,
 } from "@/features/media/model/media-upload-controller";
 
+const mockThumbnail = jest.fn();
+const mockStat = jest.fn();
+const mockLog = jest.fn();
+
+jest.mock("@/core/logging/logger", () => ({
+  createLogger: () => ({
+    log: (event: string, severity: string, metadata: unknown) =>
+      mockLog(event, severity, metadata),
+  }),
+}));
+jest.mock("@/features/media/platform/native-video-thumbnail", () => ({
+  createNativeVideoThumbnail: (...args: unknown[]) => mockThumbnail(...args),
+}));
+jest.mock("@/features/media/platform/media-file-stat", () => ({
+  statMediaFile: (...args: unknown[]) => mockStat(...args),
+}));
+
 const targetId = "88888888-8888-4888-8888-888888888888";
 const uploadId = "77777777-7777-4777-8777-777777777777";
 
@@ -32,7 +49,7 @@ function file(overrides: Partial<{ byteSize: number }> = {}) {
   };
 }
 
-function finalizeResultFor(id: string) {
+function finalizeResultFor(id: string, posterUploadId: string | null = null) {
   return {
     scope: "chat" as const,
     bound: false as const,
@@ -46,11 +63,49 @@ function finalizeResultFor(id: string) {
       duration: null,
       filename: "a.jpg",
       confirmedAt: "2026-09-11T00:00:00Z",
+      posterUploadId,
+    },
+  };
+}
+
+function videoFile(overrides: Partial<{ byteSize: number }> = {}) {
+  return {
+    uri: "file:///tmp/video.mp4",
+    name: "video.mp4",
+    byteSize: 2_000_000,
+    contentType: "video/mp4",
+    width: 640,
+    height: 480,
+    ...overrides,
+  };
+}
+
+function videoFinalizeResultFor(id: string, posterUploadId: string | null) {
+  return {
+    scope: "chat" as const,
+    bound: false as const,
+    upload: {
+      id,
+      scope: "chat" as const,
+      targetId,
+      kind: "video" as const,
+      contentType: "video/mp4",
+      byteSize: 2_000_000,
+      duration: null,
+      filename: "video.mp4",
+      confirmedAt: "2026-09-11T00:00:00Z",
+      posterUploadId,
     },
   };
 }
 
 describe("M11-2 media upload controller", () => {
+  beforeEach(() => {
+    mockThumbnail.mockReset();
+    mockStat.mockReset();
+    mockLog.mockReset();
+  });
+
   function setup(generation = "gen-1") {
     const createUpload = jest.fn();
     const finalizeUpload = jest.fn();
@@ -344,6 +399,243 @@ describe("M11-2 media upload controller", () => {
     controller.start({ draftId: "b", scope: "chat", targetId, file: file() });
     expect(createUpload).toHaveBeenCalledTimes(1);
     expect(controller.getState("a")).toBeNull();
+  });
+
+  test("a chat-scope video draft generates and attaches a poster before finalizing the video", async () => {
+    const { controller, createUpload, finalizeUpload, put, cleanup } = setup();
+    const posterUploadId = "55555555-5555-4555-8555-555555555555";
+    mockThumbnail.mockResolvedValue("file:///media-staging/poster.jpg");
+    mockStat.mockReturnValue({
+      exists: true,
+      byteSize: 2048,
+      uri: "file:///media-staging/poster.jpg",
+    });
+    createUpload
+      .mockResolvedValueOnce({
+        upload: { id: uploadId },
+        put: { url: "https://media.example.com/video" },
+      })
+      .mockResolvedValueOnce({
+        upload: { id: posterUploadId },
+        put: { url: "https://media.example.com/poster" },
+      });
+    put.mockResolvedValue({ status: 200 });
+    finalizeUpload
+      .mockResolvedValueOnce(finalizeResultFor(posterUploadId))
+      .mockResolvedValueOnce(videoFinalizeResultFor(uploadId, posterUploadId));
+
+    controller.start({
+      draftId: "d1",
+      scope: "chat",
+      targetId,
+      file: videoFile(),
+    });
+    await flush();
+    await flush();
+    await flush();
+    await flush();
+
+    expect(mockThumbnail).toHaveBeenCalledWith(
+      "file:///tmp/video.mp4",
+      expect.anything(),
+      { destination: "staging" },
+    );
+    expect(createUpload).toHaveBeenCalledTimes(2);
+    expect(createUpload.mock.calls[1][1]).toMatchObject({
+      scope: "chat",
+      targetId,
+      contentType: "image/jpeg",
+      byteSize: 2048,
+      filename: null,
+    });
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(put.mock.calls[1][0]).toMatchObject({
+      url: "https://media.example.com/poster",
+      file: expect.objectContaining({
+        uri: "file:///media-staging/poster.jpg",
+        contentType: "image/jpeg",
+        byteSize: 2048,
+      }),
+    });
+    expect(finalizeUpload).toHaveBeenCalledTimes(2);
+    expect(finalizeUpload.mock.calls[0]).toEqual([
+      "token",
+      posterUploadId,
+      expect.objectContaining({ width: null, height: null }),
+      expect.anything(),
+    ]);
+    expect(finalizeUpload.mock.calls[1]).toEqual([
+      "token",
+      uploadId,
+      expect.objectContaining({ posterUploadId }),
+      expect.anything(),
+    ]);
+    expect(controller.getState("d1")).toMatchObject({ status: "confirmed" });
+    expect(cleanup.deleteIfExists).toHaveBeenCalledWith(
+      "file:///media-staging/poster.jpg",
+    );
+  });
+
+  test("a poster generation failure logs media.poster.failed and finalizes the video without a poster", async () => {
+    const { controller, createUpload, finalizeUpload, put } = setup();
+    mockThumbnail.mockRejectedValue(
+      new Error("thumbnail_unavailable:generate:frame_unavailable"),
+    );
+    createUpload.mockResolvedValueOnce({
+      upload: { id: uploadId },
+      put: { url: "https://media.example.com/video" },
+    });
+    put.mockResolvedValue({ status: 200 });
+    finalizeUpload.mockResolvedValueOnce(
+      videoFinalizeResultFor(uploadId, null),
+    );
+
+    controller.start({
+      draftId: "d1",
+      scope: "chat",
+      targetId,
+      file: videoFile(),
+    });
+    await flush();
+    await flush();
+
+    expect(createUpload).toHaveBeenCalledTimes(1);
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(mockLog).toHaveBeenCalledWith(
+      "media.poster.failed",
+      "warn",
+      expect.objectContaining({ stage: "generate", code: "frame_unavailable" }),
+    );
+    expect(finalizeUpload).toHaveBeenCalledTimes(1);
+    expect(finalizeUpload.mock.calls[0]).toEqual([
+      "token",
+      uploadId,
+      expect.objectContaining({ posterUploadId: null }),
+      expect.anything(),
+    ]);
+    expect(controller.getState("d1")).toMatchObject({ status: "confirmed" });
+  });
+
+  test("a poster PUT failure logs media.poster.failed and finalizes the video without a poster", async () => {
+    const { controller, createUpload, finalizeUpload, put } = setup();
+    const posterUploadId = "44444444-4444-4444-8444-444444444444";
+    mockThumbnail.mockResolvedValue("file:///media-staging/poster.jpg");
+    mockStat.mockReturnValue({
+      exists: true,
+      byteSize: 2048,
+      uri: "file:///media-staging/poster.jpg",
+    });
+    createUpload
+      .mockResolvedValueOnce({
+        upload: { id: uploadId },
+        put: { url: "https://media.example.com/video" },
+      })
+      .mockResolvedValueOnce({
+        upload: { id: posterUploadId },
+        put: { url: "https://media.example.com/poster" },
+      });
+    put
+      .mockResolvedValueOnce({ status: 200 })
+      .mockResolvedValueOnce({ status: 500 });
+    finalizeUpload.mockResolvedValueOnce(
+      videoFinalizeResultFor(uploadId, null),
+    );
+
+    controller.start({
+      draftId: "d1",
+      scope: "chat",
+      targetId,
+      file: videoFile(),
+    });
+    await flush();
+    await flush();
+    await flush();
+
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(mockLog).toHaveBeenCalledWith(
+      "media.poster.failed",
+      "warn",
+      expect.objectContaining({ stage: "put", code: "poster_put_failed" }),
+    );
+    expect(finalizeUpload).toHaveBeenCalledTimes(1);
+    expect(finalizeUpload.mock.calls[0]).toEqual([
+      "token",
+      uploadId,
+      expect.objectContaining({ posterUploadId: null }),
+      expect.anything(),
+    ]);
+    expect(controller.getState("d1")).toMatchObject({ status: "confirmed" });
+  });
+
+  test("cancelling during the poster sub-pipeline aborts it and removes the staged JPEG", async () => {
+    const { controller, createUpload, finalizeUpload, put, cleanup } = setup();
+    const posterUploadId = "33333333-3333-4333-8333-333333333333";
+    const posterIntent = deferred<{
+      upload: { id: string };
+      put: { url: string };
+    }>();
+    mockThumbnail.mockResolvedValue("file:///media-staging/poster.jpg");
+    mockStat.mockReturnValue({
+      exists: true,
+      byteSize: 2048,
+      uri: "file:///media-staging/poster.jpg",
+    });
+    createUpload
+      .mockResolvedValueOnce({
+        upload: { id: uploadId },
+        put: { url: "https://media.example.com/video" },
+      })
+      .mockReturnValueOnce(posterIntent.promise);
+    put.mockResolvedValue({ status: 200 });
+
+    controller.start({
+      draftId: "d1",
+      scope: "chat",
+      targetId,
+      file: videoFile(),
+    });
+    await flush();
+    await flush();
+    expect(createUpload).toHaveBeenCalledTimes(2);
+
+    controller.cancel("d1");
+    expect(controller.getState("d1")?.status).toBe("cancelled");
+
+    posterIntent.resolve({
+      upload: { id: posterUploadId },
+      put: { url: "https://media.example.com/poster" },
+    });
+    await flush();
+
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(finalizeUpload).not.toHaveBeenCalled();
+    expect(cleanup.deleteIfExists).toHaveBeenCalledWith(
+      "file:///media-staging/poster.jpg",
+    );
+    expect(controller.getState("d1")?.status).toBe("cancelled");
+  });
+
+  test("image drafts never start the poster pipeline (contentType-gated, same path covers audio)", async () => {
+    const { controller, createUpload, finalizeUpload, put } = setup();
+    createUpload.mockResolvedValue({
+      upload: { id: uploadId },
+      put: { url: "https://media.example.com/x" },
+    });
+    put.mockResolvedValue({ status: 200 });
+    finalizeUpload.mockResolvedValue(finalizeResultFor(uploadId));
+
+    controller.start({
+      draftId: "d1",
+      scope: "chat",
+      targetId,
+      file: file(),
+    });
+    await flush();
+    await flush();
+
+    expect(mockThumbnail).not.toHaveBeenCalled();
+    expect(createUpload).toHaveBeenCalledTimes(1);
+    expect(controller.getState("d1")).toMatchObject({ status: "confirmed" });
   });
 
   test("rejects unsupported bytes before requesting an intent", () => {

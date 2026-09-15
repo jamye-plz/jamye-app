@@ -1,26 +1,20 @@
 import { randomUUID } from "expo-crypto";
 import { Directory, File, Paths } from "expo-file-system";
 
+import { createShareHoldRegistry } from "./file-share-holds";
+
 const DOWNLOADS_DIR_NAME = "media-downloads";
 const SAFE_NAME_PATTERN = /[^A-Za-z0-9._-]+/g;
-const shareHolds = new Map<string, number>();
-const pendingRemovals = new Set<string>();
+
+const shareHoldRegistry = createShareHoldRegistry((uri) => {
+  const file = new File(uri);
+  if (file.exists) file.delete();
+});
 
 /** Retain an OS handoff/player file until its native owner releases it. */
 export function retainDownloadedFile(uri: string): () => void {
   if (!isOwnedDownloadFile(uri)) throw new Error("invalid_download_file");
-  shareHolds.set(uri, (shareHolds.get(uri) ?? 0) + 1);
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    const remaining = (shareHolds.get(uri) ?? 1) - 1;
-    if (remaining > 0) shareHolds.set(uri, remaining);
-    else {
-      shareHolds.delete(uri);
-      if (pendingRemovals.delete(uri)) removeDownloadedFile(uri);
-    }
-  };
+  return shareHoldRegistry.retain(uri);
 }
 
 function sanitizeFilename(candidate: string | null): string {
@@ -82,12 +76,7 @@ export function allocateDownloadDestination(
 export function removeDownloadedFile(uri: string): void {
   try {
     if (!isOwnedDownloadFile(uri)) return;
-    if (shareHolds.has(uri)) {
-      pendingRemovals.add(uri);
-      return;
-    }
-    const file = new File(uri);
-    if (file.exists) file.delete();
+    shareHoldRegistry.releaseOrDefer(uri);
   } catch {
     // Best effort under filesystem races; the next account/startup sweep retries.
   }
@@ -97,10 +86,10 @@ export function removeDownloadedFile(uri: string): void {
 export function cleanupAllDownloadedFiles(): void {
   const directory = downloadsDirectory(false);
   if (!directory.exists) return;
-  if (shareHolds.size === 0) directory.delete();
+  if (!shareHoldRegistry.hasAnyHeld()) directory.delete();
   else {
     for (const entry of directory.list()) {
-      if (!shareHolds.has(entry.uri)) entry.delete();
+      if (!shareHoldRegistry.isHeld(entry.uri)) entry.delete();
     }
   }
 }

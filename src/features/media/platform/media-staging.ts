@@ -4,10 +4,16 @@ import { Directory, File, Paths } from "expo-file-system";
 import { MAX_VIDEO_BYTES } from "@/features/media/model/media-policy";
 import type { MediaFileCleanupPort } from "@/features/media/model/media-upload-ports";
 
+import { createShareHoldRegistry } from "./file-share-holds";
 import { statMediaFile } from "./media-file-stat";
 
 const STAGING_DIR_NAME = "media-staging";
 const SAFE_NAME_PATTERN = /[^A-Za-z0-9._-]+/g;
+
+const shareHoldRegistry = createShareHoldRegistry((uri) => {
+  const file = new File(uri);
+  if (file.exists) file.delete();
+});
 
 function sanitizeFilename(candidate: string | null): string {
   const base = (candidate ?? "").split(/[/\\]/).pop() ?? "";
@@ -50,6 +56,24 @@ function isCanonicalDirectChild(uri: string, directory: Directory): boolean {
 
 export function isOwnedStagedFile(uri: string): boolean {
   return isCanonicalDirectChild(uri, stagingDirectory(false));
+}
+
+/**
+ * Allocates an app-owned staging destination ahead of writing bytes into it (mirrors
+ * `allocateDownloadDestination`). The returned `File` does not exist on disk yet.
+ */
+export function allocateStagingDestination(
+  input: Readonly<{ filename: string | null }>,
+): File {
+  const directory = stagingDirectory(true);
+  const name = `${randomUUID()}-${sanitizeFilename(input.filename)}`;
+  return new File(directory, name);
+}
+
+/** Retain a staged file until its native owner (e.g. a thumbnail generator) releases it. */
+export function retainStagedFile(uri: string): () => void {
+  if (!isOwnedStagedFile(uri)) throw new Error("invalid_staged_file");
+  return shareHoldRegistry.retain(uri);
 }
 
 export type StagedFile = Readonly<{
@@ -103,8 +127,7 @@ export async function stageOwnedCopy(
 export function removeStagedFile(uri: string): void {
   try {
     if (!isOwnedStagedFile(uri)) return;
-    const file = new File(uri);
-    if (file.exists) file.delete();
+    shareHoldRegistry.releaseOrDefer(uri);
   } catch {
     // Best effort under filesystem races; the next account/startup sweep retries.
   }

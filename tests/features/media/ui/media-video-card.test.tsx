@@ -15,6 +15,7 @@ import type { MediaRuntime } from "@/features/media/model/media-runtime";
 import { MediaVideoCard } from "@/features/media/ui/media-video-card";
 import { useMediaVideo } from "@/features/media/ui/use-media-video";
 import { MAX_VIDEO_BYTES } from "@/features/media/model/media-policy";
+import { invalidateMediaObjectCache } from "@/features/media/platform/media-object-cache";
 
 const mockDownload = jest.fn();
 const mockRemove = jest.fn();
@@ -45,6 +46,7 @@ jest.mock("@/features/media/platform/media-object-transfer", () => ({
 jest.mock("@/features/media/platform/media-downloads", () => ({
   allocateDownloadDestination: (...args: unknown[]) => mockAllocate(...args),
   removeDownloadedFile: (uri: string) => mockRemove(uri),
+  retainDownloadedFile: (uri: string) => () => mockRemove(uri),
 }));
 jest.mock("@/features/media/platform/native-video-player", () => ({
   NativeVideoPlayer: (props: Record<string, unknown>) =>
@@ -91,6 +93,7 @@ async function flush() {
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  invalidateMediaObjectCache();
   mockFocused = true;
   mockDownload.mockReset().mockResolvedValue({ byteSize: 10 });
   let sequence = 0;

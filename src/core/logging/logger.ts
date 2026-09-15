@@ -82,6 +82,15 @@ function sanitizeMetadata(metadata: LogMetadata): LogMetadata {
   return sanitizeRecord(metadata, new WeakSet([metadata]));
 }
 
+/** Default sink writing structured log records straight to `console`. Shared
+ * by every feature-level logger that has no dedicated sink of its own. */
+export const consoleLoggerSink: LoggerSink = {
+  debug: (record) => console.debug(record),
+  info: (record) => console.info(record),
+  warn: (record) => console.warn(record),
+  error: (record) => console.error(record),
+};
+
 export function createLogger(sink: LoggerSink): StructuredLogger {
   return {
     log(event, severity, metadata) {

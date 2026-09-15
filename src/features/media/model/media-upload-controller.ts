@@ -4,7 +4,10 @@ import type {
   MediaScope,
   UploadFinalizeResult,
 } from "@/core/contracts/server/media";
+import { consoleLoggerSink, createLogger } from "@/core/logging/logger";
 
+import { statMediaFile } from "../platform/media-file-stat";
+import { createNativeVideoThumbnail } from "../platform/native-video-thumbnail";
 import type { MediaFileInput } from "./media-policy";
 import {
   evaluateMediaContentPolicy,
@@ -14,6 +17,8 @@ import type {
   MediaFileCleanupPort,
   MediaObjectPutPort,
 } from "./media-upload-ports";
+
+const posterLogger = createLogger(consoleLoggerSink);
 
 export type MediaUploadGeneration = string;
 
@@ -111,7 +116,48 @@ type DraftRecord = {
   abort: AbortController | null;
   uploadId: string | null;
   putUrl: string | null;
+  /** The image/jpeg upload id attached to the video, or null once the poster
+   * sub-pipeline has run and decided to skip it (never re-attempted on a
+   * finalize retry — only re-run from a fresh runPut). */
+  posterUploadId: string | null;
+  /** The app-owned staged JPEG produced by the poster sub-pipeline, tracked
+   * so cancel()/remove()/dispose() can remove it even if the pipeline is
+   * still suspended on an in-flight await when cancellation happens. */
+  posterStagedUri: string | null;
 };
+
+type PosterFailureStage = "generate" | "intent" | "put" | "finalize";
+
+type PosterOutcome = Readonly<{
+  posterUploadId: string | null;
+  cancelled: boolean;
+}>;
+
+function posterFailureCode(error: unknown): string {
+  if (error instanceof MediaApiError) return error.code;
+  if (error instanceof Error) {
+    const parts = error.message.split(":");
+    if (parts[0] === "thumbnail_unavailable" && parts[2]) return parts[2];
+    return error.message;
+  }
+  return "unknown";
+}
+
+/** Poster generation/attachment only applies to chat-scope video/mp4 drafts —
+ * topic scope never allows video at all (see media-policy.ts) and other
+ * kinds have no poster concept. */
+function isVideoPosterEligible(input: MediaUploadStartInput): boolean {
+  return input.scope === "chat" && input.file.contentType === "video/mp4";
+}
+
+/** Starts a fresh cancellable stage for `record`: creates a new
+ * `AbortController`, assigns it as the draft's current abort handle (so
+ * cancel() always aborts whatever is currently in flight), and returns it. */
+function beginStage(record: DraftRecord): AbortController {
+  const abort = new AbortController();
+  record.abort = abort;
+  return abort;
+}
 
 export function createMediaUploadController(
   options: CreateMediaUploadControllerOptions,
@@ -124,6 +170,19 @@ export function createMediaUploadController(
     // Deletion failure must never turn a successful finalize into another upload.
     void Promise.resolve()
       .then(() => options.cleanup?.deleteIfExists(record.input.file.uri))
+      .catch(() => undefined);
+  }
+
+  /** Removes the poster sub-pipeline's staged JPEG through the same injected
+   * cleanup port as the main file — safe to call more than once (e.g. from
+   * both cancel() and the pipeline's own finally) since it clears the field
+   * before scheduling deletion. */
+  function cleanupPoster(record: DraftRecord) {
+    const uri = record.posterStagedUri;
+    if (!uri) return;
+    record.posterStagedUri = null;
+    void Promise.resolve()
+      .then(() => options.cleanup?.deleteIfExists(uri))
       .catch(() => undefined);
   }
 
@@ -154,9 +213,109 @@ export function createMediaUploadController(
     );
   }
 
-  async function runFinalize(record: DraftRecord, uploadId: string) {
-    const abort = new AbortController();
-    record.abort = abort;
+  /**
+   * Runs the poster sub-pipeline for an already-PUT video: generate a staged
+   * JPEG thumbnail, upload+finalize it as its own image/jpeg media, and
+   * return the resulting upload id. Every stage reuses the same abort/
+   * generation guard as the rest of the controller (a fresh AbortController
+   * per stage, assigned to `record.abort` so cancel() always aborts whatever
+   * is currently in flight). Any non-cancellation failure is logged and
+   * treated as a skip — the video is finalized without a poster rather than
+   * failing the whole draft.
+   */
+  async function runPosterPipeline(
+    record: DraftRecord,
+  ): Promise<PosterOutcome> {
+    let stage: PosterFailureStage = "generate";
+    let stagedUri: string | null = null;
+    let activeAbort = beginStage(record);
+    try {
+      stagedUri = await createNativeVideoThumbnail(
+        record.input.file.uri,
+        activeAbort.signal,
+        { destination: "staging" },
+      );
+      record.posterStagedUri = stagedUri;
+      if (!isCurrent(record, activeAbort))
+        return { posterUploadId: null, cancelled: true };
+
+      const stat = statMediaFile(stagedUri);
+
+      stage = "intent";
+      activeAbort = beginStage(record);
+      const posterIntent = await options.authorize(
+        (token, signal) =>
+          options.api.createUpload(
+            token,
+            {
+              scope: record.input.scope,
+              targetId: record.input.targetId,
+              contentType: "image/jpeg",
+              byteSize: stat.byteSize,
+              filename: null,
+            },
+            signal,
+          ),
+        activeAbort.signal,
+      );
+      if (!isCurrent(record, activeAbort))
+        return { posterUploadId: null, cancelled: true };
+
+      stage = "put";
+      activeAbort = beginStage(record);
+      const putResponse = await options.objectPut.put({
+        url: posterIntent.put.url,
+        file: {
+          uri: stagedUri,
+          name: null,
+          byteSize: stat.byteSize,
+          contentType: "image/jpeg",
+          width: null,
+          height: null,
+        },
+        signal: activeAbort.signal,
+      });
+      if (!isCurrent(record, activeAbort))
+        return { posterUploadId: null, cancelled: true };
+      if (putResponse.status < 200 || putResponse.status >= 300) {
+        throw new MediaApiError(putResponse.status, "poster_put_failed");
+      }
+
+      stage = "finalize";
+      activeAbort = beginStage(record);
+      await options.authorize(
+        (token, signal) =>
+          options.api.finalizeUpload(
+            token,
+            posterIntent.upload.id,
+            { width: null, height: null },
+            signal,
+          ),
+        activeAbort.signal,
+      );
+      if (!isCurrent(record, activeAbort))
+        return { posterUploadId: null, cancelled: true };
+
+      return { posterUploadId: posterIntent.upload.id, cancelled: false };
+    } catch (error) {
+      if (!isCurrent(record, activeAbort))
+        return { posterUploadId: null, cancelled: true };
+      posterLogger.log("media.poster.failed", "warn", {
+        stage,
+        code: posterFailureCode(error),
+      });
+      return { posterUploadId: null, cancelled: false };
+    } finally {
+      cleanupPoster(record);
+    }
+  }
+
+  async function runFinalize(
+    record: DraftRecord,
+    uploadId: string,
+    posterUploadId: string | null,
+  ) {
+    const abort = beginStage(record);
     setState(record, { status: "finalizing", draftId: record.input.draftId });
     try {
       const result = await options.authorize(
@@ -167,6 +326,7 @@ export function createMediaUploadController(
             {
               width: record.input.file.width,
               height: record.input.file.height,
+              posterUploadId,
             },
             signal,
           ),
@@ -186,6 +346,7 @@ export function createMediaUploadController(
         result.upload.id !== uploadId ||
         result.upload.contentType !== record.input.file.contentType ||
         result.upload.byteSize !== record.input.file.byteSize ||
+        result.upload.posterUploadId !== posterUploadId ||
         (result.scope === "topic" &&
           result.topicMedia.topicId !== record.input.targetId) ||
         (result.upload.kind === "audio" &&
@@ -213,8 +374,7 @@ export function createMediaUploadController(
   }
 
   async function runPut(record: DraftRecord, uploadId: string, putUrl: string) {
-    const abort = new AbortController();
-    record.abort = abort;
+    const abort = beginStage(record);
     record.uploadId = uploadId;
     record.putUrl = putUrl;
     setState(record, {
@@ -241,7 +401,12 @@ export function createMediaUploadController(
       });
       if (!isCurrent(record, abort)) return;
       if (response.status >= 200 && response.status < 300) {
-        await runFinalize(record, uploadId);
+        if (isVideoPosterEligible(record.input)) {
+          const posterOutcome = await runPosterPipeline(record);
+          if (posterOutcome.cancelled) return;
+          record.posterUploadId = posterOutcome.posterUploadId;
+        }
+        await runFinalize(record, uploadId, record.posterUploadId);
         return;
       }
       if (response.status === 403) {
@@ -268,8 +433,7 @@ export function createMediaUploadController(
   }
 
   async function runIntent(record: DraftRecord) {
-    const abort = new AbortController();
-    record.abort = abort;
+    const abort = beginStage(record);
     setState(record, {
       status: "requesting_intent",
       draftId: record.input.draftId,
@@ -310,6 +474,8 @@ export function createMediaUploadController(
       abort: null,
       uploadId: null,
       putUrl: null,
+      posterUploadId: null,
+      posterStagedUri: null,
     };
     drafts.set(input.draftId, record);
     const policy = evaluateMediaContentPolicy(input.scope, input.file);
@@ -352,6 +518,7 @@ export function createMediaUploadController(
       record.abort?.abort();
       setState(record, { status: "cancelled", draftId });
       cleanup(record);
+      cleanupPoster(record);
     },
 
     retry(draftId) {
@@ -363,7 +530,8 @@ export function createMediaUploadController(
             void runPut(record, record.uploadId, record.putUrl);
           return;
         case "finalize_failed":
-          if (record.uploadId) void runFinalize(record, record.uploadId);
+          if (record.uploadId)
+            void runFinalize(record, record.uploadId, record.posterUploadId);
           return;
         case "intent_failed":
           beginFresh(record.input);
@@ -397,6 +565,7 @@ export function createMediaUploadController(
       record.abort?.abort();
       drafts.delete(draftId);
       cleanup(record);
+      cleanupPoster(record);
     },
 
     dispose() {
@@ -404,6 +573,7 @@ export function createMediaUploadController(
       for (const record of drafts.values()) {
         record.abort?.abort();
         cleanup(record);
+        cleanupPoster(record);
       }
       drafts.clear();
       listeners.clear();

@@ -10,6 +10,10 @@ import {
   allocateDownloadDestination,
   removeDownloadedFile,
 } from "@/features/media/platform/media-downloads";
+import {
+  acquireMediaObject,
+  invalidateMediaObjectCache,
+} from "@/features/media/platform/media-object-cache";
 import { downloadToFile } from "@/features/media/platform/media-object-transfer";
 
 type VideoState =
@@ -17,9 +21,17 @@ type VideoState =
   | { status: "downloading" }
   | { status: "ready"; uri: string }
   | { status: "error"; message: string };
-type Operation = { controller: AbortController; uri: string | null };
+type MediaObjectHandle = Readonly<{
+  uri: Promise<string>;
+  release: (immediate?: boolean) => void;
+}>;
+type Operation = {
+  controller: AbortController;
+  object: MediaObjectHandle | null;
+};
 
-/** Download only on explicit play. Native playback never receives a remote URL. */
+/** Download only on explicit play. Native playback never receives a remote URL. Shares
+ * its downloaded file with the preview thumbnail through `media-object-cache`. */
 export function useMediaVideo(mediaId: string) {
   const runtime = useMediaRuntime();
   const access = useMediaAccess();
@@ -35,7 +47,9 @@ export function useMediaVideo(mediaId: string) {
     const previous = operation.current;
     operation.current = null;
     previous?.controller.abort();
-    if (previous?.uri) removeDownloadedFile(previous.uri);
+    // Playback releases eagerly: closing/backgrounding should not hold a file for the
+    // preview retention window once the user has explicitly stopped watching it.
+    previous?.object?.release(true);
   }, []);
   const close = useCallback(() => {
     cancel();
@@ -45,7 +59,13 @@ export function useMediaVideo(mediaId: string) {
   useFocusEffect(
     useCallback(() => {
       focused.current = key;
-      const unsubscribe = runtime?.subscribeInvalidation(close);
+      const unsubscribe = runtime?.subscribeInvalidation(() => {
+        // Belt-and-suspenders: the thumbnail cache's own invalidation handler also
+        // clears the shared object cache, but playback must not depend on a preview
+        // card being mounted to have it cleaned up on account switch/logout.
+        invalidateMediaObjectCache();
+        close();
+      });
       return () => {
         focused.current = null;
         unsubscribe?.();
@@ -65,7 +85,7 @@ export function useMediaVideo(mediaId: string) {
       return;
     const currentOperation: Operation = {
       controller: new AbortController(),
-      uri: null,
+      object: null,
     };
     operation.current = currentOperation;
     const { signal } = currentOperation.controller;
@@ -86,20 +106,28 @@ export function useMediaVideo(mediaId: string) {
         media.byteSize > MAX_VIDEO_BYTES
       )
         throw new Error("invalid_video_metadata");
-      const destination = allocateDownloadDestination({
-        mediaId,
-        filename: "video.mp4",
+      const object = acquireMediaObject(mediaId, async (objectSignal) => {
+        const destination = allocateDownloadDestination({
+          mediaId,
+          filename: "video.mp4",
+        });
+        try {
+          await downloadToFile({
+            url: media.url,
+            destination,
+            expectedBytes: media.byteSize,
+            maxBytes: MAX_VIDEO_BYTES,
+            signal: objectSignal,
+          });
+          return destination.uri;
+        } catch (error) {
+          removeDownloadedFile(destination.uri);
+          throw error;
+        }
       });
-      currentOperation.uri = destination.uri;
-      await downloadToFile({
-        url: media.url,
-        destination,
-        expectedBytes: media.byteSize,
-        maxBytes: MAX_VIDEO_BYTES,
-        signal,
-      });
-      if (current())
-        setResult({ key, state: { status: "ready", uri: destination.uri } });
+      currentOperation.object = object;
+      const uri = await object.uri;
+      if (current()) setResult({ key, state: { status: "ready", uri } });
     } catch {
       if (current()) {
         cancel();
@@ -112,8 +140,7 @@ export function useMediaVideo(mediaId: string) {
         });
       }
     } finally {
-      if (!current() && currentOperation.uri)
-        removeDownloadedFile(currentOperation.uri);
+      if (!current()) currentOperation.object?.release(true);
     }
   }, [access, runtime, generation, key, mediaId, cancel]);
 
