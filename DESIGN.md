@@ -10,39 +10,38 @@ The design posture is mostly symmetric, mostly static, and comfortably dense. Me
 
 ## 2. Color Palette & Roles
 
-### Light Palette
+### Neutral Roles (Platform Semantic)
 
-- Warm Paper Canvas (#FAF8F4): screen background and conversation canvas
-- Clean Raised Surface (#FFFFFF): incoming messages, composer, and raised controls
-- Quiet Warm Surface (#F5F1EC): disabled or secondary areas
-- Ink Plum (#29252D): primary text on light neutral surfaces
-- Muted Plum (#665F6B): metadata and secondary text
-- Structural Mauve (#918693): control outlines and focus-adjacent component boundaries
-- Warm Divider (#E8E0D8): separators that do not carry interaction meaning
-- Conversation Berry (#9B3F68): outgoing messages and the single primary action role
-- Clean On-Berry (#FFFFFF): text and symbols on Conversation Berry
-- Clear Red (#B33C48): error text and failed state emphasis
-- Butter Notice (#FBF3D6): local-fixture notice surface
+Neutral surface, text, and structural roles resolve to platform system colors instead of a fixed hex pair. iOS uses `PlatformColor` UIKit dynamic colors; Android uses `@android:color/system_*_{light,dark}` Material 3 roles on API 34 and above. Below API 34, Android falls back to the same hex value used as the light/dark fallback name below.
 
-### Dark Palette
+| Role (fallback name)                                        | iOS UIKit (`PlatformColor`) | Android system color (API 34+)                                       | Fallback hex (below API 34) |
+| ----------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------- | --------------------------- |
+| Canvas (Warm Paper Canvas / Deep Plum Canvas)               | `systemBackground`          | `system_background_light` / `system_background_dark`                 | #FAF8F4 / #1C1920           |
+| Raised surface (Clean Raised Surface / Raised Night)        | `secondarySystemBackground` | `system_surface_bright_light` / `system_surface_bright_dark`         | #FFFFFF / #252129           |
+| Quiet surface (Quiet Warm Surface / Quiet Violet Surface)   | `tertiarySystemBackground`  | `system_surface_container_light` / `system_surface_container_dark`   | #F5F1EC / #302A42           |
+| Primary text (Ink Plum / Moon Ink)                          | `label`                     | `system_on_background_light` / `system_on_background_dark`           | #29252D / #F4EEF2           |
+| Secondary text (Muted Plum / Muted Moon)                    | `secondaryLabel`            | `system_on_surface_variant_light` / `system_on_surface_variant_dark` | #665F6B / #A9A0AE           |
+| Structural outline (Structural Mauve / Structural Lavender) | `separator`                 | `system_outline_light` / `system_outline_dark`                       | #918693 / #776D7C           |
+| Divider (Warm Divider / Night Divider)                      | `opaqueSeparator`           | `system_outline_variant_light` / `system_outline_variant_dark`       | #E8E0D8 / #322C36           |
 
-- Deep Plum Canvas (#1C1920): screen background and conversation canvas
-- Raised Night (#252129): incoming messages, composer, and raised controls
-- Quiet Violet Surface (#302A42): disabled or secondary areas
-- Moon Ink (#F4EEF2): primary text on dark neutral surfaces
-- Muted Moon (#A9A0AE): metadata and secondary text
-- Structural Lavender (#776D7C): control outlines and focus-adjacent component boundaries
-- Night Divider (#322C36): separators that do not carry interaction meaning
-- Petal Berry (#E39BB8): outgoing messages and the single primary action role
-- Deep Berry Ink (#2C141F): text and symbols on Petal Berry
-- Soft Error Pink (#F2A0A8): error text and failed state emphasis
-- Night Butter (#3D351F): local-fixture notice surface
+Android resolves the `light`/`dark` variant from the active app color scheme. The fallback hex applies whenever the platform system color is unavailable for the running OS version.
+
+### Accent, Error, and Notice
+
+- Conversation Berry (#9B3F68): outgoing messages and the single primary action role (light mode)
+- Clean On-Berry (#FFFFFF): text and symbols on Conversation Berry (light mode)
+- Petal Berry (#E39BB8): outgoing messages and the single primary action role (dark mode)
+- Deep Berry Ink (#2C141F): text and symbols on Petal Berry (dark mode)
+- Clear Red (#B33C48): error text and failed state emphasis (light mode)
+- Soft Error Pink (#F2A0A8): error text and failed state emphasis (dark mode)
+- Butter Notice (#FBF3D6): local-fixture notice surface (light mode)
+- Night Butter (#3D351F): local-fixture notice surface (dark mode)
 
 ### State Rules
 
 - `전송 중`, `전송 실패`, and `전송됨` are always rendered as text and exposed to accessibility APIs.
 - Clear Red or Soft Error Pink may emphasize `전송 실패`, but color never replaces the label.
-- The M5 screen has no connection color, connection badge, or connection announcement.
+- Sync status is exposed as header subtitle text only; it still carries no connection color or connection badge.
 - Conversation Berry or Petal Berry is the only accent. Do not add a second accent for loading, retry, or success.
 
 ## 3. Typography Rules
@@ -68,7 +67,16 @@ Korean body, message, input, and control copy use natural tracking. Font scaling
 - Set system-bar content contrast only. Do not force a separate status-bar background or translucent overlay.
 - Content is fluid and centered with a maximum width of 720px equivalent.
 - Compact horizontal gutters are 16px. Wide gutters are 24px.
-- The main heading uses the main-heading type role and receives initial accessibility focus once on route entry.
+- The native Stack header (`expo-router`'s `Stack.Screen`) owns the screen title; there is no separate in-content heading component.
+- Root list screens (Groups, Topics) use a large title (`headerLargeTitle: true`).
+- The heading focus rule now targets the header title, or on the chat screen the header subtitle: it receives initial accessibility focus once on route entry.
+
+### Native Header, Buttons, Sheets, Rows
+
+- `HeaderIconButton` is a 44x44pt header action control used for `headerRight` icons.
+- `NativeButton` wraps `@expo/ui`'s `Button` inside a `Host` and offers `filled`, `outlined`, and `text` variants, plus `busy`, `retryAt`, and `destructive` states.
+- Action menus and pickers use `@expo/ui`'s `BottomSheet` together with `List`/`ListItem`; option labels are wrapped in `@expo/ui`'s `Text`.
+- `GroupedSection`/`GroupedRow` render inset-grouped rows; the trailing chevron is iOS only.
 
 ### Local Fixture Notice
 
@@ -122,7 +130,7 @@ Korean body, message, input, and control copy use natural tracking. Font scaling
 
 - Use a multiline native text input with accessibility name `메시지 입력`.
 - Minimum height is 48px. Growth cap is 120px equivalent, adjusted safely for font scaling.
-- Radius is 16px. Use the raised surface and semantic structural border.
+- Radius is full/capsule (rounded to the control height). Use the raised surface and semantic structural border.
 - Focus changes the existing border to the primary role and adds a stable inset emphasis. It does not move layout.
 - Enter or Return inserts a newline. `onSubmitEditing`, key press, and composition events never send.
 - Draft text remains intact during Korean IME composition and after a failed database write.
@@ -131,8 +139,8 @@ Korean body, message, input, and control copy use natural tracking. Font scaling
 
 ### Send Control
 
-- The control has a minimum target of 44x44 points and a 16px radius.
-- The exact visible label and accessibility name is `메시지 보내기`.
+- The control is a circular icon button with a minimum target of 44x44 points and full radius.
+- It has no visible text label; the accessibility name is `메시지 보내기`.
 - It is disabled for empty, whitespace-only, or in-flight input.
 - Only this explicit control sends.
 - Press feedback completes within 150ms using opacity or transform without changing layout. Reduced-motion mode keeps immediate non-spatial feedback.
@@ -148,7 +156,7 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 - Conversation maximum width: 720px equivalent
 - Compact gutter: 16px
 - Wide gutter: 24px
-- Order: main heading, local-fixture notice, older-page state, message region, composer, send action
+- Order: native header (title, sync subtitle, and header actions), local-fixture notice, older-page state, message region, composer (`+` attachment button, input, send control)
 - The list fills remaining height while the composer remains reachable above the keyboard. Its lower visible boundary follows the same native keyboard progress and lands at the same resting offset when the keyboard closes.
 - Do not use an inverted list, fixed desktop width, nested cards, or a separate context rail in M5.
 
@@ -156,10 +164,10 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 
 - 8px: message directional corner and compact inner geometry
 - 12px: compact secondary controls
-- 16px: composer and buttons
+- 16px: buttons
 - 20px: message bubbles
 - 24px: large notices or future sheets only
-- Full radius: true circular controls only
+- Full radius: circular controls and the composer capsule
 
 ## 6. Depth & Elevation
 

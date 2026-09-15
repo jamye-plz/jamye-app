@@ -111,6 +111,13 @@ loader 동작을 확인해 단일 source만 사용하며, 이 문서가 추측�
 Nix 또는 package dependency를 바꾸면 이 표를 수동으로 먼저 믿지 않는다. 선언 원본을 변경한
 뒤 아래 toolchain, Expo, quality 검사를 통과시키고 문서 표를 함께 갱신한다.
 
+`@expo/ui`(57.0.17), `expo-symbols`(57.0.2), `expo-glass-effect`(57.0.2)는 이번 세션에서
+추가된 dependency로 위 표에는 포함하지 않는다. 세 패키지 모두 이미 실행 중인 iOS
+Simulator, Android Emulator development build에 linked된 Expo module이라 별도의 native
+rebuild 없이 사용할 수 있다. `expo-image`(~57.0.5)는 후속 승인으로 추가한 dependency로 native
+rebuild가 필요해 clean prebuild와 iOS·Android rebuild/install을 수행했다. 세부 배경은
+[ADR 0005](adr/0005-native-ui-toolkit-adoption.md)를 따른다.
+
 ## 3. 코드 품질 script
 
 | 명령                                 | 분류        | 결과와 사용 시점                                                |
@@ -525,6 +532,33 @@ coverage 86.05/81.60/87.25/89.11%, `bun run check:expo` SDK 일치·Doctor 21/21
 고정 SDK의 로컬 manifest 검사와 최신 upstream 검사를 구분하며 SDK 전체/라우터 패치를 임의 갱신하지 않는다.
 새 player는 이전 바이너리에 없으므로 별도 승인 후 양 플랫폼 clean prebuild·재빌드·설치와 사용자 재생/소리
 확인이 필요하다. 이번 영상 재생 수정에서는 native 빌드·서버 배포·commit/push를 실행하지 않았다.
+
+### Native UI 도구 채택과 `expo-image` 재빌드 — 2026-09-15
+
+사용자 결정으로 `@expo/ui`, `expo-symbols`, `expo-glass-effect`를 제품 UI 도구로 추가하고 화면을
+platform semantic color·native Stack 헤더 기준으로 재구성했다(배경은 [ADR 0005](adr/0005-native-ui-toolkit-adoption.md)).
+세 패키지는 기존 development build에 이미 linked돼 있어 재빌드 없이 확인했고, 같은 날 후속 승인으로
+`expo-image ~57.0.5`를 추가해 미디어 이미지 표시를 교체한 뒤 아래 순서로 양 플랫폼을 재빌드했다.
+고아 화면 `chat-rooms-screen.tsx`와 `chat-controls.tsx`는 같은 승인으로 삭제했다.
+
+| 명령                                                                                        | 결과                                                                  |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `bun run toolchain:check:native`                                                            | prebuild 전 45 PASS / 0 FAIL, 빌드 후 gradle daemon 정지 뒤 45 PASS   |
+| `CI=1 bun run expo:prebuild:clean --no-install --skip-dependency-update react,react-native` | exit 0; ignored `ios/`, `android/` 재생성                             |
+| `CI=1 bun run expo:run:android --device jamye_pixel_9_api_36`                               | exit 0; BUILD SUCCESSFUL, 설치·실행                                   |
+| `CI=1 bun run expo:run:ios --device 95B8CDCD-0C27-4B40-A48F-71AC2B0FD547`                   | xcodebuild 0 errors / 1 warning, 설치 완료. 마지막 `simctl openurl`만 |
+|                                                                                             | LSApplicationWorkspaceErrorDomain 115로 실패해 수동으로 실행          |
+
+iOS 빌드는 `pod install`이 ASCII-8BIT locale에서 `Unicode Normalization` 오류로 한 번 실패해
+`LANG`/`LC_ALL=en_US.UTF-8`을 export한 뒤 재실행했다. `expo-doctor`가 보고한 `expo-router` 하위의
+중복 설치(`@expo/ui`, `expo-symbols`, `expo-glass-effect`)는 중첩 사본을 제거하고 frozen install로
+정리했으며, 남은 doctor 실패는 SDK 패키지 17개의 새 patch 권고로 이전 기록과 같은 성격이다. 재빌드 뒤
+Android Emulator와 iOS Simulator에서 dev client가 새 바이너리로 실행되고 대화 화면의 이미지·영상
+썸네일이 `expo-image`로 표시되는 것을 확인했다. Commit/push는 실행하지 않았다.
+
+iOS Simulator에서 앱이 흰 화면으로 멈춘 사례는 앱 코드가 아니라 시뮬레이터의 pasteboard 서비스가
+동기 XPC 응답을 하지 않아 메인 스레드가 키보드 preload 경로에서 대기한 것이었다.
+`xcrun simctl spawn <udid> launchctl kickstart -k system/com.apple.pasteboard.pasted`로 복구했다.
 
 ## 4. Dependency와 toolchain script
 

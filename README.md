@@ -406,6 +406,13 @@ bun run deps:install:frozen
 Lifecycle script가 필요하다는 실제 실패 근거와 사용자 승인 없이 `trustedDependencies`를
 추가하지 않는다.
 
+`@expo/ui`(57.0.17), `expo-symbols`(57.0.2), `expo-glass-effect`(57.0.2)는 이번 세션에서
+추가된 direct dependency다. 세 패키지 모두 Expo module이며 현재 실행 중인 iOS Simulator,
+Android Emulator development build에 이미 linked돼 있어 별도의 clean prebuild 없이
+사용한다. `expo-image`(~57.0.5)는 후속 승인으로 추가했으며 native rebuild가 필요하므로 clean
+prebuild와 iOS·Android rebuild/install을 거쳐 사용한다. 배경과 checker 정책 변경은
+[ADR 0005](docs/adr/0005-native-ui-toolkit-adoption.md)를 따른다.
+
 ## Development Build와 CNG
 
 Expo Go가 아니라 `expo-dev-client`가 포함된 Development Build를 기준으로 개발한다. 네
