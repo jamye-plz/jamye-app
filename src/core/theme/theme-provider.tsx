@@ -16,6 +16,17 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
   );
 }
 
+/**
+ * Theme for surfaces that may mount outside `AppThemeProvider` (the root error
+ * boundary fallback renders above every provider). Falls back to the system
+ * color scheme instead of throwing.
+ */
+export function useAppThemeOrSystem(): AppTheme {
+  const theme = useContext(AppThemeContext);
+  const systemTheme = resolveSystemTheme(useColorScheme());
+  return theme ?? systemTheme;
+}
+
 export function useAppTheme(): AppTheme {
   const theme = useContext(AppThemeContext);
   if (theme === undefined) {

@@ -1,3 +1,4 @@
+import type { ColorValue } from "react-native";
 import { act, render } from "@testing-library/react-native";
 import React from "react";
 import type { ComponentType, ReactNode } from "react";
@@ -193,8 +194,10 @@ describe("M9 production sync composition", () => {
 type AppTheme = Readonly<{
   colorScheme: "light" | "dark";
   colors: Readonly<{
-    background: string;
-    text: string;
+    background: ColorValue;
+    text: ColorValue;
+    primary: ColorValue;
+    onPrimary: ColorValue;
   }>;
 }>;
 type ClockPort = Readonly<{ nowMs: () => number }>;
@@ -283,16 +286,19 @@ type AccountScopeContextValue = Readonly<{
 }>;
 type UseAccountScope = () => AccountScopeContextValue;
 
+// Background/text are platform semantic colors (PlatformColor objects) since
+// T1a of the native UI refactor, identical across schemes; the Berry accent is
+// the scheme-specific literal that proves which theme was selected.
 const EXPECTED_THEMES = [
   {
     colorScheme: "light" as const,
-    background: "#FAF8F4",
-    text: "#29252D",
+    primary: "#9B3F68",
+    onPrimary: "#FFFFFF",
   },
   {
     colorScheme: "dark" as const,
-    background: "#1C1920",
-    text: "#F4EEF2",
+    primary: "#E39BB8",
+    onPrimary: "#2C141F",
   },
 ] as const;
 
@@ -455,7 +461,7 @@ afterEach(() => {
 describe("M3-I3 active provider and system theme contract", () => {
   test.each(EXPECTED_THEMES)(
     "provides the semantic $colorScheme theme selected by useColorScheme",
-    async ({ colorScheme, background, text }) => {
+    async ({ colorScheme, primary, onPrimary }) => {
       mockedUseColorScheme.mockReturnValue(colorScheme);
       const { AppProviders, useAppTheme } = loadProviderContract();
       const databaseFactory = createDeterministicDatabaseFactory(
@@ -470,7 +476,8 @@ describe("M3-I3 active provider and system theme contract", () => {
         const theme = useAppTheme();
         return (
           <Text>
-            {theme.colorScheme}:{theme.colors.background}:{theme.colors.text}
+            {theme.colorScheme}:{String(theme.colors.primary)}:
+            {String(theme.colors.onPrimary)}
           </Text>
         );
       }
@@ -486,7 +493,7 @@ describe("M3-I3 active provider and system theme contract", () => {
       );
 
       expect(
-        await screen.findByText(`${colorScheme}:${background}:${text}`),
+        await screen.findByText(`${colorScheme}:${primary}:${onPrimary}`),
       ).toBeTruthy();
     },
   );
