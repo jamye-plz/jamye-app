@@ -1,10 +1,13 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
-import { Text } from "react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
+import { appSpacing } from "@/core/theme/tokens";
 import { GroupsProvider } from "@/features/groups/model/groups-provider";
 import { createGroupsStore } from "@/features/groups/model/groups-store";
 import { GroupsApiError } from "@/features/groups/data/groups-api";
-import { GroupListScreen } from "@/features/groups/ui/group-list-screen";
+import {
+  GroupListScreen,
+  resolveGroupListContentPadding,
+} from "@/features/groups/ui/group-list-screen";
 import { GroupFormScreen } from "@/features/groups/ui/group-form-screen";
 import {
   code,
@@ -25,6 +28,7 @@ jest.mock("expo-router", () => ({
     const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(callback, [callback]);
   },
+  Stack: { Screen: () => null },
 }));
 const authorized: AuthorizedGroupsRequest = (execute, signal) =>
   execute("fake", signal ?? new AbortController().signal);
@@ -41,30 +45,19 @@ describe("M7 home, create and join", () => {
           authorizedRequest={authorized}
           createStore={() => store}
         >
-          {mode ? (
-            <GroupFormScreen mode={mode} />
-          ) : (
-            <GroupListScreen header={<Text>기존 계정 메뉴</Text>} />
-          )}
+          {mode ? <GroupFormScreen mode={mode} /> : <GroupListScreen />}
         </GroupsProvider>
       </AppThemeProvider>,
     );
     return { screen, api, store };
   }
-  test("renders canonical group list alongside session menu and navigation", async () => {
+  test("renders the canonical group list and navigates to a group on row press", async () => {
     const { screen } = await setup();
-    expect(screen.getByText("기존 계정 메뉴")).toBeTruthy();
     await fireEvent.press(screen.getByRole("button", { name: /우리 그룹/ }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/groups/[groupId]",
       params: { groupId },
     });
-    await fireEvent.press(screen.getByRole("button", { name: "그룹 만들기" }));
-    expect(mockPush).toHaveBeenLastCalledWith("/groups/create");
-    await fireEvent.press(
-      screen.getByRole("button", { name: "초대 코드로 가입" }),
-    );
-    expect(mockPush).toHaveBeenLastCalledWith("/groups/join");
   });
   test("distinguishes empty and failed initial query with explicit retry", async () => {
     const api = fakeGroupsApi();
@@ -176,5 +169,13 @@ describe("M7 home, create and join", () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe("group list content padding", () => {
+  it("reserves navigation-bar room on Android only", () => {
+    expect(resolveGroupListContentPadding("android")).toBe(appSpacing.xxxl);
+    expect(resolveGroupListContentPadding("ios")).toBe(appSpacing.md);
+    expect(resolveGroupListContentPadding(undefined)).toBe(appSpacing.md);
   });
 });

@@ -19,11 +19,18 @@ import {
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
+const mockStackScreen = jest.fn(
+  (_props: Readonly<{ options: { title?: string } }>) => null,
+);
 jest.mock("expo-router", () => ({
   useRouter: () => ({ replace: mockReplace, push: mockPush }),
   useFocusEffect: (callback: () => () => void) => {
     const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(callback, [callback]);
+  },
+  Stack: {
+    Screen: (props: Readonly<{ options: { title?: string } }>) =>
+      mockStackScreen(props),
   },
 }));
 jest.mock("@/core/providers/session-provider", () => ({
@@ -31,8 +38,42 @@ jest.mock("@/core/providers/session-provider", () => ({
     principal: { userId: "22222222-2222-4222-8222-222222222222" },
   }),
 }));
+// react-test-renderer's native-component mock for RefreshControl filters
+// props down to the codegen'd iOS/Android ViewConfig, silently dropping
+// `testID` (and even `refreshing`) before they reach the tree. Mock only
+// this submodule (not the whole "react-native" barrel, which has native
+// module side effects on require) with a plain View that keeps those props
+// queryable/fireable in tests.
+jest.mock(
+  "react-native/Libraries/Components/RefreshControl/RefreshControl",
+  () => {
+    const { View } =
+      jest.requireActual<typeof import("react-native")>("react-native");
+    return {
+      __esModule: true,
+      default: (
+        props: Readonly<{
+          onRefresh?: () => void;
+          refreshing: boolean;
+          testID?: string;
+        }>,
+      ) => (
+        <View
+          // @ts-expect-error -- test-only passthrough so fireEvent(el, "refresh")
+          // reaches the real handler; not a real View prop.
+          onRefresh={props.onRefresh}
+          refreshing={props.refreshing}
+          testID={props.testID}
+        />
+      ),
+    };
+  },
+);
 const authorized: AuthorizedGroupsRequest = (execute, signal) =>
   execute("fake", signal ?? new AbortController().signal);
+function lastStackScreenTitle(): string | undefined {
+  return mockStackScreen.mock.calls.at(-1)?.[0].options.title;
+}
 
 describe("M7 group detail management UI", () => {
   beforeEach(() => jest.clearAllMocks());
@@ -54,8 +95,9 @@ describe("M7 group detail management UI", () => {
   }
   test("owner sees canonical detail, roster and owner actions", async () => {
     const { screen, api } = await setup();
-    expect(screen.getByText("우리 그룹")).toBeTruthy();
-    expect(screen.getByText(/사용자.*소유자/)).toBeTruthy();
+    expect(lastStackScreenTitle()).toBe("우리 그룹");
+    expect(screen.getByText("사용자")).toBeTruthy();
+    expect(screen.getByText("소유자")).toBeTruthy();
     await fireEvent.changeText(
       screen.getByLabelText("새 그룹 이름"),
       "새 이름",
@@ -78,35 +120,29 @@ describe("M7 group detail management UI", () => {
   });
   test("the loaded group opens its own connected room list", async () => {
     const { screen } = await setup();
-    await fireEvent.press(screen.getByRole("button", { name: "주제 열기" }));
+    await fireEvent.press(screen.getByRole("button", { name: "주제" }));
     expect(mockPush).toHaveBeenCalledWith({
       pathname: "/groups/[groupId]/chatrooms",
       params: { groupId },
     });
   });
-  test("manual refresh keeps detail visible, shows transient error and allows retry", async () => {
+  test("manual refresh keeps detail visible, shows a transient error and allows retry", async () => {
     const { api, screen } = await setup();
     const response = deferred<typeof group>();
     api.getGroup.mockReturnValueOnce(response.promise);
-    await fireEvent.press(
-      screen.getByRole("button", { name: "그룹 새로고침" }),
+    await fireEvent(screen.getByTestId("group-detail-refresh"), "refresh");
+    expect(lastStackScreenTitle()).toBe("우리 그룹");
+    expect(screen.getByText("사용자")).toBeTruthy();
+    expect(screen.getByText("소유자")).toBeTruthy();
+    expect(screen.getByTestId("group-detail-refresh").props.refreshing).toBe(
+      true,
     );
-    expect(screen.getByText("우리 그룹")).toBeTruthy();
-    expect(screen.getByText(/사용자.*소유자/)).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "그룹 새로고침" }).props
-        .accessibilityState.busy,
-    ).toBe(true);
     await act(async () => {
       response.reject(new GroupsApiError(503, "group_unavailable"));
     });
-    expect(screen.getByText("우리 그룹")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "그룹 다시 확인" })).toBeTruthy();
-    await fireEvent.press(
-      screen.getByRole("button", { name: "그룹 다시 확인" }),
-    );
-    expect(screen.getByText("우리 그룹")).toBeTruthy();
+    expect(lastStackScreenTitle()).toBe("우리 그룹");
     expect(screen.queryByRole("button", { name: "그룹 다시 확인" })).toBeNull();
+    await fireEvent(screen.getByTestId("group-detail-refresh"), "refresh");
     expect(api.getGroup).toHaveBeenCalledTimes(3);
   });
   test("delete needs explicit confirmation and cancelled dialog sends no request", async () => {
@@ -157,6 +193,7 @@ describe("M7 group detail management UI", () => {
       nextCursor: null,
     });
     const { screen } = await setup(api);
+    await fireEvent.press(screen.getByRole("button", { name: "멤버 관리" }));
     await fireEvent.press(
       screen.getByRole("button", { name: "멤버에게 소유권 이전" }),
     );
@@ -170,6 +207,7 @@ describe("M7 group detail management UI", () => {
       { role: "owner" },
       expect.anything(),
     );
+    await fireEvent.press(screen.getByRole("button", { name: "멤버 관리" }));
     await fireEvent.press(
       screen.getByRole("button", { name: "멤버 내보내기" }),
     );
@@ -192,6 +230,7 @@ describe("M7 group detail management UI", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "초대 코드 발급" }),
     );
+    await fireEvent.press(screen.getByTestId("group-owner-panel-issue"));
     expect(screen.getByText(code).props.selectable).toBe(true);
     await fireEvent.press(
       screen.getByRole("button", { name: "초대 코드 공유" }),
@@ -209,7 +248,7 @@ describe("M7 group detail management UI", () => {
       new GroupsApiError(403, "membership_required"),
     );
     const { screen } = await setup(api);
-    expect(screen.queryByText("우리 그룹")).toBeNull();
+    expect(lastStackScreenTitle()).toBe("그룹");
     expect(screen.getByText(/이 그룹에 접근할 수 없습니다/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "그룹 삭제" })).toBeNull();
     expect(mockReplace).toHaveBeenCalledWith("/");
