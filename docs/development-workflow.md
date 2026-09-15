@@ -560,6 +560,26 @@ iOS Simulator에서 앱이 흰 화면으로 멈춘 사례는 앱 코드가 아�
 동기 XPC 응답을 하지 않아 메인 스레드가 키보드 preload 경로에서 대기한 것이었다.
 `xcrun simctl spawn <udid> launchctl kickstart -k system/com.apple.pasteboard.pasted`로 복구했다.
 
+### 영상 미리보기 안정화와 포스터 도입 — 2026-09-15
+
+사용자 승인으로 영상 미리보기 신뢰성을 3단계로 개선했다. 즉시: 실패 사유를
+`media.video-thumbnail.failed`(stage/code)로 로깅, 120초 워치독을 작업 시작 시점으로 이동,
+프레임 추출 0.5초→실패 시 1.5초 재시도, 가시성 5초 그레이스, mediaId 캐시와 재시도 3회.
+중기: 미리보기·재생이 `media-object-cache.ts`(retain count, 60초 보존)로 다운로드를 공유.
+근본: 발신 단말이 첨부 시 로컬 영상에서 JPEG 포스터를 만들어 별도 업로드로 올리고
+`posterUploadId`로 영상 finalize에 연결(`media-upload-controller.ts` sub-pipeline); 실패해도
+영상 전송은 막지 않는다. 수신 단말은 `posterMediaId`가 있으면 JPEG만 받고 없으면 기존 로컬
+추출로 fallback한다. 배경은 [ADR 0006](adr/0006-media-video-posters.md), 서버 측은
+jamye-server [ADR 0009](../../jamye-server/docs/adr/0009-media-posters.md)를 따른다.
+
+계약 intake는 `bun tools/contracts/intake-server-contract.mjs`로 `poster_upload_id`/
+`poster_media_id`를 반영했다(`server_commit: "dirty"`, `contract_version: "1"` 불변).
+`bun run check:code`(typecheck/lint/format/check:architecture/coverage) PASS를 확인했다.
+Native 입력 변경이 없어 이번 세션은 clean prebuild·재빌드를 실행하지 않았다. 실기기 포스터
+송수신 E2E는 서버 배포 후로 미룬다. 서버가 배포되면 배포 commit 기준으로
+`bun tools/contracts/intake-server-contract.mjs`를 다시 실행해 `server_commit: "dirty"`를 실제
+commit hash로 교체하고 `bun tools/contracts/check-server-contract.mjs`를 통과시킨 뒤 E2E를 수행한다.
+
 ## 4. Dependency와 toolchain script
 
 | 명령                             | 분류        | 결과와 선행 조건                                                  |
