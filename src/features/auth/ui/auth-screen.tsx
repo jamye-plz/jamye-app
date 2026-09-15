@@ -1,12 +1,15 @@
-import { Pressable, StyleSheet, View } from "react-native";
+import { Stack } from "expo-router";
+import { View } from "react-native";
 
 import { appReturnUri, providerRedirectUri } from "@/core/auth/app-return-uri";
 import { getPublicEnv } from "@/core/config/public-env";
 import { useSession } from "@/core/providers/session-provider";
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appControl, appRadii, appSpacing } from "@/core/theme/tokens";
+import { appSpacing } from "@/core/theme/tokens";
 import { AppScreen } from "@/shared/ui/app-screen";
 import { AppText } from "@/shared/ui/app-text";
+import { InlineMessage } from "@/shared/ui/inline-message";
+import { NativeButton } from "@/shared/ui/native-button";
 
 const RETRY_LABELS = {
   restore: "세션 복원 다시 시도",
@@ -33,117 +36,69 @@ export function AuthScreen() {
           : undefined;
 
   return (
-    <AppScreen
-      backgroundColor={colors.background}
-      contentStyle={styles.content}
-    >
-      <View accessibilityRole="header">
-        <AppText color={colors.text} variant="title">
-          Jamye 로그인
-        </AppText>
-        <AppText color={colors.textMuted} style={styles.description}>
-          카카오 또는 Google 계정으로 로그인합니다.
-        </AppText>
-      </View>
-      <View style={styles.actions}>
-        <AuthButton
-          label={disabled ? "로그인 준비 중…" : "카카오로 계속하기"}
-          disabled={disabled}
-          colors={colors}
-          onPress={() =>
-            void session.login(
-              "kakao",
-              providerRedirectUri(origin, "kakao"),
-              appReturnUri("kakao"),
-            )
-          }
-        />
-        <AuthButton
-          label="Google로 계속하기"
-          disabled={disabled}
-          colors={colors}
-          onPress={() =>
-            void session.login(
-              "google",
-              providerRedirectUri(origin, "google"),
-              appReturnUri("google"),
-            )
-          }
-        />
-      </View>
-      {state.message ? (
-        <View style={styles.retry}>
-          <AppText
-            accessibilityLiveRegion="polite"
-            color={state.status === "error" ? colors.error : colors.textMuted}
-          >
-            {state.message}
-          </AppText>
-          {retryAction && retryOperation ? (
-            <AuthButton
-              label={RETRY_LABELS[retryAction]}
-              disabled={false}
-              colors={colors}
-              onPress={() => void retryOperation()}
-            />
-          ) : null}
-        </View>
-      ) : null}
-    </AppScreen>
-  );
-}
-
-function AuthButton({
-  label,
-  disabled,
-  colors,
-  onPress,
-}: Readonly<{
-  label: string;
-  disabled: boolean;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  onPress: () => void;
-}>) {
-  return (
-    <Pressable
-      testID={`auth-${label}`}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        {
-          backgroundColor: disabled ? colors.surfaceMuted : colors.primary,
-          opacity: pressed ? 0.84 : 1,
-        },
-      ]}
-    >
-      <AppText
-        color={disabled ? colors.textMuted : colors.onPrimary}
-        variant="label"
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <AppScreen
+        contentStyle={{
+          gap: appSpacing.xl,
+          justifyContent: "center",
+          paddingVertical: appSpacing.xxxl,
+        }}
+        headered={false}
       >
-        {label}
-      </AppText>
-    </Pressable>
+        <View style={{ gap: appSpacing.sm }}>
+          <AppText
+            accessibilityRole="header"
+            color={colors.text}
+            variant="largeTitle"
+          >
+            잼얘좀
+          </AppText>
+          <AppText color={colors.textMuted} variant="body">
+            카카오 또는 Google 계정으로 로그인합니다.
+          </AppText>
+        </View>
+        <View style={{ gap: appSpacing.sm }}>
+          <NativeButton
+            disabled={disabled}
+            label={disabled ? "로그인 준비 중…" : "카카오로 계속하기"}
+            onPress={() =>
+              void session.login(
+                "kakao",
+                providerRedirectUri(origin, "kakao"),
+                appReturnUri("kakao"),
+              )
+            }
+            variant="filled"
+          />
+          <NativeButton
+            disabled={disabled}
+            label="Google로 계속하기"
+            onPress={() =>
+              void session.login(
+                "google",
+                providerRedirectUri(origin, "google"),
+                appReturnUri("google"),
+              )
+            }
+            variant="outlined"
+          />
+        </View>
+        {state.message ? (
+          <InlineMessage
+            kind={state.status === "error" ? "error" : "notice"}
+            message={state.message}
+          >
+            {retryAction && retryOperation ? (
+              <NativeButton
+                label={RETRY_LABELS[retryAction]}
+                onPress={() => void retryOperation()}
+                variant="text"
+              />
+            ) : null}
+          </InlineMessage>
+        ) : null}
+      </AppScreen>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    gap: appSpacing.xl,
-    justifyContent: "center",
-    paddingVertical: appSpacing.xxxl,
-  },
-  description: { marginTop: appSpacing.sm },
-  actions: { gap: appSpacing.sm },
-  retry: { gap: appSpacing.sm },
-  button: {
-    alignItems: "center",
-    borderRadius: appRadii.medium,
-    justifyContent: "center",
-    minHeight: appControl.standardHeight,
-    paddingHorizontal: appSpacing.md,
-  },
-});

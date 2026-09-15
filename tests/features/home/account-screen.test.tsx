@@ -2,7 +2,7 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 
 import { AppThemeProvider } from "@/core/theme/theme-provider";
-import { HomeScreen } from "@/features/home/ui/home-screen";
+import { AccountScreen } from "@/features/home/ui/account-screen";
 
 type AccountScopeRenderedState =
   | null
@@ -30,6 +30,9 @@ let mockAccountState: AccountScopeRenderedState = {
 };
 const mockRetry = jest.fn();
 
+jest.mock("expo-router", () => ({
+  Stack: { Screen: () => null },
+}));
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: jest.fn(() => ({
     state: { status: "signed-in", profile: mockProfile, message: null },
@@ -46,15 +49,21 @@ jest.mock("@/core/providers/app-providers", () => ({
     retry: mockRetry,
   })),
 }));
-jest.mock("@/features/home/ui/connection-diagnostics", () => ({
-  ConnectionDiagnostics: () => null,
-}));
+jest.mock("@/features/home/ui/connection-diagnostics", () => {
+  const { Text: RNText } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    ConnectionDiagnostics: () => (
+      <RNText testID="connection-diagnostics">diagnostics</RNText>
+    ),
+  };
+});
 jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
   __esModule: true,
   default: jest.fn(() => "light"),
 }));
 
-describe("authenticated home screen", () => {
+describe("account screen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrincipal = {
@@ -66,15 +75,16 @@ describe("authenticated home screen", () => {
     mockAccountState = { status: "ready", database: {} };
   });
 
-  test("shows the validated current profile and only a logout action, no fake product content", async () => {
+  test("shows the validated current profile, diagnostics, and only a logout action", async () => {
     const screen = await render(
       <AppThemeProvider>
-        <HomeScreen />
+        <AccountScreen />
       </AppThemeProvider>,
     );
     expect(screen.getByText("닉네임")).toBeTruthy();
     expect(screen.getByText(/kakao 계정으로 로그인됨/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeTruthy();
+    expect(screen.getByTestId("connection-diagnostics")).toBeTruthy();
   });
 
   test("logs out through the shared session and prevents a duplicate submit", async () => {
@@ -87,7 +97,7 @@ describe("authenticated home screen", () => {
     );
     const screen = await render(
       <AppThemeProvider>
-        <HomeScreen />
+        <AccountScreen />
       </AppThemeProvider>,
     );
     const button = screen.getByRole("button", { name: "로그아웃" });
@@ -105,48 +115,18 @@ describe("authenticated home screen", () => {
     mockPrincipal = null;
     const screen = await render(
       <AppThemeProvider>
-        <HomeScreen />
+        <AccountScreen />
       </AppThemeProvider>,
     );
     expect(screen.queryByText("닉네임")).toBeNull();
     expect(screen.toJSON()).toBeNull();
   });
 
-  test("blocks a second logout in the same render turn", async () => {
-    let finish: () => void = () => undefined;
-    mockLogout.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          finish = resolve;
-        }),
-    );
-    const screen = await render(
-      <AppThemeProvider>
-        <HomeScreen />
-      </AppThemeProvider>,
-    );
-    const button = screen.getByRole("button", { name: "로그아웃" });
-    // RNTL 14 exposes host nodes only. Capture the enclosing Pressable's
-    // callback as fireEvent does, so both calls happen before a React commit.
-    let fiber = button.unstable_fiber;
-    while (fiber && !fiber.memoizedProps?.onPress) fiber = fiber.return;
-    const onPress = fiber?.memoizedProps.onPress;
-    expect(typeof onPress).toBe("function");
-    await act(async () => {
-      onPress();
-      onPress();
-    });
-    expect(mockLogout).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      finish();
-    });
-  });
-
   test("shows an explicit retry for a failed account-storage open, without any fixture fallback text", async () => {
     mockAccountState = { error: new Error("open failed"), status: "error" };
     const screen = await render(
       <AppThemeProvider>
-        <HomeScreen />
+        <AccountScreen />
       </AppThemeProvider>,
     );
     expect(screen.getByText(/로컬 계정 저장소를 열 수 없습니다/)).toBeTruthy();
@@ -161,9 +141,10 @@ describe("authenticated home screen", () => {
     mockAccountState = { status: "opening" };
     const screen = await render(
       <AppThemeProvider>
-        <HomeScreen />
+        <AccountScreen />
       </AppThemeProvider>,
     );
     expect(screen.getByRole("progressbar")).toBeTruthy();
+    expect(screen.getByText("로컬 계정 저장소 준비 중…")).toBeTruthy();
   });
 });

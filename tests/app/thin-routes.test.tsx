@@ -120,7 +120,7 @@ jest.mock("react-native-reanimated", () => {
 });
 
 jest.mock("expo-router", () => {
-  const { View } =
+  const { Text, View } =
     jest.requireActual<typeof import("react-native")>("react-native");
 
   function Stack(): React.JSX.Element {
@@ -139,6 +139,19 @@ jest.mock("expo-router", () => {
       />
     );
   }
+
+  // Screens configure their native header through `Stack.Screen`; surface
+  // the configured title the way the native header would (as a heading).
+  function StackScreen({
+    options,
+  }: {
+    options?: { title?: string };
+  }): React.JSX.Element | null {
+    return options?.title ? (
+      <Text accessibilityRole="header">{options.title}</Text>
+    ) : null;
+  }
+  Stack.Screen = StackScreen;
 
   return {
     Stack,

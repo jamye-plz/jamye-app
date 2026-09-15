@@ -1,20 +1,15 @@
 import { Component, Fragment } from "react";
 import type { PropsWithChildren } from "react";
-import { Pressable, StyleSheet, useColorScheme } from "react-native";
 
 import {
   createLogger,
   type LoggerSink,
   type StructuredLogger,
 } from "@/core/logging/logger";
-import {
-  appControl,
-  appRadii,
-  appSpacing,
-  resolveSystemTheme,
-} from "@/core/theme/tokens";
 import { AppScreen } from "@/shared/ui/app-screen";
-import { AppText } from "@/shared/ui/app-text";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { InlineMessage } from "@/shared/ui/inline-message";
+import { NativeButton } from "@/shared/ui/native-button";
 
 type AppErrorBoundaryProps = PropsWithChildren<{
   logger?: StructuredLogger;
@@ -44,43 +39,15 @@ function normalizeErrorName(error: Error): string {
 }
 
 function AppErrorFallback({ onRetry }: AppErrorFallbackProps) {
-  const theme = resolveSystemTheme(useColorScheme());
-
   return (
-    <AppScreen
-      backgroundColor={theme.colors.background}
-      contentStyle={styles.fallbackContent}
-    >
-      <AppText
-        accessibilityRole="header"
-        color={theme.colors.text}
-        variant="title"
+    <AppScreen headered={false}>
+      <EmptyState
+        symbol={{ android: "error", ios: "exclamationmark.triangle" }}
+        title="앱 화면을 표시하지 못했습니다."
       >
-        앱 화면을 표시하지 못했습니다.
-      </AppText>
-      <AppText
-        accessibilityLiveRegion="assertive"
-        accessibilityRole="alert"
-        color={theme.colors.textMuted}
-      >
-        잠시 후 다시 시도해 주세요.
-      </AppText>
-      <Pressable
-        accessibilityLabel="다시 시도"
-        accessibilityRole="button"
-        onPress={onRetry}
-        style={({ pressed }) => [
-          styles.retryButton,
-          {
-            backgroundColor: theme.colors.primary,
-            opacity: pressed ? 0.84 : 1,
-          },
-        ]}
-      >
-        <AppText color={theme.colors.onPrimary} variant="label">
-          다시 시도
-        </AppText>
-      </Pressable>
+        <InlineMessage kind="error" message="잠시 후 다시 시도해 주세요." />
+        <NativeButton label="다시 시도" onPress={onRetry} />
+      </EmptyState>
     </AppScreen>
   );
 }
@@ -120,18 +87,3 @@ export class AppErrorBoundary extends Component<
     return <Fragment key={this.state.resetKey}>{this.props.children}</Fragment>;
   }
 }
-
-const styles = StyleSheet.create({
-  fallbackContent: {
-    alignItems: "flex-start",
-    gap: appSpacing.md,
-    justifyContent: "center",
-  },
-  retryButton: {
-    alignItems: "center",
-    borderRadius: appRadii.large,
-    justifyContent: "center",
-    minHeight: appControl.standardHeight,
-    paddingHorizontal: appSpacing.lg,
-  },
-});

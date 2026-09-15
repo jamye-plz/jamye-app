@@ -30,6 +30,9 @@ jest.mock("expo-auth-session", () => ({
   makeRedirectUri: ({ scheme, path }: { scheme: string; path: string }) =>
     `${scheme}://${path}`,
 }));
+jest.mock("expo-router", () => ({
+  Stack: { Screen: () => null },
+}));
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: jest.fn(() => ({
     state: mockState,
@@ -184,13 +187,17 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
         <AuthScreen />
       </AppThemeProvider>,
     );
-    await fireEvent.press(screen.getByTestId("auth-카카오로 계속하기"));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "카카오로 계속하기" }),
+    );
     expect(mockLogin).toHaveBeenCalledWith(
       "kakao",
       "https://api.example/api/v1/auth/oauth/kakao/callback",
       "jamye://oauth/kakao",
     );
-    await fireEvent.press(screen.getByTestId("auth-Google로 계속하기"));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Google로 계속하기" }),
+    );
     expect(mockLogin).toHaveBeenLastCalledWith(
       "google",
       "https://api.example/api/v1/auth/oauth/google/callback",
