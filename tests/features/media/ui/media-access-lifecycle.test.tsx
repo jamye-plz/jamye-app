@@ -315,9 +315,9 @@ test("MD4 image is rendered from a private local file, never a signed HTTP Image
       expectedBytes: 10,
     }),
   );
-  expect(screen.getByRole("image").props.source).toEqual({
-    uri: "file:///owned/downloads/image.jpg",
-  });
+  expect(screen.getByRole("image").props.source).toEqual([
+    { uri: "file:///owned/downloads/image.jpg" },
+  ]);
   await screen.unmount();
   expect(mockRemoveDownload).toHaveBeenCalledWith(
     "file:///owned/downloads/image.jpg",
@@ -361,7 +361,7 @@ test("a late native image error cannot replace the next media view", async () =>
     </Wrapper>,
   );
   await flush();
-  await act(() => oldError());
+  await act(() => oldError({ nativeEvent: { error: "decode" } }));
   expect(screen.getByRole("image", { name: "second.jpg" })).toBeTruthy();
   await screen.unmount();
 });
@@ -430,7 +430,7 @@ test("recycling an image closes detail; its late error cannot close the next det
   await fireEvent.press(
     screen.getByRole("button", { name: "second.jpg 자세히 보기" }),
   );
-  await act(() => oldError());
+  await act(() => oldError({ nativeEvent: { error: "decode" } }));
   expect(screen.getByTestId("photo-viewer").props.label).toBe("second.jpg");
   await act(() => screen.getByTestId("photo-viewer").props.onError());
   expect(screen.queryByTestId("photo-viewer")).toBeNull();
@@ -824,5 +824,5 @@ test("open/save shows a recoverable error and a user retry hands a local file to
     "image/jpeg",
     expect.any(AbortSignal),
   );
-  expect(screen.getByText("열기·저장")).toBeTruthy();
+  expect(screen.queryByText("다시 시도")).toBeNull();
 });

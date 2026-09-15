@@ -10,6 +10,7 @@ jest.mock("@/features/media/ui/media-image-viewer", () => ({
 let mockColors = lightTheme.colors;
 jest.mock("@/core/theme/theme-provider", () => ({
   useAppTheme: () => ({ colors: mockColors }),
+  useAppThemeOrSystem: () => ({ colors: mockColors }),
 }));
 jest.mock("expo-router", () => ({
   useFocusEffect: (callback: () => (() => void) | void) =>
@@ -59,12 +60,13 @@ test.each([lightTheme, darkTheme])(
         onRetryFailedMessage={jest.fn()}
       />,
     );
-    expect(screen.getByText("열기·저장")).toHaveStyle({
-      color: theme.colors.onPrimary,
-    });
+    expect(
+      screen.getByRole("button", { name: "첨부 파일 열기 또는 저장" }),
+    ).toBeTruthy();
+    const icon = screen.getByTestId("media-open-save-icon");
+    expect(icon.props.children.props.tintColor).toBe(theme.colors.onPrimary);
     expect(
       screen.getByRole("button", { name: "첨부 동영상 재생" }),
     ).toBeTruthy();
-    expect(screen.getByText("동영상")).toBeTruthy();
   },
 );

@@ -1,14 +1,18 @@
 import { useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { Image, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
 
+import { Image } from "expo-image";
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appControl, appSpacing } from "@/core/theme/tokens";
+import { appRadii, appSpacing } from "@/core/theme/tokens";
 import { useMediaAccess } from "@/features/media/model/use-media-access";
 import {
   useMediaGeneration,
   useMediaRuntime,
 } from "@/features/media/model/media-runtime";
+import { AppSymbol } from "@/shared/ui/app-symbol";
+import { AppText } from "@/shared/ui/app-text";
+import { NativeButton } from "@/shared/ui/native-button";
 import { MAX_IMAGE_BYTES } from "../model/media-policy";
 import {
   allocateDownloadDestination,
@@ -104,22 +108,22 @@ export function MediaImage({
   };
 
   const label = filename ?? "첨부 이미지";
+  const placeholderStyle = {
+    alignItems: "center" as const,
+    backgroundColor: colors.surfaceMuted,
+    borderCurve: "continuous" as const,
+    borderRadius: appRadii.medium,
+    height: IMAGE_SIZE,
+    justifyContent: "center" as const,
+    width: IMAGE_SIZE,
+  };
 
   if (!access || !runtime) {
     return (
-      <View
-        style={{
-          alignItems: "center",
-          backgroundColor: colors.surfaceMuted,
-          borderRadius: 12,
-          height: IMAGE_SIZE,
-          justifyContent: "center",
-          width: IMAGE_SIZE,
-        }}
-      >
-        <Text style={{ color: colors.textMuted, textAlign: "center" }}>
+      <View style={placeholderStyle}>
+        <AppText color={colors.textMuted} style={{ textAlign: "center" }}>
           {label}
-        </Text>
+        </AppText>
       </View>
     );
   }
@@ -127,49 +131,40 @@ export function MediaImage({
     return (
       <View
         accessibilityLabel={`${label} 불러오는 중`}
-        style={{
-          alignItems: "center",
-          backgroundColor: colors.surfaceMuted,
-          borderRadius: 12,
-          height: IMAGE_SIZE,
-          justifyContent: "center",
-          width: IMAGE_SIZE,
-        }}
+        style={[placeholderStyle, { backgroundColor: colors.fill }]}
       >
-        <Text style={{ color: colors.textMuted }}>이미지 불러오는 중…</Text>
+        <ActivityIndicator color={colors.textMuted} />
       </View>
     );
   }
   if (state.status === "error") {
     return (
       <View
-        style={{
-          alignItems: "center",
-          backgroundColor: colors.surfaceMuted,
-          borderRadius: 12,
-          gap: appSpacing.xxs,
-          height: IMAGE_SIZE,
-          justifyContent: "center",
-          padding: appSpacing.sm,
-          width: IMAGE_SIZE,
-        }}
+        style={[
+          placeholderStyle,
+          { gap: appSpacing.xxs, padding: appSpacing.sm },
+        ]}
       >
-        <Text style={{ color: colors.error, textAlign: "center" }}>
-          이미지를 불러오지 못했습니다.
-        </Text>
-        <Pressable
-          accessibilityLabel={`${label} 다시 불러오기`}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: attempt >= 1 }}
-          disabled={attempt >= 1}
-          onPress={retry}
-          style={{
-            justifyContent: "center",
-            minHeight: appControl.standardHeight,
-          }}
+        <AppSymbol name="error" tintColor={colors.error} />
+        <AppText
+          color={colors.error}
+          style={{ textAlign: "center" }}
+          variant="caption"
         >
-          <Text style={{ color: colors.primary }}>다시 시도</Text>
-        </Pressable>
+          이미지를 불러오지 못했습니다.
+        </AppText>
+        <View
+          accessible
+          accessibilityLabel={`${label} 다시 불러오기`}
+          accessibilityState={{ disabled: attempt >= 1 }}
+        >
+          <NativeButton
+            disabled={attempt >= 1}
+            label="다시 시도"
+            onPress={retry}
+            variant="text"
+          />
+        </View>
       </View>
     );
   }
@@ -197,9 +192,17 @@ export function MediaImage({
           accessible
           accessibilityLabel={label}
           accessibilityRole="image"
+          cachePolicy="memory"
+          contentFit="cover"
           onError={imageFailed}
+          recyclingKey={viewKey}
           source={{ uri: state.uri }}
-          style={{ borderRadius: 12, height: IMAGE_SIZE, width: IMAGE_SIZE }}
+          style={{
+            borderRadius: appRadii.medium,
+            height: IMAGE_SIZE,
+            width: IMAGE_SIZE,
+          }}
+          transition={150}
         />
       </Pressable>
       {expandedKey === viewKey && runtime.isCurrent(generation) ? (

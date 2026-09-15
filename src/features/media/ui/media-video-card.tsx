@@ -1,19 +1,28 @@
-import { Image, Pressable, Text, View } from "react-native";
+import { Image } from "expo-image";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appControl, appSpacing } from "@/core/theme/tokens";
+import { appRadii, appSpacing } from "@/core/theme/tokens";
 import { NativeVideoPlayer } from "@/features/media/platform/native-video-player";
+import { AppSymbol } from "@/shared/ui/app-symbol";
+import { AppText } from "@/shared/ui/app-text";
+import { NativeButton } from "@/shared/ui/native-button";
 import { useMediaVideo } from "./use-media-video";
 import { useMediaVideoThumbnail } from "./use-media-video-thumbnail";
 import { MediaViewerModal } from "./media-viewer-modal";
+
+const PLAY_OVERLAY_BACKGROUND = "rgba(0, 0, 0, 0.45)";
 
 export function MediaVideoCard({
   mediaId,
   filename,
   thumbnailEnabled = false,
+  onPrimary = false,
 }: Readonly<{
   mediaId: string;
   filename: string | null;
   thumbnailEnabled?: boolean;
+  /** Render captions for placement on the Berry (outgoing bubble) surface. */
+  onPrimary?: boolean;
 }>) {
   const { colors } = useAppTheme();
   const { state, available, open, close, playbackFailed } =
@@ -28,68 +37,68 @@ export function MediaVideoCard({
         accessibilityState={{ disabled: !available }}
         disabled={!available}
         onPress={() => void open()}
-        style={{
-          backgroundColor: colors.surfaceMuted,
-          borderRadius: 12,
-          gap: appSpacing.xxs,
-          minHeight: 112,
-          padding: appSpacing.sm,
-          width: 160,
-          justifyContent: "center",
-        }}
+        style={{ gap: appSpacing.xxs, width: 160 }}
       >
         <View
           style={{
+            alignItems: "center",
+            backgroundColor: colors.fill,
+            borderCurve: "continuous",
+            borderRadius: appRadii.medium,
             height: 90,
-            width: "100%",
             justifyContent: "center",
             overflow: "hidden",
-            borderRadius: 8,
+            width: 160,
           }}
         >
           {thumbnail.state?.status === "ready" ? (
             <Image
               accessibilityLabel={`${label} 영상 미리보기`}
-              source={{ uri: thumbnail.state.uri }}
+              cachePolicy="memory"
+              contentFit="cover"
               onError={thumbnail.imageFailed}
-              resizeMode="cover"
-              style={{ width: "100%", height: "100%" }}
+              recyclingKey={mediaId}
+              source={{ uri: thumbnail.state.uri }}
+              style={{ height: "100%", width: "100%" }}
+              transition={150}
             />
-          ) : (
-            <Text style={{ color: colors.textMuted }}>
-              {thumbnail.state?.status === "loading"
-                ? "미리보기 준비 중…"
-                : "동영상 미리보기"}
-            </Text>
-          )}
+          ) : thumbnail.state?.status === "loading" ? (
+            <ActivityIndicator
+              accessibilityLabel={`${label} 미리보기 준비 중`}
+              color={colors.textMuted}
+            />
+          ) : null}
+          <View
+            style={{
+              alignItems: "center",
+              backgroundColor: PLAY_OVERLAY_BACKGROUND,
+              borderRadius: 999,
+              height: 56,
+              justifyContent: "center",
+              position: "absolute",
+              width: 56,
+            }}
+          >
+            <AppSymbol name="play" size={44} tintColor={colors.onPrimary} />
+          </View>
         </View>
-        <Text style={{ color: colors.text }}>동영상</Text>
         {filename ? (
-          <Text numberOfLines={2} style={{ color: colors.textMuted }}>
+          <AppText
+            color={onPrimary ? colors.onPrimary : colors.textMuted}
+            numberOfLines={2}
+            variant="caption"
+          >
             {filename}
-          </Text>
+          </AppText>
         ) : null}
-        <Text style={{ color: available ? colors.primary : colors.textMuted }}>
-          ▶ 재생
-        </Text>
       </Pressable>
       {thumbnail.state?.status === "error" ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${label} 미리보기 다시 시도`}
-          accessibilityState={{ disabled: !thumbnail.canRetry }}
+        <NativeButton
           disabled={!thumbnail.canRetry}
+          label={`${label} 미리보기 다시 시도`}
           onPress={thumbnail.retry}
-          style={{
-            minHeight: appControl.standardHeight,
-            justifyContent: "center",
-            backgroundColor: colors.surfaceMuted,
-            borderRadius: 8,
-            paddingHorizontal: appSpacing.xxs,
-          }}
-        >
-          <Text style={{ color: colors.primary }}>미리보기 다시 시도</Text>
-        </Pressable>
+          variant="text"
+        />
       ) : null}
       {state.status !== "idle" ? (
         <MediaViewerModal
@@ -99,12 +108,9 @@ export function MediaVideoCard({
         >
           <View style={{ padding: appSpacing.md, flex: 1 }}>
             {state.status === "downloading" ? (
-              <Text
-                accessibilityLiveRegion="polite"
-                style={{ color: colors.text }}
-              >
+              <AppText accessibilityLiveRegion="polite" color={colors.text}>
                 동영상 받는 중…
-              </Text>
+              </AppText>
             ) : null}
             {state.status === "ready" ? (
               <NativeVideoPlayer
@@ -116,20 +122,14 @@ export function MediaVideoCard({
             ) : null}
             {state.status === "error" ? (
               <>
-                <Text accessibilityRole="alert" style={{ color: colors.error }}>
+                <AppText accessibilityRole="alert" color={colors.error}>
                   {state.message}
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="동영상 다시 시도"
+                </AppText>
+                <NativeButton
+                  label="동영상 다시 시도"
                   onPress={() => void open()}
-                  style={{
-                    minHeight: appControl.standardHeight,
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.primary }}>다시 시도</Text>
-                </Pressable>
+                  variant="text"
+                />
               </>
             ) : null}
           </View>

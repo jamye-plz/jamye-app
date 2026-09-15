@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { AppState, Text, View } from "react-native";
+import { AppState, View } from "react-native";
 import { requireOptionalNativeModule } from "expo";
 import type { VideoPlayer } from "expo-video";
 import { useAppTheme } from "@/core/theme/theme-provider";
+import { AppText } from "@/shared/ui/app-text";
 import { isOwnedDownloadFile, retainDownloadedFile } from "./media-downloads";
 
 type VideoApi = typeof import("expo-video");
@@ -113,9 +114,9 @@ export function NativeVideoPlayer({
   return (
     <View style={{ flex: 1 }}>
       {loading ? (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
+        <AppText accessibilityLiveRegion="polite" color={colors.text}>
           동영상 준비 중…
-        </Text>
+        </AppText>
       ) : null}
       {VideoView && current ? (
         <VideoView

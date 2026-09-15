@@ -1,21 +1,31 @@
 import type { PropsWithChildren } from "react";
-import { Modal, Pressable, Text, View } from "react-native";
+import type { ColorValue } from "react-native";
+import { Modal, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appControl, appSpacing } from "@/core/theme/tokens";
+import { appSpacing } from "@/core/theme/tokens";
+import { AppText } from "@/shared/ui/app-text";
+import { HeaderIconButton } from "@/shared/ui/header-icon-button";
 
-/** Each native modal has its own safe-area coordinate space. */
+/** Each native modal has its own safe-area coordinate space. `backgroundColor`
+ * overrides the themed `colors.background` for viewers that always render on
+ * black regardless of light/dark theme (the photo viewer). */
 export function MediaViewerModal({
   label,
   closeLabel,
+  backgroundColor,
   onClose,
   children,
 }: PropsWithChildren<{
   label: string;
   closeLabel: string;
+  backgroundColor?: ColorValue;
   onClose: () => void;
 }>) {
   const { colors } = useAppTheme();
+  const background = backgroundColor ?? colors.background;
+  const foreground = backgroundColor ? "#FFFFFF" : colors.text;
+  const iconTint = backgroundColor ? "#FFFFFF" : colors.primary;
   return (
     <Modal
       testID="media-viewer-modal"
@@ -26,31 +36,29 @@ export function MediaViewerModal({
       onRequestClose={onClose}
     >
       <SafeAreaProvider>
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <SafeAreaView style={{ backgroundColor: background, flex: 1 }}>
           <View
             style={{
-              flexDirection: "row",
               alignItems: "center",
-              paddingHorizontal: appSpacing.md,
+              flexDirection: "row",
               gap: appSpacing.sm,
+              paddingHorizontal: appSpacing.md,
             }}
           >
-            <Text numberOfLines={2} style={{ color: colors.text, flex: 1 }}>
+            <AppText
+              color={foreground}
+              numberOfLines={1}
+              style={{ flex: 1 }}
+              variant="headline"
+            >
               {label}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
+            </AppText>
+            <HeaderIconButton
               accessibilityLabel={closeLabel}
               onPress={onClose}
-              style={{
-                minHeight: appControl.standardHeight,
-                minWidth: appControl.standardHeight,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ color: colors.primary }}>닫기</Text>
-            </Pressable>
+              symbol="close"
+              tintColor={iconTint}
+            />
           </View>
           {children}
         </SafeAreaView>

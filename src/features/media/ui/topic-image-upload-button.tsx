@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appControl, appSpacing } from "@/core/theme/tokens";
+import { appChatComposer, appSpacing } from "@/core/theme/tokens";
+import { AppSymbol } from "@/shared/ui/app-symbol";
+import { AppText } from "@/shared/ui/app-text";
+import { NativeButton } from "@/shared/ui/native-button";
 import type { MediaAttachmentController } from "./media-attachment-types";
 import { useMediaPicker } from "./use-media-picker";
 
@@ -28,6 +31,8 @@ export function TopicImageUploadButton({
   const busy =
     item !== null &&
     (item.status === "uploading" || item.status === "finalizing");
+  const disabled =
+    busy || picker.busy || (item !== null && item.status !== "confirmed");
 
   const addImage = async () => {
     if (item !== null && item.status !== "confirmed") return;
@@ -52,67 +57,59 @@ export function TopicImageUploadButton({
       <Pressable
         accessibilityLabel="주제 이미지 추가"
         accessibilityRole="button"
-        accessibilityState={{
-          busy: busy || picker.busy,
-          disabled:
-            busy ||
-            picker.busy ||
-            (item !== null && item.status !== "confirmed"),
-        }}
-        disabled={
-          busy || picker.busy || (item !== null && item.status !== "confirmed")
-        }
+        accessibilityState={{ busy: busy || picker.busy, disabled }}
+        disabled={disabled}
+        hitSlop={8}
         onPress={() => void addImage()}
-        style={{
-          justifyContent: "center",
-          minHeight: appControl.standardHeight,
-        }}
+        style={({ pressed }) => [
+          styles.button,
+          { opacity: disabled ? 0.4 : pressed ? 0.5 : 1 },
+        ]}
       >
-        <Text style={{ color: colors.primary }}>
-          {picker.busy
-            ? "이미지 선택·변환 중…"
-            : busy
-              ? "이미지 업로드 중…"
-              : "주제 이미지 추가"}
-        </Text>
+        {busy || picker.busy ? (
+          <ActivityIndicator
+            color={colors.primary}
+            testID="topic-image-upload-progress"
+          />
+        ) : (
+          <AppSymbol name="image" tintColor={colors.primary} />
+        )}
       </Pressable>
       {pickerError ? (
-        <Text style={{ color: colors.error }}>{pickerError}</Text>
+        <AppText color={colors.error}>{pickerError}</AppText>
       ) : null}
       {item?.status === "failed" ? (
         <>
-          <Text style={{ color: colors.error }}>
+          <AppText color={colors.error}>
             {item.errorMessage ?? "업로드에 실패했습니다."}
-          </Text>
-          <Pressable
-            accessibilityLabel="주제 이미지 업로드 다시 시도"
-            accessibilityRole="button"
+          </AppText>
+          <NativeButton
+            label="주제 이미지 업로드 다시 시도"
             onPress={() => controller.retry(item.localId)}
-            style={{
-              justifyContent: "center",
-              minHeight: appControl.standardHeight,
-            }}
-          >
-            <Text style={{ color: colors.primary }}>다시 시도</Text>
-          </Pressable>
-          <Pressable
-            accessibilityLabel="주제 이미지 업로드 취소"
-            accessibilityRole="button"
+            variant="text"
+          />
+          <NativeButton
+            label="주제 이미지 업로드 취소"
             onPress={() => controller.remove(item.localId)}
-            style={{
-              justifyContent: "center",
-              minHeight: appControl.standardHeight,
-            }}
-          >
-            <Text style={{ color: colors.textMuted }}>취소</Text>
-          </Pressable>
+            variant="text"
+          />
         </>
       ) : null}
       {item?.status === "confirmed" ? (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
+        <AppText accessibilityLiveRegion="polite" color={colors.text}>
           이미지를 추가했습니다.
-        </Text>
+        </AppText>
       ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  button: {
+    alignItems: "center",
+    borderCurve: "continuous",
+    justifyContent: "center",
+    minHeight: appChatComposer.controlSize,
+    minWidth: appChatComposer.controlSize,
+  },
+});

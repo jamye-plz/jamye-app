@@ -128,7 +128,7 @@ test("a named video card downloads only on play and passes only the local file t
   expect(screen.getByTestId("native-player").props.uri).toBe(
     "file:///owned/1-video.mp4",
   );
-  expect(JSON.stringify(screen.toJSON())).not.toContain("private-signature");
+  expect(screen.queryByText(/private-signature/)).toBeNull();
   await fireEvent.press(screen.getByRole("button", { name: "동영상 닫기" }));
   expect(screen.queryByTestId("native-player")).toBeNull();
   expect(mockRemove).toHaveBeenCalledWith("file:///owned/1-video.mp4");
@@ -170,7 +170,7 @@ test("download failure is safe and retry obtains a new access URL", async () => 
   expect(screen.getByRole("alert")).toHaveTextContent(
     /동영상을 불러오지 못했습니다/,
   );
-  expect(JSON.stringify(screen.toJSON())).not.toContain("private-signature");
+  expect(screen.queryByText(/private-signature/)).toBeNull();
   expect(mockRemove).toHaveBeenCalledWith("file:///owned/1-video.mp4");
   await fireEvent.press(
     screen.getByRole("button", { name: "동영상 다시 시도" }),

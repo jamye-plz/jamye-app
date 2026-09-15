@@ -1,14 +1,18 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { FlatList, Pressable, Text, View } from "react-native";
+import { FlatList, View } from "react-native";
 
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appControl, appSpacing } from "@/core/theme/tokens";
+import { appSpacing } from "@/core/theme/tokens";
 import type {
   TopicMediaEntry,
   TopicMediaEntryPage,
 } from "@/core/contracts/server/media";
 import { useMediaAccess } from "@/features/media/model/use-media-access";
+import { AppText } from "@/shared/ui/app-text";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { InlineMessage } from "@/shared/ui/inline-message";
+import { NativeButton } from "@/shared/ui/native-button";
 import { useMediaGeneration, useMediaRuntime } from "../model/media-runtime";
 import { MediaImage } from "./media-image";
 import { MediaOpenSaveButton } from "./media-open-save-button";
@@ -156,34 +160,26 @@ export function TopicMediaList({ topicId }: Readonly<{ topicId: string }>) {
 
   if (!access)
     return (
-      <Text style={{ color: colors.textMuted }}>
-        미디어를 사용할 수 없습니다.
-      </Text>
+      <AppText color={colors.textMuted}>미디어를 사용할 수 없습니다.</AppText>
     );
   if (state.status === "loading")
-    return <Text style={{ color: colors.textMuted }}>미디어 불러오는 중…</Text>;
+    return <AppText color={colors.textMuted}>미디어 불러오는 중…</AppText>;
   if (state.status === "error")
     return (
-      <View style={{ gap: appSpacing.xxs }}>
-        <Text style={{ color: colors.error }}>
-          미디어 목록을 불러오지 못했습니다.
-        </Text>
-        <Pressable
-          accessibilityLabel="미디어 목록 다시 불러오기"
-          accessibilityRole="button"
+      <InlineMessage kind="error" message="미디어 목록을 불러오지 못했습니다.">
+        <NativeButton
+          label="미디어 목록 다시 불러오기"
           onPress={retryFirstPage}
-          style={{
-            justifyContent: "center",
-            minHeight: appControl.standardHeight,
-          }}
-        >
-          <Text style={{ color: colors.primary }}>다시 시도</Text>
-        </Pressable>
-      </View>
+          variant="text"
+        />
+      </InlineMessage>
     );
   if (state.items.length === 0)
     return (
-      <Text style={{ color: colors.textMuted }}>등록된 이미지가 없습니다.</Text>
+      <EmptyState
+        symbol={{ android: "image", ios: "photo" }}
+        title="등록된 이미지가 없습니다."
+      />
     );
   return (
     <View style={{ gap: appSpacing.xs }}>
@@ -192,6 +188,7 @@ export function TopicMediaList({ topicId }: Readonly<{ topicId: string }>) {
         horizontal
         ItemSeparatorComponent={() => <View style={{ width: appSpacing.xs }} />}
         keyExtractor={(item) => item.id}
+        removeClippedSubviews={false}
         renderItem={({ item }) => (
           <View>
             <MediaImage filename={null} mediaId={item.id} />
@@ -203,25 +200,14 @@ export function TopicMediaList({ topicId }: Readonly<{ topicId: string }>) {
           </View>
         )}
       />
-      {pageError ? (
-        <Text style={{ color: colors.error }}>{pageError}</Text>
-      ) : null}
+      {pageError ? <InlineMessage kind="error" message={pageError} /> : null}
       {state.nextCursor !== null ? (
-        <Pressable
-          accessibilityLabel="이미지 더 보기"
-          accessibilityRole="button"
-          accessibilityState={{ busy: loadingMore, disabled: loadingMore }}
+        <NativeButton
           disabled={loadingMore}
+          label="이미지 더 보기"
           onPress={() => void loadMore()}
-          style={{
-            justifyContent: "center",
-            minHeight: appControl.standardHeight,
-          }}
-        >
-          <Text style={{ color: colors.primary }}>
-            {loadingMore ? "불러오는 중…" : "더 보기"}
-          </Text>
-        </Pressable>
+          variant="text"
+        />
       ) : null}
     </View>
   );

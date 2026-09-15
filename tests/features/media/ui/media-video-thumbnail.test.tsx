@@ -247,9 +247,9 @@ test("a visible video card renders its local JPEG and keeps playback available a
   );
   await flush();
   const image = screen.getByLabelText("video.mp4 영상 미리보기");
-  expect(image.props.source).toEqual({ uri: "file:///owned/thumbnail.jpg" });
-  expect(image.props.resizeMode).toBe("cover");
-  await fireEvent(image, "error");
+  expect(image.props.source).toEqual([{ uri: "file:///owned/thumbnail.jpg" }]);
+  expect(image.props.contentFit).toBe("cover");
+  await fireEvent(image, "error", { nativeEvent: { error: "decode" } });
   expect(screen.queryByLabelText("video.mp4 영상 미리보기")).toBeNull();
   expect(screen.getByRole("button", { name: "video.mp4 재생" })).toBeEnabled();
   expect(mockRemove).toHaveBeenCalledWith("file:///owned/thumbnail.jpg");

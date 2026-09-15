@@ -22,6 +22,9 @@ jest.mock("@/core/theme/theme-provider", () => ({
   useAppTheme: () => ({
     colors: { background: "#111", primary: "#eee", text: "#fff" },
   }),
+  useAppThemeOrSystem: () => ({
+    colors: { background: "#111", primary: "#eee", text: "#fff" },
+  }),
 }));
 jest.mock("react-native-safe-area-context", () => {
   const { View } =
@@ -69,7 +72,10 @@ jest.mock("react-native-reanimated", () => {
     jest.requireActual<typeof import("react-native")>("react-native");
   return {
     __esModule: true,
-    default: { Image },
+    default: {
+      Image,
+      createAnimatedComponent: (component: unknown) => component,
+    },
     useAnimatedStyle: () => ({}),
     useSharedValue: (initial: number) => {
       const ref = React.useRef<{
@@ -106,8 +112,8 @@ test("photo detail contains the local image and close, fit and accessible zoom c
     />,
   );
   const image = screen.getByRole("image", { name: "사진.jpg 상세 이미지" });
-  expect(image.props.source).toEqual({ uri: "file:///owned/image.jpg" });
-  expect(image.props.resizeMode).toBe("contain");
+  expect(image.props.source).toEqual([{ uri: "file:///owned/image.jpg" }]);
+  expect(image.props.contentFit).toBe("contain");
   await fireEvent.press(screen.getByRole("button", { name: "사진 확대" }));
   expect(mockShared[0].get()).toBe(2);
   await fireEvent.press(screen.getByRole("button", { name: "사진 축소" }));
@@ -117,7 +123,7 @@ test("photo detail contains the local image and close, fit and accessible zoom c
     screen.getByRole("button", { name: "사진 화면에 맞춤" }),
   );
   expect(mockShared[0].get()).toBe(1);
-  await fireEvent(image, "error");
+  await fireEvent(image, "error", { nativeEvent: { error: "decode" } });
   expect(onError).toHaveBeenCalledTimes(1);
   await fireEvent.press(screen.getByRole("button", { name: "사진 닫기" }));
   await fireEvent(screen.getByTestId("media-viewer-modal"), "requestClose");

@@ -13,6 +13,7 @@ jest.mock("expo", () => ({
 }));
 jest.mock("@/core/theme/theme-provider", () => ({
   useAppTheme: () => ({ colors: { text: "#29252D" } }),
+  useAppThemeOrSystem: () => ({ colors: { text: "#29252D" } }),
 }));
 jest.mock("@/features/media/platform/media-downloads", () => ({
   isOwnedDownloadFile: (uri: string) => mockOwned(uri),
