@@ -141,15 +141,6 @@ const JEST_ALTERNATE_IGNORE_CONTROLS = Object.freeze([
   "watchPathIgnorePatterns",
 ]);
 
-const REQUIRED_ABSENT_DEMO_DIRECT_DEPENDENCIES = Object.freeze([
-  "@expo/ui",
-  "expo-device",
-  "expo-glass-effect",
-  "expo-image",
-  "expo-status-bar",
-  "expo-symbols",
-]);
-
 const DIRECT_DEPENDENCY_DENYLIST = Object.freeze([
   "@react-navigation/*",
   "react-navigation",
@@ -372,14 +363,12 @@ const M6_04_HEALTH_SOURCE_FILES = Object.freeze([
 
 const M6_04_TEST_PATHS = Object.freeze([
   "tests/core/health/health-api.test.ts",
-  "tests/features/home/home-screen.test.tsx",
   "tests/features/home/connection-diagnostics.test.tsx",
   "tests/app/connected-index-route.test.tsx",
 ]);
 
 const M6_04_AUTHORED_FILES = Object.freeze([
   ...M6_04_HEALTH_SOURCE_FILES,
-  "src/features/home/ui/home-screen.tsx",
   "src/features/home/ui/connection-diagnostics.tsx",
   ...M6_04_TEST_PATHS,
 ]);
@@ -443,9 +432,7 @@ const M8_AUTHORED_FILES = Object.freeze([
   "src/features/chat/model/connected-chat-read.ts",
   "src/features/chat/model/connected-chat-provider.tsx",
   "src/features/chat/model/connected-chat-presentation.ts",
-  "src/features/chat/ui/chat-controls.tsx",
   "src/features/chat/ui/chat-route-guard.tsx",
-  "src/features/chat/ui/chat-rooms-screen.tsx",
   "src/features/chat/ui/connected-chat-screen.tsx",
   "src/app/groups/[groupId]/chatrooms/index.tsx",
   "src/app/groups/[groupId]/chatrooms/[chatroomId].tsx",
@@ -597,7 +584,6 @@ const M11_AUTHORED_FILES = Object.freeze([
   "src/features/media/platform/media-share.ts",
   "src/features/media/platform/media-staging.ts",
   "src/features/media/platform/native-media-transport.ts",
-  "src/features/media/ui/attachment-picker-button.tsx",
   "src/features/media/ui/attachment-queue-list.tsx",
   "src/features/media/ui/media-attachment-types.ts",
   "src/features/media/ui/media-composition.ts",
@@ -708,6 +694,25 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M11_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
+    "tests/core/theme/tokens.test.ts",
+    "tests/shared/ui/app-symbol.test.tsx",
+    "tests/shared/ui/header-icon-button.test.tsx",
+    "tests/shared/ui/native-button.test.tsx",
+    "tests/shared/ui/app-text.test.tsx",
+    "tests/shared/ui/grouped-section.test.tsx",
+    "tests/shared/ui/grouped-row.test.tsx",
+    "tests/shared/ui/inline-message.test.tsx",
+    "tests/shared/ui/form-field.test.tsx",
+    "tests/shared/ui/empty-state.test.tsx",
+    "tests/shared/ui/app-screen.test.tsx",
+    "tests/features/auth/oauth-callback-screen.test.tsx",
+    "tests/features/media/ui/topic-image-upload-button.test.tsx",
+    "tests/features/home/account-screen.test.tsx",
+    "tests/app/account-route.test.tsx",
+    "tests/features/groups/ui/group-form-screen.test.tsx",
+    "tests/features/groups/ui/group-owner-panel.test.tsx",
+    "tests/features/topics/ui/topic-detail-screen.test.tsx",
+    "tests/features/topics/ui/topic-create-screen.test.tsx",
   ]),
 ]);
 
@@ -747,6 +752,7 @@ const AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS = Object.freeze([
 ]);
 
 const APPROVED_DEPENDENCIES = Object.freeze({
+  "@expo/ui": "57.0.17",
   ajv: "8.20.0",
   expo: "~57.0.21",
   "expo-auth-session": "~57.0.11",
@@ -756,6 +762,8 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   "expo-document-picker": "~57.0.1",
   "expo-file-system": "~57.0.6",
   "expo-font": "~57.0.3",
+  "expo-glass-effect": "57.0.2",
+  "expo-image": "~57.0.5",
   "expo-image-manipulator": "~57.0.16",
   "expo-image-picker": "~57.0.16",
   "expo-linking": "~57.0.9",
@@ -764,6 +772,7 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   "expo-sharing": "~57.0.18",
   "expo-splash-screen": "~57.0.8",
   "expo-sqlite": "~57.0.2",
+  "expo-symbols": "57.0.2",
   "expo-system-ui": "~57.0.3",
   "expo-video": "~57.0.3",
   "expo-web-browser": "~57.0.2",
@@ -832,7 +841,7 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "513f83fda5be1c9687d619e75c14cb1be0f9ca91ec02d8ff423150995d86d130";
+  "2d4ec729b6b262af52acdb11cd4a2a1e79bf5fbb765cfa9e53b02840cb2bb95f";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -1190,6 +1199,38 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "docs/oauth-development.md",
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
+  "tests/core/theme/tokens.test.ts",
+  // Native UI refactor (ultrawork 20260915-083816): shared primitives, their tests, and the @expo/ui jest mock.
+  "src/shared/ui/app-symbol.tsx",
+  "src/shared/ui/header-icon-button.tsx",
+  "src/shared/ui/native-button.tsx",
+  "src/shared/ui/grouped-section.tsx",
+  "src/shared/ui/grouped-row.tsx",
+  "src/shared/ui/inline-message.tsx",
+  "src/shared/ui/form-field.tsx",
+  "src/shared/ui/empty-state.tsx",
+  "tests/shared/ui/app-symbol.test.tsx",
+  "tests/shared/ui/header-icon-button.test.tsx",
+  "tests/shared/ui/native-button.test.tsx",
+  "tests/shared/ui/app-text.test.tsx",
+  "tests/shared/ui/grouped-section.test.tsx",
+  "tests/shared/ui/grouped-row.test.tsx",
+  "tests/shared/ui/inline-message.test.tsx",
+  "tests/shared/ui/form-field.test.tsx",
+  "tests/shared/ui/empty-state.test.tsx",
+  "tests/shared/ui/app-screen.test.tsx",
+  "tests/__mocks__/@expo/ui.tsx",
+  "docs/adr/0005-native-ui-toolkit-adoption.md",
+  "tests/features/auth/oauth-callback-screen.test.tsx",
+  "tests/features/media/ui/topic-image-upload-button.test.tsx",
+  "src/app/account.tsx",
+  "src/features/home/ui/account-screen.tsx",
+  "tests/features/home/account-screen.test.tsx",
+  "tests/app/account-route.test.tsx",
+  "tests/features/groups/ui/group-form-screen.test.tsx",
+  "tests/features/groups/ui/group-owner-panel.test.tsx",
+  "tests/features/topics/ui/topic-detail-screen.test.tsx",
+  "tests/features/topics/ui/topic-create-screen.test.tsx",
   ...Object.keys(APPROVED_DEPENDENCY_PATCH_FILE_SHA256),
   ...Object.keys(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256),
   ...M3_AUTHORED_FILES.filter(
@@ -1222,6 +1263,11 @@ const APPROVED_RECOVERY_CREATE_OR_REPLACE_PATHS = Object.freeze(
 );
 
 const AUTHORIZED_DELETE_PATHS = Object.freeze([
+  "src/features/chat/ui/chat-rooms-screen.tsx",
+  "src/features/chat/ui/chat-controls.tsx",
+  "src/features/media/ui/attachment-picker-button.tsx",
+  "src/features/home/ui/home-screen.tsx",
+  "tests/features/home/home-screen.test.tsx",
   "patches/expo-router@57.0.19.patch",
   "app.json",
   "src/app/explore.tsx",
@@ -3509,16 +3555,6 @@ function runExtraLiveChecks(root, { fs, path, crypto }, liveSnapshot) {
         violations,
         "manifest-field-ownership",
         `Denylisted direct dependency present: ${denied}.`,
-      );
-    }
-  }
-
-  for (const requiredAbsent of REQUIRED_ABSENT_DEMO_DIRECT_DEPENDENCIES) {
-    if (allDirectDependencyNames.has(requiredAbsent)) {
-      pushViolation(
-        violations,
-        "manifest-field-ownership",
-        `Demo-only direct dependency must remain absent: ${requiredAbsent}.`,
       );
     }
   }

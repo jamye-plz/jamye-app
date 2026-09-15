@@ -213,7 +213,6 @@ const M6_03_TEST_PATHS = [
 
 const M6_04_TEST_PATHS = [
   "tests/core/health/health-api.test.ts",
-  "tests/features/home/home-screen.test.tsx",
   "tests/features/home/connection-diagnostics.test.tsx",
   "tests/app/connected-index-route.test.tsx",
 ];
@@ -319,6 +318,25 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M11_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
+  "tests/core/theme/tokens.test.ts",
+  "tests/shared/ui/app-symbol.test.tsx",
+  "tests/shared/ui/header-icon-button.test.tsx",
+  "tests/shared/ui/native-button.test.tsx",
+  "tests/shared/ui/app-text.test.tsx",
+  "tests/shared/ui/grouped-section.test.tsx",
+  "tests/shared/ui/grouped-row.test.tsx",
+  "tests/shared/ui/inline-message.test.tsx",
+  "tests/shared/ui/form-field.test.tsx",
+  "tests/shared/ui/empty-state.test.tsx",
+  "tests/shared/ui/app-screen.test.tsx",
+  "tests/features/auth/oauth-callback-screen.test.tsx",
+  "tests/features/media/ui/topic-image-upload-button.test.tsx",
+  "tests/features/home/account-screen.test.tsx",
+  "tests/app/account-route.test.tsx",
+  "tests/features/groups/ui/group-form-screen.test.tsx",
+  "tests/features/groups/ui/group-owner-panel.test.tsx",
+  "tests/features/topics/ui/topic-detail-screen.test.tsx",
+  "tests/features/topics/ui/topic-create-screen.test.tsx",
 ].filter((path, index, paths) => paths.indexOf(path) === index);
 
 const MEANINGFUL_TEST_PATHS = ACTIVE_MEANINGFUL_TEST_PATHS;
@@ -353,6 +371,7 @@ const M3_AUTHORED_FILES = [
 ];
 
 const APPROVED_DEPENDENCIES = {
+  "@expo/ui": "57.0.17",
   ajv: "8.20.0",
   expo: "~57.0.21",
   "expo-auth-session": "~57.0.11",
@@ -361,6 +380,8 @@ const APPROVED_DEPENDENCIES = {
   "expo-dev-client": "~57.0.18",
   "expo-document-picker": "~57.0.1",
   "expo-file-system": "~57.0.6",
+  "expo-glass-effect": "57.0.2",
+  "expo-image": "~57.0.5",
   "expo-image-picker": "~57.0.16",
   "expo-sharing": "~57.0.18",
   "expo-font": "~57.0.3",
@@ -370,6 +391,7 @@ const APPROVED_DEPENDENCIES = {
   "expo-secure-store": "~57.0.3",
   "expo-splash-screen": "~57.0.8",
   "expo-sqlite": "~57.0.2",
+  "expo-symbols": "57.0.2",
   "expo-system-ui": "~57.0.3",
   "expo-video": "~57.0.3",
   "expo-web-browser": "~57.0.2",
@@ -406,7 +428,7 @@ const APPROVED_DEPENDENCY_OVERRIDES = {
 };
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "513f83fda5be1c9687d619e75c14cb1be0f9ca91ec02d8ff423150995d86d130";
+  "2d4ec729b6b262af52acdb11cd4a2a1e79bf5fbb765cfa9e53b02840cb2bb95f";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -1491,9 +1513,7 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
       "src/features/chat/model/connected-chat-read.ts",
       "src/features/chat/model/connected-chat-provider.tsx",
       "src/features/chat/model/connected-chat-presentation.ts",
-      "src/features/chat/ui/chat-controls.tsx",
       "src/features/chat/ui/chat-route-guard.tsx",
-      "src/features/chat/ui/chat-rooms-screen.tsx",
       "src/features/chat/ui/connected-chat-screen.tsx",
       "src/app/groups/[groupId]/chatrooms/index.tsx",
       "src/app/groups/[groupId]/chatrooms/[chatroomId].tsx",
