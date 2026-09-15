@@ -1,6 +1,5 @@
 import {
   AccessibilityInfo,
-  Pressable,
   Text,
   View,
   useWindowDimensions,
@@ -8,12 +7,9 @@ import {
 import { useEffect, useRef } from "react";
 
 import { useAppTheme } from "@/core/theme/theme-provider";
-import {
-  appChatLayout,
-  appChatMessage,
-  appControl,
-  appSpacing,
-} from "@/core/theme/tokens";
+import { appChatLayout, appChatMessage, appSpacing } from "@/core/theme/tokens";
+import { AppText } from "@/shared/ui/app-text";
+import { NativeButton } from "@/shared/ui/native-button";
 import type { ConnectedChatMedia } from "@/features/chat/model/connected-chat-presentation";
 import { MediaImage } from "@/features/media/ui/media-image";
 import { MediaOpenSaveButton } from "@/features/media/ui/media-open-save-button";
@@ -56,6 +52,7 @@ function MessageAttachments({
             <MediaVideoCard
               mediaId={item.id}
               filename={item.filename}
+              onPrimary={isOutgoing}
               thumbnailEnabled={previewEnabled}
             />
           ) : null}
@@ -76,6 +73,7 @@ export function ChatMessageRow({
   mediaPreviewEnabled = false,
   message,
   onRetryFailedMessage,
+  showSentStatus = false,
 }: Readonly<{
   isGroupedWithPrevious?: boolean;
   mediaPreviewEnabled?: boolean;
@@ -86,6 +84,7 @@ export function ChatMessageRow({
       conversationId: string;
     }>,
   ) => void;
+  showSentStatus?: boolean;
 }>) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
@@ -107,6 +106,12 @@ export function ChatMessageRow({
       : appChatLayout.compactBubbleMaxWidth;
   const backgroundColor = isOutgoing ? colors.primary : colors.surface;
   const color = isOutgoing ? colors.onPrimary : colors.text;
+  // "전송됨" is only ever shown visibly on the last outgoing bubble (passed in
+  // by ChatMessageList via `showSentStatus`); pending/failed always render.
+  const statusCaptionVisible = message.status !== "sent" || showSentStatus;
+  const bubbleAccessibilityLabel = message.body
+    ? `${message.body}, ${statusLabels[message.status]}`
+    : statusLabels[message.status];
 
   return (
     <View
@@ -117,23 +122,29 @@ export function ChatMessageRow({
           : appChatMessage.groupGap,
       }}
     >
+      {!isGroupedWithPrevious && !isOutgoing && message.senderLabel ? (
+        <AppText color={colors.textMuted} variant="caption">
+          {message.senderLabel}
+        </AppText>
+      ) : null}
       <View
+        accessible
+        accessibilityLabel={bubbleAccessibilityLabel}
         style={{
           backgroundColor,
-          borderRadius: appChatMessage.bubbleRadius,
-          borderBottomRightRadius: isOutgoing
-            ? appChatMessage.directionalRadius
-            : appChatMessage.bubbleRadius,
           borderBottomLeftRadius: isOutgoing
             ? appChatMessage.bubbleRadius
             : appChatMessage.directionalRadius,
+          borderBottomRightRadius: isOutgoing
+            ? appChatMessage.directionalRadius
+            : appChatMessage.bubbleRadius,
+          borderCurve: "continuous",
+          borderRadius: appChatMessage.bubbleRadius,
           maxWidth: `${bubbleMaxWidth * 100}%`,
-          padding: appSpacing.sm,
+          paddingHorizontal: 14,
+          paddingVertical: 10,
         }}
       >
-        {!isGroupedWithPrevious && message.senderLabel ? (
-          <Text style={{ color }}>{message.senderLabel}</Text>
-        ) : null}
         {message.body ? (
           <Text
             style={{
@@ -152,31 +163,32 @@ export function ChatMessageRow({
         />
         {(message.media?.length ?? 0) === 0 &&
           message.pendingMedia?.map((item, index) => (
-            <Text key={item.mediaUploadId} style={{ color }}>
+            <AppText color={color} key={item.mediaUploadId} variant="caption">
               첨부 {index + 1}: {item.filename ?? "첨부 파일"} · 서버 전송 대기
-            </Text>
+            </AppText>
           ))}
-        <Text style={{ color, fontSize: appChatMessage.timestampFontSize }}>
-          {statusLabels[message.status]}
-        </Text>
+        {statusCaptionVisible ? (
+          <Text
+            style={{
+              color: message.status === "failed" ? colors.error : color,
+              fontSize: appChatMessage.timestampFontSize,
+            }}
+          >
+            {statusLabels[message.status]}
+          </Text>
+        ) : null}
       </View>
       {isOutgoing && message.status === "failed" && message.clientMsgId ? (
-        <Pressable
-          accessibilityLabel="메시지 다시 보내기"
-          accessibilityRole="button"
+        <NativeButton
+          label="메시지 다시 보내기"
           onPress={() =>
             onRetryFailedMessage({
               clientMsgId: message.clientMsgId!,
               conversationId: message.conversationId,
             })
           }
-          style={{
-            justifyContent: "center",
-            minHeight: appControl.standardHeight,
-          }}
-        >
-          <Text style={{ color: colors.error }}>메시지 다시 보내기</Text>
-        </Pressable>
+          variant="text"
+        />
       ) : null}
     </View>
   );

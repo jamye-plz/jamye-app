@@ -125,7 +125,7 @@ describe("M11 ChatComposer attachment integration", () => {
     expect(screen.queryByLabelText("음성 파일 첨부")).toBeNull();
   });
 
-  test("shows the attach buttons and queue once a controller is supplied", async () => {
+  test("shows the attach queue and the attach sheet options once a controller is supplied", async () => {
     const send = jest.fn(async () => ({ outcome: "empty" as const }));
     const controller = fakeController([
       {
@@ -147,10 +147,11 @@ describe("M11 ChatComposer attachment integration", () => {
         <ChatComposer controller={{ send }} attachmentController={controller} />
       </AppThemeProvider>,
     );
-    expect(screen.getByLabelText("사진·동영상 첨부")).toBeTruthy();
-    expect(screen.getByLabelText("음성 파일 첨부")).toBeTruthy();
     expect(screen.getByText("photo.jpg")).toBeTruthy();
     expect(screen.getByText(/50%/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText("첨부 추가"));
+    expect(screen.getByText("사진·동영상 첨부")).toBeTruthy();
+    expect(screen.getByText("음성 파일 첨부")).toBeTruthy();
   });
 
   test("enables a bodyless send once every attachment is confirmed, and forwards confirmed media", async () => {

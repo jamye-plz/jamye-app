@@ -1,8 +1,10 @@
-import { AccessibilityInfo, Pressable, Text, View } from "react-native";
+import { AccessibilityInfo, Pressable, ScrollView, View } from "react-native";
 import { useEffect, useRef } from "react";
 
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appControl, appSpacing } from "@/core/theme/tokens";
+import { appChatComposer, appRadii, appSpacing } from "@/core/theme/tokens";
+import { AppSymbol } from "@/shared/ui/app-symbol";
+import { AppText } from "@/shared/ui/app-text";
 import type { MediaAttachmentQueueItem } from "./media-attachment-types";
 
 const STATUS_LABELS: Record<MediaAttachmentQueueItem["status"], string> = {
@@ -14,7 +16,7 @@ const STATUS_LABELS: Record<MediaAttachmentQueueItem["status"], string> = {
   cancelled: "취소됨",
 };
 
-function AttachmentRow({
+function AttachmentCard({
   item,
   onCancel,
   onRetry,
@@ -36,75 +38,84 @@ function AttachmentRow({
     previousStatusRef.current = item.status;
   }, [item.filename, item.status]);
 
+  const filename = item.filename ?? "첨부 파일";
+  const failed = item.status === "failed";
   const canCancel = item.status === "staged" || item.status === "uploading";
-  const canRetry = item.status === "failed";
+  const canRetry = failed;
 
   return (
     <View
       style={{
         backgroundColor: colors.surface,
-        borderRadius: 12,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: appSpacing.xs,
+        borderCurve: "continuous",
+        borderRadius: appRadii.medium,
+        gap: appSpacing.xxs,
         padding: appSpacing.xs,
+        width: 140,
       }}
     >
-      <View style={{ flex: 1 }}>
-        <Text numberOfLines={1} style={{ color: colors.text }}>
-          {item.filename ?? "첨부 파일"}
-        </Text>
-        <Text
-          style={{
-            color: item.status === "failed" ? colors.error : colors.textMuted,
-          }}
-        >
-          {STATUS_LABELS[item.status]}
-          {item.status === "uploading" && item.progress > 0
-            ? ` ${Math.round(item.progress * 100)}%`
-            : ""}
-        </Text>
-        {item.status === "failed" && item.errorMessage ? (
-          <Text style={{ color: colors.error }}>{item.errorMessage}</Text>
-        ) : null}
-      </View>
-      {canCancel ? (
-        <Pressable
-          accessibilityLabel={`${item.filename ?? "첨부 파일"} 취소`}
-          accessibilityRole="button"
-          onPress={() => onCancel(item.localId)}
-          style={{
-            justifyContent: "center",
-            minHeight: appControl.standardHeight,
-          }}
-        >
-          <Text style={{ color: colors.error }}>취소</Text>
-        </Pressable>
-      ) : null}
-      {canRetry ? (
-        <Pressable
-          accessibilityLabel={`${item.filename ?? "첨부 파일"} 다시 시도`}
-          accessibilityRole="button"
-          onPress={() => onRetry(item.localId)}
-          style={{
-            justifyContent: "center",
-            minHeight: appControl.standardHeight,
-          }}
-        >
-          <Text style={{ color: colors.primary }}>다시 시도</Text>
-        </Pressable>
-      ) : null}
-      <Pressable
-        accessibilityLabel={`${item.filename ?? "첨부 파일"} 제거`}
-        accessibilityRole="button"
-        onPress={() => onRemove(item.localId)}
-        style={{
-          justifyContent: "center",
-          minHeight: appControl.standardHeight,
-        }}
+      <AppText numberOfLines={1} variant="footnote">
+        {filename}
+      </AppText>
+      <AppText
+        color={failed ? colors.error : colors.textMuted}
+        variant="caption"
       >
-        <Text style={{ color: colors.textMuted }}>제거</Text>
-      </Pressable>
+        {STATUS_LABELS[item.status]}
+        {item.status === "uploading" && item.progress > 0
+          ? ` ${Math.round(item.progress * 100)}%`
+          : ""}
+      </AppText>
+      {failed && item.errorMessage ? (
+        <AppText color={colors.error} variant="caption">
+          {item.errorMessage}
+        </AppText>
+      ) : null}
+      <View style={{ flexDirection: "row", gap: appSpacing.xxs }}>
+        {canCancel ? (
+          <Pressable
+            accessibilityLabel={`${filename} 취소`}
+            accessibilityRole="button"
+            onPress={() => onCancel(item.localId)}
+            style={{
+              alignItems: "center",
+              height: appChatComposer.controlSize,
+              justifyContent: "center",
+              width: appChatComposer.controlSize,
+            }}
+          >
+            <AppSymbol name="close" size={20} tintColor={colors.textMuted} />
+          </Pressable>
+        ) : null}
+        {canRetry ? (
+          <Pressable
+            accessibilityLabel={`${filename} 다시 시도`}
+            accessibilityRole="button"
+            onPress={() => onRetry(item.localId)}
+            style={{
+              alignItems: "center",
+              height: appChatComposer.controlSize,
+              justifyContent: "center",
+              width: appChatComposer.controlSize,
+            }}
+          >
+            <AppSymbol name="refresh" size={20} tintColor={colors.primary} />
+          </Pressable>
+        ) : null}
+        <Pressable
+          accessibilityLabel={`${filename} 제거`}
+          accessibilityRole="button"
+          onPress={() => onRemove(item.localId)}
+          style={{
+            alignItems: "center",
+            height: appChatComposer.controlSize,
+            justifyContent: "center",
+            width: appChatComposer.controlSize,
+          }}
+        >
+          <AppSymbol name="delete" size={20} tintColor={colors.textMuted} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -122,9 +133,13 @@ export function AttachmentQueueList({
 }>) {
   if (items.length === 0) return null;
   return (
-    <View style={{ gap: appSpacing.xxs, marginBottom: appSpacing.xs }}>
+    <ScrollView
+      contentContainerStyle={{ gap: appSpacing.xs }}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+    >
       {items.map((item) => (
-        <AttachmentRow
+        <AttachmentCard
           key={item.localId}
           item={item}
           onCancel={onCancel}
@@ -132,6 +147,6 @@ export function AttachmentQueueList({
           onRemove={onRemove}
         />
       ))}
-    </View>
+    </ScrollView>
   );
 }

@@ -9,11 +9,24 @@ jest.mock("@/features/media/ui/media-image-viewer", () => ({
   MediaImageViewer: () => null,
 }));
 
+type RecordedScreenOptions = Readonly<{
+  headerRight?: () => unknown;
+  headerTitle?: () => unknown;
+  title?: string;
+}>;
+let mockScreenOptions: RecordedScreenOptions | undefined;
+
 jest.mock("expo-router", () => ({
   useFocusEffect: (callback: () => (() => void) | void) =>
     jest
       .requireActual<typeof import("react")>("react")
       .useEffect(callback, [callback]),
+  Stack: {
+    Screen: (props: { options?: RecordedScreenOptions }) => {
+      mockScreenOptions = props.options;
+      return null;
+    },
+  },
 }));
 
 jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
@@ -469,9 +482,14 @@ function createRepository(): Record<string, unknown> {
 const mockedUseColorScheme = jest.mocked(useColorScheme);
 const originalAppMode = process.env.EXPO_PUBLIC_APP_MODE;
 
+// Full-suite coverage runs (--runInBand) push the first async screen test past
+// jest's 5 s default; the flow itself is unchanged.
+jest.setTimeout(15_000);
+
 describe("M5-UI-1 accessible local chat screen", () => {
   beforeEach(() => {
     process.env.EXPO_PUBLIC_APP_MODE = "local-fixture";
+    mockScreenOptions = undefined;
   });
 
   afterEach(() => {
@@ -565,9 +583,7 @@ describe("M5-UI-1 accessible local chat screen", () => {
       </AppProviders>,
     );
 
-    expect(
-      await screen.findByRole("header", { name: "로컬 대화" }),
-    ).toBeTruthy();
+    expect(mockScreenOptions?.title).toBe("로컬 대화");
     expect(
       screen.getByText(
         "로컬 개발용 fixture 데이터입니다. production server에 연결되어 있지 않습니다.",
@@ -587,23 +603,46 @@ describe("M5-UI-1 accessible local chat screen", () => {
       }),
     );
 
-    const renderedTree = JSON.stringify(screen.toJSON());
-    const headingIndex = renderedTree.indexOf("로컬 대화");
+    // T5a-composer note: `screen.toJSON()` now includes the composer's
+    // send-icon `AppSymbol` (`expo-symbols` `SymbolView`), whose `fallback`
+    // prop is a raw React element carrying a React DEV `_owner` Fiber back to
+    // the surrounding `AppThemeContext.Provider`, which self-references via
+    // `Provider`. A plain `JSON.stringify` throws "Converting circular
+    // structure to JSON" on that cycle; a seen-set replacer drops repeat
+    // object references (order-preserving substring search below is
+    // unaffected — every Korean string it looks up still appears once).
+    const renderedTree = JSON.stringify(
+      screen.toJSON(),
+      (() => {
+        const seen = new WeakSet<object>();
+        return (_key: string, value: unknown) => {
+          if (typeof value === "object" && value !== null) {
+            if (seen.has(value)) return undefined;
+            seen.add(value);
+          }
+          return value;
+        };
+      })(),
+    );
     const noticeIndex = renderedTree.indexOf(
       "로컬 개발용 fixture 데이터입니다. production server에 연결되어 있지 않습니다.",
     );
     const messagesIndex = renderedTree.indexOf("pending body");
     const composerIndex = renderedTree.indexOf("메시지 입력");
     const sendIndex = renderedTree.indexOf("메시지 보내기");
-    expect(headingIndex).toBeGreaterThanOrEqual(0);
-    expect(headingIndex).toBeLessThan(noticeIndex);
+    expect(noticeIndex).toBeGreaterThanOrEqual(0);
     expect(noticeIndex).toBeLessThan(messagesIndex);
     expect(messagesIndex).toBeLessThan(composerIndex);
     expect(composerIndex).toBeLessThan(sendIndex);
 
     expect(screen.getByText("전송 중")).toBeTruthy();
     expect(screen.getByText("전송 실패")).toBeTruthy();
-    expect(screen.getByText("전송됨")).toBeTruthy();
+    // "sent body" is the incoming (not-outgoing) fixture message and there is
+    // no outgoing "sent" message in this fixture, so the visible "전송됨"
+    // caption stays hidden (showSentStatus only applies to the last outgoing
+    // bubble) while the status remains available to screen readers.
+    expect(screen.queryByText("전송됨")).toBeNull();
+    expect(screen.getByLabelText("sent body, 전송됨")).toBeTruthy();
   });
 
   test.each([
@@ -636,9 +675,8 @@ describe("M5-UI-1 accessible local chat screen", () => {
           </AppProviders>,
         );
 
-        expect(
-          await screen.findByRole("header", { name: "로컬 대화" }),
-        ).toBeTruthy();
+        await screen.findByLabelText("채팅 메시지");
+        expect(mockScreenOptions?.title).toBe("로컬 대화");
         expect(pushStatusBarEntry).toHaveBeenCalledWith(
           expect.objectContaining({ barStyle: expectedBarStyle }),
         );

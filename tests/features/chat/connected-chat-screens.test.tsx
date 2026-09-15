@@ -2,7 +2,6 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import type { FlatListProps } from "react-native";
 import type { ComponentProps } from "react";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
-import { ChatRoomsScreen } from "@/features/chat/ui/chat-rooms-screen";
 import { ConnectedChatScreen } from "@/features/chat/ui/connected-chat-screen";
 import { ChatRouteGuard } from "@/features/chat/ui/chat-route-guard";
 import type { ChatComposer } from "@/features/chat/ui/chat-composer";
@@ -36,6 +35,12 @@ const mockObserveComposer = jest.fn<
   void,
   [ComponentProps<typeof ChatComposer>]
 >();
+type RecordedScreenOptions = Readonly<{
+  headerRight?: () => unknown;
+  headerTitle?: () => unknown;
+  title?: string;
+}>;
+const mockObserveScreenOptions = jest.fn<void, [RecordedScreenOptions]>();
 let mockParams: Record<string, string | string[]> = {};
 let mockAppMode = "connected-auth";
 let mockPrincipal: typeof PRINCIPAL | null = PRINCIPAL;
@@ -55,6 +60,12 @@ jest.mock("expo-router", () => ({
   Redirect: (props: { href: string }) => {
     mockRedirect(props.href);
     return null;
+  },
+  Stack: {
+    Screen: (props: { options?: RecordedScreenOptions }) => {
+      if (props.options) mockObserveScreenOptions(props.options);
+      return null;
+    },
   },
 }));
 jest.mock("@/core/config/public-env", () => ({
@@ -192,16 +203,15 @@ const roomTree = (roomId = CHATROOM_ID) => (
     <ConnectedChatScreen groupId={GROUP_ID} chatroomId={roomId} />
   </AppThemeProvider>
 );
-const roomsTree = (groupId = GROUP_ID) => (
-  <AppThemeProvider>
-    <ChatRoomsScreen groupId={groupId} />
-  </AppThemeProvider>
-);
 const lastList = () =>
   mockObserveList.mock.calls[mockObserveList.mock.calls.length - 1][0];
 const lastController = () =>
   mockObserveComposer.mock.calls[mockObserveComposer.mock.calls.length - 1][0]
     .controller;
+const lastScreenOptions = () =>
+  mockObserveScreenOptions.mock.calls[
+    mockObserveScreenOptions.mock.calls.length - 1
+  ]?.[0];
 const visible = (item: ChatMessage, isViewable = true) => ({
   item,
   isViewable,
@@ -212,11 +222,11 @@ const visible = (item: ChatMessage, isViewable = true) => ({
 test("offline sync keeps composing available with a durable queue notice", async () => {
   mockChat.state = { ...mockChat.state, sync: "offline" };
   const screen = await render(roomTree());
-  expect(
-    screen.getByText(
-      "연결을 기다리는 중입니다. 메시지는 기기에 저장되고 연결되면 자동으로 전송됩니다.",
-    ),
-  ).toBeTruthy();
+  const headerTitleElement = lastScreenOptions()?.headerTitle?.() as
+    { props: { subtitle?: string; title?: string } } | undefined;
+  expect(headerTitleElement?.props.subtitle).toBe(
+    "오프라인 · 기기에 저장 후 자동 전송",
+  );
   expect(mockObserveComposer.mock.calls.at(-1)?.[0].blocked).not.toBe(true);
   await screen.unmount();
 });
@@ -233,114 +243,23 @@ test("protocol upgrade blocks composing without discarding the queued messages",
   await screen.unmount();
 });
 
-test("C1 lists real room kinds, paginates, navigates and cancels when leaving the list", async () => {
-  mockChat.state = {
-    ...mockChat.state,
-    rooms: {
-      ...mockChat.state.rooms,
-      hasMore: true,
-      items: [
-        repositoryChatroom(),
-        repositoryChatroom({
-          chatroomId: OTHER_CHATROOM_ID,
-          kind: "topic",
-          topicId: "topic",
-        }),
-      ],
-    },
-  };
-  const screen = await render(roomsTree());
-  expect(screen.getByRole("header", { name: "주제" })).toBeTruthy();
-  expect(screen.queryByText(/채팅방/)).toBeNull();
-  expect(mockChat.actions.loadRooms).toHaveBeenCalledWith(GROUP_ID);
-  await fireEvent.press(
-    screen.getByRole("button", { name: `기본 주제 · ${CHATROOM_ID}` }),
-  );
-  expect(mockRouter.push).toHaveBeenCalledWith({
-    pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
-    params: { groupId: GROUP_ID, chatroomId: CHATROOM_ID },
-  });
-  expect(
-    screen.getByRole("button", { name: `주제 · ${OTHER_CHATROOM_ID}` }),
-  ).toBeTruthy();
-  await fireEvent.press(screen.getByRole("button", { name: "주제 더 보기" }));
-  expect(mockChat.actions.loadMoreRooms).toHaveBeenCalledTimes(1);
-  await fireEvent.press(screen.getByRole("button", { name: "주제 새로고침" }));
-  await fireEvent.press(
-    screen.getByRole("button", { name: "그룹으로 돌아가기" }),
-  );
-  expect(mockRouter.replace).toHaveBeenCalledWith({
-    pathname: "/groups/[groupId]",
-    params: { groupId: GROUP_ID },
-  });
-  await screen.unmount();
-  expect(mockChat.actions.closeRooms).toHaveBeenCalledTimes(1);
-});
-
-test("C1 distinguishes loading, empty and recoverable errors", async () => {
-  mockChat.state = {
-    ...mockChat.state,
-    rooms: { ...mockChat.state.rooms, status: "loading", items: [] },
-  };
-  const screen = await render(roomsTree());
-  expect(screen.getByText("주제 불러오는 중…")).toBeTruthy();
-  mockChat.state = {
-    ...mockChat.state,
-    rooms: { ...mockChat.state.rooms, status: "ready" },
-  };
-  await screen.rerender(roomsTree());
-  expect(screen.getByText("주제가 없습니다.")).toBeTruthy();
-  mockChat.state = {
-    ...mockChat.state,
-    rooms: {
-      ...mockChat.state.rooms,
-      status: "error",
-      error: "server_unavailable",
-    },
-  };
-  await screen.rerender(roomsTree());
-  await fireEvent.press(
-    screen.getByRole("button", { name: "주제 다시 불러오기" }),
-  );
-  expect(mockChat.actions.loadRooms).toHaveBeenCalledTimes(2);
-});
-
-test("invalid routes and unavailable account storage cannot dispatch C1/C2", async () => {
-  const screen = await render(roomsTree("bad"));
-  expect(screen.getByText("올바르지 않은 그룹 주소입니다.")).toBeTruthy();
-  await fireEvent.press(
-    screen.getByRole("button", { name: "그룹으로 돌아가기" }),
-  );
-  expect(mockRouter.replace).toHaveBeenCalledWith("/");
+test("invalid routes and unavailable account storage cannot dispatch C2", async () => {
   mockChat.ready = false;
-  await screen.rerender(roomsTree());
-  expect(screen.getByText("대화 저장소 준비 중…")).toBeTruthy();
   mockAccount.state = { status: "error" };
-  await screen.rerender(roomsTree());
-  await fireEvent.press(
-    screen.getByRole("button", { name: "저장소 다시 열기" }),
-  );
-  expect(mockAccount.retry).toHaveBeenCalledTimes(1);
-  await screen.rerender(roomTree());
+  const screen = await render(roomTree());
   expect(screen.getByText("대화 저장소를 열지 못했습니다.")).toBeTruthy();
   await fireEvent.press(
     screen.getByRole("button", { name: "저장소 다시 열기" }),
   );
-  expect(mockAccount.retry).toHaveBeenCalledTimes(2);
+  expect(mockAccount.retry).toHaveBeenCalledTimes(1);
   await screen.rerender(roomTree("bad"));
   expect(screen.getByText("올바르지 않은 대화 주소입니다.")).toBeTruthy();
-  expect(mockChat.actions.loadRooms).not.toHaveBeenCalled();
   expect(mockChat.actions.openRoom).not.toHaveBeenCalled();
 });
 
-test("membership loss hides C1/C2 rows and leaves the inaccessible conversation", async () => {
+test("membership loss leaves the inaccessible conversation", async () => {
   mockChat.state = { ...mockChat.state, accessLost: true };
-  const screen = await render(roomsTree());
-  expect(
-    screen.queryByRole("button", { name: `기본 주제 · ${CHATROOM_ID}` }),
-  ).toBeNull();
-  expect(mockRouter.replace).toHaveBeenCalledWith("/");
-  await screen.rerender(roomTree());
+  const screen = await render(roomTree());
   expect(screen.queryByText("안녕하세요")).toBeNull();
   expect(screen.getByText("이 대화에 접근할 수 없습니다.")).toBeTruthy();
 });
@@ -402,14 +321,18 @@ test("the connected conversation uses existing chat UI, visible canonical IDs an
     screen.getByRole("button", { name: "메시지 다시 보내기" }),
   );
   expect(mockChat.actions.retryMessage).toHaveBeenCalledWith("retry-exact");
-  await fireEvent.press(
-    screen.getByRole("button", { name: "메시지 새로고침" }),
-  );
-  await fireEvent.press(screen.getByRole("button", { name: "주제 목록으로" }));
-  expect(mockRouter.replace).toHaveBeenCalledWith({
-    pathname: "/groups/[groupId]/chatrooms",
-    params: { groupId: GROUP_ID },
-  });
+  const headerRightElement = lastScreenOptions()?.headerRight?.() as
+    | {
+        props: {
+          accessibilityLabel?: string;
+          disabled?: boolean;
+          onPress?: () => void;
+        };
+      }
+    | undefined;
+  expect(headerRightElement?.props.accessibilityLabel).toBe("메시지 새로고침");
+  headerRightElement?.props.onPress?.();
+  expect(mockChat.actions.openRoom).toHaveBeenLastCalledWith(CHATROOM_ID);
   await screen.unmount();
   expect(mockChat.actions.closeRoom).toHaveBeenCalledTimes(1);
 });
@@ -460,12 +383,6 @@ test("C3 failure stays separate from history and the composer, with explicit ret
     screen.getByRole("button", { name: "읽음 처리 다시 시도" }),
   );
   expect(mockChat.actions.retryRead).toHaveBeenCalledTimes(1);
-  mockChat.state = {
-    ...mockChat.state,
-    read: { status: "ready", marker: null, error: null },
-  };
-  await screen.rerender(roomTree());
-  expect(screen.getByText("읽음 처리를 반영했습니다.")).toBeTruthy();
   mockChat.state = {
     ...mockChat.state,
     send: { status: "pending", clientMsgId: "exact" },

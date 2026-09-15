@@ -1,11 +1,13 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useSession } from "@/core/providers/session-provider";
 import { useAccountScope } from "@/core/providers/app-providers";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { useMediaUploadQueue } from "@/features/media/model/use-media-upload-queue";
+import { AppScreen } from "@/shared/ui/app-screen";
+import { HeaderIconButton } from "@/shared/ui/header-icon-button";
+import { InlineMessage } from "@/shared/ui/inline-message";
+import { NativeButton } from "@/shared/ui/native-button";
 import { useConnectedChat } from "../model/connected-chat-provider";
 import {
   chatErrorMessage,
@@ -14,7 +16,6 @@ import {
 } from "../model/connected-chat-presentation";
 import type { ConnectedPendingAttachment } from "../model/connected-chat-presentation";
 import { ChatConversationScreen } from "./chat-screen";
-import { ChatButton, ChatNotice } from "./chat-controls";
 
 export function ConnectedChatScreen({
   groupId,
@@ -88,46 +89,49 @@ export function ConnectedChatScreen({
     }),
     [actions, chatroomId],
   );
-  const back = (
-    <ChatButton
-      label="주제 목록으로"
-      onPress={() =>
-        isChatIdentifier(groupId)
-          ? router.replace({
-              pathname: "/groups/[groupId]/chatrooms",
-              params: { groupId },
-            })
-          : router.replace("/")
-      }
-    />
-  );
-  if (!valid || !ready || state.chatroomId !== chatroomId || state.accessLost)
+  if (!valid || !ready || state.chatroomId !== chatroomId || state.accessLost) {
+    const isError =
+      !valid || state.accessLost || account.state?.status === "error";
+    const message = !valid
+      ? "올바르지 않은 대화 주소입니다."
+      : state.accessLost
+        ? "이 대화에 접근할 수 없습니다."
+        : account.state?.status === "error"
+          ? "대화 저장소를 열지 못했습니다."
+          : "대화 준비 중…";
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        {back}
-        <ChatNotice
-          message={
-            !valid
-              ? "올바르지 않은 대화 주소입니다."
-              : state.accessLost
-                ? "이 대화에 접근할 수 없습니다."
-                : account.state?.status === "error"
-                  ? "대화 저장소를 열지 못했습니다."
-                  : "대화 준비 중…"
-          }
-          error={
-            !valid || state.accessLost || account.state?.status === "error"
-          }
-        />
-        {account.state?.status === "error" && (
-          <ChatButton label="저장소 다시 열기" onPress={account.retry} />
-        )}
-      </SafeAreaView>
+      <AppScreen backgroundColor={colors.background}>
+        <InlineMessage kind={isError ? "error" : "notice"} message={message}>
+          {account.state?.status === "error" ? (
+            <NativeButton
+              label="저장소 다시 열기"
+              onPress={account.retry}
+              variant="text"
+            />
+          ) : null}
+        </InlineMessage>
+      </AppScreen>
     );
+  }
   return (
     <ChatConversationScreen
       key={JSON.stringify([principal?.userId, principal?.epoch, chatroomId])}
       title="대화"
+      subtitle={
+        state.sync === "connecting"
+          ? "동기화 중…"
+          : state.sync === "offline"
+            ? "오프라인 · 기기에 저장 후 자동 전송"
+            : undefined
+      }
+      headerRight={() => (
+        <HeaderIconButton
+          accessibilityLabel="메시지 새로고침"
+          disabled={state.history.status === "loading"}
+          onPress={() => void actions.openRoom(chatroomId)}
+          symbol="refresh"
+        />
+      )}
       conversation={conversation}
       controller={controller}
       attachmentController={attachments}
@@ -146,57 +150,38 @@ export function ConnectedChatScreen({
         if (focused.current === chatroomId)
           void actions.markVisibleMessages(ids);
       }}
-      toolbar={
-        <View>
-          {back}
-          <ChatButton
-            label="메시지 새로고침"
-            disabled={state.history.status === "loading"}
-            onPress={() => void actions.openRoom(chatroomId)}
-          />
-        </View>
-      }
       footer={
         <>
-          {state.sync === "offline" && (
-            <ChatNotice message="연결을 기다리는 중입니다. 메시지는 기기에 저장되고 연결되면 자동으로 전송됩니다." />
-          )}
-          {state.sync === "connecting" && (
-            <ChatNotice message="대화를 동기화하는 중…" />
-          )}
           {state.sync === "upgrade-required" && (
-            <ChatNotice
-              error
+            <InlineMessage
+              kind="error"
               message="앱 업데이트가 필요합니다. 전송 대기 중인 메시지는 기기에 보관됩니다."
             />
           )}
           {state.sync === "unauthorized" && (
-            <ChatNotice
-              error
+            <InlineMessage
+              kind="error"
               message="로그인을 다시 확인해 주세요. 전송 대기 중인 메시지는 기기에 보관됩니다."
             />
           )}
           {(state.send.status === "failed" ||
             state.send.status === "uncertain") && (
-            <ChatNotice
-              error
+            <InlineMessage
+              kind="error"
               message={chatErrorMessage(state.send.errorCode)}
             />
           )}
           {state.read.status === "error" && (
-            <>
-              <ChatNotice
-                error
-                message="읽음 처리를 반영하지 못했습니다. 메시지 조회와 전송은 계속 사용할 수 있습니다."
-              />
-              <ChatButton
+            <InlineMessage
+              kind="error"
+              message="읽음 처리를 반영하지 못했습니다. 메시지 조회와 전송은 계속 사용할 수 있습니다."
+            >
+              <NativeButton
                 label="읽음 처리 다시 시도"
                 onPress={() => void actions.retryRead()}
+                variant="text"
               />
-            </>
-          )}
-          {state.read.status === "ready" && (
-            <ChatNotice message="읽음 처리를 반영했습니다." />
+            </InlineMessage>
           )}
         </>
       }

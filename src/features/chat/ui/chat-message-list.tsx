@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from "react-native";
+import { View } from "react-native";
 import type { FlatList, ViewToken } from "react-native";
 import {
   useCallback,
@@ -17,8 +17,10 @@ import Animated, {
 } from "react-native-reanimated";
 import type { SharedValue } from "react-native-reanimated";
 
-import { useAppTheme } from "@/core/theme/theme-provider";
-import { appChatLayout, appChatMessage, appControl } from "@/core/theme/tokens";
+import { appChatLayout, appChatMessage } from "@/core/theme/tokens";
+import { EmptyState } from "@/shared/ui/empty-state";
+import { InlineMessage } from "@/shared/ui/inline-message";
+import { NativeButton } from "@/shared/ui/native-button";
 
 import type { ChatConversation } from "../use-chat-conversation";
 import type { ChatMessage } from "../model/chat-message-window";
@@ -168,7 +170,6 @@ export function ChatMessageList({
     }>,
   ) => void;
 }>) {
-  const { colors } = useAppTheme();
   const visibleCallback = useRef(onVisibleCanonicalMessages);
   useLayoutEffect(() => {
     visibleCallback.current = onVisibleCanonicalMessages;
@@ -322,58 +323,44 @@ export function ChatMessageList({
   return (
     <View accessibilityLabel="채팅 메시지" style={{ flex: 1 }}>
       {conversation.initialPageStatus === "loading" ? (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
-          메시지 불러오는 중...
-        </Text>
+        <InlineMessage kind="notice" message="메시지 불러오는 중..." />
       ) : null}
       {conversation.initialPageStatus === "error" ? (
-        <View>
-          <Text
-            accessibilityLiveRegion="assertive"
-            accessibilityRole="alert"
-            style={{ color: colors.text }}
-          >
-            메시지를 불러오지 못했습니다.
-          </Text>
-          <Pressable
-            accessibilityLabel="메시지 다시 불러오기"
-            accessibilityRole="button"
+        <InlineMessage kind="error" message="메시지를 불러오지 못했습니다.">
+          <NativeButton
+            label="메시지 다시 불러오기"
             onPress={retryInitialPage}
-            style={{
-              justifyContent: "center",
-              minHeight: appControl.standardHeight,
-            }}
-          >
-            <Text style={{ color: colors.text }}>메시지 다시 불러오기</Text>
-          </Pressable>
-        </View>
+            variant="text"
+          />
+        </InlineMessage>
       ) : null}
       {conversation.initialPageStatus === "ready" &&
       conversation.items.length === 0 ? (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
-          아직 메시지가 없습니다.
-        </Text>
+        <EmptyState
+          symbol={{ android: "forum", ios: "bubble.left.and.bubble.right" }}
+          title="아직 메시지가 없습니다."
+        />
       ) : null}
       {hasReadyMessages && conversation.olderPageStatus === "loading" ? (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.text }}>
-          이전 메시지 불러오는 중...
-        </Text>
+        <InlineMessage kind="notice" message="이전 메시지 불러오는 중..." />
       ) : null}
       {hasReadyMessages && conversation.olderPageStatus === "error" ? (
-        <Pressable
-          accessibilityLabel="이전 메시지 다시 불러오기"
-          accessibilityRole="button"
-          onPress={retryOlderPage}
-          style={{
-            justifyContent: "center",
-            minHeight: appControl.standardHeight,
-          }}
+        <InlineMessage
+          kind="error"
+          message="이전 메시지를 불러오지 못했습니다."
         >
-          <Text style={{ color: colors.text }}>이전 메시지 다시 불러오기</Text>
-        </Pressable>
+          <NativeButton
+            label="이전 메시지 다시 불러오기"
+            onPress={retryOlderPage}
+            variant="text"
+          />
+        </InlineMessage>
       ) : null}
       {hasReadyMessages ? (
         <Animated.FlatList
+          // @expo/ui Host children start at zero size on Android; clipping would
+          // detach them before Compose reports their measured height.
+          removeClippedSubviews={false}
           data={conversation.items}
           viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs}
           extraData={previewIds}
@@ -410,19 +397,31 @@ export function ChatMessageList({
           }}
           scrollEventThrottle={16}
           ref={listRef}
-          renderItem={({ index, item }) => (
-            <ChatMessageRow
-              isGroupedWithPrevious={
-                index > 0 &&
-                item.senderId !== null &&
-                conversation.items[index - 1]?.senderId === item.senderId &&
-                conversation.items[index - 1]?.senderLabel === item.senderLabel
-              }
-              message={item}
-              mediaPreviewEnabled={previewIds.has(item.localId)}
-              onRetryFailedMessage={onRetryFailedMessage}
-            />
-          )}
+          renderItem={({ index, item }) => {
+            const isItemOutgoing = item.isOutgoing ?? item.clientMsgId !== null;
+            const isLastOutgoing =
+              isItemOutgoing &&
+              !conversation.items
+                .slice(index + 1)
+                .some(
+                  (later) => later.isOutgoing ?? later.clientMsgId !== null,
+                );
+            return (
+              <ChatMessageRow
+                isGroupedWithPrevious={
+                  index > 0 &&
+                  item.senderId !== null &&
+                  conversation.items[index - 1]?.senderId === item.senderId &&
+                  conversation.items[index - 1]?.senderLabel ===
+                    item.senderLabel
+                }
+                message={item}
+                mediaPreviewEnabled={previewIds.has(item.localId)}
+                onRetryFailedMessage={onRetryFailedMessage}
+                showSentStatus={isLastOutgoing}
+              />
+            );
+          }}
           style={{
             maxWidth: appChatLayout.conversationMaxWidth,
           }}

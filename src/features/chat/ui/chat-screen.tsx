@@ -10,16 +10,19 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject, ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Stack } from "expo-router";
 
 import { useAppRuntime } from "@/core/providers/app-providers";
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appChatLayout, appSpacing, appTypography } from "@/core/theme/tokens";
+import { appChatLayout, appSpacing } from "@/core/theme/tokens";
 import {
   FIXTURE_CONVERSATION_ID,
   LOCAL_FIXTURE_NOTICE,
 } from "@/features/chat/model/chat-fixture";
 import { createChatSendController } from "@/features/chat/model/chat-send";
 import type { ChatSendController } from "@/features/chat/model/chat-send";
+import { AppText } from "@/shared/ui/app-text";
+import { InlineMessage } from "@/shared/ui/inline-message";
 import type { ChatConversation } from "../use-chat-conversation";
 
 import type { MediaAttachmentController } from "@/features/media/ui/media-attachment-types";
@@ -46,6 +49,30 @@ function defaultFocusMainHeading(target: MainHeadingTarget): void {
   if (nativeHandle !== null) {
     AccessibilityInfo.setAccessibilityFocus(nativeHandle);
   }
+}
+
+/**
+ * Native-header title block, rendered through `Stack.Screen`'s
+ * `options.headerTitle` (only when a sync `subtitle` exists) rather than in
+ * the scrollable body — the in-body heading `Text` this replaced is gone, so
+ * `focusMainHeading`'s `nativeRef` legitimately stays `{ current: null }`
+ * (see `defaultFocusMainHeading`, which already no-ops on a null handle).
+ */
+function HeaderTitle({
+  title,
+  subtitle,
+}: Readonly<{ subtitle?: string; title: string }>) {
+  const { colors } = useAppTheme();
+  return (
+    <View accessibilityRole="header" style={{ alignItems: "center" }}>
+      <AppText variant="headline">{title}</AppText>
+      {subtitle ? (
+        <AppText color={colors.textMuted} variant="caption">
+          {subtitle}
+        </AppText>
+      ) : null}
+    </View>
+  );
 }
 
 export function ChatScreen({
@@ -81,12 +108,14 @@ export function ChatScreen({
 
 export function ChatConversationScreen({
   title,
+  subtitle,
   notice,
   conversation,
   controller,
   onRetryFailedMessage,
   toolbar,
   footer,
+  headerRight,
   blocked = false,
   revealInitialLatest = false,
   onVisibleCanonicalMessages,
@@ -94,6 +123,7 @@ export function ChatConversationScreen({
   attachmentController = null,
 }: Readonly<{
   title: string;
+  subtitle?: string;
   notice?: string;
   conversation: ChatConversation;
   controller: Pick<ChatSendController, "send">;
@@ -103,6 +133,7 @@ export function ChatConversationScreen({
   onVisibleCanonicalMessages?: (ids: readonly string[]) => void;
   toolbar?: ReactNode;
   footer?: ReactNode;
+  headerRight?: () => ReactNode;
   blocked?: boolean;
   revealInitialLatest?: boolean;
   focusMainHeading?: (target: MainHeadingTarget) => void;
@@ -142,10 +173,22 @@ export function ChatConversationScreen({
 
   return (
     <>
+      <Stack.Screen
+        options={{
+          headerRight,
+          headerTitle: subtitle
+            ? () => <HeaderTitle subtitle={subtitle} title={title} />
+            : undefined,
+          title,
+        }}
+      />
       <StatusBar
         barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
       />
-      <SafeAreaView style={{ backgroundColor: colors.background, flex: 1 }}>
+      <SafeAreaView
+        edges={["bottom"]}
+        style={{ backgroundColor: colors.background, flex: 1 }}
+      >
         <ChatKeyboardFrame>
           {({ keyboardOverlap, keyboardState }) => (
             <View
@@ -160,26 +203,8 @@ export function ChatConversationScreen({
                 width: "100%",
               }}
             >
-              <Text
-                ref={headingRef}
-                accessibilityRole="header"
-                style={{ color: colors.text, ...appTypography.title }}
-              >
-                {title}
-              </Text>
               {toolbar}
-              {notice ? (
-                <Text
-                  style={{
-                    backgroundColor: colors.noticeSurface,
-                    color: colors.text,
-                    marginTop: appSpacing.sm,
-                    padding: appSpacing.sm,
-                  }}
-                >
-                  {notice}
-                </Text>
-              ) : null}
+              {notice ? <InlineMessage kind="notice" message={notice} /> : null}
               <ChatMessageList
                 conversation={conversation}
                 keyboardOverlap={keyboardOverlap}
