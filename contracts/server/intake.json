@@ -22,7 +22,7 @@
     "realtime/server-frame.schema.json": "1671da7f44048e673f9011c2e79a8a9708bfc9cda2c6f0a98f271f9790eb81b2",
     "realtime/topic.created.schema.json": "1db02f6910b016bd1100e45f2354935ba4e2d7b69a89f1d51e22a67ee10d98c5"
   },
-  "source_git_revision": "97d3d264da547d7978b6e0d65052d0b1813512a9",
+  "source_git_revision": "736eabcb10e4a60ebac6ebcc9fe275b62340b620",
   "upstream_artifact_count": 21,
   "upstream_bundle_sha256": "b95e463946861d981c9e973fa048f6ee6dc4e63307f5e29583be6478bc650b69",
   "upstream_bundle_verified": true,

@@ -184,7 +184,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
       expect.objectContaining({
         generator_identity: "openapi-typescript@7.13.0",
         intake_kind: "server-snapshot",
-        source_git_revision: "97d3d264da547d7978b6e0d65052d0b1813512a9",
+        source_git_revision: "736eabcb10e4a60ebac6ebcc9fe275b62340b620",
         upstream_bundle_sha256:
           "b95e463946861d981c9e973fa048f6ee6dc4e63307f5e29583be6478bc650b69",
         upstream_bundle_verified: true,
