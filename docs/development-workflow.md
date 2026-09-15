@@ -582,6 +582,20 @@ Native 입력 변경이 없어 이번 세션은 clean prebuild·재빌드를 실
 `upstream_server_commit: "dirty"`는 서버의 `src/contract_generation/provenance.json`이 고정한 라벨이라
 그대로 남는다(2026-09-15 배포 commit `97d3d26`으로 재intake 완료).
 
+### realtime 발신자 표시·첨부 즉시 반영, Android 첨부 시트 오류 우회 — 2026-09-16
+
+서버 defect 수정에 맞춰 두 가지를 반영했다. `chat-composer.tsx`의 첨부 시트 `ListItem`
+두 개(사진·동영상, 음성)에 가용성(`canAddImageOrVideo`/`canAddAudio`)을 담은 `key`를
+추가해 availability 변경 시 in-place prop update 대신 remount가 일어나도록 했다.
+`@expo/ui` Android `ListItem.android.tsx`가 `onPress`가 사라지는 업데이트를 diff할 때
+`modifiers`에 `undefined`를 넘겨 `expo-modules-core`의 `ListTypeConverter.convertFromDynamic`이
+크래시하는 업스트림 버그 우회다(업스트림 이슈 미등록, 2026-09-15 기준). 서버의
+`CanonicalMessage.sender_nickname`/`sender_avatar_url`(optional-nullable) 추가를
+`intake-server-contract.mjs`로 재-intake했고, realtime/canonical upsert
+(`connected-chat-repository.ts` `mergeMessage`)는 들어오는 값이 non-null이면 채택하고
+null이면 기존 저장된 닉네임/아바타를 보존한다(history 경로는 변경 없이 항상 덮어씀).
+native 입력 변경이 없어 재빌드는 하지 않았다.
+
 ## 4. Dependency와 toolchain script
 
 | 명령                             | 분류        | 결과와 선행 조건                                                  |
