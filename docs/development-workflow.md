@@ -577,8 +577,10 @@ jamye-server [ADR 0009](../../jamye-server/docs/adr/0009-media-posters.md)를 �
 `bun run check:code`(typecheck/lint/format/check:architecture/coverage) PASS를 확인했다.
 Native 입력 변경이 없어 이번 세션은 clean prebuild·재빌드를 실행하지 않았다. 실기기 포스터
 송수신 E2E는 서버 배포 후로 미룬다. 서버가 배포되면 배포 commit 기준으로
-`bun tools/contracts/intake-server-contract.mjs`를 다시 실행해 `server_commit: "dirty"`를 실제
-commit hash로 교체하고 `bun tools/contracts/check-server-contract.mjs`를 통과시킨 뒤 E2E를 수행한다.
+`bun tools/contracts/intake-server-contract.mjs`를 다시 실행해 `source_git_revision`을 배포 commit으로
+갱신하고 `bun tools/contracts/check-server-contract.mjs`를 통과시킨 뒤 E2E를 수행한다.
+`upstream_server_commit: "dirty"`는 서버의 `src/contract_generation/provenance.json`이 고정한 라벨이라
+그대로 남는다(2026-09-15 배포 commit `97d3d26`으로 재intake 완료).
 
 ## 4. Dependency와 toolchain script
 
