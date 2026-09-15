@@ -16,13 +16,30 @@ import TopicDetailRoute from "@/app/groups/[groupId]/topics/[topicId]";
 jest.mock("@/features/media/ui/media-image-viewer", () => ({
   MediaImageViewer: () => null,
 }));
+// T5b owns the upload button/media grid markup; isolate this file from its
+// later restyling by consuming stub components with matching export names.
+jest.mock("@/features/media/ui/topic-image-upload-button", () => ({
+  TopicImageUploadButton: () => null,
+}));
+jest.mock("@/features/media/ui/topic-media-list", () => ({
+  TopicMediaList: () => null,
+}));
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockCloseRooms = jest.fn();
 const mockLoadRooms = jest.fn().mockResolvedValue(undefined);
 let mockParams: Record<string, string | string[]> = {};
+// The real Stack.Screen renders `options.headerRight` into the native header;
+// this stand-in renders it inline instead so `headerRight`-gated controls
+// (e.g. the topic edit menu icon) stay reachable through RNTL role queries.
 jest.mock("expo-router", () => ({
+  Stack: {
+    Screen: (props: { options?: { headerRight?: () => ReactNode } }) => {
+      const headerRight = props.options?.headerRight;
+      return headerRight ? headerRight() : null;
+    },
+  },
   useLocalSearchParams: () => mockParams,
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
   useFocusEffect: (callback: () => void | (() => void)) => {
@@ -162,6 +179,9 @@ describe("M10 topic views with real controller and fake API", () => {
       params: { groupId, chatroomId: roomId },
     });
     await fireEvent.press(
+      f.screen.getByRole("button", { name: "주제 편집 메뉴" }),
+    );
+    await fireEvent.press(
       f.screen.getByRole("button", { name: "제목·본문 편집" }),
     );
     await fireEvent.changeText(
@@ -189,6 +209,9 @@ describe("M10 topic views with real controller and fake API", () => {
       f,
     );
     await fireEvent.press(
+      screen.getByRole("button", { name: "주제 편집 메뉴" }),
+    );
+    await fireEvent.press(
       screen.getByRole("button", { name: "제목·본문 편집" }),
     );
     await fireEvent.changeText(screen.getByLabelText("주제 본문"), "");
@@ -201,6 +224,9 @@ describe("M10 topic views with real controller and fake API", () => {
   test("tag editor preserves existing metadata and adds only user-authored tags", async () => {
     const f = await setup(
       <TopicDetailScreen groupId={groupId} topicId={topicId} />,
+    );
+    await fireEvent.press(
+      f.screen.getByRole("button", { name: "주제 편집 메뉴" }),
     );
     await fireEvent.press(f.screen.getByRole("button", { name: "태그 편집" }));
     await fireEvent.changeText(f.screen.getByLabelText("새 태그"), " 새 태그 ");
@@ -226,6 +252,9 @@ describe("M10 topic views with real controller and fake API", () => {
       <TopicDetailScreen groupId={groupId} topicId={topicId} />,
       f,
     );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "주제 편집 메뉴" }),
+    );
     expect(screen.queryByRole("button", { name: "제목·본문 편집" })).toBeNull();
     expect(screen.getByRole("button", { name: "태그 편집" })).toBeTruthy();
   });
@@ -243,6 +272,9 @@ describe("M10 topic views with real controller and fake API", () => {
   test("permission loss hides topic, tags and edit draft", async () => {
     const f = await setup(
       <TopicDetailScreen groupId={groupId} topicId={topicId} />,
+    );
+    await fireEvent.press(
+      f.screen.getByRole("button", { name: "주제 편집 메뉴" }),
     );
     await fireEvent.press(
       f.screen.getByRole("button", { name: "제목·본문 편집" }),
