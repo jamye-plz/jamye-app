@@ -142,6 +142,34 @@ describe("M11-1 media transport contract", () => {
     );
   });
 
+  test("finalize serializes poster_upload_id only when it is a string, never null/undefined", async () => {
+    reply(chatUploadFinalizeResultWire);
+    await api.finalizeUpload("token", uploadId, {
+      posterUploadId: "22222222-2222-4222-8222-222222222222",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_ORIGIN}/api/v1/media/uploads/${uploadId}/finalize`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          poster_upload_id: "22222222-2222-4222-8222-222222222222",
+        }),
+      }),
+    );
+    reply(chatUploadFinalizeResultWire);
+    await api.finalizeUpload("token", uploadId, { posterUploadId: null });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `${API_ORIGIN}/api/v1/media/uploads/${uploadId}/finalize`,
+      expect.objectContaining({ method: "POST", body: JSON.stringify({}) }),
+    );
+    reply(chatUploadFinalizeResultWire);
+    await api.finalizeUpload("token", uploadId, {});
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `${API_ORIGIN}/api/v1/media/uploads/${uploadId}/finalize`,
+      expect.objectContaining({ method: "POST", body: JSON.stringify({}) }),
+    );
+  });
+
   test("MD2 topic finalize maps the bound branch and checks upload/topic_media identity", async () => {
     reply(topicUploadFinalizeResultWire);
     const value = await api.finalizeUpload("token", uploadId, {});

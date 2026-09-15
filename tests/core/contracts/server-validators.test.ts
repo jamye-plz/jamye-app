@@ -130,7 +130,7 @@ describe("M6-01 server contract runtime validators", () => {
     );
   });
 
-  test("A1 OAuthAuthorizeIn enforces the S256 PKCE constraints", () => {
+  test("OAuthAuthorizeIn enforces the S256 PKCE constraints", () => {
     const valid = {
       code_challenge: "c".repeat(43),
       code_challenge_method: "S256",
@@ -148,7 +148,7 @@ describe("M6-01 server contract runtime validators", () => {
     expect(validateOAuthAuthorizeIn(missingRedirect)).toBe(false);
   });
 
-  test("A1 OAuthAuthorizeOut requires the fixed 600-second TTL and 43-char state", () => {
+  test("OAuthAuthorizeOut requires the fixed 600-second TTL and 43-char state", () => {
     const valid = {
       authorization_url: "https://accounts.google.com/o/oauth2/v2/auth",
       expires_in_seconds: 600,
@@ -166,7 +166,7 @@ describe("M6-01 server contract runtime validators", () => {
     ).toBe(false);
   });
 
-  test("A2 OAuthExchangeIn enforces the PKCE verifier length and charset", () => {
+  test("OAuthExchangeIn enforces the PKCE verifier length and charset", () => {
     const valid = {
       authorization_code: "code",
       code_verifier: VERIFIER,
@@ -209,7 +209,7 @@ describe("M6-01 server contract runtime validators", () => {
     );
   });
 
-  test("A3 RefreshIn requires the exact 43-character refresh token shape", () => {
+  test("RefreshIn requires the exact 43-character refresh token shape", () => {
     expect(validateRefreshIn({ refresh_token: "r".repeat(43) })).toBe(true);
     expect(validateRefreshIn({ refresh_token: "short" })).toBe(false);
     expect(validateRefreshIn({})).toBe(false);
@@ -393,7 +393,7 @@ describe("M6-01 server contract runtime validators", () => {
     expect(isValidInviteJoinCode("has/slash".padEnd(16, "a"))).toBe(false);
   });
 
-  test("A5 is browser-only: the callback query is parsed, never fetched as JSON", () => {
+  test("is browser-only: the callback query is parsed, never fetched as JSON", () => {
     expect(
       parseOAuthCallbackQuery("kakao", { code: "auth-code", state: STATE }),
     ).toEqual({
@@ -507,6 +507,7 @@ describe("M6-01 server contract runtime validators", () => {
           id: VALID_UUID,
           media_upload_id: VALID_UUID,
           position: 0,
+          poster_media_id: null,
           type: "image/png",
           width: null,
         }),
@@ -520,6 +521,54 @@ describe("M6-01 server contract runtime validators", () => {
       validateDenormalizedMessagePage({
         items: [{ ...message, sender_id: "not-a-uuid" }],
         next_cursor: null,
+      }),
+    ).toBe(false);
+  });
+
+  test("response direction: MessageAttachment.poster_media_id is a required nullable uuid", () => {
+    const attachment = {
+      byte_size: 1,
+      duration: null,
+      filename: null,
+      height: null,
+      id: VALID_UUID,
+      media_upload_id: VALID_UUID,
+      position: 0,
+      poster_media_id: null,
+      type: "image/png",
+      width: null,
+    };
+    const message = {
+      body: null,
+      chatroom_id: VALID_UUID,
+      client_msg_id: null,
+      created_at: "2024-01-01T00:00:00.123456Z",
+      id: VALID_UUID,
+      media: [attachment],
+      sender_avatar_url: null,
+      sender_id: null,
+      sender_nickname: null,
+      type: "system",
+    };
+    expect(validateDenormalizedMessage(message)).toBe(true);
+    expect(
+      validateDenormalizedMessage({
+        ...message,
+        media: [{ ...attachment, poster_media_id: VALID_UUID }],
+      }),
+    ).toBe(true);
+    expect(
+      validateDenormalizedMessage({
+        ...message,
+        media: [{ ...attachment, poster_media_id: "not-a-uuid" }],
+      }),
+    ).toBe(false);
+    const { poster_media_id: _dropped, ...attachmentMissingPoster } =
+      attachment;
+    expect(
+      validateDenormalizedMessage({
+        ...message,
+        media: [attachmentMissingPoster],
       }),
     ).toBe(false);
   });

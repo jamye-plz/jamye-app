@@ -638,6 +638,8 @@ export interface components {
             id: string;
             kind: components["schemas"]["MediaKind"];
             object_key: string;
+            /** Format: uuid */
+            poster_upload_id: string | null;
             scope: components["schemas"]["MediaScope"];
             /** Format: uuid */
             target_id: string;
@@ -810,6 +812,8 @@ export interface components {
             /** Format: uuid */
             media_upload_id: string;
             position: number;
+            /** Format: uuid */
+            poster_media_id: string | null;
             /** @enum {string} */
             type: "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "video/mp4" | "audio/webm" | "audio/mp4" | "audio/ogg";
             width: number | null;
@@ -1065,6 +1069,8 @@ export interface components {
         };
         UploadFinalize: {
             height?: number | null;
+            /** Format: uuid */
+            poster_upload_id?: string | null;
             width?: number | null;
         };
         UploadFinalizeResult: components["schemas"]["ChatUploadFinalizeResult"] | components["schemas"]["TopicUploadFinalizeResult"];

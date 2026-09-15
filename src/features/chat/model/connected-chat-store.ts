@@ -200,6 +200,7 @@ function toConnectedMedia(wire: MessageAttachment): ConnectedChatMedia {
     id: wire.id,
     mediaUploadId: wire.mediaUploadId,
     position: wire.position,
+    posterMediaId: wire.posterMediaId,
     type: wire.type,
     width: wire.width,
   };

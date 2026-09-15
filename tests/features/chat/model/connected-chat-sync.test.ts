@@ -100,6 +100,7 @@ test("M11 confirmed bodyless attachments enter the existing atomic queue before 
     width: null,
     height: null,
     duration: 30,
+    posterMediaId: null,
   };
   const committed = jest.fn();
   const sending = f.store.actions.sendMessage("", committed, [attachment]);

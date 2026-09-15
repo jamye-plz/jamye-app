@@ -42,6 +42,7 @@ const finalized = {
     filename: "a.jpg",
     duration: null,
     confirmedAt: "2026-09-11T00:00:00Z",
+    posterUploadId: null,
   },
 };
 async function flush() {

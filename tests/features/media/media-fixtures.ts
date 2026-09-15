@@ -3,6 +3,7 @@ export const targetId = "88888888-8888-4888-8888-888888888888";
 export const mediaId = "99999999-9999-4999-8999-999999999999";
 export const topicId = "22222222-2222-4222-8222-222222222222";
 export const otherId = "55555555-5555-4555-8555-555555555555";
+export const posterUploadId = "33333333-3333-4333-8333-333333333333";
 
 export const uploadIntentWire = {
   id: uploadId,
@@ -38,6 +39,7 @@ export const confirmedUploadWire = {
   duration: null,
   filename: "photo.jpg",
   confirmed_at: "2026-09-10T23:00:05Z",
+  poster_upload_id: null,
 };
 
 export const chatUploadFinalizeResultWire = {

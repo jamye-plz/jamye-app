@@ -18,6 +18,13 @@ export type PendingAttachmentDraft = Readonly<{
   width: number | null;
   height: number | null;
   duration: number | null;
+  /**
+   * Carries the finalized upload's `posterUploadId` through the optimistic
+   * local row so it round-trips before the message is sent. A2 only wires
+   * the field through; A3 owns reconciling this against the server-assigned
+   * `MessageAttachment.posterMediaId` once the message is bound.
+   */
+  posterMediaId: string | null;
 }>;
 
 export function toPendingAttachmentDraft(
@@ -32,5 +39,6 @@ export function toPendingAttachmentDraft(
     width: file.width,
     height: file.height,
     duration: finalized.upload.duration,
+    posterMediaId: finalized.upload.posterUploadId ?? null,
   };
 }

@@ -6,6 +6,7 @@ export type ConnectedChatMedia = Readonly<{
   id: string;
   mediaUploadId: string;
   position: number;
+  posterMediaId: string | null;
   type: string;
   width: number | null;
 }>;
@@ -16,6 +17,7 @@ export type ConnectedPendingAttachment = Readonly<{
   filename: string | null;
   height: number | null;
   mediaUploadId: string;
+  posterMediaId: string | null;
   type: string;
   width: number | null;
 }>;

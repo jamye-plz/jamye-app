@@ -11,6 +11,7 @@ import {
   confirmedUploadWire,
   mediaAccessUrlWire,
   mediaId,
+  posterUploadId,
   topicId,
   topicMediaPageWire,
   topicMediaWire,
@@ -54,7 +55,16 @@ describe("M11-1 media contract mapping", () => {
       duration: null,
       filename: "photo.jpg",
       confirmedAt: "2026-09-10T23:00:05Z",
+      posterUploadId: null,
     });
+  });
+
+  test("passes a bound poster_upload_id through as posterUploadId verbatim", () => {
+    const value = mapConfirmedUpload({
+      ...confirmedUploadWire,
+      poster_upload_id: posterUploadId,
+    });
+    expect(value.posterUploadId).toBe(posterUploadId);
   });
 
   test("MD2 chat finalize maps to the unbound branch", () => {

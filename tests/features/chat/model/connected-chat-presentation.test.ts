@@ -69,6 +69,7 @@ test("media retains canonical IDs for M11 access and timestamps are display-only
         id: "media",
         mediaUploadId: "upload",
         position: 0,
+        posterMediaId: null,
         type: "image/jpeg",
         width: null,
       },

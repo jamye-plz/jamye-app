@@ -45,6 +45,7 @@ describe("M11 ChatComposer attachment integration", () => {
       width: null,
       height: null,
       duration: null,
+      posterMediaId: null,
     },
   };
   test.each(["uploading", "finalizing", "failed"] as const)(
@@ -164,6 +165,7 @@ describe("M11 ChatComposer attachment integration", () => {
       width: 10,
       height: 10,
       duration: null,
+      posterMediaId: null,
     };
     const controller = fakeController([
       {
@@ -217,6 +219,7 @@ describe("M11 ChatComposer attachment integration", () => {
           width: null,
           height: null,
           duration: 5,
+          posterMediaId: null,
         },
       },
     ]);

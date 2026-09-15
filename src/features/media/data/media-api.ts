@@ -54,6 +54,7 @@ export type MediaUploadCreateInput = Readonly<{
 export type MediaUploadFinalizeInput = Readonly<{
   width?: number | null;
   height?: number | null;
+  posterUploadId?: string | null;
 }>;
 
 export type TopicMediaListParams = Readonly<{ after?: string; limit?: number }>;
@@ -247,9 +248,16 @@ export function createMediaApi(
       const body: Readonly<{
         width?: number | null;
         height?: number | null;
+        poster_upload_id?: string;
       }> = {
         ...(input.width !== undefined ? { width: input.width } : {}),
         ...(input.height !== undefined ? { height: input.height } : {}),
+        // poster_upload_id is request-optional (never nullable on the
+        // wire): omit when undefined AND when null, only serialize an
+        // actual string. Never send an explicit null for this field.
+        ...(typeof input.posterUploadId === "string"
+          ? { poster_upload_id: input.posterUploadId }
+          : {}),
       };
       if (!validateUploadFinalize(body))
         throw new MediaApiError(422, "invalid_upload_finalize");

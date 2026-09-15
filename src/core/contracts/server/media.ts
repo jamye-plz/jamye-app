@@ -77,6 +77,7 @@ export type ConfirmedUpload = Readonly<{
   duration: number | null;
   filename: string | null;
   confirmedAt: string;
+  posterUploadId: string | null;
 }>;
 
 export type ChatUploadFinalizeResult = Readonly<{
@@ -161,6 +162,7 @@ export function mapConfirmedUpload(wire: ConfirmedUploadWire): ConfirmedUpload {
     duration: wire.duration,
     filename: wire.filename,
     confirmedAt: wire.confirmed_at,
+    posterUploadId: wire.poster_upload_id,
   };
 }
 

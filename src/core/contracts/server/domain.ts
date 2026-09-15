@@ -217,6 +217,7 @@ export type MessageAttachment = Readonly<{
   duration: number | null;
   filename: string | null;
   position: number;
+  posterMediaId: string | null;
 }>;
 
 export type Chatroom = Readonly<{
@@ -278,6 +279,7 @@ function mapMessageAttachment(wire: MessageAttachmentWire): MessageAttachment {
     id: wire.id,
     mediaUploadId: wire.media_upload_id,
     position: wire.position,
+    posterMediaId: wire.poster_media_id,
     type: wire.type,
     width: wire.width,
   };

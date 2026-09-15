@@ -107,12 +107,18 @@ function mapChatroom(row: ChatroomRow): ConnectedChatroom {
   };
 }
 
+// posterMediaId is a new key on rows persisted before this field existed;
+// JSON.parse leaves it absent (undefined), never null, so both readers
+// normalize it explicitly rather than trusting the unsafe cast below.
 function parseMedia(value: string): readonly ConnectedChatMedia[] {
   const parsed: unknown = JSON.parse(value);
   if (!Array.isArray(parsed)) {
     throw new Error("Connected chat media metadata is not an array.");
   }
-  return parsed as ConnectedChatMedia[];
+  return (parsed as ConnectedChatMedia[]).map((item) => ({
+    ...item,
+    posterMediaId: item.posterMediaId ?? null,
+  }));
 }
 
 function parsePendingMedia(
@@ -122,7 +128,10 @@ function parsePendingMedia(
   if (!Array.isArray(parsed)) {
     throw new Error("Connected pending media metadata is not an array.");
   }
-  return parsed as ConnectedPendingAttachment[];
+  return (parsed as ConnectedPendingAttachment[]).map((item) => ({
+    ...item,
+    posterMediaId: item.posterMediaId ?? null,
+  }));
 }
 
 function parseMediaUploadIds(value: string): readonly string[] {

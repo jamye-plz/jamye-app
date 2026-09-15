@@ -19,6 +19,7 @@ const upload = {
   duration: 30,
   filename: "voice.ogg",
   confirmed_at: "2026-09-10T00:00:00Z",
+  poster_upload_id: null,
 };
 
 describe("M11 server media runtime contract", () => {
@@ -88,6 +89,51 @@ describe("M11 server media runtime contract", () => {
       validateUploadFinalizeResult({
         ...result,
         upload: { ...upload, duration: 0 },
+      }),
+    ).toBe(false);
+  });
+
+  test("request direction: UploadFinalize.poster_upload_id is optional but never a bare invalid string", () => {
+    expect(validateUploadFinalize({ poster_upload_id: null })).toBe(true);
+    expect(
+      validateUploadFinalize({
+        poster_upload_id: "22222222-2222-4222-8222-222222222222",
+      }),
+    ).toBe(true);
+    expect(validateUploadFinalize({ poster_upload_id: "not-a-uuid" })).toBe(
+      false,
+    );
+  });
+
+  test("response direction: ConfirmedUpload.poster_upload_id is a required nullable uuid", () => {
+    const result = {
+      scope: "chat",
+      status: "confirmed",
+      bound: false,
+      upload,
+      topic_media: null,
+      topic_status: null,
+    };
+    expect(
+      validateUploadFinalizeResult({
+        ...result,
+        upload: {
+          ...upload,
+          poster_upload_id: "22222222-2222-4222-8222-222222222222",
+        },
+      }),
+    ).toBe(true);
+    expect(
+      validateUploadFinalizeResult({
+        ...result,
+        upload: { ...upload, poster_upload_id: "not-a-uuid" },
+      }),
+    ).toBe(false);
+    const { poster_upload_id: _dropped, ...uploadMissingPoster } = upload;
+    expect(
+      validateUploadFinalizeResult({
+        ...result,
+        upload: uploadMissingPoster,
       }),
     ).toBe(false);
   });

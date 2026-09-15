@@ -394,6 +394,7 @@ describe("M8 account-scoped connected chat SQLite repository", () => {
             filename: "rollback.png",
             height: 1,
             mediaUploadId: "upload-rollback",
+            posterMediaId: null,
             type: "image/png",
             width: 1,
           },
@@ -424,6 +425,7 @@ describe("M8 account-scoped connected chat SQLite repository", () => {
         filename: "one.png",
         height: 20,
         mediaUploadId: "upload-one",
+        posterMediaId: null,
         type: "image/png",
         width: 30,
       },
@@ -433,6 +435,7 @@ describe("M8 account-scoped connected chat SQLite repository", () => {
         filename: "two.mp4",
         height: 40,
         mediaUploadId: "upload-two",
+        posterMediaId: null,
         type: "video/mp4",
         width: 50,
       },
@@ -481,6 +484,7 @@ describe("M8 account-scoped connected chat SQLite repository", () => {
       filename: null,
       height: null,
       mediaUploadId: "upload-one",
+      posterMediaId: null,
       type: "image/jpeg",
       width: null,
     };
@@ -710,6 +714,45 @@ describe("M8 account-scoped connected chat SQLite repository", () => {
         limit: 1,
       }),
     ).rejects.toThrow(/not an array/i);
+  });
+
+  test("normalizes legacy media/pending_media rows persisted before posterMediaId existed to null", async () => {
+    const legacyDatabase = new ScriptedDatabase();
+    legacyDatabase.queueAll([
+      messageRow({
+        media_json: JSON.stringify([
+          {
+            byteSize: 1,
+            duration: null,
+            filename: null,
+            height: null,
+            id: "legacy-media",
+            mediaUploadId: "legacy-upload",
+            position: 0,
+            type: "image/png",
+            width: null,
+          },
+        ]),
+        pending_media_json: JSON.stringify([
+          {
+            byteSize: 1,
+            duration: null,
+            filename: null,
+            height: null,
+            mediaUploadId: "legacy-pending-upload",
+            type: "image/png",
+            width: null,
+          },
+        ]),
+      }),
+    ]);
+    const page = await createRepository(legacyDatabase).listMessagesWindow({
+      before: null,
+      chatroomId: CHATROOM_ID,
+      limit: 1,
+    });
+    expect(page.items[0]?.media[0]?.posterMediaId).toBeNull();
+    expect(page.items[0]?.pendingMedia?.[0]?.posterMediaId).toBeNull();
   });
 
   test("reads and fails safe outbox attempts without storing raw errors", async () => {
