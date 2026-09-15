@@ -294,7 +294,9 @@ describe("M6-01 server contract domain mappers", () => {
       createdAt: "2024-01-01T00:00:00.5Z",
       id: "22222222-2222-4222-8222-222222222222",
       media: [],
+      senderAvatarUrl: null,
       senderId: null,
+      senderNickname: null,
       type: "user",
     });
     expect(
@@ -311,8 +313,56 @@ describe("M6-01 server contract domain mappers", () => {
       createdAt: "2024-01-01T00:00:00.5Z",
       id: "22222222-2222-4222-8222-222222222222",
       media: [],
+      senderAvatarUrl: null,
       senderId: "44444444-4444-4444-8444-444444444444",
+      senderNickname: null,
       type: "user",
+    });
+  });
+
+  test("C4 maps CanonicalMessage's populated sender_nickname/sender_avatar_url (realtime/delta binding) verbatim", () => {
+    const canonicalWireWithSender = {
+      chatroom_id: "11111111-1111-4111-8111-111111111111",
+      created_at: "2024-01-01T00:00:00.5Z",
+      id: "22222222-2222-4222-8222-222222222222",
+      media: [],
+      sender_avatar_url: "https://cdn.example.com/avatar.png",
+      sender_id: "44444444-4444-4444-8444-444444444444",
+      sender_nickname: "닉네임",
+      type: "user" as const,
+    };
+    expect(mapCanonicalChatMessage(canonicalWireWithSender)).toEqual({
+      body: null,
+      chatroomId: "11111111-1111-4111-8111-111111111111",
+      clientMessageId: null,
+      createdAt: "2024-01-01T00:00:00.5Z",
+      id: "22222222-2222-4222-8222-222222222222",
+      media: [],
+      senderAvatarUrl: "https://cdn.example.com/avatar.png",
+      senderId: "44444444-4444-4444-8444-444444444444",
+      senderNickname: "닉네임",
+      type: "user",
+    });
+    // A system message has sender_id NULL and both display fields NULL on all four wire surfaces.
+    expect(
+      mapCanonicalChatMessage({
+        ...canonicalWireWithSender,
+        sender_avatar_url: null,
+        sender_id: null,
+        sender_nickname: null,
+        type: "system",
+      }),
+    ).toEqual({
+      body: null,
+      chatroomId: "11111111-1111-4111-8111-111111111111",
+      clientMessageId: null,
+      createdAt: "2024-01-01T00:00:00.5Z",
+      id: "22222222-2222-4222-8222-222222222222",
+      media: [],
+      senderAvatarUrl: null,
+      senderId: null,
+      senderNickname: null,
+      type: "system",
     });
   });
 

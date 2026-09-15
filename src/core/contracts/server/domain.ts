@@ -252,11 +252,13 @@ export type ChatMessagePage = Readonly<{
   nextCursor: string | null;
 }>;
 
-/** C4 send response: sparser than ChatMessage, no sender nickname/avatar enrichment. */
+/** C4 send response: now carries optional-nullable sender nickname/avatar (realtime/delta payloads bind them too). */
 export type CanonicalChatMessage = Readonly<{
   id: string;
   chatroomId: string;
   senderId: string | null;
+  senderNickname: string | null;
+  senderAvatarUrl: string | null;
   clientMessageId: string | null;
   body: string | null;
   type: CanonicalMessageWire["type"];
@@ -329,7 +331,7 @@ export function mapChatMessagePage(
   };
 }
 
-/** sender_id/client_msg_id/body may be entirely absent on the wire; represented as null, never fabricated. */
+/** sender_id/sender_nickname/sender_avatar_url/client_msg_id/body may be entirely absent on the wire (system messages, legacy payloads); represented as null, never fabricated. */
 export function mapCanonicalChatMessage(
   wire: CanonicalMessageWire,
 ): CanonicalChatMessage {
@@ -340,7 +342,9 @@ export function mapCanonicalChatMessage(
     createdAt: wire.created_at,
     id: wire.id,
     media: wire.media.map(mapMessageAttachment),
+    senderAvatarUrl: wire.sender_avatar_url ?? null,
     senderId: wire.sender_id ?? null,
+    senderNickname: wire.sender_nickname ?? null,
     type: wire.type,
   };
 }

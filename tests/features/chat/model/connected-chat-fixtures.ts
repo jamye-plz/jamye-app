@@ -248,7 +248,9 @@ export function canonicalWireMessage(
     createdAt: "2024-01-02T00:05:00Z",
     id: SERVER_MESSAGE_ID,
     media: [],
+    senderAvatarUrl: null,
     senderId: PRINCIPAL.userId,
+    senderNickname: null,
     type: "user",
     ...overrides,
   };

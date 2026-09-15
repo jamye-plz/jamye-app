@@ -17,18 +17,18 @@
     "fixtures/realtime-lifecycle.json": "5895c11d7d354a04140ec8286c07aad487e6fb00e9511db1ace5e4ef58e79cbe",
     "fixtures/unknown-event-recovery.json": "dc647447de8e2aa03cb245eff29e96dba08e0024dff72c0f648b2bfe24a2c18f",
     "realtime/client-frame.schema.json": "cbb6c9966777ae07cfbb66de39b7a16e79b2dbfb95037ac2688ff5457b72b763",
-    "realtime/message.created.schema.json": "961f95d5af4a37ddded296057f65808fe440ea70550455c5ad0171f59f939c6c",
+    "realtime/message.created.schema.json": "001da4ed19649d2cf01dcbf8993fb5745f72e36b9fdc081862a162117fd54e84",
     "realtime/protocol.json": "00fc9016315cb015e63928fdf0252f834f5118fe5ea480ed3003762d30a67d59",
-    "realtime/server-frame.schema.json": "927858707428ad03c76bcfe9cea760fb37a1e993d8789360f73ad0efc407a3e3",
+    "realtime/server-frame.schema.json": "1671da7f44048e673f9011c2e79a8a9708bfc9cda2c6f0a98f271f9790eb81b2",
     "realtime/topic.created.schema.json": "1db02f6910b016bd1100e45f2354935ba4e2d7b69a89f1d51e22a67ee10d98c5"
   },
   "source_git_revision": "97d3d264da547d7978b6e0d65052d0b1813512a9",
   "upstream_artifact_count": 21,
-  "upstream_bundle_sha256": "898cf6b2ffd7713fdbe43841334451f3ed5386208ce0d2a389d27b9bb5b0449d",
+  "upstream_bundle_sha256": "b95e463946861d981c9e973fa048f6ee6dc4e63307f5e29583be6478bc650b69",
   "upstream_bundle_verified": true,
   "upstream_contract_version": "1",
-  "upstream_manifest_sha256": "906cc46ee189106f32ca9a18a7bbf3822626f00a7bf6be70d7795ea7c1611f20",
-  "upstream_openapi_sha256": "597dda1f5ac711c4d8e4922e706da786de3b41742d4cde7e49f998865efa1644",
+  "upstream_manifest_sha256": "810ea712202abe92e0c8bdf2d618bffa49060ef31ef7803ff31cd54d83bfdd52",
+  "upstream_openapi_sha256": "632d6b236cd50ffbb7ddf76efeb6b5ecdf59cfa8946d2d33f3c0b1a121a38974",
   "upstream_server_commit": "dirty",
   "validator_identity": "ajv@8.20.0"
 }

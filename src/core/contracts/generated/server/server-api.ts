@@ -570,8 +570,10 @@ export interface components {
             /** Format: uuid */
             id: string;
             media: components["schemas"]["MessageAttachment"][];
+            sender_avatar_url?: string | null;
             /** Format: uuid */
             sender_id?: string | null;
+            sender_nickname?: string | null;
             type: components["schemas"]["MessageKind"];
         };
         CanonicalTopic: {

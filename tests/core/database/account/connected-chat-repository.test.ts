@@ -156,7 +156,9 @@ function canonicalInput(
     kind: "user",
     localId: "proposed-canonical-local",
     media: [],
+    senderAvatarUrl: null,
     senderId: PRINCIPAL.userId,
+    senderNickname: null,
     serverMessageId: SERVER_MESSAGE_ID,
     ...overrides,
   };
@@ -650,6 +652,35 @@ describe("M8 account-scoped connected chat SQLite repository", () => {
     );
     expect(nullable.body).toBeNull();
     expect(nullable.media).toEqual([]);
+  });
+
+  test("realtime/canonical upsert stores a non-null sender_nickname and a later null-carrying upsert preserves it", async () => {
+    const database = new ScriptedDatabase();
+    const repository = createRepository(database);
+    const insertedRow = messageRow({
+      sender_avatar_url: null,
+      sender_nickname: "Sangmin Kim",
+    });
+    database.queueFirst(null, null, insertedRow);
+    await repository.mergeCanonicalMessage(
+      canonicalInput({ senderNickname: "Sangmin Kim" }),
+    );
+    const insertCall = database.runCalls.find(({ statement }) =>
+      /INSERT INTO connected_chat_messages/i.test(statement),
+    );
+    expect(insertCall?.values[5]).toBe("Sangmin Kim");
+
+    const laterDatabase = new ScriptedDatabase();
+    const laterRepository = createRepository(laterDatabase);
+    laterDatabase.queueFirst(insertedRow, insertedRow);
+    const preserved = await laterRepository.mergeCanonicalMessage(
+      canonicalInput({ senderAvatarUrl: null, senderNickname: null }),
+    );
+    const preservingUpdate = laterDatabase.runCalls.find(({ statement }) =>
+      /UPDATE connected_chat_messages SET/i.test(statement),
+    );
+    expect(preservingUpdate?.values[4]).toBe("Sangmin Kim");
+    expect(preserved.senderNickname).toBe("Sangmin Kim");
   });
 
   test("maps exact ordered message windows and rejects malformed persisted media", async () => {

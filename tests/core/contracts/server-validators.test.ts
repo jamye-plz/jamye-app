@@ -587,7 +587,7 @@ describe("M6-01 server contract runtime validators", () => {
     ).toBe(false);
   });
 
-  test("C4 CanonicalMessage permits absent/null body, sender_id and client_msg_id but no sender nickname/avatar", () => {
+  test("C4 CanonicalMessage permits absent/null body, sender_id, client_msg_id, sender_nickname and sender_avatar_url", () => {
     const canonical = {
       chatroom_id: VALID_UUID,
       created_at: VALID_DATE_TIME,
@@ -601,7 +601,9 @@ describe("M6-01 server contract runtime validators", () => {
         ...canonical,
         body: null,
         client_msg_id: null,
+        sender_avatar_url: null,
         sender_id: null,
+        sender_nickname: null,
       }),
     ).toBe(true);
     expect(
@@ -609,11 +611,13 @@ describe("M6-01 server contract runtime validators", () => {
         ...canonical,
         body: "안녕",
         client_msg_id: VALID_UUID,
+        sender_avatar_url: "https://cdn.example.com/avatar.png",
         sender_id: VALID_UUID,
+        sender_nickname: "닉네임",
       }),
     ).toBe(true);
     expect(
-      validateCanonicalMessage({ ...canonical, sender_nickname: "닉네임" }),
+      validateCanonicalMessage({ ...canonical, unknown_field: "닉네임" }),
     ).toBe(false);
     expect(validateCanonicalMessage({ ...canonical, type: "bot" })).toBe(false);
   });

@@ -313,14 +313,20 @@ export function createConnectedChatRepository(
     const localCreatedAtMs =
       existing?.local_created_at_ms ??
       sort.seconds * 1_000 + Math.floor(sort.nanos / 1_000_000);
-    const historyInput =
-      source === "history" ? (input as ConnectedHistoryMessageUpsert) : null;
-    const nickname = historyInput
-      ? historyInput.senderNickname
-      : (existing?.sender_nickname ?? null);
-    const avatar = historyInput
-      ? historyInput.senderAvatarUrl
-      : (existing?.sender_avatar_url ?? null);
+    // "history" (the denormalized HTTP endpoint) always carries an authoritative
+    // sender_nickname/sender_avatar_url and is trusted unconditionally, including
+    // null for system messages. "canonical" (realtime/delta payloads) only
+    // overwrites when the incoming value is non-null -- a null there means the
+    // event predates this fix or is a system message, and must not clobber a
+    // previously-stored nickname/avatar for the same message identity.
+    const nickname =
+      source === "history"
+        ? input.senderNickname
+        : (input.senderNickname ?? existing?.sender_nickname ?? null);
+    const avatar =
+      source === "history"
+        ? input.senderAvatarUrl
+        : (input.senderAvatarUrl ?? existing?.sender_avatar_url ?? null);
 
     if (existing) {
       await transaction.runAsync(

@@ -46,7 +46,9 @@ function mapMessage(): ConnectedCanonicalMessageUpsert {
     kind: "user",
     localId: MESSAGE_ID,
     media: [],
+    senderAvatarUrl: null,
     senderId: SENDER_ID,
+    senderNickname: null,
     serverMessageId: MESSAGE_ID,
   };
 }

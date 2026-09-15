@@ -186,7 +186,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         intake_kind: "server-snapshot",
         source_git_revision: "97d3d264da547d7978b6e0d65052d0b1813512a9",
         upstream_bundle_sha256:
-          "898cf6b2ffd7713fdbe43841334451f3ed5386208ce0d2a389d27b9bb5b0449d",
+          "b95e463946861d981c9e973fa048f6ee6dc4e63307f5e29583be6478bc650b69",
         upstream_bundle_verified: true,
         upstream_contract_version: "1",
         upstream_server_commit: "dirty",
@@ -213,7 +213,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         server_commit: "dirty",
         server_tag: null,
         sha256:
-          "898cf6b2ffd7713fdbe43841334451f3ed5386208ce0d2a389d27b9bb5b0449d",
+          "b95e463946861d981c9e973fa048f6ee6dc4e63307f5e29583be6478bc650b69",
       }),
     );
   });

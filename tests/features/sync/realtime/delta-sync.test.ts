@@ -85,7 +85,9 @@ function mapMessage(
     kind: data.type,
     localId: data.id,
     media: [],
+    senderAvatarUrl: data.sender_avatar_url ?? null,
     senderId: data.sender_id ?? null,
+    senderNickname: data.sender_nickname ?? null,
     serverMessageId: data.id,
   };
 }

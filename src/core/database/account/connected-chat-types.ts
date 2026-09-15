@@ -70,15 +70,13 @@ type CanonicalMessageFields = Readonly<{
   kind: "user" | "system";
   localId: string;
   media: readonly ConnectedChatMedia[];
+  senderAvatarUrl: string | null;
   senderId: string | null;
+  senderNickname: string | null;
   serverMessageId: string;
 }>;
 
-export type ConnectedHistoryMessageUpsert = CanonicalMessageFields &
-  Readonly<{
-    senderAvatarUrl: string | null;
-    senderNickname: string | null;
-  }>;
+export type ConnectedHistoryMessageUpsert = CanonicalMessageFields;
 
 export type ConnectedCanonicalMessageUpsert = CanonicalMessageFields;
 

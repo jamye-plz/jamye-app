@@ -249,7 +249,9 @@ export function toCanonicalUpsert(
     kind: wire.type,
     localId,
     media: wire.media.map(toConnectedMedia),
+    senderAvatarUrl: wire.senderAvatarUrl,
     senderId: wire.senderId,
+    senderNickname: wire.senderNickname,
     serverMessageId: wire.id,
   };
 }

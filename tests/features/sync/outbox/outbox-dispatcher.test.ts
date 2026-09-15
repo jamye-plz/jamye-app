@@ -42,7 +42,9 @@ function canonicalUpsert(
     kind: "user",
     localId: "local-1",
     media: [],
+    senderAvatarUrl: null,
     senderId: USER_ID,
+    senderNickname: null,
     serverMessageId: "server-1",
     ...overrides,
   };
