@@ -125,3 +125,9 @@ https://expo.dev/notifications 의 테스트 도구에 `ExponentPushToken[...]`�
 서버와 무관하게 기기 수신을 확인할 수 있다. 서버 경유 검증은 다른 계정이 새 주제·메시지를 만들 때
 수신되는지로 확인한다. 이 검증은 자동화된 로컬 테스트를 대체하지 않으며, 결과는
 [M12 evidence](evidence/M12.md)의 "실기기 푸시 증거" 절에 자동 검사 증거와 분리해 기록한다.
+
+## 재빌드 시 알려진 함정
+
+- `expo prebuild --clean`의 `pod install`이 nix `bash --noprofile --norc` 안에서 `Encoding::CompatibilityError`(Unicode Normalization not appropriate for ASCII-8BIT)로 실패하면 locale 문제다. `ios/` 안에서 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install --repo-update`로 재실행하면 된다(Android 쪽 prebuild 결과는 그대로 유효).
+- prebuild는 루트 `google-services.json`을 `android/app/google-services.json`으로 복사한다. 생성 산출물이며 gitignore 대상이고, architecture checker는 이 경로를 명시적으로 허용한다.
+- Android 에뮬레이터라도 Google Play 이미지면 실제 Expo push token을 받는다. 권한 프롬프트는 Android 13+에서 최초 1회 표시된다.
