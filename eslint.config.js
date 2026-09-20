@@ -30,6 +30,9 @@ const HTTP_ADAPTER_FILES = [
   "src/features/chat/data/chat-api.ts",
   "src/features/topics/data/topics-api.ts",
   "src/features/sync/realtime/sync-api.ts",
+  "src/features/notifications/data/notifications-api.ts",
+  "src/features/notifications/data/push-installations-api.ts",
+  "src/features/notifications/data/notifications-http.ts",
 ];
 
 const REALTIME_SOCKET_ADAPTER_FILES = [

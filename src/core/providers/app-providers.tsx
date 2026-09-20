@@ -28,6 +28,8 @@ import type { GroupsStore } from "@/features/groups/model/groups-store";
 import { GroupsProvider } from "@/features/groups/model/groups-provider";
 import { createChatApi } from "@/features/chat/data/chat-api";
 import { MediaProvider } from "@/features/media/ui/media-provider";
+import { PushTapHandoffListener } from "@/features/notifications/ui/push-tap-handoff-listener";
+import { PushLifecycleProvider } from "@/features/notifications/model/push-lifecycle-provider";
 import {
   createConnectedChatStore,
   toCanonicalUpsert,
@@ -326,18 +328,24 @@ function ConnectedRuntimeProviders({
 >) {
   return (
     <SessionProvider createController={createSessionController} origin={origin}>
-      <MediaProvider>
-        <AccountScopeBridge accountScopeFactory={accountScopeFactory}>
-          <GroupsStoreBridge
-            origin={origin}
-            groupsStoreFactory={groupsStoreFactory}
-          >
-            <ChatStoreBridge>
-              <TopicsStoreBridge>{children}</TopicsStoreBridge>
-            </ChatStoreBridge>
-          </GroupsStoreBridge>
-        </AccountScopeBridge>
-      </MediaProvider>
+      {/* Self-contained: reads useSession() internally, drives the
+       * notifications-store singleton's account-scoped setPrincipal, and
+       * wires A2's adapter tap/foreground listeners. */}
+      <PushTapHandoffListener />
+      <PushLifecycleProvider origin={origin}>
+        <MediaProvider>
+          <AccountScopeBridge accountScopeFactory={accountScopeFactory}>
+            <GroupsStoreBridge
+              origin={origin}
+              groupsStoreFactory={groupsStoreFactory}
+            >
+              <ChatStoreBridge>
+                <TopicsStoreBridge>{children}</TopicsStoreBridge>
+              </ChatStoreBridge>
+            </GroupsStoreBridge>
+          </AccountScopeBridge>
+        </MediaProvider>
+      </PushLifecycleProvider>
     </SessionProvider>
   );
 }

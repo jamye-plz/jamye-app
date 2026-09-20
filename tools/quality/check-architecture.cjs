@@ -165,7 +165,6 @@ const DIRECT_DEPENDENCY_DENYLIST = Object.freeze([
   "realm",
   "@nozbe/watermelondb",
   "@react-native-async-storage/async-storage",
-  "expo-notifications",
   "axios",
   "ky",
   "ws",
@@ -320,6 +319,8 @@ const ACTIVE_CONTRACT_SOURCE_FILES = Object.freeze([
   ...M6_CONTRACT_SOURCE_FILES,
   "src/core/contracts/server/topics.ts",
   "src/core/contracts/server/media.ts",
+  "src/core/contracts/server/notifications.ts",
+  "src/core/contracts/server/push-installations.ts",
 ]);
 
 const ACTIVE_CONTRACT_TOOL_FILES = Object.freeze([
@@ -707,6 +708,22 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     "tests/shared/ui/app-screen.test.tsx",
     "tests/features/media/platform/media-object-cache.test.ts",
     "tests/features/media/platform/file-share-holds.test.ts",
+    "tests/app/notifications-route.test.tsx",
+    "tests/features/notifications/model/notification-copy.test.ts",
+    "tests/features/notifications/model/notifications-store.test.ts",
+    "tests/features/notifications/model/push-lifecycle-provider.test.tsx",
+    "tests/features/notifications/model/push-tap-handoff.test.ts",
+    "tests/features/notifications/ui/notification-settings-section.test.tsx",
+    "tests/features/notifications/ui/notifications-inbox-screen.test.tsx",
+    "tests/features/notifications/ui/push-tap-handoff-listener.test.tsx",
+    "tests/core/contracts/server/notifications.test.ts",
+    "tests/core/contracts/server/push-installations.test.ts",
+    "tests/features/notifications/data/notification-destination-resolver.test.ts",
+    "tests/features/notifications/data/notifications-api.test.ts",
+    "tests/features/notifications/data/push-installations-api.test.ts",
+    "tests/features/notifications/model/push-lifecycle.test.ts",
+    "tests/features/notifications/platform/installation-id-store.test.ts",
+    "tests/features/notifications/platform/push-notifications-adapter.test.ts",
     "tests/features/media/model/video-thumbnail-cache.test.ts",
     "tests/features/auth/oauth-callback-screen.test.tsx",
     "tests/features/media/ui/topic-image-upload-button.test.tsx",
@@ -762,6 +779,7 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   "expo-constants": "~57.0.17",
   "expo-crypto": "~57.0.2",
   "expo-dev-client": "~57.0.18",
+  "expo-device": "~57.0.2",
   "expo-document-picker": "~57.0.1",
   "expo-file-system": "~57.0.6",
   "expo-font": "~57.0.3",
@@ -770,6 +788,7 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   "expo-image-manipulator": "~57.0.16",
   "expo-image-picker": "~57.0.16",
   "expo-linking": "~57.0.9",
+  "expo-notifications": "~57.0.20",
   "expo-router": "~57.0.20",
   "expo-secure-store": "~57.0.3",
   "expo-sharing": "~57.0.18",
@@ -844,11 +863,11 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "2d4ec729b6b262af52acdb11cd4a2a1e79bf5fbb765cfa9e53b02840cb2bb95f";
+  "7cff493646ef92c2050a9b3cff18159dea47a1c9d4e6ebc8a4552f74256cbf04";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
-  slug: "jamye-development",
+  slug: "jamye-app",
   iosBundleIdentifier: "dev.local.jamyeapp",
   androidPackage: "dev.local.jamyeapp",
 });
@@ -861,6 +880,11 @@ const APPROVED_OAUTH_NATIVE_PLUGINS = Object.freeze([
   "expo-web-browser",
   "expo-secure-store",
 ]);
+// M12: Expo push. The plugin wires the APNs entitlement and Android channel
+// defaults; google-services.json holds public Firebase identifiers only.
+const APPROVED_PUSH_NOTIFICATIONS_PLUGIN = "expo-notifications";
+const APPROVED_ANDROID_GOOGLE_SERVICES_FILE = "./google-services.json";
+const APPROVED_FIREBASE_ANDROID_CONFIG = "google-services.json";
 const APPROVED_MEDIA_PICKER_PLUGIN = Object.freeze([
   "expo-image-picker",
   Object.freeze({
@@ -1228,6 +1252,45 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "tests/features/media/platform/media-object-cache.test.ts",
   "src/features/media/platform/file-share-holds.ts",
   "tests/features/media/platform/file-share-holds.test.ts",
+  "google-services.json",
+  "src/app/notifications.tsx",
+  "src/features/notifications/model/notification-copy.ts",
+  "src/features/notifications/model/notifications-store.ts",
+  "src/features/notifications/model/push-tap-handoff.ts",
+  "src/features/notifications/ui/notifications-inbox-screen.tsx",
+  "src/features/notifications/ui/push-tap-handoff-listener.tsx",
+  "tests/app/notifications-route.test.tsx",
+  "tests/features/notifications/model/notification-copy.test.ts",
+  "tests/features/notifications/model/notifications-store.test.ts",
+  "tests/features/notifications/model/push-tap-handoff.test.ts",
+  "tests/features/notifications/ui/notifications-inbox-screen.test.tsx",
+  "tests/features/notifications/ui/push-tap-handoff-listener.test.tsx",
+  "src/features/notifications/model/push-lifecycle-provider.tsx",
+  "src/features/notifications/ui/notification-settings-section.tsx",
+  "tests/features/notifications/model/push-lifecycle-provider.test.tsx",
+  "tests/features/notifications/ui/notification-settings-section.test.tsx",
+  "docs/evidence/M12.md",
+  "docs/adr/0007-push-installation-device-scope.md",
+  "docs/push-development.md",
+  "src/features/notifications/data/notifications-api.ts",
+  "src/features/notifications/data/notifications-http.ts",
+  "src/features/notifications/data/push-installations-api.ts",
+  "src/features/notifications/data/notification-destination-resolver.ts",
+  "src/core/contracts/server/notifications.ts",
+  "src/core/contracts/server/push-installations.ts",
+  "src/features/notifications/platform/push-notifications-adapter.ts",
+  "src/features/notifications/platform/installation-id-store.ts",
+  "src/features/notifications/model/push-lifecycle.ts",
+  "tests/__mocks__/expo-notifications.ts",
+  "tests/__mocks__/expo-device.ts",
+  "tests/features/notifications/data/notifications-api.test.ts",
+  "tests/features/notifications/data/push-installations-api.test.ts",
+  "tests/features/notifications/data/notification-destination-resolver.test.ts",
+  "tests/core/contracts/server/notifications.test.ts",
+  "tests/core/contracts/server/push-installations.test.ts",
+  "tests/features/notifications/platform/push-notifications-adapter.test.ts",
+  "tests/features/notifications/platform/installation-id-store.test.ts",
+  "tests/features/notifications/model/push-lifecycle.test.ts",
   "tests/features/media/model/video-thumbnail-cache.test.ts",
   "docs/adr/0005-native-ui-toolkit-adoption.md",
   "docs/adr/0006-media-video-posters.md",
@@ -2222,12 +2285,13 @@ function checkExpoBasePreservation(snapshot, violations) {
     APPROVED_DEV_CLIENT_PLUGIN,
     ...APPROVED_OAUTH_NATIVE_PLUGINS,
     APPROVED_MEDIA_PICKER_PLUGIN,
+    APPROVED_PUSH_NOTIFICATIONS_PLUGIN,
   ];
   if (!deepEqual(plugins, expectedPlugins)) {
     pushViolation(
       violations,
       "expo-base-preservation",
-      "Development config plugins must equal the preserved base plugins followed by the fixed dev client, OAuth and selection-only media plugin.",
+      "Development config plugins must equal the preserved base plugins followed by the fixed dev client, OAuth, selection-only media and push notification plugins.",
     );
   }
 
@@ -2247,6 +2311,7 @@ function checkExpoBasePreservation(snapshot, violations) {
     ...APPROVED_EXPO_BASE.android,
     package: APPROVED_DEVELOPMENT_IDENTITY.androidPackage,
     permissions: APPROVED_PREBUILD_ANDROID_PERMISSIONS,
+    googleServicesFile: APPROVED_ANDROID_GOOGLE_SERVICES_FILE,
   };
   if (!deepEqual(android, expectedAndroid)) {
     pushViolation(
@@ -2364,7 +2429,9 @@ function checkGeneratedNativeOutput(snapshot, violations) {
     ? generatedOutputs.keystoreFiles
     : [];
   const disallowedKeystoreFiles = keystoreFiles.filter(
-    (file) => file !== SOLE_ALLOWED_GENERATED_KEYSTORE,
+    (file) =>
+      file !== SOLE_ALLOWED_GENERATED_KEYSTORE &&
+      file !== APPROVED_FIREBASE_ANDROID_CONFIG,
   );
   if (disallowedKeystoreFiles.length > 0) {
     pushViolation(

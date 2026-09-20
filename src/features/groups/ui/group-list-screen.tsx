@@ -1,10 +1,11 @@
 import { BottomSheet, Host, List, ListItem } from "@expo/ui";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { FlatList, RefreshControl, View } from "react-native";
+import { useCallback, useState, useSyncExternalStore } from "react";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appSpacing } from "@/core/theme/tokens";
+import { notificationsStore } from "@/features/notifications/model/notifications-store";
 import { AppText } from "@/shared/ui/app-text";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { GroupedRow } from "@/shared/ui/grouped-row";
@@ -32,10 +33,15 @@ export function GroupListScreen() {
   const { colors } = useAppTheme();
   const router = useRouter();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { unreadCount } = useSyncExternalStore(
+    notificationsStore.subscribe,
+    notificationsStore.getState,
+  );
 
   useFocusEffect(
     useCallback(() => {
       void actions.loadGroups();
+      void notificationsStore.actions.refresh();
     }, [actions]),
   );
 
@@ -51,6 +57,28 @@ export function GroupListScreen() {
                 onPress={() => setSheetOpen(true)}
                 symbol="add"
               />
+              <View>
+                <HeaderIconButton
+                  accessibilityLabel={
+                    unreadCount > 0
+                      ? `알림함, 읽지 않은 알림 ${unreadCount}개`
+                      : "알림함"
+                  }
+                  onPress={() => router.push({ pathname: "/notifications" })}
+                  symbol="notification"
+                />
+                {unreadCount > 0 ? (
+                  <View
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                    style={[styles.badge, { backgroundColor: colors.error }]}
+                  >
+                    <AppText color="white" style={styles.badgeText}>
+                      {unreadCount > 99 ? "99+" : String(unreadCount)}
+                    </AppText>
+                  </View>
+                ) : null}
+              </View>
               <HeaderIconButton
                 accessibilityLabel="계정"
                 onPress={() => router.push("/account")}
@@ -160,3 +188,20 @@ export function GroupListScreen() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  badge: {
+    alignItems: "center",
+    borderRadius: 9,
+    minWidth: 18,
+    paddingHorizontal: 3,
+    position: "absolute",
+    right: -2,
+    top: -2,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 14,
+  },
+});

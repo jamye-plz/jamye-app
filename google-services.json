@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1004001293504",
+    "project_id": "jamye-app-981024",
+    "storage_bucket": "jamye-app-981024.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1004001293504:android:6d3ec6629a64bda9176925",
+        "android_client_info": {
+          "package_name": "dev.local.jamyeapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAunkJ-3lKrLkvMKtYKRT-8KScq-SxaVsc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

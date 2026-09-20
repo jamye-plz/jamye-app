@@ -331,6 +331,22 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   "tests/shared/ui/app-screen.test.tsx",
   "tests/features/media/platform/media-object-cache.test.ts",
   "tests/features/media/platform/file-share-holds.test.ts",
+  "tests/app/notifications-route.test.tsx",
+  "tests/features/notifications/model/notification-copy.test.ts",
+  "tests/features/notifications/model/notifications-store.test.ts",
+  "tests/features/notifications/model/push-lifecycle-provider.test.tsx",
+  "tests/features/notifications/model/push-tap-handoff.test.ts",
+  "tests/features/notifications/ui/notification-settings-section.test.tsx",
+  "tests/features/notifications/ui/notifications-inbox-screen.test.tsx",
+  "tests/features/notifications/ui/push-tap-handoff-listener.test.tsx",
+  "tests/core/contracts/server/notifications.test.ts",
+  "tests/core/contracts/server/push-installations.test.ts",
+  "tests/features/notifications/data/notification-destination-resolver.test.ts",
+  "tests/features/notifications/data/notifications-api.test.ts",
+  "tests/features/notifications/data/push-installations-api.test.ts",
+  "tests/features/notifications/model/push-lifecycle.test.ts",
+  "tests/features/notifications/platform/installation-id-store.test.ts",
+  "tests/features/notifications/platform/push-notifications-adapter.test.ts",
   "tests/features/media/model/video-thumbnail-cache.test.ts",
   "tests/features/auth/oauth-callback-screen.test.tsx",
   "tests/features/media/ui/topic-image-upload-button.test.tsx",
@@ -381,6 +397,7 @@ const APPROVED_DEPENDENCIES = {
   "expo-constants": "~57.0.17",
   "expo-crypto": "~57.0.2",
   "expo-dev-client": "~57.0.18",
+  "expo-device": "~57.0.2",
   "expo-document-picker": "~57.0.1",
   "expo-file-system": "~57.0.6",
   "expo-glass-effect": "57.0.2",
@@ -390,6 +407,7 @@ const APPROVED_DEPENDENCIES = {
   "expo-font": "~57.0.3",
   "expo-image-manipulator": "~57.0.16",
   "expo-linking": "~57.0.9",
+  "expo-notifications": "~57.0.20",
   "expo-router": "~57.0.20",
   "expo-secure-store": "~57.0.3",
   "expo-splash-screen": "~57.0.8",
@@ -431,7 +449,7 @@ const APPROVED_DEPENDENCY_OVERRIDES = {
 };
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "2d4ec729b6b262af52acdb11cd4a2a1e79bf5fbb765cfa9e53b02840cb2bb95f";
+  "7cff493646ef92c2050a9b3cff18159dea47a1c9d4e6ebc8a4552f74256cbf04";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -586,6 +604,8 @@ const ACTIVE_CONTRACT_SOURCE_FILES = [
   ...M6_CONTRACT_SOURCE_FILES,
   "src/core/contracts/server/topics.ts",
   "src/core/contracts/server/media.ts",
+  "src/core/contracts/server/notifications.ts",
+  "src/core/contracts/server/push-installations.ts",
 ];
 const ACTIVE_CONTRACT_TOOL_FILES = [
   ...M4_CONTRACT_TOOL_FILES,
@@ -603,7 +623,7 @@ function buildValidRepositorySnapshot() {
     scheme?: string;
   };
   resolvedDevelopment.name = "Jamye Development";
-  resolvedDevelopment.slug = "jamye-development";
+  resolvedDevelopment.slug = "jamye-app";
   (resolvedDevelopment.ios as Record<string, unknown>).bundleIdentifier =
     "dev.local.jamyeapp";
   (resolvedDevelopment.android as Record<string, unknown>).package =
@@ -625,7 +645,10 @@ function buildValidRepositorySnapshot() {
         microphonePermission: false,
       },
     ],
+    "expo-notifications",
   ];
+  (resolvedDevelopment.android as Record<string, unknown>).googleServicesFile =
+    "./google-services.json";
   resolvedDevelopment.scheme = "jamye";
 
   return {
@@ -1561,10 +1584,11 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     ).toBe(false);
   });
 
-  test("authorizes M10 closure and M11 implementation evidence without opening future paths", () => {
+  test("authorizes M10-M12 evidence without opening future paths", () => {
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M11.md")).toBe(true);
-    expect(isAuthorizedWorkingTreePath("docs/evidence/M12.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M12.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M13.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10-private.md")).toBe(
       false,
     );

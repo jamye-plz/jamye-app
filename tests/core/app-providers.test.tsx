@@ -14,6 +14,13 @@ import {
 import type { AccountSyncDependencies } from "@/features/sync/model/account-sync";
 import type { AuthorizedChatRequest } from "@/features/chat/model/connected-chat-store";
 
+// M12: `PushTapHandoffListener` (mounted inside the connected provider tree)
+// navigates through expo-router; keep the real router out of this composition
+// test the same way the screen tests do.
+jest.mock("expo-router", () => ({
+  useRouter: () => ({ push: jest.fn() }),
+}));
+
 jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
   __esModule: true,
   default: jest.fn(),
@@ -672,6 +679,58 @@ describe("M6-04 connected-auth mode composition", () => {
       });
     });
     expect(scope.setPrincipal).toHaveBeenLastCalledWith(null);
+  });
+
+  test("M12 binds the notifications store singleton to the session principal and clears it on sign-out", async () => {
+    const controller = fakeSessionController();
+    const scope = fakeAccountScope();
+    const { AppProviders } = loadProviderContract();
+    const { notificationsStore } = jest.requireActual<
+      typeof import("../../src/features/notifications/model/notifications-store")
+    >("../../src/features/notifications/model/notifications-store");
+    const setPrincipal = jest.spyOn(notificationsStore, "setPrincipal");
+
+    try {
+      await render(
+        <AppProviders
+          createAccountScope={() => scope}
+          createSessionController={() => controller}
+        >
+          <Text>child</Text>
+        </AppProviders>,
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(setPrincipal).toHaveBeenLastCalledWith(null, null);
+
+      await act(async () => {
+        controller.publish({
+          status: "signed-in",
+          profile: principalProfile,
+          message: null,
+        });
+      });
+      expect(setPrincipal).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          origin: "https://api.example",
+          userId: principalProfile.id,
+          epoch: controller.getGeneration(),
+        }),
+        expect.any(Function),
+      );
+
+      await act(async () => {
+        controller.publish({
+          status: "signed-out",
+          profile: null,
+          message: null,
+        });
+      });
+      expect(setPrincipal).toHaveBeenLastCalledWith(null, null);
+    } finally {
+      setPrincipal.mockRestore();
+    }
   });
 
   test("supports an explicit account-scope retry after an error, with no fixture fallback", async () => {

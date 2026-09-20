@@ -317,3 +317,37 @@ export function parseOAuthCallbackQuery(
         state: state as string,
       };
 }
+
+// M12 (N1/N2): notification inbox page + item wire shapes. args is a
+// server D9-defined single-key record (author_display_name for new_topic,
+// sender_display_name for chat_unread); unrecognized keys/types are the
+// consumer's (notification-copy.ts) responsibility to render safely, never
+// this validator's.
+export type NotificationArgsWire = components["schemas"]["NotificationArgs"];
+export type NotificationWire = components["schemas"]["Notification"];
+export type NotificationPageWire = components["schemas"]["NotificationPage"];
+export const validateNotification = compileComponentSchema("Notification");
+export const validateNotificationPage =
+  compileComponentSchema("NotificationPage");
+
+// M12 (P2/P3/P4): Expo push installation lifecycle wire shapes.
+export type ExpoInstallationCreateWire =
+  components["schemas"]["ExpoInstallationCreate"];
+export type ExpoInstallationPutWire =
+  components["schemas"]["ExpoInstallationPut"];
+export type PushInstallationWire = components["schemas"]["PushInstallation"];
+export const validateExpoInstallationCreate = compileComponentSchema(
+  "ExpoInstallationCreate",
+);
+export const validateExpoInstallationPut = compileComponentSchema(
+  "ExpoInstallationPut",
+);
+export const validatePushInstallation =
+  compileComponentSchema("PushInstallation");
+
+// Push `data` payload delivered into expo-notifications' response content on
+// tap (consumed by push-tap-handoff.ts, a later M12 task); validated here
+// alongside the other M12 wire shapes so every task shares one compiled ajv
+// instance.
+export type PushTapHandoffWire = components["schemas"]["PushTapHandoff"];
+export const validatePushTapHandoff = compileComponentSchema("PushTapHandoff");

@@ -58,6 +58,26 @@ jest.mock("@/features/home/ui/connection-diagnostics", () => {
     ),
   };
 });
+const mockPushDisable = jest.fn().mockResolvedValue(undefined);
+jest.mock("@/features/notifications/model/push-lifecycle-provider", () => ({
+  usePushLifecycle: jest.fn(() => ({
+    disable: mockPushDisable,
+    enable: jest.fn(),
+    expoToken: null,
+    previewEnabled: false,
+    setMessagePreview: jest.fn(),
+    state: { status: "deleted" },
+  })),
+}));
+jest.mock("@/features/notifications/ui/notification-settings-section", () => {
+  const { Text: RNText } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    NotificationSettingsSection: () => (
+      <RNText testID="notification-settings-section">알림 설정</RNText>
+    ),
+  };
+});
 jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
   __esModule: true,
   default: jest.fn(() => "light"),
@@ -105,6 +125,10 @@ describe("account screen", () => {
     expect(button).toBeDisabled();
     await fireEvent.press(button);
     expect(mockLogout).toHaveBeenCalledTimes(1);
+    expect(mockPushDisable).toHaveBeenCalledTimes(1);
+    expect(mockPushDisable.mock.invocationCallOrder[0]).toBeLessThan(
+      mockLogout.mock.invocationCallOrder[0],
+    );
     await act(async () => {
       resolveLogout();
       await Promise.resolve();

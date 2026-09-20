@@ -9,6 +9,8 @@ import { AppSymbol } from "@/shared/ui/app-symbol";
 import { GroupedRow } from "@/shared/ui/grouped-row";
 import { GroupedSection } from "@/shared/ui/grouped-section";
 import { NativeButton } from "@/shared/ui/native-button";
+import { usePushLifecycle } from "@/features/notifications/model/push-lifecycle-provider";
+import { NotificationSettingsSection } from "@/features/notifications/ui/notification-settings-section";
 
 import { ConnectionDiagnostics } from "./connection-diagnostics";
 
@@ -21,6 +23,7 @@ const STORAGE_STATUS_TEXT = {
 export function AccountScreen() {
   const session = useSession();
   const account = useAccountScope();
+  const pushLifecycle = usePushLifecycle();
   const [loggingOut, setLoggingOut] = useState(false);
   const logoutPending = useRef(false);
   const profile = session.state.profile;
@@ -29,11 +32,17 @@ export function AccountScreen() {
     if (logoutPending.current) return;
     logoutPending.current = true;
     setLoggingOut(true);
-    void session.logout().finally(() => {
-      logoutPending.current = false;
-      setLoggingOut(false);
-    });
-  }, [session]);
+    // P4 (best-effort delete) must fire while this account's access token is
+    // still valid, before `session.logout()` clears local credentials.
+    void pushLifecycle
+      .disable()
+      .catch(() => undefined)
+      .then(() => session.logout())
+      .finally(() => {
+        logoutPending.current = false;
+        setLoggingOut(false);
+      });
+  }, [pushLifecycle, session]);
 
   if (!session.principal || !profile) return null;
 
@@ -77,6 +86,7 @@ export function AccountScreen() {
         <GroupedSection title="서버 연결 진단">
           <ConnectionDiagnostics />
         </GroupedSection>
+        <NotificationSettingsSection />
         <GroupedSection>
           <GroupedRow
             accessibilityLabel="로그아웃"

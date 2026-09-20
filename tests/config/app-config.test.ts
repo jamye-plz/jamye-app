@@ -35,7 +35,7 @@ const PINNED_BASE = {
 
 const DEVELOPMENT_IDENTITY = {
   name: "Jamye Development",
-  slug: "jamye-development",
+  slug: "jamye-app",
   iosBundleIdentifier: "dev.local.jamyeapp",
   androidPackage: "dev.local.jamyeapp",
 };
@@ -50,6 +50,11 @@ const MEDIA_PICKER_PLUGIN = [
     microphonePermission: false,
   },
 ];
+// M12: Expo push wiring (EAS project link, FCM V1 config, notifications plugin).
+const PUSH_NOTIFICATIONS_PLUGIN = "expo-notifications";
+const EAS_OWNER = "jamye-plz";
+const EAS_PROJECT_ID = "6a27e581-0093-4e75-bd88-01be99fcdab5";
+const ANDROID_GOOGLE_SERVICES_FILE = "./google-services.json";
 const INITIAL_APP_VARIANT = process.env.APP_VARIANT;
 const INITIAL_PUBLIC_APP_MODE = process.env.EXPO_PUBLIC_APP_MODE;
 
@@ -201,7 +206,7 @@ describe("M3-I1 Expo configuration contract", () => {
     expect(loadBaseConfig()).toEqual(PINNED_BASE);
   });
 
-  test("derives development from the complete base and adds only the approved identity and launcher plugin", () => {
+  test("derives development from the complete base and adds only the approved identity, EAS link, and launcher/push plugins", () => {
     const base = loadBaseConfig();
     const resolved = resolveAppConfig("development");
 
@@ -209,6 +214,7 @@ describe("M3-I1 Expo configuration contract", () => {
       ...base,
       name: DEVELOPMENT_IDENTITY.name,
       slug: DEVELOPMENT_IDENTITY.slug,
+      owner: EAS_OWNER,
       ios: {
         ...(base.ios as UnknownRecord),
         bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier,
@@ -216,13 +222,19 @@ describe("M3-I1 Expo configuration contract", () => {
       android: {
         ...(base.android as UnknownRecord),
         package: DEVELOPMENT_IDENTITY.androidPackage,
+        googleServicesFile: ANDROID_GOOGLE_SERVICES_FILE,
       },
       scheme: "jamye",
+      extra: {
+        eas: { projectId: EAS_PROJECT_ID },
+        appVariant: "development",
+      },
       plugins: [
         ...(base.plugins as unknown[]),
         DEV_CLIENT_PLUGIN,
         ...OAUTH_NATIVE_PLUGINS,
         MEDIA_PICKER_PLUGIN,
+        PUSH_NOTIFICATIONS_PLUGIN,
       ],
     });
     expect(resolved).toMatchObject({
@@ -237,6 +249,7 @@ describe("M3-I1 Expo configuration contract", () => {
       DEV_CLIENT_PLUGIN,
       ...OAUTH_NATIVE_PLUGINS,
       MEDIA_PICKER_PLUGIN,
+      PUSH_NOTIFICATIONS_PLUGIN,
     ]);
   });
 
