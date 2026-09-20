@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useSession } from "@/core/providers/session-provider";
 import {
+  configureForegroundPresentation as defaultConfigureForegroundPresentation,
+  ensureAndroidDefaultChannel as defaultEnsureAndroidDefaultChannel,
   getLastNotificationResponse as defaultGetLastNotificationResponse,
   onNotificationReceived as defaultOnNotificationReceived,
   onNotificationResponse as defaultOnNotificationResponse,
@@ -38,8 +40,12 @@ export function PushTapHandoffListener({
   onNotificationReceived = defaultOnNotificationReceived,
   getLastNotificationResponse = defaultGetLastNotificationResponse,
   createHandoff = createPushTapHandoff,
+  configureForegroundPresentation = defaultConfigureForegroundPresentation,
+  ensureAndroidDefaultChannel = defaultEnsureAndroidDefaultChannel,
 }: Readonly<{
   store?: NotificationsStore;
+  configureForegroundPresentation?: () => void;
+  ensureAndroidDefaultChannel?: () => Promise<void>;
   onNotificationResponse?: (
     listener: (handoff: PushTapHandoff) => void,
   ) => Unsubscribe;
@@ -100,6 +106,13 @@ export function PushTapHandoffListener({
     },
     [router],
   );
+
+  // One-time platform presentation setup: foreground banners/list on both
+  // platforms and the Android notification channel pushes are delivered on.
+  useEffect(() => {
+    configureForegroundPresentation();
+    void ensureAndroidDefaultChannel().catch(() => undefined);
+  }, [configureForegroundPresentation, ensureAndroidDefaultChannel]);
 
   useEffect(() => {
     const unsubscribeResponse = onNotificationResponse((handoff) => {

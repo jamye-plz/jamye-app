@@ -55,14 +55,31 @@ describe("createPushTapHandoff.handle", () => {
     });
   });
 
-  test("routes to the topic path when the destination kind is topic", async () => {
+  test("a chat notification in a topic conversation opens the topic's chatroom directly", async () => {
     const d = deps({
       resolveDestination: jest
         .fn()
         .mockResolvedValue(resolved({ kind: "topic", topicId: "topic-1" })),
     });
     const controller = createPushTapHandoff(d);
-    const outcome = await controller.handle(handoff());
+    const outcome = await controller.handle(handoff({ type: "chat_unread" }));
+    expect(outcome).toEqual({
+      route: {
+        params: { chatroomId: "conv-1", groupId: "group-1" },
+        pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
+      },
+      status: "navigate",
+    });
+  });
+
+  test("a new-topic notification opens the topic page", async () => {
+    const d = deps({
+      resolveDestination: jest
+        .fn()
+        .mockResolvedValue(resolved({ kind: "topic", topicId: "topic-1" })),
+    });
+    const controller = createPushTapHandoff(d);
+    const outcome = await controller.handle(handoff({ type: "new_topic" }));
     expect(outcome).toEqual({
       route: {
         params: { groupId: "group-1", topicId: "topic-1" },

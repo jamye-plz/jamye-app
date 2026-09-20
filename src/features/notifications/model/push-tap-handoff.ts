@@ -37,23 +37,35 @@ export type PushTapHandoffDeps = Readonly<{
   getLastNotificationResponse: () => Promise<PushTapHandoff | null>;
 }>;
 
-function routeFor(destination: NotificationDestination): PushTapRoute | null {
+/**
+ * Where a notification lands once its conversation is resolved. A new-topic
+ * notification opens the topic itself; every chat notification (main or
+ * topic conversation) opens the chatroom directly, so a tap never stops on
+ * the topic page and asks the user to press "이 주제에서 대화하기" again.
+ * Shared by the push tap handoff and the inbox rows.
+ */
+export function routeForNotification(
+  destination: NotificationDestination,
+  type: PushTapHandoff["type"],
+): PushTapRoute | null {
   if (destination.status !== "resolved") return null;
-  return destination.kind === "topic"
-    ? {
-        params: {
-          groupId: destination.groupId,
-          topicId: destination.topicId ?? "",
-        },
-        pathname: "/groups/[groupId]/topics/[topicId]",
-      }
-    : {
-        params: {
-          chatroomId: destination.chatroomId,
-          groupId: destination.groupId,
-        },
-        pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
-      };
+  if (
+    type === "new_topic" &&
+    destination.kind === "topic" &&
+    destination.topicId
+  ) {
+    return {
+      params: { groupId: destination.groupId, topicId: destination.topicId },
+      pathname: "/groups/[groupId]/topics/[topicId]",
+    };
+  }
+  return {
+    params: {
+      chatroomId: destination.chatroomId,
+      groupId: destination.groupId,
+    },
+    pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
+  };
 }
 
 export function createPushTapHandoff(deps: PushTapHandoffDeps) {
@@ -68,7 +80,7 @@ export function createPushTapHandoff(deps: PushTapHandoffDeps) {
     // resolved destination (the user still tapped a real notification).
     await deps.markRead(handoff.notificationId).catch(() => {});
     const destination = await deps.resolveDestination(handoff.conversationId);
-    const route = routeFor(destination);
+    const route = routeForNotification(destination, handoff.type);
     return route ? { route, status: "navigate" } : { status: "inaccessible" };
   }
 

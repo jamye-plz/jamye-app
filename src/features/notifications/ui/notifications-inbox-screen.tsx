@@ -20,6 +20,7 @@ import { NativeButton } from "@/shared/ui/native-button";
 
 import type { NotificationDestination } from "../data/notification-destination-resolver";
 import { getNotificationCopy } from "../model/notification-copy";
+import { routeForNotification } from "../model/push-tap-handoff";
 import type {
   NotificationsErrorOutcome,
   NotificationsStore,
@@ -72,7 +73,7 @@ export function NotificationsInboxScreen({
         setInaccessibleId(notification.id);
         return;
       }
-      navigateToDestination(destination);
+      navigateToDestination(destination, notification.type);
     } finally {
       setResolvingId(null);
     }
@@ -80,24 +81,10 @@ export function NotificationsInboxScreen({
 
   function navigateToDestination(
     destination: Extract<NotificationDestination, { status: "resolved" }>,
+    type: Notification["type"],
   ): void {
-    if (destination.kind === "topic") {
-      router.push({
-        params: {
-          groupId: destination.groupId,
-          topicId: destination.topicId ?? "",
-        },
-        pathname: "/groups/[groupId]/topics/[topicId]",
-      });
-    } else {
-      router.push({
-        params: {
-          chatroomId: destination.chatroomId,
-          groupId: destination.groupId,
-        },
-        pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
-      });
-    }
+    const route = routeForNotification(destination, type);
+    if (route) router.push(route);
   }
 
   return (

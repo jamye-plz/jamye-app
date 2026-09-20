@@ -97,6 +97,24 @@ describe("PushTapHandoffListener", () => {
     expect(harness.unsubscribeReceived).toHaveBeenCalledTimes(1);
   });
 
+  test("installs the foreground presentation handler and the Android default channel once on mount", async () => {
+    const harness = listenerHarness();
+    const configureForegroundPresentation = jest.fn();
+    const ensureAndroidDefaultChannel = jest.fn().mockResolvedValue(undefined);
+    const props = {
+      configureForegroundPresentation,
+      ensureAndroidDefaultChannel,
+      getLastNotificationResponse: jest.fn().mockResolvedValue(null),
+      onNotificationReceived: harness.onNotificationReceived,
+      onNotificationResponse: harness.onNotificationResponse,
+      store: fakeStore() as unknown as NotificationsStore,
+    };
+    const screen = await render(<PushTapHandoffListener {...props} />);
+    await screen.rerender(<PushTapHandoffListener {...props} />);
+    expect(configureForegroundPresentation).toHaveBeenCalledTimes(1);
+    expect(ensureAndroidDefaultChannel).toHaveBeenCalledTimes(1);
+  });
+
   test("binds the session principal to the store on mount, rebinds on sign-in, and clears on unmount", async () => {
     const harness = listenerHarness();
     const store = fakeStore() as unknown as NotificationsStore & {
