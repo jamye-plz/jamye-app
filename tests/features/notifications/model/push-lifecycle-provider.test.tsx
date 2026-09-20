@@ -205,7 +205,8 @@ describe("push-lifecycle-provider", () => {
         userId: "user-a",
       };
       const httpPort = createFakeHttpPort();
-      let tokenChangeListener: (() => void) | undefined;
+      let tokenChangeListener:
+        ((event: { type: "android"; data: string }) => void) | undefined;
       const adapter = createFakeAdapter({
         getExpoPushToken: jest
           .fn()
@@ -217,10 +218,12 @@ describe("push-lifecycle-provider", () => {
             ok: true,
             token: "ExponentPushToken[token-2]",
           }),
-        onTokenChanged: jest.fn((listener: () => void) => {
-          tokenChangeListener = listener;
-          return () => undefined;
-        }),
+        onTokenChanged: jest.fn(
+          (listener: (event: { type: "android"; data: string }) => void) => {
+            tokenChangeListener = listener;
+            return () => undefined;
+          },
+        ),
       });
       await renderProvider({
         adapter,
@@ -234,7 +237,7 @@ describe("push-lifecycle-provider", () => {
       await waitFor(() => expect(httpPort.create).toHaveBeenCalledTimes(1));
 
       await act(async () => {
-        tokenChangeListener?.();
+        tokenChangeListener?.({ data: "fcm-token-2", type: "android" });
         await Promise.resolve();
         await Promise.resolve();
       });
@@ -243,6 +246,51 @@ describe("push-lifecycle-provider", () => {
       expect(httpPort.update.mock.calls[0][2]).toEqual(
         expect.objectContaining({ expoToken: "ExponentPushToken[token-2]" }),
       );
+      // The Expo token is resolved from the event's device token, never by
+      // asking the platform again from inside the listener.
+      expect(adapter.getExpoPushToken).toHaveBeenLastCalledWith({
+        devicePushToken: { data: "fcm-token-2", type: "android" },
+        projectId: "project-1",
+      });
+    });
+
+    it("does not rotate when the device-token event resolves to the already registered Expo token", async () => {
+      mockPrincipal = {
+        epoch: 1,
+        origin: "https://api.example",
+        userId: "user-a",
+      };
+      const httpPort = createFakeHttpPort();
+      let tokenChangeListener:
+        ((event: { type: "android"; data: string }) => void) | undefined;
+      const adapter = createFakeAdapter({
+        getExpoPushToken: jest
+          .fn()
+          .mockResolvedValue({ ok: true, token: "ExponentPushToken[token-1]" }),
+        onTokenChanged: jest.fn(
+          (listener: (event: { type: "android"; data: string }) => void) => {
+            tokenChangeListener = listener;
+            return () => undefined;
+          },
+        ),
+      });
+      await renderProvider({
+        adapter,
+        createHttpPort: () => httpPort,
+        installationIdStore: createFakeIdStore(),
+        preferenceStore: createFakePreferenceStore(),
+        projectId: "project-1",
+      });
+      await waitFor(() => expect(latest?.state.status).toBe("registered"));
+
+      await act(async () => {
+        tokenChangeListener?.({ data: "fcm-token-1", type: "android" });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(httpPort.update).not.toHaveBeenCalled();
+      expect(latest?.state.status).toBe("registered");
     });
   });
 
@@ -413,7 +461,8 @@ describe("push-lifecycle-provider", () => {
         origin: "https://api.example",
         userId: "user-a",
       };
-      let tokenListener: (() => void) | undefined;
+      let tokenListener:
+        ((event: { type: "android"; data: string }) => void) | undefined;
       const httpPort = createFakeHttpPort();
       await renderProvider({
         adapter: createFakeAdapter({
@@ -424,10 +473,12 @@ describe("push-lifecycle-provider", () => {
               token: "ExponentPushToken[token-1]",
             })
             .mockRejectedValueOnce(new Error("native module down")),
-          onTokenChanged: jest.fn((listener: () => void) => {
-            tokenListener = listener;
-            return () => undefined;
-          }),
+          onTokenChanged: jest.fn(
+            (listener: (event: { type: "android"; data: string }) => void) => {
+              tokenListener = listener;
+              return () => undefined;
+            },
+          ),
         }),
         createHttpPort: () => httpPort,
         installationIdStore: createFakeIdStore(),
@@ -438,7 +489,7 @@ describe("push-lifecycle-provider", () => {
       await waitFor(() => expect(latest?.state.status).toBe("registered"));
       expect(tokenListener).toBeDefined();
       await act(async () => {
-        tokenListener?.();
+        tokenListener?.({ data: "fcm-token-2", type: "android" });
       });
 
       await waitFor(() => expect(latest?.state.status).toBe("error"));

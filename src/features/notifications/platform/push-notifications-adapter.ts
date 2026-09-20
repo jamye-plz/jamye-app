@@ -38,6 +38,12 @@ export type ExpoPushTokenResult =
 
 export type Unsubscribe = () => void;
 
+/** Device (APNs/FCM) token event forwarded by `onTokenChanged`. */
+export type DevicePushTokenEvent = Readonly<{
+  type: "ios" | "android";
+  data: string;
+}>;
+
 const ANDROID_DEFAULT_CHANNEL_ID = "default";
 const ANDROID_DEFAULT_CHANNEL_NAME = "기본 알림";
 
@@ -50,8 +56,18 @@ function mapPermissionStatus(status: {
   return "undetermined";
 }
 
+/**
+ * Pre-request check. Android 13+ reports a never-asked POST_NOTIFICATIONS
+ * permission as `denied` with `canAskAgain: true` (iOS reports
+ * `undetermined`), so an askable denial is treated as undetermined here to
+ * let the caller show the system prompt; a real refusal (`canAskAgain:
+ * false`, or the answer to `requestPermissions`) still maps to `denied`.
+ */
 export async function getPermissions(): Promise<PushPermissionStatus> {
   const status = await Notifications.getPermissionsAsync();
+  if (!status.granted && status.status === "denied" && status.canAskAgain) {
+    return "undetermined";
+  }
   return mapPermissionStatus(status);
 }
 
@@ -70,10 +86,19 @@ export async function requestPermissions(): Promise<PushPermissionStatus> {
  */
 export async function getExpoPushToken(options: {
   projectId: string;
+  /**
+   * Pass the device token from an `onTokenChanged` event so Expo resolves
+   * the push token from it instead of calling `getDevicePushTokenAsync()`,
+   * which re-emits the token event and would loop forever.
+   */
+  devicePushToken?: DevicePushTokenEvent;
 }): Promise<ExpoPushTokenResult> {
   try {
     const result = await Notifications.getExpoPushTokenAsync({
       projectId: options.projectId,
+      ...(options.devicePushToken
+        ? { devicePushToken: options.devicePushToken }
+        : {}),
     });
     return { ok: true, token: result.data };
   } catch (error) {
@@ -82,10 +107,27 @@ export async function getExpoPushToken(options: {
   }
 }
 
+function parseDevicePushToken(event: unknown): DevicePushTokenEvent | null {
+  if (!isRecord(event)) return null;
+  const { type, data } = event;
+  if (type !== "ios" && type !== "android") return null;
+  if (typeof data !== "string" || data.length === 0) return null;
+  return { data, type };
+}
+
+/**
+ * Forwards well-formed device token events only. Expo's own guidance for
+ * this listener: never call `getDevicePushTokenAsync()` from it (that
+ * re-triggers the listener); callers resolve the Expo token via
+ * `getExpoPushToken({ devicePushToken })` with the forwarded event.
+ */
 export function onTokenChanged(
-  listener: (event: unknown) => void,
+  listener: (token: DevicePushTokenEvent) => void,
 ): Unsubscribe {
-  const subscription = Notifications.addPushTokenListener(listener);
+  const subscription = Notifications.addPushTokenListener((event) => {
+    const token = parseDevicePushToken(event);
+    if (token) listener(token);
+  });
   return () => subscription.remove();
 }
 

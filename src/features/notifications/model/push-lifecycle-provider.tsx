@@ -152,7 +152,7 @@ export function PushLifecycleProvider({
    * and the token-rotation effect, never during render) is how this closure
    * variable stays in sync.
    */
-  const [{ lifecycle, rememberExpoToken }] = useState(() => {
+  const [{ lifecycle, rememberExpoToken, knownExpoToken }] = useState(() => {
     let lastKnownExpoToken: string | null = null;
     const pushLifecycle = createPushLifecycle({
       create: (input: CreateInstallationInput) =>
@@ -184,6 +184,7 @@ export function PushLifecycleProvider({
       rememberExpoToken: (token: string) => {
         lastKnownExpoToken = token;
       },
+      knownExpoToken: () => lastKnownExpoToken,
     };
   });
 
@@ -301,19 +302,25 @@ export function PushLifecycleProvider({
 
   useEffect(
     () =>
-      adapter.onTokenChanged(() => {
+      adapter.onTokenChanged((devicePushToken) => {
         if (!resolvedProjectId) return;
+        // Resolve from the event's device token: asking the platform for the
+        // device token again from inside this listener re-emits the event
+        // (expo-notifications documents the infinite loop).
         void adapter
-          .getExpoPushToken({ projectId: resolvedProjectId })
+          .getExpoPushToken({ devicePushToken, projectId: resolvedProjectId })
           .then((result) => {
             if (!result.ok) return;
+            // The first device-token event after registration resolves to
+            // the token that was just registered; only a new token rotates.
+            if (result.token === knownExpoToken()) return;
             rememberExpoToken(result.token);
             setExpoToken(result.token);
             void lifecycle.rotateToken(result.token);
           })
           .catch(() => lifecycle.markPlatformFailure());
       }),
-    [adapter, lifecycle, rememberExpoToken, resolvedProjectId],
+    [adapter, lifecycle, rememberExpoToken, knownExpoToken, resolvedProjectId],
   );
 
   const value = useMemo<PushLifecycleContextValue>(

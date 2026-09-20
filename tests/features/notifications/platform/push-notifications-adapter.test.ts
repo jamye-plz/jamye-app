@@ -75,6 +75,26 @@ describe("push-notifications-adapter", () => {
       await expect(getPermissions()).resolves.toBe("denied");
     });
 
+    it("treats an askable denial (Android never-asked POST_NOTIFICATIONS) as 'undetermined' so the prompt is shown", async () => {
+      (getPermissionsAsync as jest.Mock).mockResolvedValueOnce({
+        status: "denied",
+        granted: false,
+        canAskAgain: true,
+        expires: "never",
+      });
+      await expect(getPermissions()).resolves.toBe("undetermined");
+    });
+
+    it("keeps an askable denial returned by requestPermissionsAsync as 'denied'", async () => {
+      (requestPermissionsAsync as jest.Mock).mockResolvedValueOnce({
+        status: "denied",
+        granted: false,
+        canAskAgain: true,
+        expires: "never",
+      });
+      await expect(requestPermissions()).resolves.toBe("denied");
+    });
+
     it("maps an undetermined, non-denied response to 'undetermined'", async () => {
       (getPermissionsAsync as jest.Mock).mockResolvedValueOnce({
         status: "undetermined",
@@ -211,6 +231,40 @@ describe("push-notifications-adapter", () => {
       unsubscribe();
       __emitPushToken({ type: "ios", data: "after-unsubscribe" });
       expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it("forwards only well-formed ios/android device tokens", () => {
+      const listener = jest.fn();
+      onTokenChanged(listener);
+      __emitPushToken(null);
+      __emitPushToken({ type: "web", data: { endpoint: "x" } });
+      __emitPushToken({ type: "android", data: "" });
+      __emitPushToken("ExponentPushToken[not-an-event]");
+      expect(listener).not.toHaveBeenCalled();
+      __emitPushToken({ type: "android", data: "fcm-token" });
+      expect(listener).toHaveBeenCalledWith({
+        data: "fcm-token",
+        type: "android",
+      });
+    });
+  });
+
+  describe("getExpoPushToken with a forwarded device token", () => {
+    it("passes the device token through so Expo does not re-query the platform", async () => {
+      (getExpoPushTokenAsync as jest.Mock).mockResolvedValueOnce({
+        type: "expo",
+        data: "ExponentPushToken[from-event]",
+      });
+      await expect(
+        getExpoPushToken({
+          devicePushToken: { data: "fcm-token", type: "android" },
+          projectId: "project-1",
+        }),
+      ).resolves.toEqual({ ok: true, token: "ExponentPushToken[from-event]" });
+      expect(getExpoPushTokenAsync).toHaveBeenCalledWith({
+        devicePushToken: { data: "fcm-token", type: "android" },
+        projectId: "project-1",
+      });
     });
   });
 

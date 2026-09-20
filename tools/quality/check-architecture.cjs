@@ -994,6 +994,11 @@ const APPROVED_EXPO_BASE = Object.freeze({
 });
 
 const SOLE_ALLOWED_GENERATED_KEYSTORE = "android/app/debug.keystore";
+// `expo prebuild` copies the approved root google-services.json into the
+// generated (gitignored) Android project on every run; it carries the same
+// public Firebase client identifiers, not a signing secret.
+const APPROVED_GENERATED_FIREBASE_ANDROID_CONFIG =
+  "android/app/google-services.json";
 const SIGNING_OR_CREDENTIAL_FILE_PATTERN =
   /(?:^|\/)(?:credentials\.json|google-services\.json|GoogleService-Info\.plist)$|\.(?:keystore|jks|p8|p12|mobileprovision|provisionprofile|cer|pem|key)$/i;
 
@@ -2431,7 +2436,8 @@ function checkGeneratedNativeOutput(snapshot, violations) {
   const disallowedKeystoreFiles = keystoreFiles.filter(
     (file) =>
       file !== SOLE_ALLOWED_GENERATED_KEYSTORE &&
-      file !== APPROVED_FIREBASE_ANDROID_CONFIG,
+      file !== APPROVED_FIREBASE_ANDROID_CONFIG &&
+      file !== APPROVED_GENERATED_FIREBASE_ANDROID_CONFIG,
   );
   if (disallowedKeystoreFiles.length > 0) {
     pushViolation(
