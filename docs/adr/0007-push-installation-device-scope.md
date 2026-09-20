@@ -46,7 +46,7 @@ M12는 서버의 Notification history(N1/N2)와 Push installation(P2/P3/P4) 계�
 ## 결과
 
 - `bun run check:code`(typecheck·lint·format·check:architecture·coverage) PASS: 145 suites /
-  1,571 tests, coverage statements/branches/functions/lines 87.36% / 82.42% / 88.35% / 90.20%.
+  1,573 tests, coverage statements/branches/functions/lines 87.37% / 82.48% / 88.31% / 90.22%.
 - 독립 리뷰 3건(Alignment/Safety/Regression) PASS, CRITICAL/HIGH 0건.
 - 실기기 push 수신·전달과 계정 전환 시 실제 device 동작 확인은 native 재빌드와 사용자 수용 이후로
   미룬다. 상세는 [M12 evidence](../evidence/M12.md)에 기록한다.

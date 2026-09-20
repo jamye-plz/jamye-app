@@ -29,7 +29,7 @@
 - **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
-- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11은 2026-09-15 expo-image·expo-video 포함 양 플랫폼 clean prebuild·재빌드·설치, 포스터 송수신·realtime 반영 검증(전체 129 suites / 1,370 tests PASS)을 거쳐 2026-09-16 사용자 종료 승인. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존. M12는 2026-09-16 전체 자동 검사(145 suites / 1,571 tests PASS, coverage 87.36%/82.42%/88.35%/90.20%)와 독립 리뷰 3건(Alignment/Safety/Regression) PASS를 거쳤으나 native 재빌드와 실기기 푸시 수신 증거·사용자 수용은 미완료([M12 evidence](evidence/M12.md))
+- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11은 2026-09-15 expo-image·expo-video 포함 양 플랫폼 clean prebuild·재빌드·설치, 포스터 송수신·realtime 반영 검증(전체 129 suites / 1,370 tests PASS)을 거쳐 2026-09-16 사용자 종료 승인. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존. M12는 2026-09-16 전체 자동 검사(145 suites / 1,573 tests PASS, coverage 87.37%/82.48%/88.31%/90.22%)와 독립 리뷰 3건(Alignment/Safety/Regression) PASS를 거쳤으나 native 재빌드와 실기기 푸시 수신 증거·사용자 수용은 미완료([M12 evidence](evidence/M12.md))
 - **미래 계획**: M13 이후 항목은 `planned_unapproved`; M12 구현 승인이 후속 범위 승인은 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
@@ -609,8 +609,8 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 완료 증거 (자동 검사):
 
-- `bun run check:code`: 145 suites / 1,571 tests PASS, coverage statements/branches/functions/lines
-  87.36% / 82.42% / 88.35% / 90.20%, `check-architecture` PASS(0 violations)
+- `bun run check:code`: 145 suites / 1,573 tests PASS, coverage statements/branches/functions/lines
+  87.37% / 82.48% / 88.31% / 90.22%, `check-architecture` PASS(0 violations)
 - 신규 notification/push 테스트 16개 파일과 코디네이터 보강 회귀 테스트 3건
 - 독립 리뷰 3건(Alignment/Safety/Regression) 전부 PASS, CRITICAL/HIGH 0건
 - 상세는 [M12 evidence](evidence/M12.md), 아키텍처 결정은 [ADR 0007](adr/0007-push-installation-device-scope.md)
