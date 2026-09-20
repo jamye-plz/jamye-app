@@ -26,12 +26,14 @@ route/module boundary, local fixture, theme와 test runner는 M3 코드의 동�
 설정의 단일 base fragment로 사용한다. `app.config.ts`는 base를 통째로 유지하고 development
 variant에서 다음 네 identity 값과 development-client plugin만 추가한다.
 
-| 필드                  | 값                   |
-| --------------------- | -------------------- |
-| name                  | `Jamye Development`  |
-| slug                  | `jamye-development`  |
-| iOS bundle identifier | `dev.local.jamyeapp` |
-| Android package       | `dev.local.jamyeapp` |
+| 필드 | 값                  |
+| ---- | ------------------- |
+| name | `Jamye Development` |
+| slug | `jamye-app`         |
+
+> 2026-09-16 수정: slug는 EAS 프로젝트 `@jamye-plz/jamye-app`에 맞춰 `jamye-app`으로 변경했다(M12 push 준비, 사용자 결정). name·bundleIdentifier·package는 그대로다.
+> | iOS bundle identifier | `dev.local.jamyeapp` |
+> | Android package | `dev.local.jamyeapp` |
 
 `APP_VARIANT`가 없거나 알 수 없는 값이면 실패한다. `preview`와 `production`도 구성 전에는
 명시적으로 실패하며 development identity로 fallback하지 않는다. Production identifier,

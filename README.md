@@ -18,7 +18,8 @@ M9는 영속 outbox와 실시간·누락 복구를 연결했다. M10 주제·태
 [M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md),
 [M6 네이티브·로그인 검증](docs/oauth-development.md), [M7 그룹·계정 전환 검증](docs/evidence/M7.md),
 [M8 REST 채팅 검증](docs/evidence/M8.md), [M9 동기화 검증](docs/evidence/M9.md),
-[M10 주제·태그 검증](docs/evidence/M10.md), [M11 미디어 구현·검증 현황](docs/evidence/M11.md).
+[M10 주제·태그 검증](docs/evidence/M10.md), [M11 미디어 구현·검증 현황](docs/evidence/M11.md),
+[M12 알림·푸시 자동 검사 현황](docs/evidence/M12.md).
 
 ## 현재 범위
 
@@ -47,8 +48,8 @@ M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도�
 - M9: 영속 outbox·실시간/delta 동기화 — 완료 (2026-09-10 사용자 수용 4/4 확인 및 종료 승인)
 - M10: 주제·태그 — 완료 (2026-09-10 양 플랫폼 사용자 수용 4/4 확인 및 종료 승인)
 - M11: 미디어 업로드·첨부·접근 — 완료 (2026-09-16 양 플랫폼 사용자 확인 및 종료 승인). 형식 호환성 재빌드, 버튼 대비·영상 카드·앱 내 native 영상 재생, 영상 미리보기 안정화와 발신 단말 JPEG 포스터, realtime 발신자 표시·첨부 즉시 반영을 포함
-- 다음: M12 알림함과 Expo 푸시 (`planned_unapproved`, 별도 승인 필요)
-- 아직 없음: notification/push
+- M12: 알림함과 Expo 푸시 — `implemented_pending_device_evidence` (2026-09-16 자동 검사·독립 리뷰 PASS; EAS projectId·FCM V1·APNs 자격 증명은 준비 완료, native 재빌드와 실기기 수신 증거·사용자 수용은 대기)
+- 다음: M13 프로필 수정과 계정 삭제 (`planned_unapproved`, 별도 승인 필요)
 
 M10의 확정 범위와 순서는 [로드맵의 M10 계획](docs/roadmap.md#m10-주제태그)에 있다.
 계약·데이터 연결 → 주제·태그 화면 → M9 동기화 연결 → 자동 검증·양 플랫폼 수용 순서이며,
@@ -213,7 +214,7 @@ Development variant의 simulator/emulator 식별자는 다음 네 값으로만 �
 | 필드                  | development 값       |
 | --------------------- | -------------------- |
 | app name              | `Jamye Development`  |
-| slug                  | `jamye-development`  |
+| slug                  | `jamye-app`          |
 | iOS bundle identifier | `dev.local.jamyeapp` |
 | Android package       | `dev.local.jamyeapp` |
 

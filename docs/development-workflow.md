@@ -596,6 +596,15 @@ Native 입력 변경이 없어 이번 세션은 clean prebuild·재빌드를 실
 null이면 기존 저장된 닉네임/아바타를 보존한다(history 경로는 변경 없이 항상 덮어씀).
 native 입력 변경이 없어 재빌드는 하지 않았다.
 
+## M12 알림·푸시 로컬 검증 — 2026-09-16
+
+알림함·Expo 푸시(N1/N2, P2/P3/P4) 구현은 `expo-notifications`/`expo-device`를
+`tests/__mocks__/expo-notifications.ts`·`tests/__mocks__/expo-device.ts`로 대체해 전량 mocked
+상태로 검증했다(신규 16개 테스트 파일, `bun run check:code` 145 suites / 1,566 tests PASS).
+native 모듈 추가로 인한 clean prebuild·재빌드와 실기기 수신 확인은 별도 승인 이후로 미룬다.
+자격 증명 준비·로컬 mock 테스트 실행·재빌드 절차는 [Expo 푸시 개발 연결](push-development.md)에,
+자동 검사와 실기기 증거의 분리 기록은 [M12 evidence](evidence/M12.md)에 있다.
+
 ## 4. Dependency와 toolchain script
 
 | 명령                             | 분류        | 결과와 선행 조건                                                  |
