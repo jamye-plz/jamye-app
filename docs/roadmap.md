@@ -705,6 +705,9 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - Message edit/delete
 - WebPush/VAPID 또는 새 push backend
 - Production signing과 store submission — 공통 release acceptance의 별도 사용자 결정
+- 삭제된 계정의 로컬 SQLite 파일·미디어 캐시 물리 삭제(파괴적 로컬 정리) — contract와 무관한
+  app-only 항목이지만 되돌릴 수 없는 로컬 작업이라 별도 사용자 승인 뒤에만 진행한다(2026-09-22
+  사용자 결정으로 backlog 유지, [ADR 0008](adr/0008-account-lifecycle-placement.md) 6번)
 
 필요해지면 product decision, server contract와 별도 milestone plan을 먼저 승인한다.
 
@@ -774,3 +777,7 @@ M10은 `COMPLETED / USER_ACCEPTED`이며 [M10 evidence](evidence/M10.md)에 출�
 실제 사용자 미디어 수용과 M11 종료는 남아 있다. [M11 evidence](evidence/M11.md)에 구분해 기록한다.
 
 이번 종료 승인은 M11 구현, 기존 후속 마일스톤 변경, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.
+이후 M12 알림함·Expo 푸시는 2026-09-21 iPhone 실기기 검증과 사용자 종료 승인으로, M13 프로필 수정과
+계정 삭제는 2026-09-22 사용자 디바이스 확인 완료 보고와 종료 승인으로 각각 `COMPLETED / USER_ACCEPTED`
+종료했다([M12 evidence](evidence/M12.md), [M13 evidence](evidence/M13.md)). 다음 milestone은 미정이며
+사용자 결정으로 시작한다. 파괴적 로컬 정리는 9절 backlog로 남긴다.
