@@ -733,6 +733,62 @@ describe("M6-04 connected-auth mode composition", () => {
     }
   });
 
+  test("A2: after session.logout() publishes signed-out, the account scope and the notifications store both unbind from the lost principal", async () => {
+    const controller = fakeSessionController({
+      status: "signed-in",
+      profile: principalProfile,
+      message: null,
+    });
+    const scope = fakeAccountScope();
+    const { AppProviders } = loadProviderContract();
+    const { notificationsStore } = jest.requireActual<
+      typeof import("../../src/features/notifications/model/notifications-store")
+    >("../../src/features/notifications/model/notifications-store");
+    const setPrincipal = jest.spyOn(notificationsStore, "setPrincipal");
+
+    try {
+      await render(
+        <AppProviders
+          createAccountScope={() => scope}
+          createSessionController={() => controller}
+        >
+          <Text>child</Text>
+        </AppProviders>,
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(scope.setPrincipal).toHaveBeenLastCalledWith({
+        origin: "https://api.example",
+        userId: principalProfile.id,
+        epoch: controller.getGeneration(),
+      });
+      expect(setPrincipal).toHaveBeenLastCalledWith(
+        expect.objectContaining({ userId: principalProfile.id }),
+        expect.any(Function),
+      );
+
+      // The real auth-controller.logout() synchronously publishes exactly
+      // this signed-out state before any of its own async storage-clearing
+      // work runs, so this is what every downstream consumer of
+      // session.state/session.principal reacts to once session.logout()
+      // (account-lifecycle.ts's deleteAccount success path, or the account
+      // screen's own logout button) resolves the controller's generation
+      // forward.
+      await act(async () => {
+        controller.publish({
+          status: "signed-out",
+          profile: null,
+          message: null,
+        });
+      });
+      expect(scope.setPrincipal).toHaveBeenLastCalledWith(null);
+      expect(setPrincipal).toHaveBeenLastCalledWith(null, null);
+    } finally {
+      setPrincipal.mockRestore();
+    }
+  });
+
   test("supports an explicit account-scope retry after an error, with no fixture fallback", async () => {
     const controller = fakeSessionController({
       status: "signed-in",

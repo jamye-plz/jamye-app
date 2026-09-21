@@ -16,7 +16,7 @@ import type { AuthController, AuthState } from "@/core/auth/auth-controller";
 import { createPkcePair } from "@/core/auth/pkce";
 import { secureSessionStore } from "@/core/auth/secure-session-store";
 import { parsePublicApiOrigin } from "@/core/config/public-env";
-import type { OAuthProvider } from "@/core/auth/types";
+import type { OAuthProvider, UserProfile } from "@/core/auth/types";
 import { createProfileRecovery } from "@/features/sync/model/profile-recovery";
 
 export type SessionPrincipal = Readonly<{
@@ -41,6 +41,7 @@ export type SessionContextValue = Readonly<{
     execute: (accessToken: string, signal: AbortSignal) => Promise<T>,
     signal?: AbortSignal,
   ) => Promise<T>;
+  applyProfile: (profile: UserProfile) => void;
 }>;
 
 const SessionContext = createContext<SessionContextValue | undefined>(
@@ -143,18 +144,31 @@ export function SessionProvider({
     [controller],
   );
 
+  // `logout` and `applyProfile` are identity-stable for the same reason:
+  // feature orchestration (e.g. the account lifecycle) is built from them and
+  // must not be recreated by every state publish.
+  const logout = useCallback<SessionContextValue["logout"]>(
+    (signal) => controller.logout(signal),
+    [controller],
+  );
+  const applyProfile = useCallback<SessionContextValue["applyProfile"]>(
+    (profile) => controller.applyProfile(profile),
+    [controller],
+  );
+
   const value = useMemo<SessionContextValue>(
     () => ({
       state,
       principal,
       login: (provider, providerRedirectUri, appReturnUri, signal) =>
         controller.signIn(provider, providerRedirectUri, appReturnUri, signal),
-      logout: (signal) => controller.logout(signal),
+      logout,
       restore: (signal) => controller.restore(signal),
       retryProfile: (signal) => controller.retryProfile(signal),
       authorizedRequest,
+      applyProfile,
     }),
-    [state, principal, controller, authorizedRequest],
+    [state, principal, controller, authorizedRequest, logout, applyProfile],
   );
 
   return (

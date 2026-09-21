@@ -960,3 +960,149 @@ describe("authorizedRequest (M7 narrow session-owned authorized executor)", () =
     errorSpy.mockRestore();
   });
 });
+
+describe("applyProfile (A2 synchronous, storage-free profile-publish primitive)", () => {
+  async function signedIn() {
+    const f = fixture({ store: { load: async () => pair } });
+    await f.controller.restore();
+    expect(f.controller.getState()).toMatchObject({ status: "signed-in" });
+    return f;
+  }
+
+  test("publishes the new profile synchronously onto the live signed-in identity without touching storage or the network", async () => {
+    const f = await signedIn();
+    const renamed = { ...profile, nickname: "renamed" };
+    f.api.profile.mockClear();
+    f.store.save.mockClear();
+    f.controller.applyProfile(renamed);
+    expect(f.controller.getState()).toEqual({
+      status: "signed-in",
+      profile: renamed,
+      message: null,
+    });
+    expect(f.api.profile).not.toHaveBeenCalled();
+    expect(f.store.save).not.toHaveBeenCalled();
+  });
+
+  test("is a no-op for a profile that belongs to another user id", async () => {
+    const f = await signedIn();
+    const other = { ...profile, id: "other-id", nickname: "other" };
+    f.controller.applyProfile(other);
+    expect(f.controller.getState()).toEqual({
+      status: "signed-in",
+      profile,
+      message: null,
+    });
+  });
+
+  test.each([
+    ["logout", (c: ReturnType<typeof fixture>["controller"]) => c.logout()],
+    [
+      "dispose",
+      (c: ReturnType<typeof fixture>["controller"]) => {
+        c.dispose();
+        return Promise.resolve();
+      },
+    ],
+  ])(
+    "is a no-op after %s (never republishes a signed-in session)",
+    async (_label, advance) => {
+      const f = await signedIn();
+      await advance(f.controller);
+      const published: unknown[] = [];
+      f.controller.subscribe((next) => published.push(next));
+      f.controller.applyProfile({ ...profile, nickname: "late" });
+      expect(published).toEqual([]);
+      expect(f.controller.getState()).not.toMatchObject({
+        status: "signed-in",
+        profile: { nickname: "late" },
+      });
+    },
+  );
+
+  test.each([
+    [
+      "restore",
+      (c: ReturnType<typeof fixture>["controller"]) => c.restore(),
+      "loading",
+    ],
+    [
+      "signIn",
+      (c: ReturnType<typeof fixture>["controller"]) =>
+        c.signIn(
+          "kakao",
+          "https://api.example/callback",
+          "jamye://oauth/kakao",
+        ),
+      "signing-in",
+    ],
+  ])(
+    "is a no-op while %s is in flight (the entry point leaves signed-in before its first await)",
+    async (_label, start, expectedStatus) => {
+      const f = await signedIn();
+      const inFlight = start(f.controller);
+      expect(f.controller.getState().status).toBe(expectedStatus);
+      const published: unknown[] = [];
+      f.controller.subscribe((next) => published.push(next));
+      f.controller.applyProfile({ ...profile, nickname: "late" });
+      expect(published).toEqual([]);
+      expect(f.controller.getState().status).toBe(expectedStatus);
+      await inFlight.catch(() => undefined);
+      expect(f.controller.getState()).not.toMatchObject({
+        profile: { nickname: "late" },
+      });
+    },
+  );
+
+  test("is a no-op while no session is signed in (loading / signed-out)", async () => {
+    const f = fixture();
+    f.controller.applyProfile(profile);
+    expect(f.controller.getState()).toEqual({
+      status: "loading",
+      profile: null,
+      message: null,
+    });
+    await f.controller.restore();
+    expect(f.controller.getState()).toMatchObject({ status: "signed-out" });
+    f.controller.applyProfile(profile);
+    expect(f.controller.getState()).toMatchObject({
+      status: "signed-out",
+      profile: null,
+    });
+  });
+});
+
+describe("A2 regression: a stale refresh token (deleted-account shape) never republishes a prior profile", () => {
+  test("a locally-expired access token whose refresh is rejected with 401 ends signed-out/profile:null, never the prior signed-in profile", async () => {
+    const load = jest.fn(async () => pair);
+    const refresh = jest.fn(async () => {
+      throw { status: 401, code: "invalid_refresh_token" };
+    });
+    const f = fixture({ store: { load }, api: { refresh } });
+
+    await f.controller.restore();
+    expect(f.controller.getState()).toEqual({
+      status: "signed-in",
+      profile,
+      message: null,
+    });
+
+    // The account was deleted server-side: the refresh token this device
+    // still holds is now rejected with 401. Locally, the access token looks
+    // expired (forcing restore() straight into refresh()), matching the
+    // real-world shape of a stale refresh after account deletion.
+    const expiredAccessPair = {
+      ...pair,
+      accessTokenExpiresAt: "1970-01-01T00:00:00.000Z",
+    };
+    load.mockResolvedValue(expiredAccessPair);
+
+    await f.controller.restore();
+    expect(f.controller.getState()).toEqual({
+      status: "signed-out",
+      profile: null,
+      message: expect.any(String),
+    });
+    expect(f.store.clear).toHaveBeenCalled();
+  });
+});

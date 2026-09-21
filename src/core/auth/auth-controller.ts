@@ -50,6 +50,7 @@ export function createAuthController(
   let tokens: TokenPair | null = null;
   let pending: PendingAttempt | null = null;
   let generation = 0;
+  let disposed = false;
   let fence: AbortController | null = null;
   let refreshFlight: RefreshFlight | null = null;
   let profileRetryFlight: Readonly<{
@@ -167,6 +168,7 @@ export function createAuthController(
       fence?.abort();
       fence = null;
       generation++;
+      disposed = true;
     },
     async restore(callerSignal?: AbortSignal) {
       const current = beginGeneration();
@@ -434,6 +436,19 @@ export function createAuthController(
         if (!refreshed) throw error;
         return await runOnce(refreshed.accessToken);
       }
+    },
+    /**
+     * Overlays a fresh profile (e.g. the U2 PATCH response) onto the live
+     * signed-in identity with no network or storage I/O. It is a no-op unless
+     * the controller is currently signed in, still holds tokens, has not been
+     * disposed, and the profile belongs to the same user id: a result that
+     * lands after logout/dispose, during a restore or sign-in, or for another
+     * account must never republish a session.
+     */
+    applyProfile(profile: UserProfile): void {
+      if (disposed || !tokens || state.status !== "signed-in") return;
+      if (state.profile?.id !== profile.id) return;
+      publish({ status: "signed-in", profile, message: null });
     },
     async retryProfile(callerSignal?: AbortSignal) {
       const current = generation;

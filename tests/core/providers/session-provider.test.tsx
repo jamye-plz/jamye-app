@@ -42,6 +42,7 @@ function fakeController(
     authorizedRequest: jest.fn(async (execute) =>
       execute("fake-access-token", new AbortController().signal),
     ),
+    applyProfile: jest.fn(),
     publish,
     bumpGeneration: () => {
       generation += 1;
@@ -307,5 +308,74 @@ describe("SessionProvider / useSession", () => {
     });
     expect(value).toBe("used:fake-access-token");
     expect(controller.authorizedRequest).toHaveBeenCalledWith(execute, signal);
+  });
+
+  test("A2: exposes applyProfile and delegates it straight to controller.applyProfile with no other side effects", async () => {
+    const controller = fakeController();
+    const createController = jest.fn(() => controller);
+    const { result } = await renderHook(() => useSession(), {
+      wrapper: ({ children }) => (
+        <SessionProvider
+          origin="https://api.example"
+          createController={createController}
+        >
+          {children}
+        </SessionProvider>
+      ),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      result.current.applyProfile(profile);
+    });
+    expect(controller.applyProfile).toHaveBeenCalledTimes(1);
+    expect(controller.applyProfile).toHaveBeenCalledWith(profile);
+    expect(controller.restore).toHaveBeenCalledTimes(1);
+    expect(controller.logout).not.toHaveBeenCalled();
+    expect(controller.signIn).not.toHaveBeenCalled();
+  });
+
+  test("logout, applyProfile and authorizedRequest keep their identity across state publishes", async () => {
+    const controller = fakeController({
+      status: "signed-in",
+      profile: { ...profile, provider: "kakao" as const },
+      message: null,
+    });
+    const seen: ReturnType<typeof useSession>[] = [];
+    function IdentityProbe(): null {
+      seen.push(useSession());
+      return null;
+    }
+    await render(
+      <SessionProvider
+        origin="https://api.example"
+        createController={() => controller}
+      >
+        <IdentityProbe />
+      </SessionProvider>,
+    );
+    const first = seen.at(-1);
+    await act(async () => {
+      controller.publish({
+        status: "signed-in",
+        profile: {
+          ...profile,
+          provider: "kakao" as const,
+          nickname: "renamed",
+        },
+        message: null,
+      });
+    });
+    const second = seen.at(-1);
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(second).not.toBe(first);
+    expect(second?.state.profile?.nickname).toBe("renamed");
+    // Feature orchestration (account lifecycle) is built from these three, so
+    // a profile publish must not recreate it.
+    expect(second?.logout).toBe(first?.logout);
+    expect(second?.applyProfile).toBe(first?.applyProfile);
+    expect(second?.authorizedRequest).toBe(first?.authorizedRequest);
   });
 });
