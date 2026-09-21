@@ -1,14 +1,17 @@
 import { Stack } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 
 import { useAccountScope } from "@/core/providers/app-providers";
 import { useSession } from "@/core/providers/session-provider";
 import { AppScreen } from "@/shared/ui/app-screen";
-import { AppSymbol } from "@/shared/ui/app-symbol";
 import { GroupedRow } from "@/shared/ui/grouped-row";
 import { GroupedSection } from "@/shared/ui/grouped-section";
 import { NativeButton } from "@/shared/ui/native-button";
+import { createAccountApi } from "@/features/account/data/account-api";
+import { createAccountLifecycle } from "@/features/account/model/account-lifecycle";
+import { DeleteAccountSection } from "@/features/account/ui/delete-account-section";
+import { NicknameSection } from "@/features/account/ui/nickname-section";
 import { usePushLifecycle } from "@/features/notifications/model/push-lifecycle-provider";
 import { NotificationSettingsSection } from "@/features/notifications/ui/notification-settings-section";
 
@@ -28,6 +31,22 @@ export function AccountScreen() {
   const logoutPending = useRef(false);
   const profile = session.state.profile;
 
+  // Built once per origin. Only the identity-stable session/push callbacks
+  // are captured (not the whole context values), so a nickname save's own
+  // profile publish or a token refresh never recreates the lifecycle and
+  // never resets its shared in-flight guard mid-operation.
+  const origin = session.principal?.origin ?? null;
+  const { applyProfile, authorizedRequest, logout } = session;
+  const { disable } = pushLifecycle;
+  const accountLifecycle = useMemo(() => {
+    if (!origin) return null;
+    return createAccountLifecycle({
+      accountApi: createAccountApi(origin),
+      pushDisable: { disable },
+      session: { applyProfile, authorizedRequest, logout },
+    });
+  }, [origin, applyProfile, authorizedRequest, logout, disable]);
+
   const handleLogout = useCallback(() => {
     if (logoutPending.current) return;
     logoutPending.current = true;
@@ -44,7 +63,7 @@ export function AccountScreen() {
       });
   }, [pushLifecycle, session]);
 
-  if (!session.principal || !profile) return null;
+  if (!session.principal || !profile || !accountLifecycle) return null;
 
   const storageStatus = account.state?.status ?? "opening";
   const storageSubtitle = STORAGE_STATUS_TEXT[storageStatus];
@@ -53,13 +72,7 @@ export function AccountScreen() {
     <>
       <Stack.Screen options={{ title: "계정" }} />
       <AppScreen>
-        <GroupedSection>
-          <GroupedRow
-            leading={<AppSymbol name="account" />}
-            subtitle={`${profile.provider} 계정으로 로그인됨`}
-            title={profile.nickname}
-          />
-        </GroupedSection>
+        <NicknameSection accountLifecycle={accountLifecycle} />
         <GroupedSection title="로컬 계정 저장소">
           <View
             accessibilityLiveRegion="polite"
@@ -96,6 +109,7 @@ export function AccountScreen() {
             title="로그아웃"
           />
         </GroupedSection>
+        <DeleteAccountSection accountLifecycle={accountLifecycle} />
       </AppScreen>
     </>
   );

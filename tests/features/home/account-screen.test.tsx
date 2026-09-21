@@ -33,8 +33,12 @@ const mockRetry = jest.fn();
 jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
 }));
+const mockApplyProfile = jest.fn();
+const mockAuthorizedRequest = jest.fn();
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: jest.fn(() => ({
+    applyProfile: mockApplyProfile,
+    authorizedRequest: mockAuthorizedRequest,
     state: { status: "signed-in", profile: mockProfile, message: null },
     principal: mockPrincipal,
     login: jest.fn(),
@@ -95,15 +99,16 @@ describe("account screen", () => {
     mockAccountState = { status: "ready", database: {} };
   });
 
-  test("shows the validated current profile, diagnostics, and only a logout action", async () => {
+  test("shows the validated current profile, diagnostics, nickname edit, delete account, and logout actions", async () => {
     const screen = await render(
       <AppThemeProvider>
         <AccountScreen />
       </AppThemeProvider>,
     );
-    expect(screen.getByText("닉네임")).toBeTruthy();
+    expect(screen.getByLabelText("닉네임").props.value).toBe("닉네임");
     expect(screen.getByText(/kakao 계정으로 로그인됨/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "계정 삭제" })).toBeTruthy();
     expect(screen.getByTestId("connection-diagnostics")).toBeTruthy();
   });
 
