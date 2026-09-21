@@ -1,12 +1,12 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 구현 및 자동 검사 완료·사용자 수용 대기 (2026-09-21)
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인)
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M13 프로필 수정과 계정 삭제 `implemented_pending_user_acceptance` (2026-09-21 자동 검사 PASS; 실제 계정 삭제 E2E·파괴적 로컬 정리는 별도 승인 필요, 디바이스 검증과 사용자 수용 대기)
+- 현재 frontier: M13 프로필 수정과 계정 삭제 `COMPLETED / USER_ACCEPTED` (2026-09-22 사용자 디바이스 검증 완료 보고 및 종료 승인). 다음 milestone은 미정이며 사용자 결정으로 시작한다. 파괴적 로컬 정리는 여전히 별도 승인 대상.
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-09-21
+- 최종 수정일: 2026-09-22
 
 ## 1. 이 문서가 답하는 것
 
@@ -629,10 +629,11 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 ### M13. 프로필 수정과 계정 삭제
 
-- 상태: `implemented_pending_user_acceptance` — 2026-09-21 A1-A3 구현 및 전체 자동 검사 PASS(151
-  suites / 1,658 tests, coverage statements/branches/functions/lines 87.63% / 82.63% / 88.66% /
-  90.43%, `check-architecture` PASS 0 violations). 실제 계정 삭제 E2E와 파괴적 로컬 정리는 각각
-  별도 명시 승인이 필요하며 미실행. 디바이스 실행 검증과 사용자 수용은 대기.
+- 상태: `COMPLETED / USER_ACCEPTED` — 2026-09-22 사용자가 디바이스 확인 전부 완료를 보고하고 종료
+  승인. 2026-09-21 A1-A3 구현, 2026-09-22 격리 리뷰 12건 반영 후 전체 자동 검사 PASS(151 suites /
+  1,658 tests, coverage statements/branches/functions/lines 87.63% / 82.63% / 88.66% / 90.43%,
+  `check-architecture` PASS 0 violations). 파괴적 로컬 정리(SQLite 파일·미디어 캐시 물리 삭제)는
+  범위 밖이며 별도 명시 승인 대상으로 유지.
 - 선행: M6
 - 사용자 결과: Profile을 갱신하고 account 삭제를 안전하게 요청하며, 삭제된 identity가 active
   local session이나 stale data로 남지 않는다.
