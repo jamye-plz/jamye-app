@@ -122,6 +122,7 @@ export {
   validateTopicCreatedEvent,
   validateUnsupportedEventMarker,
   validateUser,
+  validateUserPatch,
   type CanonicalMessageWire,
   type ChatroomPageWire,
   type ChatroomWire,
@@ -165,6 +166,7 @@ export {
   type TopicCreatedEventWire,
   type UnsupportedEventMarkerWire,
   type UserWire,
+  type UserPatchWire,
 } from "./validators";
 export {
   mapUploadIntent,
@@ -221,3 +223,9 @@ export {
   type ExpoInstallationCreateInput,
   type ExpoInstallationPutInput,
 } from "./push-installations";
+export {
+  userPatchToWire,
+  NICKNAME_MIN_LENGTH,
+  NICKNAME_MAX_LENGTH,
+  type UserPatchInput,
+} from "./users";
