@@ -33,6 +33,7 @@ const HTTP_ADAPTER_FILES = [
   "src/features/notifications/data/notifications-api.ts",
   "src/features/notifications/data/push-installations-api.ts",
   "src/features/notifications/data/notifications-http.ts",
+  "src/core/http/http-requester.ts",
 ];
 
 const REALTIME_SOCKET_ADAPTER_FILES = [

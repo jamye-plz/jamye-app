@@ -339,6 +339,12 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   "tests/features/notifications/ui/notification-settings-section.test.tsx",
   "tests/features/notifications/ui/notifications-inbox-screen.test.tsx",
   "tests/features/notifications/ui/push-tap-handoff-listener.test.tsx",
+  "tests/core/contracts/server/users.test.ts",
+  "tests/features/account/data/account-api.test.ts",
+  "tests/features/account/model/account-lifecycle.test.ts",
+  "tests/features/account/ui/delete-account-section.test.tsx",
+  "tests/features/account/ui/nickname-section.test.tsx",
+  "tests/core/http/http-requester.test.ts",
   "tests/core/contracts/server/notifications.test.ts",
   "tests/core/contracts/server/push-installations.test.ts",
   "tests/features/notifications/data/notification-destination-resolver.test.ts",
@@ -606,6 +612,7 @@ const ACTIVE_CONTRACT_SOURCE_FILES = [
   "src/core/contracts/server/media.ts",
   "src/core/contracts/server/notifications.ts",
   "src/core/contracts/server/push-installations.ts",
+  "src/core/contracts/server/users.ts",
 ];
 const ACTIVE_CONTRACT_TOOL_FILES = [
   ...M4_CONTRACT_TOOL_FILES,
@@ -1584,11 +1591,12 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     ).toBe(false);
   });
 
-  test("authorizes M10-M12 evidence without opening future paths", () => {
+  test("authorizes M10-M13 evidence without opening future paths", () => {
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M11.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M12.md")).toBe(true);
-    expect(isAuthorizedWorkingTreePath("docs/evidence/M13.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M13.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M14.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10-private.md")).toBe(
       false,
     );
