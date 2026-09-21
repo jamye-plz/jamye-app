@@ -1,9 +1,9 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인)
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 구현 및 자동 검사 완료·사용자 수용 대기 (2026-09-21)
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M12 알림함과 Expo 푸시 `COMPLETED / USER_ACCEPTED` (2026-09-21); 다음 M13 프로필 수정과 계정 삭제 `planned_unapproved`
+- 현재 frontier: M13 프로필 수정과 계정 삭제 `implemented_pending_user_acceptance` (2026-09-21 자동 검사 PASS; 실제 계정 삭제 E2E·파괴적 로컬 정리는 별도 승인 필요, 디바이스 검증과 사용자 수용 대기)
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-21
@@ -629,25 +629,50 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 ### M13. 프로필 수정과 계정 삭제
 
-- 상태: `planned_unapproved`
+- 상태: `implemented_pending_user_acceptance` — 2026-09-21 A1-A3 구현 및 전체 자동 검사 PASS(151
+  suites / 1,658 tests, coverage statements/branches/functions/lines 87.63% / 82.63% / 88.66% /
+  90.43%, `check-architecture` PASS 0 violations). 실제 계정 삭제 E2E와 파괴적 로컬 정리는 각각
+  별도 명시 승인이 필요하며 미실행. 디바이스 실행 검증과 사용자 수용은 대기.
 - 선행: M6
 - 사용자 결과: Profile을 갱신하고 account 삭제를 안전하게 요청하며, 삭제된 identity가 active
   local session이나 stale data로 남지 않는다.
 - 계약 범위: Profile update와 account deletion
 
-핵심 작업:
+핵심 작업 (구현 완료):
 
-- Profile update와 destructive account deletion confirmation/blocker 처리
-- Delete/logout 뒤 token과 session을 제거하고, 실제 구현돼 있는 cache, SQLite namespace, outbox,
-  subscription, media 또는 push installation scope를 정리하거나 안전하게 격리
-- 아직 구현하지 않은 media/push milestone을 account update/delete의 선행 조건으로 요구하지 않음
-- Partial failure, retry와 재로그인 시 삭제된/stale account state 재활성화 방지
+- U2 `PATCH /api/v1/me` 닉네임 편집: `nickname-section.tsx`의 inline 편집 폼(1..64자/trim/non-empty
+  client-side validation) → `account-lifecycle.updateNickname` → `session.applyProfile`을 통한
+  persisted identity refresh(표시값은 `session.state.profile`에서만 파생, 로컬 컴포넌트 state 아님)
+- U3 `DELETE /api/v1/me` 계정 삭제: `delete-account-section.tsx`의 destructive `Alert.alert` confirm
+  → `pushDisable.disable()`(best-effort, 토큰이 유효할 때 먼저 실행) → `authorizedRequest`(DELETE)
+  → 성공(204) 시에만 `session.logout()`(blocked/error에서는 세션·토큰 불변)
+- 409 `group_ownership_transfer_required` 차단을 일반 오류와 구분된 결과(`'blocked'` vs `'error'`)로
+  분리하고, 각각 재시도 가능한 안내를 렌더
+- `updateNickname`/`deleteAccount` 상호 배제를 위한 공유 in-flight guard
+- Reactivation-safety 회귀 테스트(삭제된 계정의 stale refresh 401 이후 이전 profile 재발행 없음)
+- `session.logout()` 이후 `AccountScopeController`·notifications store의 principal-loss cleanup 확인
+  (groups/chat/topics store는 기존 remount-on-key 패턴 코드 리딩으로 확인, 전용 통합 테스트는 groups
+  store에 한해 미작성 — 테스트 커버리지 갭으로 명시)
+- 공용 HTTP boilerplate를 `src/core/http/http-requester.ts`로 승격(`notifications-http.ts`는 thin
+  re-export로 전환, 세 번째 `request()` 구현 없음)
+- 아직 구현하지 않은 media/push milestone을 account update/delete의 선행 조건으로 요구하지 않음(실제
+  구현: 위 principal-loss cleanup 확인이 실제 구현된 M11/M12 scope만 대상으로 함)
 
-완료 증거:
+완료 증거 (자동 검사):
 
-- Profile update의 validation/error/success와 persisted identity refresh test
-- Account deletion confirmation, server blocker/error, retry와 실제 구현된 local scope cleanup test
-- 실제 account 삭제와 destructive local cleanup은 각각 별도 명시 승인
+- `bun run check:code`: 151 suites / 1,658 tests PASS, coverage statements/branches/functions/lines
+  87.63% / 82.63% / 88.66% / 90.43%, `check-architecture` PASS(0 violations)
+- 신규 테스트 6개 파일(account 5 + `tests/core/http/http-requester.test.ts` 특성화 1)과
+  auth-controller/session-provider/app-providers/account-screen 기존 스위트 확장
+- 2026-09-22 VERIFY/REFINE 격리 리뷰(Alignment/Safety/Regression/Reusability/Consistency) 지적
+  사항 반영 후 게이트 재통과: UI settle `.catch`·unmount 가드, 세션 콜백 identity 안정화,
+  provider 표시 복원, 닉네임 길이 상수 단일화
+- 상세는 [M13 evidence](evidence/M13.md), 아키텍처 결정은 [ADR 0008](adr/0008-account-lifecycle-placement.md)
+
+미검증 / 별도 승인 필요:
+
+- 실제 account 삭제 E2E와 destructive local cleanup은 각각 별도 명시 승인 필요(둘 다 미실행)
+- iOS/Android 디바이스 실행 검증과 사용자 종료 승인 대기(표는 [M13 evidence](evidence/M13.md) 참고)
 
 ## 8. Server API coverage
 
