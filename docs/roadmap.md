@@ -1,12 +1,12 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 자동 검사 완료·실기기 증거 대기
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인)
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M12 알림함과 Expo 푸시 `implemented_pending_device_evidence` (2026-09-16 자동 검사·독립 리뷰 PASS; 실기기 푸시 수신·전달 증거와 사용자 수용 대기); 다음 M13 프로필 수정과 계정 삭제 `planned_unapproved`
+- 현재 frontier: M12 알림함과 Expo 푸시 `COMPLETED / USER_ACCEPTED` (2026-09-21); 다음 M13 프로필 수정과 계정 삭제 `planned_unapproved`
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-09-16
+- 최종 수정일: 2026-09-21
 
 ## 1. 이 문서가 답하는 것
 
@@ -29,7 +29,7 @@
 - **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
-- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11은 2026-09-15 expo-image·expo-video 포함 양 플랫폼 clean prebuild·재빌드·설치, 포스터 송수신·realtime 반영 검증(전체 129 suites / 1,370 tests PASS)을 거쳐 2026-09-16 사용자 종료 승인. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존. M12는 2026-09-16 전체 자동 검사(145 suites / 1,573 tests PASS, coverage 87.37%/82.48%/88.31%/90.22%)와 독립 리뷰 3건(Alignment/Safety/Regression) PASS를 거쳤으나 native 재빌드와 실기기 푸시 수신 증거·사용자 수용은 미완료([M12 evidence](evidence/M12.md))
+- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11은 2026-09-15 expo-image·expo-video 포함 양 플랫폼 clean prebuild·재빌드·설치, 포스터 송수신·realtime 반영 검증(전체 129 suites / 1,370 tests PASS)을 거쳐 2026-09-16 사용자 종료 승인. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존. M12는 2026-09-16 전체 자동 검사(145 suites / 1,573 tests PASS, coverage 87.37%/82.48%/88.31%/90.22%)와 독립 리뷰 3건(Alignment/Safety/Regression) PASS를 거쳤고, 2026-09-20~21 재빌드(Android 에뮬레이터·iOS 시뮬레이터·iPhone 15 Pro 실기기)와 실기기 푸시 수신·탭 handoff·미리보기 off·기본 대화방 알림 검증(서버 PR #6·#7 배포 포함)을 거쳐 2026-09-21 사용자 종료 승인([M12 evidence](evidence/M12.md))
 - **미래 계획**: M13 이후 항목은 `planned_unapproved`; M12 구현 승인이 후속 범위 승인은 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
@@ -588,8 +588,8 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 ### M12. 알림함과 Expo 푸시
 
-- 상태: `implemented_pending_device_evidence` — 2026-09-16 자동 검사·독립 리뷰 PASS, 실기기 푸시
-  수신·전달 증거와 사용자 수용은 대기
+- 상태: `COMPLETED / USER_ACCEPTED` — 2026-09-21 iPhone 실기기 푸시 수신·탭 handoff·미리보기 off·기본
+  대화방 알림 확인 및 사용자 종료 승인. 2026-09-16 자동 검사·독립 리뷰 PASS
 - 선행: M6, M7, M10
 - 사용자 결과: Notification history를 읽고 read 처리하며, 동의한 device에서 받은 push로 올바른
   authenticated destination에 진입한다.
@@ -615,14 +615,17 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - 독립 리뷰 3건(Alignment/Safety/Regression) 전부 PASS, CRITICAL/HIGH 0건
 - 상세는 [M12 evidence](evidence/M12.md), 아키텍처 결정은 [ADR 0007](adr/0007-push-installation-device-scope.md)
 
-남은 것 (실기기 증거, 대기):
+실기기 증거 (완료):
 
-- EAS 프로젝트(`@jamye-plz/jamye-app`)·Android FCM V1 서비스 계정 키·iOS APNs push key는
-  사용자가 이미 준비·업로드했다.
-- `expo-notifications`/`expo-device`는 native 모듈이라 clean prebuild + 플랫폼 재빌드가
-  필요하며, 이 재빌드는 이번 세션에서 실행하지 않았다(별도 사용자 승인 필요).
-- 재빌드 이후 실기기(iOS 1대·Android 1대 이상) 푸시 수신·전달·탭 handoff 확인과 사용자 종료
-  승인이 남아 있다.
+- 2026-09-20 사용자 승인으로 clean prebuild + `expo run:android`(에뮬레이터, Play 이미지) +
+  `expo run:ios`(시뮬레이터) + `expo run:ios --device heimdall`(iPhone 15 Pro) 재빌드·설치.
+- Android 에뮬레이터: 알림함 실데이터, 탭 → 대화방 이동, 권한 프롬프트, 실제 Expo 토큰 발급·P2
+  등록 확인. 에뮬레이터에서 드러난 Android 13+ 권한 매핑과 토큰 회전 루프 결함을 수정.
+- iPhone 실기기: 등록, 백그라운드·포그라운드 수신, warm/cold 탭 → 대화방 직행, 미리보기 off
+  배너("새 메시지 / 새 메시지가 도착했습니다."), 기본 주제 대화방 알림, 로그아웃 후 미수신까지
+  사용자가 확인. 실기기에서 드러난 두 서버 결함(data-only 페이로드, 기본 대화방 알림 부재)은
+  jamye-server PR #6·#7로 수정·배포했다.
+- 2026-09-21 사용자 종료 승인.
 
 ### M13. 프로필 수정과 계정 삭제
 
@@ -650,19 +653,19 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 이 표는 contract inventory의 누락을 막기 위한 배정표다. 현재 구현이나 배포 검증 표가 아니다.
 
-| Family                  | Operation IDs                  | 현재 app                                  | Roadmap assignment                         |
-| ----------------------- | ------------------------------ | ----------------------------------------- | ------------------------------------------ |
-| Health                  | H1, H2                         | 진단 UI 구현                              | M6 진단, 공통 release acceptance           |
-| OAuth/session           | A1, A2, A3, A4, A5             | M6 범위 구현·세션 수용 완료               | M6 shared session, 공통 release acceptance |
-| Profile/account         | U1, U2, U3                     | U1 표시만                                 | M6 U1, M13 U2/U3                           |
-| Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | M7 완료 — 수용 범위는 evidence 참조       | M7                                         |
-| Invitations             | I1, I2                         | M7 완료 — 양 플랫폼 사용자 수용           | M7                                         |
-| Chatrooms/messages/read | C1, C2, C3, C4                 | M8 완료 — 양 플랫폼 사용자 수용           | M8                                         |
-| Delta/realtime          | S1, R1 + WebSocket             | M9 완료 — 사용자 수용 4/4 확인            | M9                                         |
-| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 완료, 양 플랫폼 사용자 수용 PASS          | M10                                        |
-| Media                   | MD1, MD2, MD3, MD4, MD5        | 자동 검사 PASS, native 업로드 보류        | M11                                        |
-| Notification history    | N1, N2                         | 자동 검사 PASS, native 재빌드·실기기 보류 | M12                                        |
-| Push installation       | P2, P3, P4                     | 자동 검사 PASS, native 재빌드·실기기 보류 | M12                                        |
+| Family                  | Operation IDs                  | 현재 app                             | Roadmap assignment                         |
+| ----------------------- | ------------------------------ | ------------------------------------ | ------------------------------------------ |
+| Health                  | H1, H2                         | 진단 UI 구현                         | M6 진단, 공통 release acceptance           |
+| OAuth/session           | A1, A2, A3, A4, A5             | M6 범위 구현·세션 수용 완료          | M6 shared session, 공통 release acceptance |
+| Profile/account         | U1, U2, U3                     | U1 표시만                            | M6 U1, M13 U2/U3                           |
+| Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | M7 완료 — 수용 범위는 evidence 참조  | M7                                         |
+| Invitations             | I1, I2                         | M7 완료 — 양 플랫폼 사용자 수용      | M7                                         |
+| Chatrooms/messages/read | C1, C2, C3, C4                 | M8 완료 — 양 플랫폼 사용자 수용      | M8                                         |
+| Delta/realtime          | S1, R1 + WebSocket             | M9 완료 — 사용자 수용 4/4 확인       | M9                                         |
+| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 완료, 양 플랫폼 사용자 수용 PASS     | M10                                        |
+| Media                   | MD1, MD2, MD3, MD4, MD5        | 자동 검사 PASS, native 업로드 보류   | M11                                        |
+| Notification history    | N1, N2                         | 완료, iPhone 실기기 사용자 수용 PASS | M12                                        |
+| Push installation       | P2, P3, P4                     | 완료, iPhone 실기기 사용자 수용 PASS | M12                                        |
 
 모든 43개 HTTP operation은 위 표에 포함된다. WebSocket은 M9에 배정한다.
 

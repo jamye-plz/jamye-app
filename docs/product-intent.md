@@ -1,9 +1,9 @@
 # 잼얘좀 모바일 — 서버 연결 제품 여정과 보존할 native 의도
 
 - 작성 목적: M1에서 기존 `jamye-plz`의 제품 의미와 회귀 의도를 읽기 전용으로 추출
-- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat, M9 durable outbox/realtime/delta, M10 topics/tags, M11 media (2026-09-16 사용자 수용·종료 승인)
+- 현재 구현 범위: M0-M5 local fixture chat foundation, M6 account-safe authenticated shell, M7 group journey, M8 REST chat, M9 durable outbox/realtime/delta, M10 topics/tags, M11 media (2026-09-16 사용자 수용·종료 승인), M12 notification/Expo push (2026-09-21 사용자 수용·종료 승인)
 - M5 이후: Kakao/Google login/profile/logout과 M6 범위의 native/user 세션 수용 완료
-- 현재 frontier: M11 completed / user accepted (2026-09-16); M12 notification/Expo push planned_unapproved
+- 현재 frontier: M12 completed / user accepted (2026-09-21); M13 profile update/account deletion planned_unapproved
 - 기준 저장소: [sibling `jamye-plz`](../../jamye-plz/) repository (수정하지 않음)
 
 ## 1. 먼저 고정할 해석 원칙
@@ -50,7 +50,7 @@ API의 `chatroom`/`topic` 식별자는 유지한다. 다음 사용자 여정은 
 4. Offline/realtime convergence — M9 완료, 사용자 수용 4/4 확인
 5. Topics/tags — M10 완료, 양 플랫폼 사용자 수용 4/4 확인 및 종료 승인
 6. Media — M11 완료, 2026-09-16 양 플랫폼 사용자 수용 및 종료 승인
-7. Notification/Expo push
+7. Notification/Expo push — M12 완료, 2026-09-21 iPhone 실기기 수용 및 종료 승인
 8. Account profile update와 deletion lifecycle
 
 2026-09-10 사용자가 [M10 계획](roadmap.md#m10-주제태그)의 범위와 순서를 확정했다.
