@@ -1,9 +1,9 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인)
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14-M18(UI/UX 다듬기·소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M13 프로필 수정과 계정 삭제 `COMPLETED / USER_ACCEPTED` (2026-09-22 사용자 디바이스 검증 완료 보고 및 종료 승인). 다음 milestone은 미정이며 사용자 결정으로 시작한다. 파괴적 로컬 정리는 여전히 별도 승인 대상.
+- 현재 frontier: M13 프로필 수정과 계정 삭제 `COMPLETED / USER_ACCEPTED` (2026-09-22 사용자 디바이스 검증 완료 보고 및 종료 승인). 다음 milestone은 M14 UI/UX 다듬기 라운드 1이며 사용자 승인으로 시작한다. M15-M17은 M14 라운드 사이에 병행할 수 있고, M18 스토어 배포는 M14 만족 선언 이후에만 시작한다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-22
@@ -30,7 +30,7 @@
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
 - **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11은 2026-09-15 expo-image·expo-video 포함 양 플랫폼 clean prebuild·재빌드·설치, 포스터 송수신·realtime 반영 검증(전체 129 suites / 1,370 tests PASS)을 거쳐 2026-09-16 사용자 종료 승인. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존. M12는 2026-09-16 전체 자동 검사(145 suites / 1,573 tests PASS, coverage 87.37%/82.48%/88.31%/90.22%)와 독립 리뷰 3건(Alignment/Safety/Regression) PASS를 거쳤고, 2026-09-20~21 재빌드(Android 에뮬레이터·iOS 시뮬레이터·iPhone 15 Pro 실기기)와 실기기 푸시 수신·탭 handoff·미리보기 off·기본 대화방 알림 검증(서버 PR #6·#7 배포 포함)을 거쳐 2026-09-21 사용자 종료 승인([M12 evidence](evidence/M12.md))
-- **미래 계획**: M13 이후 항목은 `planned_unapproved`; M12 구현 승인이 후속 범위 승인은 아님
+- **미래 계획**: M14 이후 항목은 `planned_unapproved`; 2026-09-22 로드맵 등록은 구현 승인이 아니며, M13 종료 승인도 후속 범위 승인은 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
 production readiness의 증거로 재사용하지 않는다.
@@ -189,6 +189,14 @@ M9 durable outbox + realtime/delta convergence
         ├─→ M11 media
         └─→ M12 notification inbox + Expo push
 M6 ─→ M13 account profile update + deletion lifecycle
+  ↓
+M13 completed (2026-09-22)
+  ↓
+M14 UI/UX 다듬기 — round 1..n, 사용자 만족 선언까지 반복
+  ├─(라운드 사이 병행)─→ M15 소프트 삭제 수용 ← server task-14
+  ├─(라운드 사이 병행)─→ M16 Sign in with Apple ← server task-15
+  └─(라운드 사이 병행)─→ M17 잔여 백로그 ← server task-16 (일부)
+M14 만족 선언 + release 범위 확정 ─→ M18 스토어 배포
 
 selected completed scopes ─→ common release acceptance
 ```
@@ -197,6 +205,11 @@ M10-M12의 구현 순서는 contract와 제품 우선순위를 다시 확인한 
 account-safe session을 선행 조건으로 하는 독립 account lifecycle이며 media나 push 완료를 요구하지
 않는다. Release acceptance는 번호가 붙은 catch-all milestone이 아니라, 실제 선택·구현한 범위에만
 적용하는 공통 gate다.
+
+M14-M18은 2026-09-22 사용자 결정으로 등록한 `planned_unapproved` 항목이다. M14는 사용자가 만족을
+선언할 때까지 라운드를 반복하고, M15-M17은 라운드 사이의 사용자 리뷰 대기 시간에 병행할 수 있다.
+M18은 M14 만족 선언과 release 범위 확정 뒤에만 시작하며, 10.2절의 공통 release acceptance를 실제
+선택한 범위에 적용한다. 서버 측 작업(task-14-16)은 jamye-server 저장소의 로드맵 문서가 소유한다.
 
 ## 7. 서버 계약 기반 milestone
 
@@ -675,6 +688,182 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - 실제 account 삭제 E2E와 destructive local cleanup은 각각 별도 명시 승인 필요(둘 다 미실행)
 - iOS/Android 디바이스 실행 검증과 사용자 종료 승인 대기(표는 [M13 evidence](evidence/M13.md) 참고)
 
+### M14. UI/UX 다듬기 (반복 라운드)
+
+- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 라운드 1 착수는 별도 승인
+- 선행: M13(모든 제품 화면이 존재하는 상태)
+- 결정(2026-09-22): [ADR 0005](adr/0005-native-ui-toolkit-adoption.md)의 native-first 방향(`@expo/ui`,
+  `expo-symbols`, `PlatformColor`, native Stack header, tab bar 없음)을 유지하고 그 안에서 다듬는다.
+  종료 기준은 사용자의 만족 선언이며 라운드 수를 미리 정하지 않는다. 라운드 사이의 사용자 리뷰
+  대기 시간에는 M15-M17을 병행할 수 있다.
+- 사용자 결과: 스타일, 페이지 네비게이션, 페이지 라우팅 전반이 사용자 취향에 맞는다.
+- 계약 범위: 없음(app-only). 서버 계약·migration 변경을 요구하지 않는다.
+
+라운드 구조(모든 라운드 동일):
+
+1. 사용자 지적과 취향을 양 플랫폼 스크린샷 또는 실기기 기준으로 수집한다.
+2. 그 라운드의 변경 범위(화면·컴포넌트·route 목록)를 고정하고 사용자 승인을 받는다.
+3. 구현한다.
+4. `bun run check:code`를 통과시키고 양 플랫폼(iOS Simulator·Android Emulator, 필요 시 실기기)에서
+   실행을 확인한다.
+5. 사용자가 리뷰한다. 만족을 선언하면 M14를 종료하고, 아니면 다음 라운드로 간다.
+
+다듬기 영역(초기 목록, 라운드마다 갱신):
+
+- 스타일: [DESIGN.md](../DESIGN.md) 토큰(색·타이포·spacing·radius)과 실제 화면의 일치, 라이트/다크,
+  Android API 34 미만 fallback, 200% 텍스트·reduce motion.
+- 페이지 네비게이션: Stack-only 동선(그룹/알림/계정 진입), large title·back, modal presentation(그룹
+  생성·초대 참여·새 주제), 알림 탭 → 대화방 handoff.
+- 페이지 라우팅: `src/app` 13개 route의 계층 재정리(`groups/[groupId]` ↔ `chatrooms`/`topics`),
+  `index.tsx`의 `appMode` 분기(local-fixture / connected-auth), deep link·`+native-intent.tsx` 규칙,
+  로그인 전후 redirect.
+- 상태 화면: loading/empty/error/retry, 삭제된 콘텐츠 placeholder(M15와 연계).
+
+규칙:
+
+- native-affecting 변경(새 native module, 아이콘·스플래시 등)만 clean prebuild와 양 플랫폼 rebuild를
+  요구한다.
+- ADR 0005 D3(tab bar 없음) 등 ADR 결정을 바꾸는 라운드는 ADR 갱신과 사용자 승인을 먼저 받는다.
+- 라운드 종료 시 DESIGN.md를 실제 화면에 맞게 갱신한다.
+- 라운드별 evidence는 `docs/evidence/` 아래 M14 전용 evidence 파일에 라운드 번호로 누적한다. 이 파일은 라운드 1 착수 시
+  만들고 `tools/quality/check-architecture.cjs`의 exact-path 목록에 등록한다.
+
+완료 증거:
+
+- 라운드별 변경 목록, 양 플랫폼 스크린샷, 자동 검사 결과
+- 최종 사용자 만족 선언 기록
+
+미검증 / 별도 승인 필요:
+
+- 라운드 1 범위와 착수, ADR 변경이 필요한 구조 변경, native rebuild
+
+### M15. 소프트 삭제 수용 (서버 task-14 연동)
+
+- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 서버 task-14 계약
+  publish 이후 별도 승인
+- 선행: 서버 task-14(soft delete 계약)의 배포와 contract intake; M9(realtime/delta 엔진); M13(계정 삭제
+  흐름)
+- 결정(2026-09-22): 서버는 모든 테이블에 `created_at`/`updated_at`/`deleted_at`를 적용하고, 기존 hard
+  delete를 soft delete로 전환하며, 메시지·주제 삭제 API를 신설하고, 계정 삭제도 유예·복구형 soft
+  delete로 바꾼다(서버 로드맵 D14·D15). 범위가 크면 서버 단계 분할을 허용한다. 앱은 서버가 publish한
+  계약만 수용한다.
+- 사용자 결과: 내 메시지나 주제를 삭제하면 상대방 화면에서도 '삭제된 메시지/주제'로 바뀐다. 삭제된
+  그룹·주제·메시지는 목록과 알림함에서 사라지거나 placeholder로 남는다. 계정 삭제 후 30일 유예 기간 안에 같은 provider로 다시 로그인하면 계정이 부활한다.
+- 계약 범위(예정, 가칭): 메시지 삭제 `DELETE /api/v1/chatrooms/{chatroom_id}/messages/{message_id}`(C5),
+  주제 삭제 `DELETE /api/v1/groups/{group_id}/topics/{topic_id}`(T8), realtime/delta 이벤트
+  `message.deleted`·`topic.deleted`, `CanonicalMessage`와 `CanonicalTopic`의 `deleted_at`(및 `updated_at`) 필드,
+  계정 삭제 유예·복구 응답/endpoint. 정확한 ID·shape·권한(권고: 작성자 또는 group owner)은 서버
+  task-14가 확정한다.
+
+핵심 작업:
+
+- Contract intake: `contracts/server/*`와 `contract.lock`을 새 revision으로 갱신하고 generated
+  type/validator를 재생성
+- SQLite 스키마에 `updated_at`/`deleted_at` 반영(데이터 삭제 없는 migration, account namespace 유지)
+- 본인 메시지 길게 누르기 → 삭제 액션; tombstone 렌더링은 M8의 tombstone-safe rendering을 확장
+- 주제 삭제 UI와 연결된 topic chatroom·미디어 표시 규칙
+- `*.deleted` 이벤트 apply: 기존 커서·dedupe·restart 규칙을 그대로 따르고, 서버가 realtime version을
+  올리면 426 upgrade 경로를 재검증
+- 알림함에서 삭제된 대상 항목 처리
+- 계정 삭제 유예·복구 UX(M13 `delete-account-section` 흐름 갱신)
+
+완료 증거:
+
+- 이벤트 apply 테스트(중복·순서·restart), 삭제 후 restart 유지, 상대 기기 반영, 양 플랫폼 사용자 수용
+
+미검증 / 별도 승인 필요:
+
+- 서버 task-14의 migration 적용·계약 publication·배포는 서버 측 별도 승인
+- 서버 D15(30일 유예 후 tombstone 전이, 유예 중 같은 provider 재로그인 시 부활)·D18(새 `message.deleted`/`topic.deleted` 이벤트)·D19(PostgreSQL `BEFORE UPDATE` 트리거)는 2026-09-22 사용자 승인으로 locked; 실제 계약 shape는 task-14 publish 후 확정
+
+### M16. Sign in with Apple (서버 task-15 연동)
+
+- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 서버 task-15 계약
+  publish와 Apple Developer 설정 이후 별도 승인
+- 선행: M6(세션 모델); 서버 task-15; Apple Developer 설정(App ID의 Sign in with Apple capability,
+  서버용 key(.p8)·Team ID·Key ID); production bundle identifier 결정(M18 선행 항목 — identity token의
+  `aud`가 bundle id이므로 서버는 development/production audience allowlist가 필요)
+- 결정(2026-09-22): iOS native(`expo-apple-authentication`) + 서버 identity token 검증 방식. Android에는
+  Apple 버튼을 표시하지 않는다. 계정 연결은 하지 않고 provider별 별도 계정을 유지한다(서버 D16).
+  목적은 App Store Review Guideline 4.8 충족이다.
+- 사용자 결과: iOS에서 'Apple로 로그인'으로 로그인하고 Kakao/Google과 같은 세션
+  모델(TokenPair·refresh·logout·계정 삭제)을 쓴다.
+- 계약 범위(예정, 가칭): `POST /api/v1/auth/apple/exchange`(A6) — `identity_token`,
+  `authorization_code`, `nonce`, 최초 1회 `full_name` → TokenPair. 서버 검증: Apple JWKS 서명,
+  `iss=https://appleid.apple.com`, `aud` allowlist, `exp`, `nonce`(SHA-256) 일치,
+  `auth_identities(provider='apple', provider_id=sub)`. 계정 삭제 시 Apple token revoke(App Store Review
+  Guideline 5.1.1(v), 서버 D17)는 M15의 계정 삭제 흐름과 연계한다.
+
+핵심 작업:
+
+- `expo-apple-authentication` 추가(native rebuild, entitlement `com.apple.developer.applesignin`)
+- AuthScreen에 iOS 전용 Apple 버튼(HIG 버튼 스타일); Android는 미표시
+- `expo-crypto`로 nonce 생성 → 서버 exchange → 기존 SecureStore·refresh single-flight 경로 재사용
+- 취소·오류 분기, 'Hide My Email' 릴레이 이메일과 닉네임 초기값(full name은 최초 1회만 제공됨)
+- 실기기 검증(시뮬레이터 제약)
+
+완료 증거:
+
+- 실기기 iOS Apple 로그인·재로그인·취소, 계정 삭제 후 Apple ID 설정에서 앱 연결 해제 확인, 자동 검사
+
+미검증 / 별도 승인 필요:
+
+- Apple Developer Program 설정과 credential, production identity, native rebuild
+
+### M17. 잔여 백로그
+
+- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 네 묶음 모두 등록; 항목별 착수는 개별 승인
+- 선행: 항목별 상이(아래 표)
+- 결정(2026-09-22): 각 항목은 개별 승인으로 착수하고, M18 release에 포함할지도 개별로 결정한다. 서버
+  계약이 필요한 항목은 서버 task-16(또는 별도 task)을 선행한다.
+- 사용자 결과: 출시를 막는 결함이 정리되고, 보류했던 기능 중 선택한 것이 제품에 들어간다.
+- 계약 범위: (C) 묶음만 서버 계약 변경을 요구한다. 나머지는 app-only 또는 운영 작업이다.
+
+| 묶음                | 항목                                                                                                                                                                                                                           | 선행·비고                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| (A) 앱 출시 blocker | dependency audit image-size High 2건 재감사; Android 시작 ANR 원인 규명; 자동 E2E; 실기기·접근성 수용(VoiceOver/TalkBack, 200% 텍스트, reduce motion); production identity·서명 준비                                           | M18 선행. 기존 기록은 [개발 workflow](development-workflow.md)                       |
+| (B) 보류된 앱 기능  | 아바타 업로드([ADR 0008](adr/0008-account-lifecycle-placement.md) 5번; U2 + MD1/MD2 재사용); 계정 삭제 후 파괴적 로컬 정리(ADR 0008 6번); bootstrap/local-fixture 모드 정리(M6에서 미룸; M4 bootstrap contract 제거 여부 결정) | 파괴적 로컬 정리는 별도 명시 승인 뒤에만                                             |
+| (C) 채팅 기능 확장  | 메시지 편집; 상대방 메시지별 읽음 표시; 주제별 안읽음 표시; presence/typing/reaction                                                                                                                                           | 모두 서버 계약 선행. 메시지 편집은 서버 task-16 후보, 나머지는 별도 product decision |
+| (D) 서버·운영       | homelab 자동 백업(현재 없음; jamye-server PostgreSQL·MinIO 포함); 서버 README/roadmap drift 정리; 모니터링·알림 점검                                                                                                           | 서버 task-16과 homelab 로드맵에서 수행                                               |
+
+완료 증거:
+
+- 항목별 evidence(자동 검사, 실기기 수용, 운영 확인)
+
+미검증 / 별도 승인 필요:
+
+- 모든 항목의 착수 승인; (B) 파괴적 로컬 정리와 (C) 계약 변경은 각각 별도 승인
+
+### M18. 스토어 배포 (iOS App Store + Google Play)
+
+- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 M14 만족 선언 이후 별도
+  승인
+- 선행: M14 만족 선언; M16(Guideline 4.8); M17(A) blocker 해소; release에 포함할 M15/M17 범위 확정
+- 결정(2026-09-22): iOS App Store와 Google Play 양 스토어에 출시한다. legacy jamye-plz 데이터는
+  이관하지 않고 새 서버에서 신규 출발한다. 서버는 이미 homelab(midgard)에 배포되어 있으므로 release 시
+  배포 revision과 contract binding을 고정한다.
+- 사용자 결과: TestFlight·Play 내부 테스트를 거쳐 양 스토어에서 앱을 설치하고, 심사 통과 후 정식 출시한다.
+- 계약 범위: 서버 계약 변경 없음. 배포 revision과 `contract.lock` binding 확인.
+
+핵심 작업:
+
+- production identity(bundle id/package, 앱 이름, 아이콘, 스플래시)와 `app.config.ts`의
+  `APP_VARIANT=production` 경로 구현(현재 throw)
+- 서명(Apple Distribution/Provisioning, Android keystore) — 사용자가 직접 수행
+- 빌드 파이프라인 결정(EAS Build vs 로컬 Xcode/Gradle) — M18 PLAN에서 결정
+- Expo push production credential(APNs key, FCM), OAuth 콘솔 production 등록(Kakao/Google/Apple)
+- 개인정보처리방침·계정 삭제 안내 URL, App Store Connect/Play Console 메타데이터·스크린샷·심사 대응
+- rollback preflight([개발 workflow](development-workflow.md) 6.1절)
+
+완료 증거:
+
+- 10.2절 공통 release acceptance 전 항목의 현재 시점 evidence와 스토어 심사 통과
+
+미검증 / 별도 승인 필요:
+
+- 서명·제출·credential 생성은 사용자가 직접 수행([README](../README.md) '배포 경계'); 스토어 계정·비용·
+  심사 일정은 이 문서가 약속하지 않는다
+
 ## 8. Server API coverage
 
 이 표는 contract inventory의 누락을 막기 위한 배정표다. 현재 구현이나 배포 검증 표가 아니다.
@@ -695,19 +884,36 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 모든 43개 HTTP operation은 위 표에 포함된다. WebSocket은 M9에 배정한다.
 
+다음 operation은 2026-09-22 로드맵 등록 시점에 계약에 없는 **예정 항목(가칭, 계약 미publish)**이다.
+이름과 shape는 서버 task-14/task-15가 확정하며, 앱은 publish된 계약을 intake한 뒤에만 구현한다.
+
+| 가칭 ID | 예정 operation                                                             | 확정 주체    | Roadmap assignment |
+| ------- | -------------------------------------------------------------------------- | ------------ | ------------------ |
+| C5      | `DELETE /api/v1/chatrooms/{chatroom_id}/messages/{message_id}` 메시지 삭제 | 서버 task-14 | M15                |
+| T8      | `DELETE /api/v1/groups/{group_id}/topics/{topic_id}` 주제 삭제             | 서버 task-14 | M15                |
+| —       | realtime/delta `message.deleted`, `topic.deleted`                          | 서버 task-14 | M15                |
+| A6      | `POST /api/v1/auth/apple/exchange` Apple identity token exchange           | 서버 task-15 | M16                |
+
 ## 9. 현재 server contract 밖의 backlog
 
 다음 기능은 현재 contract가 확정하지 않으므로 app-only 확정 milestone으로 만들지 않는다.
+2026-09-22 로드맵 등록으로 일부 항목은 M15-M18로 옮겼다. 옮긴 항목도 서버 계약 publish와 착수 승인
+전에는 `planned_unapproved`다.
 
-- Sign in with Apple 또는 새 OAuth provider
-- STT와 on-device AI
-- Presence, typing, reaction
-- Message edit/delete
-- WebPush/VAPID 또는 새 push backend
-- Production signing과 store submission — 공통 release acceptance의 별도 사용자 결정
-- 삭제된 계정의 로컬 SQLite 파일·미디어 캐시 물리 삭제(파괴적 로컬 정리) — contract와 무관한
-  app-only 항목이지만 되돌릴 수 없는 로컬 작업이라 별도 사용자 승인 뒤에만 진행한다(2026-09-22
-  사용자 결정으로 backlog 유지, [ADR 0008](adr/0008-account-lifecycle-placement.md) 6번)
+| 이전 backlog 항목                                                                                                               | 2026-09-22 이후 위치                           |
+| ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Sign in with Apple                                                                                                              | M16(서버 task-15 연동)                         |
+| Message delete                                                                                                                  | M15(서버 task-14 연동)                         |
+| Message edit                                                                                                                    | M17(C), 서버 task-16 후보                      |
+| Presence, typing, reaction                                                                                                      | M17(C), 별도 product decision + 서버 계약 선행 |
+| Production signing과 store submission                                                                                           | M18                                            |
+| 삭제된 계정의 로컬 SQLite 파일·미디어 캐시 물리 삭제(파괴적 로컬 정리, [ADR 0008](adr/0008-account-lifecycle-placement.md) 6번) | M17(B), 별도 명시 승인 뒤에만                  |
+
+backlog에 남는 항목:
+
+- 새 OAuth provider(Apple 제외)
+- STT와 on-device AI(서버 non-goal D3=C)
+- WebPush/VAPID 또는 새 push backend(서버 D2 Expo-only)
 
 필요해지면 product decision, server contract와 별도 milestone plan을 먼저 승인한다.
 
@@ -779,5 +985,12 @@ M10은 `COMPLETED / USER_ACCEPTED`이며 [M10 evidence](evidence/M10.md)에 출�
 이번 종료 승인은 M11 구현, 기존 후속 마일스톤 변경, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.
 이후 M12 알림함·Expo 푸시는 2026-09-21 iPhone 실기기 검증과 사용자 종료 승인으로, M13 프로필 수정과
 계정 삭제는 2026-09-22 사용자 디바이스 확인 완료 보고와 종료 승인으로 각각 `COMPLETED / USER_ACCEPTED`
-종료했다([M12 evidence](evidence/M12.md), [M13 evidence](evidence/M13.md)). 다음 milestone은 미정이며
-사용자 결정으로 시작한다. 파괴적 로컬 정리는 9절 backlog로 남긴다.
+종료했다([M12 evidence](evidence/M12.md), [M13 evidence](evidence/M13.md)). 다음 milestone은 M14 UI/UX
+다듬기 라운드 1이며 사용자 승인으로 시작한다. 파괴적 로컬 정리는 M17(B)로 옮겼다.
+
+2026-09-22 사용자는 M13 종료 뒤의 다음 과제 5개를 로드맵에 등록하기로 결정했다: M14 UI/UX
+다듬기(native-first 유지, 만족 선언까지 라운드 반복), M15 소프트 삭제 수용(서버 task-14), M16 Sign in
+with Apple(iOS native, 서버 task-15), M17 잔여 백로그(네 묶음), M18 스토어 배포(iOS+Android, legacy 이관
+없음). M15-M17은 M14 라운드 사이에 병행하고 M18은 M14 만족 선언 이후에만 시작한다. 서버 측 상세는
+jamye-server 저장소 로드맵 문서의 task-14-16을 따른다. 이 등록은 구현 승인이 아니다. 다음 액션은 M14
+라운드 1 계획의 사용자 승인이다.
