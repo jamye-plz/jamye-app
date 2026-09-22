@@ -78,7 +78,7 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
   const error = detail.id === groupId ? detail.error : null;
   return (
     <>
-      <Stack.Screen options={{ title: group?.name ?? "그룹" }} />
+      <Stack.Screen options={{ title: "그룹 정보" }} />
       <KeyboardAvoidingView
         behavior={process.env.EXPO_OS === "ios" ? "padding" : "height"}
         style={styles.fill}
@@ -97,7 +97,6 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
               onRefresh={() => void actions.openGroup(groupId)}
               refreshing={detail.status === "loading"}
               testID="group-detail-refresh"
-              tintColor={colors.primary as string}
             />
           }
           style={[styles.fill, { backgroundColor: colors.background }]}
@@ -124,22 +123,18 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
                   )}
                   {group && (
                     <>
-                      <GroupedSection
-                        footer={`${group.memberCount} / ${group.maxMembers}명 · ${
-                          owner ? "그룹 소유자" : "멤버"
-                        }`}
-                      >
+                      <GroupedSection>
                         <GroupedRow
-                          title="주제"
+                          title={group.name}
+                          subtitle={`${group.memberCount} / ${group.maxMembers}명 · ${
+                            owner ? "그룹 소유자" : "멤버"
+                          }`}
+                          chevron={false}
                           leading={
-                            <AppSymbol name="chat" tintColor={colors.primary} />
-                          }
-                          disabled={busy}
-                          onPress={() =>
-                            router.push({
-                              pathname: "/groups/[groupId]/chatrooms",
-                              params: { groupId },
-                            })
+                            <AppSymbol
+                              name="group"
+                              tintColor={colors.textMuted}
+                            />
                           }
                         />
                       </GroupedSection>
@@ -230,7 +225,7 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
                     <GroupedRow
                       title="초대 코드 발급"
                       leading={
-                        <AppSymbol name="share" tintColor={colors.primary} />
+                        <AppSymbol name="share" tintColor={colors.textMuted} />
                       }
                       onPress={() => setInviteSheet(true)}
                     />
@@ -277,7 +272,7 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
             ) : null
           }
         />
-        <Host>
+        <Host seedColor={colors.primary}>
           <BottomSheet
             isPresented={!!memberSheet}
             onDismiss={() => setMemberSheet(null)}

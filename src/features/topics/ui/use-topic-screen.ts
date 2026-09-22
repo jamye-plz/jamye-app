@@ -41,10 +41,5 @@ export function useTopicScreen(groupId: string, topicId?: string) {
     valid,
     current,
     scoped: topics.state.groupId === groupId && !topics.state.accessLost,
-    backToTopics: () =>
-      router.replace({
-        pathname: "/groups/[groupId]/chatrooms",
-        params: { groupId },
-      }),
   };
 }

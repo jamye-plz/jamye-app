@@ -33,7 +33,7 @@ describe("notifications route", () => {
   test("renders the actual notifications route with NotificationsInboxScreen inside GroupRouteGuard", async () => {
     const NotificationsRoute = jest.requireActual<{
       default: () => React.JSX.Element;
-    }>("../../src/app/notifications").default;
+    }>("../../src/app/(tabs)/notifications/index").default;
     const screen = await render(<NotificationsRoute />);
 
     expect(mockGroupRouteGuard).toHaveBeenCalledTimes(1);

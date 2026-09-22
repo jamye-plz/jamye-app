@@ -99,7 +99,7 @@ function AttachmentCard({
               width: appChatComposer.controlSize,
             }}
           >
-            <AppSymbol name="refresh" size={20} tintColor={colors.primary} />
+            <AppSymbol name="refresh" size={20} tintColor={colors.text} />
           </Pressable>
         ) : null}
         <Pressable

@@ -95,7 +95,8 @@ describe("M7 group detail management UI", () => {
   }
   test("owner sees canonical detail, roster and owner actions", async () => {
     const { screen, api } = await setup();
-    expect(lastStackScreenTitle()).toBe("우리 그룹");
+    expect(lastStackScreenTitle()).toBe("그룹 정보");
+    expect(screen.getByText("우리 그룹")).toBeTruthy();
     expect(screen.getByText("사용자")).toBeTruthy();
     expect(screen.getByText("소유자")).toBeTruthy();
     await fireEvent.changeText(
@@ -118,20 +119,19 @@ describe("M7 group detail management UI", () => {
     expect(screen.queryByRole("button", { name: "그룹 삭제" })).toBeNull();
     expect(screen.queryByRole("button", { name: "초대 코드 발급" })).toBeNull();
   });
-  test("the loaded group opens its own connected room list", async () => {
+  test("the info screen no longer owns topic navigation (group home does)", async () => {
     const { screen } = await setup();
-    await fireEvent.press(screen.getByRole("button", { name: "주제" }));
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: "/groups/[groupId]/chatrooms",
-      params: { groupId },
-    });
+    expect(screen.queryByRole("button", { name: "주제" })).toBeNull();
+    expect(screen.getByText("2 / 10명 · 그룹 소유자")).toBeTruthy();
+    expect(mockPush).not.toHaveBeenCalled();
   });
   test("manual refresh keeps detail visible, shows a transient error and allows retry", async () => {
     const { api, screen } = await setup();
     const response = deferred<typeof group>();
     api.getGroup.mockReturnValueOnce(response.promise);
     await fireEvent(screen.getByTestId("group-detail-refresh"), "refresh");
-    expect(lastStackScreenTitle()).toBe("우리 그룹");
+    expect(lastStackScreenTitle()).toBe("그룹 정보");
+    expect(screen.getByText("우리 그룹")).toBeTruthy();
     expect(screen.getByText("사용자")).toBeTruthy();
     expect(screen.getByText("소유자")).toBeTruthy();
     expect(screen.getByTestId("group-detail-refresh").props.refreshing).toBe(
@@ -140,7 +140,7 @@ describe("M7 group detail management UI", () => {
     await act(async () => {
       response.reject(new GroupsApiError(503, "group_unavailable"));
     });
-    expect(lastStackScreenTitle()).toBe("우리 그룹");
+    expect(lastStackScreenTitle()).toBe("그룹 정보");
     expect(screen.queryByRole("button", { name: "그룹 다시 확인" })).toBeNull();
     await fireEvent(screen.getByTestId("group-detail-refresh"), "refresh");
     expect(api.getGroup).toHaveBeenCalledTimes(3);
@@ -248,7 +248,7 @@ describe("M7 group detail management UI", () => {
       new GroupsApiError(403, "membership_required"),
     );
     const { screen } = await setup(api);
-    expect(lastStackScreenTitle()).toBe("그룹");
+    expect(lastStackScreenTitle()).toBe("그룹 정보");
     expect(screen.getByText(/이 그룹에 접근할 수 없습니다/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "그룹 삭제" })).toBeNull();
     expect(mockReplace).toHaveBeenCalledWith("/");

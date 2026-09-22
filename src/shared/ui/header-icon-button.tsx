@@ -36,11 +36,7 @@ export function HeaderIconButton({
       ]}
       testID={testID}
     >
-      <AppSymbol
-        name={symbol}
-        size={22}
-        tintColor={tintColor ?? colors.primary}
-      />
+      <AppSymbol name={symbol} size={22} tintColor={tintColor ?? colors.text} />
     </Pressable>
   );
 }

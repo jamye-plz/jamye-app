@@ -36,7 +36,8 @@ row 같은 iOS HIG·Android Material 3 수준의 native UI를 요구하게 되�
 divider)은 iOS에서 `PlatformColor`로 노출되는 UIKit system color, Android API 34 이상에서
 `@android:color/system_*_{light,dark}` Material 3 role을 사용한다. API 34 미만에서는 기존 hex
 값을 fallback으로 사용한다. Conversation Berry/Petal Berry accent는 이 결정과 무관하게 계속
-고정 hex 값을 유지한다.
+고정 hex 값을 유지한다. (2026-09-22 갱신: Android 부분은 [ADR 0011](0011-color-system-platform-neutral-berry-highlight.md)
+D2가 Berry 시드 Material 3 팔레트로 대체했다.)
 
 ### D3. navigation: native Stack header를 사용하고 tab bar를 두지 않는다
 
@@ -44,7 +45,7 @@ divider)은 iOS에서 `PlatformColor`로 노출되는 UIKit system color, Androi
 주제 root 화면은 `headerLargeTitle: true`로 large title을 쓰고, 뒤로 가기 버튼은
 `headerBackButtonDisplayMode: "minimal"`을 쓴다. `headerRight`에는 icon button을 배치하고,
 생성·수정 form은 `presentation: "modal"`로 연다. Tab bar는 두지 않는다. Profile, logout,
-diagnostics는 기존 `home-screen.tsx`에서 분리해 전용 `/account` 화면(`src/app/account.tsx`,
+diagnostics는 기존 `home-screen.tsx`에서 분리해 전용 `/account` 화면(src/app/account.tsx(당시 경로, M14 라운드 1에서 (tabs)/account/index.tsx로 이동),
 `account-screen.tsx`)으로 옮기고, 옛 `home-screen.tsx`는 삭제한다.
 
 ### D4. chat: sync 상태를 header subtitle 텍스트로만 노출한다

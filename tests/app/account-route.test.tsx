@@ -33,7 +33,7 @@ describe("account route", () => {
   test("renders the actual account route with AccountScreen inside GroupRouteGuard", async () => {
     const AccountRoute = jest.requireActual<{
       default: () => React.JSX.Element;
-    }>("../../src/app/account").default;
+    }>("../../src/app/(tabs)/account/index").default;
     const screen = await render(<AccountRoute />);
 
     expect(mockGroupRouteGuard).toHaveBeenCalledTimes(1);

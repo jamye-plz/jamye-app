@@ -22,6 +22,8 @@ import {
 import { createChatSendController } from "@/features/chat/model/chat-send";
 import type { ChatSendController } from "@/features/chat/model/chat-send";
 import { AppText } from "@/shared/ui/app-text";
+import { HeaderActions } from "@/shared/ui/header-actions";
+import type { HeaderAction } from "@/shared/ui/header-actions";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import type { ChatConversation } from "../use-chat-conversation";
 
@@ -115,7 +117,7 @@ export function ChatConversationScreen({
   onRetryFailedMessage,
   toolbar,
   footer,
-  headerRight,
+  headerActions,
   blocked = false,
   revealInitialLatest = false,
   onVisibleCanonicalMessages,
@@ -133,7 +135,7 @@ export function ChatConversationScreen({
   onVisibleCanonicalMessages?: (ids: readonly string[]) => void;
   toolbar?: ReactNode;
   footer?: ReactNode;
-  headerRight?: () => ReactNode;
+  headerActions?: readonly HeaderAction[];
   blocked?: boolean;
   revealInitialLatest?: boolean;
   focusMainHeading?: (target: MainHeadingTarget) => void;
@@ -175,13 +177,13 @@ export function ChatConversationScreen({
     <>
       <Stack.Screen
         options={{
-          headerRight,
           headerTitle: subtitle
             ? () => <HeaderTitle subtitle={subtitle} title={title} />
             : undefined,
           title,
         }}
       />
+      {headerActions ? <HeaderActions actions={headerActions} /> : null}
       <StatusBar
         barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
       />

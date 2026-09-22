@@ -25,7 +25,7 @@ export function MediaViewerModal({
   const { colors } = useAppTheme();
   const background = backgroundColor ?? colors.background;
   const foreground = backgroundColor ? "#FFFFFF" : colors.text;
-  const iconTint = backgroundColor ? "#FFFFFF" : colors.primary;
+  const iconTint = backgroundColor ? "#FFFFFF" : colors.text;
   return (
     <Modal
       testID="media-viewer-modal"

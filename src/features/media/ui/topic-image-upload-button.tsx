@@ -67,12 +67,9 @@ export function TopicImageUploadButton({
         ]}
       >
         {busy || picker.busy ? (
-          <ActivityIndicator
-            color={colors.primary}
-            testID="topic-image-upload-progress"
-          />
+          <ActivityIndicator testID="topic-image-upload-progress" />
         ) : (
-          <AppSymbol name="image" tintColor={colors.primary} />
+          <AppSymbol name="image" tintColor={colors.text} />
         )}
       </Pressable>
       {pickerError ? (

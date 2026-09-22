@@ -11,12 +11,13 @@ import {
 
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appSpacing } from "@/core/theme/tokens";
+import { useGroupName } from "@/features/groups/model/groups-provider";
 import { AppSymbol } from "@/shared/ui/app-symbol";
 import { AppText } from "@/shared/ui/app-text";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { GroupedRow } from "@/shared/ui/grouped-row";
 import { GroupedSection } from "@/shared/ui/grouped-section";
-import { HeaderIconButton } from "@/shared/ui/header-icon-button";
+import { HeaderActions } from "@/shared/ui/header-actions";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import { NativeButton } from "@/shared/ui/native-button";
 
@@ -27,6 +28,7 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
   const { colors } = useAppTheme();
   const screen = useTopicScreen(groupId);
   const { state, store, chat, ready, scoped, router } = screen;
+  const groupName = useGroupName(groupId);
   const main =
     chat.state.groupId === groupId && !chat.state.accessLost
       ? chat.state.rooms.items.find((room) => room.kind === "main")
@@ -35,24 +37,35 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
   return (
     <>
       <Stack.Screen
-        options={{
-          headerLargeTitle: true,
-          headerRight: () => (
-            <HeaderIconButton
-              accessibilityLabel="새 주제 만들기"
-              disabled={!scoped || state.status !== "ready"}
-              onPress={() => {
-                if (screen.current())
-                  router.push({
-                    pathname: "/groups/[groupId]/topics/new",
-                    params: { groupId },
-                  });
-              }}
-              symbol="add"
-            />
-          ),
-          title: "주제",
-        }}
+        options={{ headerLargeTitle: true, title: groupName ?? "그룹" }}
+      />
+      <HeaderActions
+        actions={[
+          {
+            accessibilityLabel: "그룹 정보",
+            disabled: !screen.valid,
+            key: "info",
+            onPress: () =>
+              router.push({
+                pathname: "/groups/[groupId]/info",
+                params: { groupId },
+              }),
+            symbol: "info",
+          },
+          {
+            accessibilityLabel: "새 주제 만들기",
+            disabled: !scoped || state.status !== "ready",
+            key: "new-topic",
+            onPress: () => {
+              if (screen.current())
+                router.push({
+                  pathname: "/groups/[groupId]/topics/new",
+                  params: { groupId },
+                });
+            },
+            symbol: "add",
+          },
+        ]}
       />
       <FlatList
         // @expo/ui Host children start at zero size on Android; clipping would
@@ -112,7 +125,7 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
                   <GroupedSection>
                     <GroupedRow
                       leading={
-                        <AppSymbol name="chat" tintColor={colors.primary} />
+                        <AppSymbol name="chat" tintColor={colors.textMuted} />
                       }
                       onPress={() => {
                         if (screen.current())
@@ -187,7 +200,6 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
           <RefreshControl
             onRefresh={() => void store?.actions.refresh()}
             refreshing={state.status === "loading"}
-            tintColor={colors.primary as string}
           />
         }
         renderItem={({ item }) => (

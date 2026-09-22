@@ -42,7 +42,6 @@ export function NotificationsInboxScreen({
   store = defaultNotificationsStore,
 }: Readonly<{ store?: NotificationsStore }> = {}) {
   const state = useSyncExternalStore(store.subscribe, store.getState);
-  const { colors } = useAppTheme();
   const router = useRouter();
   const [inaccessibleId, setInaccessibleId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -148,7 +147,6 @@ export function NotificationsInboxScreen({
           <RefreshControl
             onRefresh={() => void store.actions.refresh()}
             refreshing={state.status === "loading"}
-            tintColor={colors.primary as string}
           />
         }
         renderItem={({ item }) => (
@@ -226,7 +224,6 @@ function NotificationRow({
         </View>
         {busy ? (
           <ActivityIndicator
-            color={colors.primary as string}
             size="small"
             testID={`notification-row-busy-${notification.id}`}
           />

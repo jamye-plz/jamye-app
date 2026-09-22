@@ -172,7 +172,7 @@ export function ChatComposer({
               width: appChatComposer.controlSize,
             })}
           >
-            <AppSymbol name="attach" size={28} tintColor={colors.primary} />
+            <AppSymbol name="attach" size={28} tintColor={colors.textMuted} />
           </Pressable>
         ) : null}
         <TextInput
@@ -225,7 +225,7 @@ export function ChatComposer({
         </Pressable>
       </View>
       {attachmentController ? (
-        <Host>
+        <Host seedColor={colors.primary}>
           <BottomSheet
             isPresented={sheetOpen}
             onDismiss={() => setSheetOpen(false)}

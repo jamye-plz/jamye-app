@@ -24,7 +24,7 @@ import {
   repositoryChatroom,
   repositoryHistoryRow,
 } from "./model/connected-chat-fixtures";
-import ChatroomsRoute from "@/app/groups/[groupId]/chatrooms/index";
+import ChatroomsRoute from "@/app/(tabs)/groups/[groupId]/index";
 import ChatroomRoute from "@/app/groups/[groupId]/chatrooms/[chatroomId]";
 
 const mockRouter = { push: jest.fn(), replace: jest.fn() };
@@ -64,8 +64,15 @@ jest.mock("expo-router", () => ({
   Stack: {
     Screen: (props: { options?: RecordedScreenOptions }) => {
       if (props.options) mockObserveScreenOptions(props.options);
-      return null;
+      return props.options?.headerRight ? (
+        <>{props.options.headerRight()}</>
+      ) : null;
     },
+    ...jest
+      .requireActual<typeof import("../../support/stack-toolbar-mock")>(
+        "../../support/stack-toolbar-mock",
+      )
+      .createStackToolbarMock(),
   },
 }));
 jest.mock("@/core/config/public-env", () => ({
@@ -321,17 +328,9 @@ test("the connected conversation uses existing chat UI, visible canonical IDs an
     screen.getByRole("button", { name: "메시지 다시 보내기" }),
   );
   expect(mockChat.actions.retryMessage).toHaveBeenCalledWith("retry-exact");
-  const headerRightElement = lastScreenOptions()?.headerRight?.() as
-    | {
-        props: {
-          accessibilityLabel?: string;
-          disabled?: boolean;
-          onPress?: () => void;
-        };
-      }
-    | undefined;
-  expect(headerRightElement?.props.accessibilityLabel).toBe("메시지 새로고침");
-  headerRightElement?.props.onPress?.();
+  await fireEvent.press(
+    screen.getByRole("button", { name: "메시지 새로고침" }),
+  );
   expect(mockChat.actions.openRoom).toHaveBeenLastCalledWith(CHATROOM_ID);
   await screen.unmount();
   expect(mockChat.actions.closeRoom).toHaveBeenCalledTimes(1);

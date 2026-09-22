@@ -1,5 +1,6 @@
 import { Host, Switch } from "@expo/ui";
 
+import { useAppThemeOrSystem } from "@/core/theme/theme-provider";
 import { GroupedRow } from "@/shared/ui/grouped-row";
 import { GroupedSection } from "@/shared/ui/grouped-section";
 
@@ -68,6 +69,7 @@ export function NotificationSettingsSection() {
     setMessagePreview,
     state,
   } = usePushLifecycle();
+  const { colors } = useAppThemeOrSystem();
 
   const pushRegistered = isPushRegistered(state);
   const busy =
@@ -92,7 +94,7 @@ export function NotificationSettingsSection() {
         subtitle={diagnosticText}
         title="푸시 알림"
         trailing={
-          <Host matchContents>
+          <Host matchContents seedColor={colors.primary}>
             <Switch
               disabled={busy}
               onValueChange={handleTogglePush}
@@ -106,7 +108,7 @@ export function NotificationSettingsSection() {
         subtitle="알림 내용을 미리 보여줍니다"
         title="메시지 미리보기"
         trailing={
-          <Host matchContents>
+          <Host matchContents seedColor={colors.primary}>
             <Switch
               disabled={!pushRegistered}
               onValueChange={handleTogglePreview}

@@ -254,6 +254,14 @@ const M10_TEST_PATHS = [
   "tests/quality/topics-boundaries.test.ts",
 ];
 
+const M14_ROUND1_TEST_PATHS = [
+  "tests/app/tabs-layout.test.tsx",
+  "tests/app/tab-routes.test.tsx",
+  "tests/shared/ui/native-stack-screen-options.test.ts",
+  "tests/features/notifications/ui/use-notifications-unread-count.test.tsx",
+  "tests/shared/ui/header-actions.test.tsx",
+  "tests/shared/ui/header-actions.android.test.tsx",
+];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",
   "tests/core/public-media-env.test.ts",
@@ -316,6 +324,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   "tests/quality/sync-boundaries.test.ts",
   ...M10_TEST_PATHS,
   ...M11_TEST_PATHS,
+  ...M14_ROUND1_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
   "tests/core/theme/tokens.test.ts",
@@ -1596,7 +1605,8 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     expect(isAuthorizedWorkingTreePath("docs/evidence/M11.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M12.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M13.md")).toBe(true);
-    expect(isAuthorizedWorkingTreePath("docs/evidence/M14.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M14.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M15.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10-private.md")).toBe(
       false,
     );

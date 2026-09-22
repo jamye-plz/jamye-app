@@ -14,7 +14,7 @@ import { AppScreen } from "@/shared/ui/app-screen";
 import { AppText } from "@/shared/ui/app-text";
 import { FormField } from "@/shared/ui/form-field";
 import { GroupedSection } from "@/shared/ui/grouped-section";
-import { HeaderIconButton } from "@/shared/ui/header-icon-button";
+import { HeaderActions } from "@/shared/ui/header-actions";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import { NativeButton } from "@/shared/ui/native-button";
 
@@ -81,20 +81,20 @@ export function TopicDetailScreen({
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerRight:
-            canEdit || canManageTags
-              ? () => (
-                  <HeaderIconButton
-                    accessibilityLabel="주제 편집 메뉴"
-                    onPress={() => setMenu(true)}
-                    symbol="more"
-                  />
-                )
-              : undefined,
-          title: "주제",
-        }}
+      <Stack.Screen options={{ title: "주제" }} />
+      <HeaderActions
+        actions={
+          canEdit || canManageTags
+            ? [
+                {
+                  accessibilityLabel: "주제 편집 메뉴",
+                  key: "menu",
+                  onPress: () => setMenu(true),
+                  symbol: "more",
+                },
+              ]
+            : []
+        }
       />
       <AppScreen
         refreshControl={
@@ -104,7 +104,6 @@ export function TopicDetailScreen({
                 void store?.actions.refreshDetail();
             }}
             refreshing={detail?.status === "loading"}
-            tintColor={colors.primary as string}
           />
         }
       >
@@ -180,7 +179,7 @@ export function TopicDetailScreen({
           </>
         )}
       </AppScreen>
-      <Host>
+      <Host seedColor={colors.primary}>
         <BottomSheet isPresented={menu} onDismiss={() => setMenu(false)}>
           <List>
             {canEdit ? (

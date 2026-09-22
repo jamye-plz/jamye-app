@@ -1,15 +1,12 @@
-import { BottomSheet, Host, List, ListItem } from "@expo/ui";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState, useSyncExternalStore } from "react";
-import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { useCallback } from "react";
+import { FlatList, RefreshControl, View } from "react-native";
 
-import { useAppTheme } from "@/core/theme/theme-provider";
 import { appSpacing } from "@/core/theme/tokens";
 import { notificationsStore } from "@/features/notifications/model/notifications-store";
-import { AppText } from "@/shared/ui/app-text";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { GroupedRow } from "@/shared/ui/grouped-row";
-import { HeaderIconButton } from "@/shared/ui/header-icon-button";
+import { HeaderActions } from "@/shared/ui/header-actions";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import { NativeButton } from "@/shared/ui/native-button";
 
@@ -30,13 +27,7 @@ export function GroupListScreen() {
     state: { list },
     actions,
   } = useGroupsStore();
-  const { colors } = useAppTheme();
   const router = useRouter();
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const { unreadCount } = useSyncExternalStore(
-    notificationsStore.subscribe,
-    notificationsStore.getState,
-  );
 
   useFocusEffect(
     useCallback(() => {
@@ -47,47 +38,30 @@ export function GroupListScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerLargeTitle: true,
-          headerRight: () => (
-            <View style={{ flexDirection: "row", gap: 4 }}>
-              <HeaderIconButton
-                accessibilityLabel="그룹 추가"
-                onPress={() => setSheetOpen(true)}
-                symbol="add"
-              />
-              <View>
-                <HeaderIconButton
-                  accessibilityLabel={
-                    unreadCount > 0
-                      ? `알림함, 읽지 않은 알림 ${unreadCount}개`
-                      : "알림함"
-                  }
-                  onPress={() => router.push({ pathname: "/notifications" })}
-                  symbol="notification"
-                />
-                {unreadCount > 0 ? (
-                  <View
-                    accessibilityElementsHidden
-                    importantForAccessibility="no"
-                    style={[styles.badge, { backgroundColor: colors.error }]}
-                  >
-                    <AppText color="white" style={styles.badgeText}>
-                      {unreadCount > 99 ? "99+" : String(unreadCount)}
-                    </AppText>
-                  </View>
-                ) : null}
-              </View>
-              <HeaderIconButton
-                accessibilityLabel="계정"
-                onPress={() => router.push("/account")}
-                symbol="account"
-              />
-            </View>
-          ),
-          title: "그룹",
-        }}
+      <Stack.Screen options={{ headerLargeTitle: true, title: "그룹" }} />
+      <HeaderActions
+        actions={[
+          {
+            accessibilityLabel: "그룹 추가",
+            items: [
+              {
+                key: "create",
+                onPress: () => router.push("/groups/create"),
+                symbol: "group",
+                title: "새 그룹 만들기",
+              },
+              {
+                key: "join",
+                onPress: () => router.push("/groups/join"),
+                symbol: "invite",
+                title: "초대 코드로 가입",
+              },
+            ],
+            key: "add",
+            kind: "menu",
+            symbol: "add",
+          },
+        ]}
       />
       <FlatList
         // @expo/ui Host children start at zero size on Android; clipping would
@@ -143,7 +117,6 @@ export function GroupListScreen() {
           <RefreshControl
             onRefresh={() => void actions.loadGroups()}
             refreshing={list.status === "loading"}
-            tintColor={colors.primary as string}
           />
         }
         renderItem={({ item }) => (
@@ -160,48 +133,6 @@ export function GroupListScreen() {
           />
         )}
       />
-      <Host>
-        <BottomSheet
-          isPresented={sheetOpen}
-          onDismiss={() => setSheetOpen(false)}
-        >
-          <List>
-            <ListItem
-              onPress={() => {
-                setSheetOpen(false);
-                router.push("/groups/create");
-              }}
-            >
-              <AppText>새 그룹 만들기</AppText>
-            </ListItem>
-            <ListItem
-              onPress={() => {
-                setSheetOpen(false);
-                router.push("/groups/join");
-              }}
-            >
-              <AppText>초대 코드로 가입</AppText>
-            </ListItem>
-          </List>
-        </BottomSheet>
-      </Host>
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  badge: {
-    alignItems: "center",
-    borderRadius: 9,
-    minWidth: 18,
-    paddingHorizontal: 3,
-    position: "absolute",
-    right: -2,
-    top: -2,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    lineHeight: 14,
-  },
-});

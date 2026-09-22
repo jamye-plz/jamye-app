@@ -388,7 +388,7 @@ const M7_TEST_PATHS = Object.freeze([
 const M7_AUTHORED_FILES = Object.freeze([
   "src/app/groups/create.tsx",
   "src/app/groups/join.tsx",
-  "src/app/groups/[groupId].tsx",
+  "src/app/(tabs)/groups/[groupId]/info.tsx",
   "src/features/groups/data/groups-api.ts",
   "src/features/groups/model/groups-error.ts",
   "src/features/groups/model/groups-input.ts",
@@ -679,6 +679,14 @@ const OAUTH_TEST_PATHS = Object.freeze([
   "tests/core/auth/pkce.test.ts",
   "tests/features/auth/auth-screen.test.tsx",
 ]);
+const M14_ROUND1_TEST_PATHS = Object.freeze([
+  "tests/app/tabs-layout.test.tsx",
+  "tests/app/tab-routes.test.tsx",
+  "tests/shared/ui/native-stack-screen-options.test.ts",
+  "tests/features/notifications/ui/use-notifications-unread-count.test.tsx",
+  "tests/shared/ui/header-actions.test.tsx",
+  "tests/shared/ui/header-actions.android.test.tsx",
+]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
   ...new Set([
     ...ACTIVE_M3_TEST_PATHS,
@@ -694,6 +702,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M9_TEST_PATHS,
     ...M10_TEST_PATHS,
     ...M11_TEST_PATHS,
+    ...M14_ROUND1_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
     "tests/core/theme/tokens.test.ts",
@@ -1175,6 +1184,7 @@ const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   "expo-env.d.ts",
   ".agents/",
   ".claude/",
+  ".github/",
   ".codex/",
   ".serena/",
   ".antigravitycli/",
@@ -1184,7 +1194,6 @@ const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   "CLAUDE.md",
   ".mcp.json",
   "assets/",
-  ".github/",
   "tsconfig.json",
   "contracts/bootstrap/openapi.json",
   "contracts/bootstrap/realtime-event.schema.json",
@@ -1207,6 +1216,41 @@ const RESERVED_DEFERRED_PATHS = Object.freeze([
   "src/core/realtime",
   "src/core/sync",
   "src/core/storage",
+]);
+
+const M14_ROUND1_AUTHORED_FILES = Object.freeze([
+  "src/app/(tabs)/_layout.tsx",
+  "src/app/(tabs)/groups/_layout.tsx",
+  "src/app/(tabs)/groups/index.tsx",
+  "src/app/(tabs)/groups/[groupId]/index.tsx",
+  "src/app/(tabs)/groups/[groupId]/info.tsx",
+  "src/app/(tabs)/groups/[groupId]/topics/[topicId].tsx",
+  "src/app/(tabs)/notifications/_layout.tsx",
+  "src/app/(tabs)/notifications/index.tsx",
+  "src/app/(tabs)/account/_layout.tsx",
+  "src/app/(tabs)/account/index.tsx",
+  "src/shared/ui/native-stack-screen-options.ts",
+  "src/shared/ui/header-actions.tsx",
+  "src/shared/ui/header-actions.android.tsx",
+  "src/shared/ui/header-actions.types.ts",
+  "assets/icons/material/add.xml",
+  "assets/icons/material/group.xml",
+  "assets/icons/material/confirmation_number.xml",
+  "assets/icons/material/info.xml",
+  "assets/icons/material/more_vert.xml",
+  "assets/icons/material/refresh.xml",
+  "src/features/notifications/ui/use-notifications-unread-count.ts",
+  "tests/support/stack-toolbar-mock.tsx",
+  "tests/shared/ui/header-actions.test.tsx",
+  "tests/shared/ui/header-actions.android.test.tsx",
+  "tests/app/tabs-layout.test.tsx",
+  "tests/app/tab-routes.test.tsx",
+  "tests/shared/ui/native-stack-screen-options.test.ts",
+  "tests/features/notifications/ui/use-notifications-unread-count.test.tsx",
+  "docs/evidence/M14.md",
+  "docs/adr/0009-tab-bar-navigation.md",
+  "docs/adr/0010-platform-native-visual-language.md",
+  "docs/adr/0011-color-system-platform-neutral-berry-highlight.md",
 ]);
 
 const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
@@ -1288,7 +1332,6 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "src/features/notifications/data/notifications-api.ts",
   "src/features/notifications/data/notifications-http.ts",
   "docs/adr/0008-account-lifecycle-placement.md",
-  "docs/adr/0009-tab-bar-navigation.md",
   "docs/evidence/M13.md",
   "src/core/contracts/server/users.ts",
   "src/core/http/http-requester.ts",
@@ -1355,6 +1398,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M9_AUTHORED_FILES,
   ...M10_AUTHORED_FILES,
   ...M11_AUTHORED_FILES,
+  ...M14_ROUND1_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -1364,6 +1408,12 @@ const APPROVED_RECOVERY_CREATE_OR_REPLACE_PATHS = Object.freeze(
 );
 
 const AUTHORIZED_DELETE_PATHS = Object.freeze([
+  // M14 round 1 (ADR 0009): routes moved under src/app/(tabs) or absorbed.
+  "src/app/account.tsx",
+  "src/app/notifications.tsx",
+  "src/app/groups/[groupId].tsx",
+  "src/app/groups/[groupId]/chatrooms/index.tsx",
+  "src/app/groups/[groupId]/topics/[topicId].tsx",
   "src/features/chat/ui/chat-rooms-screen.tsx",
   "src/features/chat/ui/chat-controls.tsx",
   "src/features/media/ui/attachment-picker-button.tsx",

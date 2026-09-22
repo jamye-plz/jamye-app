@@ -82,3 +82,16 @@ export function useGroupsStore(): Value {
     throw new Error("useGroupsStore must be used inside GroupsProvider.");
   return value;
 }
+
+/**
+ * Display name of a group already known to this account's store (the open
+ * detail first, then the cached list). `null` until a query has seen it, so
+ * callers show a neutral fallback instead of a stale name.
+ */
+export function useGroupName(groupId: string): string | null {
+  const { state } = useGroupsStore();
+  const fromDetail =
+    state.detail.id === groupId ? state.detail.group?.name : undefined;
+  const fromList = state.list.items.find((item) => item.id === groupId)?.name;
+  return fromDetail ?? fromList ?? null;
+}

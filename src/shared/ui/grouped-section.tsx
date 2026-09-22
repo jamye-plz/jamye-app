@@ -31,7 +31,7 @@ export function GroupedSection({
           accessibilityRole="header"
           style={[
             isIos ? styles.titleIos : styles.titleAndroid,
-            { color: isIos ? colors.textMuted : colors.primary },
+            { color: colors.textMuted },
           ]}
         >
           {title}

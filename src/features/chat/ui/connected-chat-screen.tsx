@@ -5,7 +5,6 @@ import { useAccountScope } from "@/core/providers/app-providers";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { useMediaUploadQueue } from "@/features/media/model/use-media-upload-queue";
 import { AppScreen } from "@/shared/ui/app-screen";
-import { HeaderIconButton } from "@/shared/ui/header-icon-button";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import { NativeButton } from "@/shared/ui/native-button";
 import { useConnectedChat } from "../model/connected-chat-provider";
@@ -124,14 +123,15 @@ export function ConnectedChatScreen({
             ? "오프라인 · 기기에 저장 후 자동 전송"
             : undefined
       }
-      headerRight={() => (
-        <HeaderIconButton
-          accessibilityLabel="메시지 새로고침"
-          disabled={state.history.status === "loading"}
-          onPress={() => void actions.openRoom(chatroomId)}
-          symbol="refresh"
-        />
-      )}
+      headerActions={[
+        {
+          accessibilityLabel: "메시지 새로고침",
+          disabled: state.history.status === "loading",
+          key: "refresh",
+          onPress: () => void actions.openRoom(chatroomId),
+          symbol: "refresh",
+        },
+      ]}
       conversation={conversation}
       controller={controller}
       attachmentController={attachments}

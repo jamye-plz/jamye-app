@@ -28,6 +28,11 @@ jest.mock("expo-router", () => ({
       lastStackScreenOptions = props.options;
       return props.options?.headerRight ? props.options.headerRight() : null;
     },
+    ...jest
+      .requireActual<typeof import("../../../support/stack-toolbar-mock")>(
+        "../../../support/stack-toolbar-mock",
+      )
+      .createStackToolbarMock(),
   },
   useLocalSearchParams: () => ({}),
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
@@ -102,13 +107,14 @@ describe("TopicDetailScreen edit menu, sheet items, and inline editors", () => {
   test("hides the edit menu icon entirely for a viewer with neither edit nor tag permission", async () => {
     const f = topicsHarness();
     f.principal.userId = strangerId;
-    await setup(f);
-    expect(lastStackScreenOptions?.headerRight).toBeUndefined();
+    const rendered = await setup(f);
+    expect(
+      rendered.screen.queryByRole("button", { name: "주제 편집 메뉴" }),
+    ).toBeNull();
   });
 
   test("author sees both sheet items; picking title/body opens the body editor and cancel closes it", async () => {
     const f = await setup();
-    expect(typeof lastStackScreenOptions?.headerRight).toBe("function");
     await fireEvent.press(
       f.screen.getByRole("button", { name: "주제 편집 메뉴" }),
     );

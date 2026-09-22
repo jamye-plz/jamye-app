@@ -4,25 +4,24 @@ import { Text } from "react-native";
 
 const mockAuthScreen = jest.fn(() => <Text testID="auth-screen">auth</Text>);
 const mockChatScreen = jest.fn(() => <Text testID="chat-screen">chat</Text>);
+const mockRedirect = jest.fn(({ href }: { href: string }) => (
+  <Text testID="redirect">{href}</Text>
+));
 let mockPrincipal: Readonly<{
   origin: string;
   userId: string;
   epoch: number;
 }> | null = null;
 
+jest.mock("expo-router", () => ({
+  Redirect: (props: { href: string }) => mockRedirect(props),
+}));
 jest.mock("@/features/auth/ui/auth-screen", () => ({
   AuthScreen: () => mockAuthScreen(),
 }));
 jest.mock("@/features/chat/ui/chat-screen", () => ({
   ChatScreen: () => mockChatScreen(),
 }));
-jest.mock("@/features/groups/ui/group-list-screen", () => {
-  const { Text } =
-    jest.requireActual<typeof import("react-native")>("react-native");
-  return {
-    GroupListScreen: () => <Text testID="group-list">groups</Text>,
-  };
-});
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: jest.fn(() => ({
     state: { status: "signed-out", profile: null, message: null },
@@ -53,17 +52,18 @@ describe("mode-aware index route", () => {
       jest.clearAllMocks();
     });
 
-    test("renders AuthScreen (not GroupListScreen) while there is no validated principal", async () => {
+    test("renders AuthScreen (no redirect) while there is no validated principal", async () => {
       const IndexRoute = jest.requireActual<{
         default: () => React.JSX.Element;
       }>("../../src/app/index").default;
       const screen = await render(<IndexRoute />);
       expect(screen.getByTestId("auth-screen")).toBeTruthy();
-      expect(screen.queryByTestId("group-list")).toBeNull();
+      expect(screen.queryByTestId("redirect")).toBeNull();
+      expect(mockRedirect).not.toHaveBeenCalled();
       expect(mockChatScreen).not.toHaveBeenCalled();
     });
 
-    test("renders GroupListScreen once a validated session principal exists", async () => {
+    test("redirects a validated principal into the groups tab (ADR 0009)", async () => {
       mockPrincipal = {
         origin: "https://api.example",
         userId: "3f0a3f1e-2f2a-4a3e-9c3b-1f8f9d3a2b4c",
@@ -73,17 +73,20 @@ describe("mode-aware index route", () => {
         default: () => React.JSX.Element;
       }>("../../src/app/index").default;
       const screen = await render(<IndexRoute />);
-      expect(screen.getByTestId("group-list")).toBeTruthy();
+      expect(screen.getByTestId("redirect").props.children).toBe("/groups");
+      expect(mockRedirect).toHaveBeenCalledWith(
+        expect.objectContaining({ href: "/groups" }),
+      );
       expect(screen.queryByTestId("auth-screen")).toBeNull();
     });
 
-    test("falls back to AuthScreen the instant the session reports no principal, never rendering a stale group list", async () => {
+    test("falls back to AuthScreen the instant the session reports no principal, never redirecting", async () => {
       const IndexRoute = jest.requireActual<{
         default: () => React.JSX.Element;
       }>("../../src/app/index").default;
       mockPrincipal = null;
       const screen = await render(<IndexRoute />);
-      expect(screen.queryByTestId("group-list")).toBeNull();
+      expect(screen.queryByTestId("redirect")).toBeNull();
       expect(screen.getByTestId("auth-screen")).toBeTruthy();
     });
   });
@@ -95,13 +98,14 @@ describe("mode-aware index route", () => {
       jest.clearAllMocks();
     });
 
-    test("renders the unchanged local fixture ChatScreen, never AuthScreen/GroupListScreen", async () => {
+    test("renders the unchanged local fixture ChatScreen, never AuthScreen or a redirect", async () => {
       const IndexRoute = jest.requireActual<{
         default: () => React.JSX.Element;
       }>("../../src/app/index").default;
       const screen = await render(<IndexRoute />);
       expect(screen.getByTestId("chat-screen")).toBeTruthy();
       expect(mockAuthScreen).not.toHaveBeenCalled();
+      expect(mockRedirect).not.toHaveBeenCalled();
     });
   });
 });

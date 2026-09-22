@@ -10,7 +10,7 @@ import { TopicsApiError } from "@/features/topics/data/topics-api";
 import { authorize, topicsHarness } from "../topics-harness";
 import { groupId, topicId, roomId, otherId } from "../topics-fixtures";
 import TopicCreateRoute from "@/app/groups/[groupId]/topics/new";
-import TopicDetailRoute from "@/app/groups/[groupId]/topics/[topicId]";
+import TopicDetailRoute from "@/app/(tabs)/groups/[groupId]/topics/[topicId]";
 
 // Native photo gestures are exercised by the focused viewer tests.
 jest.mock("@/features/media/ui/media-image-viewer", () => ({
@@ -39,6 +39,11 @@ jest.mock("expo-router", () => ({
       const headerRight = props.options?.headerRight;
       return headerRight ? headerRight() : null;
     },
+    ...jest
+      .requireActual<typeof import("../../../support/stack-toolbar-mock")>(
+        "../../../support/stack-toolbar-mock",
+      )
+      .createStackToolbarMock(),
   },
   useLocalSearchParams: () => mockParams,
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
@@ -46,6 +51,9 @@ jest.mock("expo-router", () => ({
     const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(callback, [callback]);
   },
+}));
+jest.mock("@/features/groups/model/groups-provider", () => ({
+  useGroupName: () => "우리 그룹",
 }));
 jest.mock("@/core/config/public-env", () => ({
   getPublicEnv: () => ({ appMode: "connected-auth" }),
@@ -121,6 +129,11 @@ describe("M10 topic views with real controller and fake API", () => {
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/groups/[groupId]/topics/[topicId]",
       params: { groupId, topicId },
+    });
+    await fireEvent.press(f.screen.getByRole("button", { name: "그룹 정보" }));
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: "/groups/[groupId]/info",
+      params: { groupId },
     });
     await fireEvent.press(f.screen.getByRole("button", { name: "2026-09-11" }));
     expect(f.api.listTopics).toHaveBeenLastCalledWith(

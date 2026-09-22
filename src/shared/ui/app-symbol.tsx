@@ -32,7 +32,9 @@ export type AppSymbolName =
   | "inbox"
   | "image"
   | "check"
-  | "notification";
+  | "notification"
+  | "info"
+  | "invite";
 
 export const APP_SYMBOLS: Record<
   AppSymbolName,
@@ -65,6 +67,8 @@ export const APP_SYMBOLS: Record<
   image: { ios: "photo", android: "image" },
   check: { ios: "checkmark", android: "check" },
   notification: { ios: "bell", android: "notifications" },
+  info: { ios: "info.circle", android: "info" },
+  invite: { ios: "ticket", android: "confirmation_number" },
 };
 
 export function AppSymbol({

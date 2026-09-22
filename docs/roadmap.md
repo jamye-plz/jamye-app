@@ -690,7 +690,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 ### M14. UI/UX 다듬기 (반복 라운드)
 
-- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 라운드 1 범위는 2026-09-22 고정(아래 '라운드 1 범위' 참조), 착수는 별도 승인
+- 상태: `in_progress` — 2026-09-22 사용자가 계획을 승인하고 라운드 1 착수를 지시; 라운드 1 구현과 자동 검사 완료, 사용자 리뷰 1(플랫폼 네이티브 chrome, ADR 0010) 반영, 양 플랫폼 재확인 대기(아래 '라운드 1 범위'와 `docs/evidence/` 아래 M14 파일 참조)
 - 선행: M13(모든 제품 화면이 존재하는 상태)
 - 결정(2026-09-22): [ADR 0005](adr/0005-native-ui-toolkit-adoption.md)의 native-first 방향(`@expo/ui`, `expo-symbols`, `PlatformColor`, native Stack header)을 유지하되, D3(tab bar 없음)는 라운드 1에서 [ADR 0009](adr/0009-tab-bar-navigation.md)로 대체한다.
   종료 기준은 사용자의 만족 선언이며 라운드 수를 미리 정하지 않는다. 라운드 사이의 사용자 리뷰
@@ -709,8 +709,10 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 다듬기 영역(초기 목록, 라운드마다 갱신):
 
-- 스타일: [DESIGN.md](../DESIGN.md) 토큰(색·타이포·spacing·radius)과 실제 화면의 일치, 라이트/다크,
-  Android API 34 미만 fallback, 200% 텍스트·reduce motion.
+- 스타일: 플랫폼 고유 시각 언어([ADR 0010](adr/0010-platform-native-visual-language.md): iOS는 Liquid
+  Glass 네이티브 chrome, Android는 Material 3 기본), 색 체계([ADR 0011](adr/0011-color-system-platform-neutral-berry-highlight.md):
+  플랫폼 중립색 + Berry highlight, Android Berry 시드 팔레트), [DESIGN.md](../DESIGN.md) 토큰(색·타이포·spacing·radius)과
+  실제 화면의 일치, 라이트/다크, Android API 34 미만 fallback, 200% 텍스트·reduce motion.
 - 페이지 네비게이션: tab bar 동선(그룹/알림/계정 탭, ADR 0009)과 루트 Stack의 대화·모달, large title·back, modal presentation(그룹 생성·초대 참여·새 주제), 알림 탭 → 대화방 handoff.
 - 페이지 라우팅: `src/app` 13개 route의 계층 재정리(`groups/[groupId]` ↔ `chatrooms`/`topics`),
   `index.tsx`의 `appMode` 분기(local-fixture / connected-auth), deep link·`+native-intent.tsx` 규칙,
@@ -738,8 +740,10 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 #### 라운드 1 범위 (2026-09-22 고정)
 
 - 결정(2026-09-22): 영역은 네비게이션 구조와 라우팅·화면 계층 정리로 한정하고, 스타일과 상태 화면은 이번 라운드에서 제외한다. tab bar를 도입한다([ADR 0009](adr/0009-tab-bar-navigation.md), ADR 0005 D3 대체). 크기는 작게(화면 3개)다. 범위 근거는 정적 코드 감사 기반 제안이며 사용자가 항목 A·B·C를 선택했다.
-- 상태: 범위 고정. 구현은 `not_started`이며 착수는 별도 승인. 실행 tracker는 로컬 전용 파일(gitignore 대상인 docs/plans 아래 004-m14-ui-ux-round-1)이다.
+- 상태: 범위 고정 후 2026-09-22 착수 승인. 구현은 `implemented`(자동 검사 PASS), 사용자 리뷰 대기. 실행 tracker는 로컬 전용 파일(gitignore 대상인 docs/plans 아래 004-m14-ui-ux-round-1)이다.
 - 선행: [ADR 0009](adr/0009-tab-bar-navigation.md)(Accepted, ADR 0005 D3 대체) 반영. 이 ADR 없이는 라운드 1 구현에 착수할 수 없다.
+- 사용자 리뷰 1(2026-09-22) 반영: tab bar는 expo-router `NativeTabs`, 헤더 버튼은 iOS native toolbar(`Stack.Toolbar`)·Android Material icon button으로 바꿨다. 상시 규칙은 [ADR 0010](adr/0010-platform-native-visual-language.md).
+- 사용자 리뷰 2·3(2026-09-22) 반영: `+`는 버튼 아래 native 메뉴(bottom sheet 제거). 색은 플랫폼 중립색 위에 Berry를 highlight로만 쓰고 Android는 Berry 시드 Material 3 팔레트로 고정한다([ADR 0011](adr/0011-color-system-platform-neutral-berry-highlight.md)).
 
 항목:
 
@@ -772,7 +776,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - iOS Simulator·Android Emulator에서 탭 전환, 그룹 목록 → 그룹 홈 → 기본 대화/주제 상세 → 대화, 알림 탭 → 대화 handoff, 계정 탭 로그아웃 확인
 - 사용자 리뷰. 만족이면 M14 종료, 아니면 라운드 2 지적 기록. evidence는 `docs/evidence/` 아래 M14 파일에 라운드 1로 기록(착수 시 생성·checker 등록)
 
-라운드 2 후보(이번 라운드 제외): D. 인증 게이트 라우팅 분리(`(auth)/sign-in` + Redirect, local-fixture 모드 별도 라우트); 채팅 화면 제목을 주제 제목이나 그룹명으로; 계정 화면의 '로컬 계정 저장소'·'서버 연결 진단' 섹션을 개발자 전용으로 정리; 스타일·컴포넌트와 상태 화면(loading/empty/error) 영역.
+라운드 2 후보(이번 라운드 제외): D. 인증 게이트 라우팅 분리(`(auth)/sign-in` + Redirect, local-fixture 모드 별도 라우트); 채팅 화면 제목을 주제 제목이나 그룹명으로; 계정 화면의 '로컬 계정 저장소'·'서버 연결 진단' 섹션을 개발자 전용으로 정리; 스타일·컴포넌트와 상태 화면(loading/empty/error) 영역; 미디어 뷰어 오버레이·채팅 composer의 Liquid Glass 적용 여부(ADR 0010 D2).
 
 ### M15. 소프트 삭제 수용 (서버 task-14 연동)
 

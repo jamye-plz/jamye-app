@@ -4,7 +4,7 @@
 
 Jamye is a warm private conversation space for close friends. The M5 surface keeps attention on one Korean text conversation: a warm paper canvas, quiet neutral incoming messages, berry outgoing messages, and restrained rounded geometry. The interface should feel friendly without turning chat reliability into decoration.
 
-This is a native mobile system. It respects iOS and Android keyboard, safe-area, type-scaling, and accessibility conventions instead of copying the web layout. Light and dark modes share the same low-chroma identity but use separately authored palettes. System status is explicit, calm, and readable.
+This is a native mobile system. It respects iOS and Android keyboard, safe-area, type-scaling, and accessibility conventions instead of copying the web layout. Navigation chrome is drawn by the platform: Liquid Glass on iOS 26 and Material 3 on Android (ADR 0010); neither platform wears the other's uniform. Light and dark modes share the same low-chroma identity but use separately authored palettes. System status is explicit, calm, and readable.
 
 The design posture is mostly symmetric, mostly static, and comfortably dense. Message flow and draft stability take precedence over ornamental motion. The sole continuous spatial transition is the conversation following system-owned keyboard progress.
 
@@ -12,26 +12,28 @@ The design posture is mostly symmetric, mostly static, and comfortably dense. Me
 
 ### Neutral Roles (Platform Semantic)
 
-Neutral surface, text, and structural roles resolve to platform system colors instead of a fixed hex pair. iOS uses `PlatformColor` UIKit dynamic colors; Android uses `@android:color/system_*_{light,dark}` Material 3 roles on API 34 and above. Below API 34, Android falls back to the same hex value used as the light/dark fallback name below.
+Neutral surface, text, and structural roles come from the platform, never from a brand hex (ADR 0011). iOS uses `PlatformColor` UIKit dynamic colors. Android uses a fixed Material 3 tonal palette generated from the Conversation Berry seed (#9B3F68) with material-color-utilities, not the wallpaper-driven dynamic color, so the app looks the same on every device and Compose hosts can receive plain hex. The authored fallback hex applies only where neither platform is present (web preview, tests).
 
-| Role (fallback name)                                        | iOS UIKit (`PlatformColor`) | Android system color (API 34+)                                       | Fallback hex (below API 34) |
-| ----------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------- | --------------------------- |
-| Canvas (Warm Paper Canvas / Deep Plum Canvas)               | `systemBackground`          | `system_background_light` / `system_background_dark`                 | #FAF8F4 / #1C1920           |
-| Raised surface (Clean Raised Surface / Raised Night)        | `secondarySystemBackground` | `system_surface_bright_light` / `system_surface_bright_dark`         | #FFFFFF / #252129           |
-| Quiet surface (Quiet Warm Surface / Quiet Violet Surface)   | `tertiarySystemBackground`  | `system_surface_container_light` / `system_surface_container_dark`   | #F5F1EC / #302A42           |
-| Primary text (Ink Plum / Moon Ink)                          | `label`                     | `system_on_background_light` / `system_on_background_dark`           | #29252D / #F4EEF2           |
-| Secondary text (Muted Plum / Muted Moon)                    | `secondaryLabel`            | `system_on_surface_variant_light` / `system_on_surface_variant_dark` | #665F6B / #A9A0AE           |
-| Structural outline (Structural Mauve / Structural Lavender) | `separator`                 | `system_outline_light` / `system_outline_dark`                       | #918693 / #776D7C           |
-| Divider (Warm Divider / Night Divider)                      | `opaqueSeparator`           | `system_outline_variant_light` / `system_outline_variant_dark`       | #E8E0D8 / #322C36           |
+| Role                                 | iOS UIKit (`PlatformColor`) | Android Berry-seed M3 (light / dark) | Fallback hex (light / dark) |
+| ------------------------------------ | --------------------------- | ------------------------------------ | --------------------------- |
+| Canvas (`background`)                | `systemBackground`          | #FFF8F8 / #120D0E                    | #FAF8F4 / #1C1920           |
+| Raised surface (`surface`)           | `secondarySystemBackground` | #F7EBED / #241E20                    | #FFFFFF / #252129           |
+| Quiet surface (`surfaceMuted`)       | `systemFill`                | #F1E5E7 / #2E282A                    | #F5F1EC / #302A42           |
+| Primary text (`text`)                | `label`                     | #201A1C / #EBE0E2                    | #29252D / #F4EEF2           |
+| Secondary text (`textMuted`)         | `secondaryLabel`            | #514347 / #D5C2C7                    | #665F6B / #A9A0AE           |
+| Tertiary text (`textTertiary`)       | `tertiaryLabel`             | #837377 / #9D8C91                    | #918693 / #776D7C           |
+| Structural outline (`border`)        | `separator`                 | #837377 / #9D8C91                    | #918693 / #776D7C           |
+| Divider (`divider`)                  | `separator`                 | #D5C2C7 / #514347                    | #E8E0D8 / #322C36           |
+| Error (`error`)                      | `systemRed`                 | #BA1A1A / #FFB4AB                    | #B33C48 / #F2A0A8           |
+| Accent container (`accentContainer`) | `secondarySystemFill`       | #FFD9E4 / #5A3F49                    | #FFD9E4 / #5A3F49           |
 
-Android resolves the `light`/`dark` variant from the active app color scheme. The fallback hex applies whenever the platform system color is unavailable for the running OS version.
+Android resolves the light or dark spec from the active app color scheme. `@expo/ui` Compose hosts take `seedColor={colors.primary}` so their Material palette derives from the same seed.
 
 ### Accent, Error, and Notice
 
-- Conversation Berry (#9B3F68): outgoing messages and the single primary action role (light mode)
-- Clean On-Berry (#FFFFFF): text and symbols on Conversation Berry (light mode)
-- Petal Berry (#E39BB8): outgoing messages and the single primary action role (dark mode)
-- Deep Berry Ink (#2C141F): text and symbols on Petal Berry (dark mode)
+- Conversation Berry (#9B3F68, light) and Petal Berry (#E39BB8, dark) are the single highlight color (ADR 0011 D1). They appear only on: the active tab icon and label, filled primary buttons and the send control, text action buttons, the focused input border, unread dots, selected chips and row titles, and outgoing message bubbles.
+- Clean On-Berry (#FFFFFF, light) and Deep Berry Ink (#2C141F, dark): text and symbols on the Berry surfaces above.
+- Everything else that is not a highlight, including header tint, header and in-content icon buttons, list leading icons and chevrons, refresh spinners, activity indicators, and section titles, uses the platform label colors (`text`, `textMuted`) or the platform default.
 - Clear Red (#B33C48): error text and failed state emphasis (light mode)
 - Soft Error Pink (#F2A0A8): error text and failed state emphasis (dark mode)
 - Butter Notice (#FBF3D6): local-fixture notice surface (light mode)
@@ -42,7 +44,7 @@ Android resolves the `light`/`dark` variant from the active app color scheme. Th
 - `전송 중`, `전송 실패`, and `전송됨` are always rendered as text and exposed to accessibility APIs.
 - Clear Red or Soft Error Pink may emphasize `전송 실패`, but color never replaces the label.
 - Sync status is exposed as header subtitle text only; it still carries no connection color or connection badge.
-- Conversation Berry or Petal Berry is the only accent. Do not add a second accent for loading, retry, or success.
+- Conversation Berry or Petal Berry is the only accent and only for highlights. Do not add a second accent for loading, retry, or success, and do not tint static glyphs with it.
 
 ## 3. Typography Rules
 
@@ -69,13 +71,16 @@ Korean body, message, input, and control copy use natural tracking. Font scaling
 - Compact horizontal gutters are 16px. Wide gutters are 24px.
 - The native Stack header (`expo-router`'s `Stack.Screen`) owns the screen title; there is no separate in-content heading component.
 - Root list screens (Groups, Topics) use a large title (`headerLargeTitle: true`).
+- The top-level destinations are a three-item tab bar: 그룹 (`person.2` / `group`), 알림 (`bell` / `notifications`), 계정 (`person.crop.circle` / `account_circle`) via Expo Router `NativeTabs` (ADR 0009, ADR 0010): a `UITabBarController` in Liquid Glass on iOS 26 and a Material 3 navigation bar on Android. The active tab icon and label use Conversation Berry or Petal Berry. On iOS every other color, the indicator, and the minimize behavior stay the platform default; on Android the bar sits on `surface`, the active pill is `accentContainer`, and inactive icons and labels are `textMuted` (ADR 0011 D4). The notifications tab shows the unread count as a native badge, hidden at zero and capped at `99+`. Each tab owns its own native Stack so the rules above apply unchanged inside a tab.
+- The chat screen and the create/join/new-topic modals live on the root Stack, so the tab bar is hidden while they are open.
+- The group home is the topic list titled with the group name; the group list header keeps only the `+` action and the group home header shows 그룹 정보 (`info.circle` / `info`) and 새 주제.
 - The heading focus rule now targets the header title, or on the chat screen the header subtitle: it receives initial accessibility focus once on route entry.
 
 ### Native Header, Buttons, Sheets, Rows
 
-- `HeaderIconButton` is a 44x44pt header action control used for `headerRight` icons.
+- `HeaderActions` renders header actions per platform: native bar button items and pull-down menus through `Stack.Toolbar` on iOS (Liquid Glass capsules with the system glyph color on iOS 26), and `@expo/ui` Compose `IconButton`s plus Material 3 `DropdownMenu`s hosted in `headerRight` on Android (transparent button container, `text`-colored glyphs, icons from the Material vector drawables under `assets/icons/material/`). Header tint on both platforms is the label color, never Berry. Screens pass an action list and never draw header buttons themselves. Choices offered from a header button (그룹 추가 → 새 그룹 만들기 / 초대 코드로 가입) are menu items anchored to the button, not a bottom sheet. `HeaderIconButton` remains for in-content icon buttons.
 - `NativeButton` wraps `@expo/ui`'s `Button` inside a `Host` and offers `filled`, `outlined`, and `text` variants, plus `busy`, `retryAt`, and `destructive` states.
-- Action menus and pickers use `@expo/ui`'s `BottomSheet` together with `List`/`ListItem`; option labels are wrapped in `@expo/ui`'s `Text`.
+- In-content action sheets and pickers use `@expo/ui`'s `BottomSheet` together with `List`/`ListItem`; option labels are wrapped in `@expo/ui`'s `Text`. Header-anchored choices use the native menu above instead.
 - `GroupedSection`/`GroupedRow` render inset-grouped rows; the trailing chevron is iOS only.
 
 ### Local Fixture Notice
@@ -180,8 +185,10 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 
 ## 7. Do's and Don'ts
 
-- DO: Keep Conversation Berry or Petal Berry as the one accent.
-- DON'T: Add blue, teal, or gradient accents for loading or success.
+- DO: Keep Conversation Berry or Petal Berry as the one accent, used only for highlights (active, selected, focused, primary action, own bubble).
+- DON'T: Add blue, teal, or gradient accents for loading or success, or tint icons, chevrons, headers, or spinners with Berry.
+- DO: Take neutrals from the platform: UIKit semantic colors on iOS, the fixed Berry-seed Material 3 palette on Android.
+- DON'T: Rely on Android wallpaper dynamic color or hand-pick hex neutrals per screen.
 - DO: Render every send state as exact Korean text.
 - DON'T: Convey pending, failed, or sent state with color alone.
 - DO: Let Enter and Return create newlines and preserve Korean IME composition.
@@ -202,6 +209,8 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 - DON'T: reuse M6 connection retry copy `다시 시도` for message or pagination recovery.
 - DO: Keep the M5 screen focused on text chat.
 - DON'T: reserve empty space for media, microphone, connection, auth, or server features.
+- DO: Let the platform draw the tab bar, header, and bar buttons: Liquid Glass on iOS 26, Material 3 on Android.
+- DON'T: rebuild navigation chrome in JavaScript, force a header background or blur on iOS, or put glass on the content layer.
 
 ## 8. Responsive Behavior
 
@@ -241,6 +250,7 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 
 ### Quick Color Reference
 
+- Neutrals are platform-owned (see Section 2): iOS UIKit semantic colors, Android Berry-seed Material 3 hex. The named values below are the authored fallbacks.
 - Light canvas: Warm Paper Canvas (#FAF8F4)
 - Light incoming surface: Clean Raised Surface (#FFFFFF)
 - Light outgoing surface: Conversation Berry (#9B3F68)
@@ -267,7 +277,7 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 
 ### Iteration Guide
 
-1. Preserve one accent, the berry primary role, across all interaction states.
+1. Preserve one accent, the berry primary role, and use it only for highlights: active, selected, focused, primary action, and the outgoing bubble. Everything else takes platform neutral colors.
 2. Use the existing independently authored light and dark semantic tokens. Never invert colors mechanically, and match system-bar content to the active canvas contrast.
 3. Keep the radius ladder at 8, 12, 16, 20, and 24 points with full radius only for true circles.
 4. Keep Korean message and input text at 16 points equivalent or larger and preserve system scaling.

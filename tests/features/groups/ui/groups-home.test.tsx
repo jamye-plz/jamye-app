@@ -28,7 +28,14 @@ jest.mock("expo-router", () => ({
     const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(callback, [callback]);
   },
-  Stack: { Screen: () => null },
+  Stack: {
+    Screen: () => null,
+    ...jest
+      .requireActual<typeof import("../../../support/stack-toolbar-mock")>(
+        "../../../support/stack-toolbar-mock",
+      )
+      .createStackToolbarMock(),
+  },
 }));
 const authorized: AuthorizedGroupsRequest = (execute, signal) =>
   execute("fake", signal ?? new AbortController().signal);
@@ -58,6 +65,18 @@ describe("M7 home, create and join", () => {
       pathname: "/groups/[groupId]",
       params: { groupId },
     });
+  });
+  test("the + header menu offers create and join as native menu items", async () => {
+    const { screen } = await setup();
+    expect(screen.getByRole("button", { name: "그룹 추가" })).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("menuitem", { name: "새 그룹 만들기" }),
+    );
+    expect(mockPush).toHaveBeenLastCalledWith("/groups/create");
+    await fireEvent.press(
+      screen.getByRole("menuitem", { name: "초대 코드로 가입" }),
+    );
+    expect(mockPush).toHaveBeenLastCalledWith("/groups/join");
   });
   test("distinguishes empty and failed initial query with explicit retry", async () => {
     const api = fakeGroupsApi();

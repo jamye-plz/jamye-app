@@ -26,7 +26,8 @@ ADR 0005 D3는 native Stack header를 화면 제목 owner로 두고 tab bar 없�
 
 그룹 목록, 알림함, 계정 화면이 각 탭의 루트다. 그룹 목록 헤더의 알림·계정 아이콘과 미읽음 배지는
 제거하고 `+` 시트만 남긴다. 각 탭 안의 화면 제목은 ADR 0005 D3의 native Stack header 규칙을 그대로
-따른다(large title, minimal back button, header icon button).
+따른다(large title, minimal back button, header icon button). 구현 수단은 2026-09-22 라운드 1 사용자
+리뷰에 따라 expo-router `NativeTabs`다([ADR 0010](0010-platform-native-visual-language.md) D1).
 
 ### D2. 대화 화면과 모달은 루트 Stack에 두어 채팅 중 tab bar를 숨긴다
 

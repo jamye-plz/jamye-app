@@ -38,7 +38,7 @@ export function GroupOwnerPanel({
   }
 
   return (
-    <Host>
+    <Host seedColor={colors.primary}>
       <BottomSheet
         isPresented={isPresented}
         onDismiss={onDismiss}
