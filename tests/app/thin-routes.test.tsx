@@ -153,7 +153,25 @@ jest.mock("expo-router", () => {
   }
   Stack.Screen = StackScreen;
 
+  function MockThemeProvider({
+    children,
+    value,
+  }: Readonly<{
+    children?: React.ReactNode;
+    value: { colors: { card: string }; dark: boolean };
+  }>) {
+    return (
+      <View
+        accessibilityLabel={`navigation theme ${value.dark ? "dark" : "light"} ${value.colors.card}`}
+      >
+        {children}
+      </View>
+    );
+  }
   return {
+    DarkTheme: { dark: true },
+    DefaultTheme: { dark: false },
+    ThemeProvider: MockThemeProvider,
     Stack,
     useFocusEffect: (callback: () => (() => void) | void) =>
       jest
@@ -302,6 +320,26 @@ describe("M3-I3 actual thin Expo Router modules", () => {
 
     expect(screen.getByTestId("expo-router-stack")).toBeTruthy();
     expect(screen.getByLabelText("Expo Router stack light")).toBeTruthy();
+  });
+
+  test("hands react-navigation a dark theme when the system scheme is dark (iOS header follows dark mode)", async () => {
+    const useColorSchemeMock = jest.requireMock<{ default: jest.Mock }>(
+      "react-native/Libraries/Utilities/useColorScheme",
+    ).default;
+    useColorSchemeMock.mockReturnValue("dark");
+    try {
+      const RootLayout = loadActualRoute(
+        "../../src/app/_layout",
+        "src/app/_layout.tsx",
+      );
+      const screen = await render(<RootLayout />);
+      expect(
+        screen.getByLabelText("navigation theme dark #000000"),
+      ).toBeTruthy();
+      expect(screen.getByLabelText("Expo Router stack dark")).toBeTruthy();
+    } finally {
+      useColorSchemeMock.mockReturnValue("light");
+    }
   });
 
   test("keeps the actual root Error Boundary outside the Router and recovers on retry", async () => {

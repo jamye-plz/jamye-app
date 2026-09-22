@@ -1,8 +1,41 @@
+import { DarkTheme, DefaultTheme } from "expo-router";
 import type { Stack } from "expo-router";
 import type { ComponentProps } from "react";
 
 import { useAppTheme } from "@/core/theme/theme-provider";
 import type { AppColorScheme, AppThemeColors } from "@/core/theme/tokens";
+import { androidThemeColors } from "@/core/theme/tokens";
+
+export type NavigationTheme = typeof DefaultTheme;
+
+/**
+ * react-navigation paints the native Stack header (and the container behind
+ * transitions) from its own theme, which expo-router leaves at the light
+ * DefaultTheme regardless of the system scheme. Pick the theme by scheme and
+ * point its canvas colors at the platform background so the iOS bar matches
+ * `UIColor.systemBackground` instead of react-navigation's own grays.
+ */
+export function resolveNavigationTheme(
+  colorScheme: AppColorScheme,
+  os: string | undefined,
+): NavigationTheme {
+  const base = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const canvas =
+    os === "android"
+      ? androidThemeColors(colorScheme).background
+      : colorScheme === "dark"
+        ? "#000000"
+        : "#FFFFFF";
+  return {
+    ...base,
+    colors: { ...base.colors, background: canvas, card: canvas },
+  };
+}
+
+export function useNavigationTheme(): NavigationTheme {
+  const { colorScheme } = useAppTheme();
+  return resolveNavigationTheme(colorScheme, process.env.EXPO_OS);
+}
 
 type StackScreenOptionsProp = ComponentProps<typeof Stack>["screenOptions"];
 

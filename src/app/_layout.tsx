@@ -1,8 +1,11 @@
-import { Stack } from "expo-router";
+import { Stack, ThemeProvider } from "expo-router";
 
 import { AppErrorBoundary } from "@/core/errors/app-error-boundary";
 import { AppProviders } from "@/core/providers/app-providers";
-import { useNativeStackScreenOptions } from "@/shared/ui/native-stack-screen-options";
+import {
+  useNativeStackScreenOptions,
+  useNavigationTheme,
+} from "@/shared/ui/native-stack-screen-options";
 
 /**
  * Themed root Stack. `AppThemeProvider` lives inside `AppProviders`, so this
@@ -13,10 +16,13 @@ import { useNativeStackScreenOptions } from "@/shared/ui/native-stack-screen-opt
  */
 function RootStack() {
   const screenOptions = useNativeStackScreenOptions();
+  const navigationTheme = useNavigationTheme();
   return (
-    <Stack screenOptions={screenOptions}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
+    <ThemeProvider value={navigationTheme}>
+      <Stack screenOptions={screenOptions}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+    </ThemeProvider>
   );
 }
 
