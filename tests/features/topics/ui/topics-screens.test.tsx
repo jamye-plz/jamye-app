@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, within } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { AppState } from "react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
@@ -36,9 +36,19 @@ let mockParams: Record<string, string | string[]> = {};
 // (e.g. the topic edit menu icon) stay reachable through RNTL role queries.
 jest.mock("expo-router", () => ({
   Stack: {
-    Screen: (props: { options?: { headerRight?: () => ReactNode } }) => {
-      const headerRight = props.options?.headerRight;
-      return headerRight ? headerRight() : null;
+    Screen: (props: {
+      options?: {
+        headerRight?: () => ReactNode;
+        headerTitle?: string | (() => ReactNode);
+      };
+    }) => {
+      const { headerRight, headerTitle } = props.options ?? {};
+      return (
+        <>
+          {typeof headerTitle === "function" ? headerTitle() : null}
+          {headerRight ? headerRight() : null}
+        </>
+      );
     },
     ...jest
       .requireActual<typeof import("../../../support/stack-toolbar-mock")>(
@@ -172,7 +182,15 @@ describe("M10 topic views with real controller and fake API", () => {
     expect(f.screen.queryByText(/서울 날짜/)).toBeNull();
     expect(f.screen.queryByText("기본 주제 대화")).toBeNull();
     expect(f.screen.queryByText("전체 날짜")).toBeNull();
-    await fireEvent.press(f.screen.getByRole("button", { name: "그룹 정보" }));
+    expect(f.screen.queryByRole("button", { name: "그룹 정보" })).toBeNull();
+    expect(
+      within(f.screen.getByTestId("stack-toolbar-right"))
+        .getAllByRole("button")
+        .map((button) => button.props.accessibilityLabel),
+    ).toEqual(["그룹 대화방", "새 주제 만들기"]);
+    const titleButton = f.screen.getByRole("button", { name: "우리 그룹" });
+    expect(titleButton.props.accessibilityHint).toBe("그룹 정보를 엽니다");
+    await fireEvent.press(titleButton);
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/groups/[groupId]/info",
       params: { groupId },

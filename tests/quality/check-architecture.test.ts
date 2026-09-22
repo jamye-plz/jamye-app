@@ -265,6 +265,7 @@ const M14_ROUND1_TEST_PATHS = [
   "tests/features/topics/ui/topic-date-dial.test.tsx",
   "tests/features/topics/ui/topic-list.test.tsx",
   "tests/features/topics/ui/topic-list.ios.test.tsx",
+  "tests/shared/ui/header-title-button.test.tsx",
 ];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",

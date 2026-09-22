@@ -6,6 +6,7 @@ import { appSpacing } from "@/core/theme/tokens";
 import { useGroupName } from "@/features/groups/model/groups-provider";
 import { AppText } from "@/shared/ui/app-text";
 import { HeaderActions } from "@/shared/ui/header-actions";
+import { HeaderTitleButton } from "@/shared/ui/header-title-button";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import { NativeButton } from "@/shared/ui/native-button";
 
@@ -15,9 +16,9 @@ import { TopicList } from "./topic-list";
 import { useTopicScreen } from "./use-topic-screen";
 
 /**
- * Group home: the group name in the top app bar, 새 주제 / 그룹 대화방 / 그룹
- * 정보 as header actions, the swipe date dial, then the platform topic list
- * (tap = chatroom, swipe = 상세).
+ * Group home: the group name in the top app bar is itself the way into 그룹
+ * 정보; 그룹 대화방 and 새 주제 are the bar actions; then the date dial and
+ * the platform topic list (tap = chatroom, swipe = 상세).
  */
 export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
   const { colors } = useAppTheme();
@@ -35,12 +36,40 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
         params: { groupId, chatroomId },
       });
   };
+  const openInfo = () =>
+    router.push({
+      pathname: "/groups/[groupId]/info",
+      params: { groupId },
+    });
+  const title = groupName ?? "그룹";
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: groupName ?? "그룹" }} />
+      <Stack.Screen
+        options={{
+          headerTitle: screen.valid
+            ? () => (
+                <HeaderTitleButton
+                  accessibilityHint="그룹 정보를 엽니다"
+                  onPress={openInfo}
+                  title={title}
+                />
+              )
+            : undefined,
+          title,
+        }}
+      />
       <HeaderActions
         actions={[
+          {
+            accessibilityLabel: "그룹 대화방",
+            disabled: !main,
+            key: "chat",
+            onPress: () => {
+              if (main) openChatroom(main.chatroomId);
+            },
+            symbol: "chat",
+          },
           {
             accessibilityLabel: "새 주제 만들기",
             disabled: !scoped || state.status !== "ready",
@@ -53,26 +82,6 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
                 });
             },
             symbol: "add",
-          },
-          {
-            accessibilityLabel: "그룹 대화방",
-            disabled: !main,
-            key: "chat",
-            onPress: () => {
-              if (main) openChatroom(main.chatroomId);
-            },
-            symbol: "chat",
-          },
-          {
-            accessibilityLabel: "그룹 정보",
-            disabled: !screen.valid,
-            key: "info",
-            onPress: () =>
-              router.push({
-                pathname: "/groups/[groupId]/info",
-                params: { groupId },
-              }),
-            symbol: "info",
           },
         ]}
       />

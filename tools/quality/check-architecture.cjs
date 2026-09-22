@@ -690,6 +690,7 @@ const M14_ROUND1_TEST_PATHS = Object.freeze([
   "tests/features/topics/ui/topic-date-dial.test.tsx",
   "tests/features/topics/ui/topic-list.test.tsx",
   "tests/features/topics/ui/topic-list.ios.test.tsx",
+  "tests/shared/ui/header-title-button.test.tsx",
 ]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
   ...new Set([
@@ -1247,6 +1248,8 @@ const M14_ROUND1_AUTHORED_FILES = Object.freeze([
   "src/features/notifications/ui/use-notifications-unread-count.ts",
   "src/features/topics/model/topics-dates.ts",
   "src/features/topics/ui/topic-date-dial.tsx",
+  "src/shared/ui/header-title-button.tsx",
+  "tests/shared/ui/header-title-button.test.tsx",
   "src/features/topics/ui/topic-list.tsx",
   "src/features/topics/ui/topic-list.ios.tsx",
   "src/features/topics/ui/topic-list.types.ts",

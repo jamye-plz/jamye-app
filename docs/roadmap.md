@@ -747,6 +747,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - 사용자 리뷰 4(2026-09-22, 그룹 홈) 반영: 그룹 홈은 regular title, 헤더는 새 주제·그룹 대화방·그룹 정보 순, 기본 주제 대화 행과 서울 날짜 캡션 제거, 주제 행은 스와이프 카드(탭 = 대화방, 스와이프 = 상세). 날짜 가로 다이얼은 조사 결과를 라운드 2 후보로 기록.
 - 사용자 리뷰 5(2026-09-22) 반영: iOS 헤더 다크 모드 버그(react-navigation theme이 라이트 고정)를 `resolveNavigationTheme`로 수정, 주제 목록은 iOS SwiftUI `List` + `SwipeActions` / Android RNGH 카드로 분기(Compose 대응 `SwipeToDismissBox`는 `@expo/ui` 57 미노출), 날짜 가로 다이얼 구현(초기 오늘, 전체 날짜·이전 날짜 더 보기 없음, 스와이프로만 결정).
 - 사용자 리뷰 6(2026-09-22) 반영: iOS 목록의 빈 상태 오표시 수정, 스와이프 액션을 상세·삭제 2개로(삭제는 M15 T8 `DELETE …/topics/{topic_id}` 계약 intake 뒤 핸들러 연결 시 노출), 다이얼에 탭 선택 추가(SegmentedControl 드롭인은 세그먼트 4~5개 한계로 미채택).
+- 사용자 리뷰 7(2026-09-22) 반영: 그룹 정보 진입은 top bar 그룹명 버튼(`HeaderTitleButton`)으로, 헤더 액션은 그룹 대화방 → 새 주제 순. 리뷰 4~6은 0264bce·f3f0bb4로 커밋.
 
 항목:
 
