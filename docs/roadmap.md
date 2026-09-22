@@ -3,7 +3,7 @@
 - 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14-M18(UI/UX 다듬기·소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M13 프로필 수정과 계정 삭제 `COMPLETED / USER_ACCEPTED` (2026-09-22 사용자 디바이스 검증 완료 보고 및 종료 승인). 다음 milestone은 M14 UI/UX 다듬기 라운드 1이며 사용자 승인으로 시작한다. M15-M17은 M14 라운드 사이에 병행할 수 있고, M18 스토어 배포는 M14 만족 선언 이후에만 시작한다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
+- 현재 frontier: M13 프로필 수정과 계정 삭제 `COMPLETED / USER_ACCEPTED` (2026-09-22 사용자 디바이스 검증 완료 보고 및 종료 승인). 다음 milestone은 M14 UI/UX 다듬기 라운드 1이며 범위는 2026-09-22에 고정됐고 착수는 사용자 승인으로 시작한다. M15-M17은 M14 라운드 사이에 병행할 수 있고, M18 스토어 배포는 M14 만족 선언 이후에만 시작한다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-22
@@ -690,10 +690,9 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 ### M14. UI/UX 다듬기 (반복 라운드)
 
-- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 라운드 1 착수는 별도 승인
+- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 라운드 1 범위는 2026-09-22 고정(아래 '라운드 1 범위' 참조), 착수는 별도 승인
 - 선행: M13(모든 제품 화면이 존재하는 상태)
-- 결정(2026-09-22): [ADR 0005](adr/0005-native-ui-toolkit-adoption.md)의 native-first 방향(`@expo/ui`,
-  `expo-symbols`, `PlatformColor`, native Stack header, tab bar 없음)을 유지하고 그 안에서 다듬는다.
+- 결정(2026-09-22): [ADR 0005](adr/0005-native-ui-toolkit-adoption.md)의 native-first 방향(`@expo/ui`, `expo-symbols`, `PlatformColor`, native Stack header)을 유지하되, D3(tab bar 없음)는 라운드 1에서 [ADR 0009](adr/0009-tab-bar-navigation.md)로 대체한다.
   종료 기준은 사용자의 만족 선언이며 라운드 수를 미리 정하지 않는다. 라운드 사이의 사용자 리뷰
   대기 시간에는 M15-M17을 병행할 수 있다.
 - 사용자 결과: 스타일, 페이지 네비게이션, 페이지 라우팅 전반이 사용자 취향에 맞는다.
@@ -712,8 +711,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 - 스타일: [DESIGN.md](../DESIGN.md) 토큰(색·타이포·spacing·radius)과 실제 화면의 일치, 라이트/다크,
   Android API 34 미만 fallback, 200% 텍스트·reduce motion.
-- 페이지 네비게이션: Stack-only 동선(그룹/알림/계정 진입), large title·back, modal presentation(그룹
-  생성·초대 참여·새 주제), 알림 탭 → 대화방 handoff.
+- 페이지 네비게이션: tab bar 동선(그룹/알림/계정 탭, ADR 0009)과 루트 Stack의 대화·모달, large title·back, modal presentation(그룹 생성·초대 참여·새 주제), 알림 탭 → 대화방 handoff.
 - 페이지 라우팅: `src/app` 13개 route의 계층 재정리(`groups/[groupId]` ↔ `chatrooms`/`topics`),
   `index.tsx`의 `appMode` 분기(local-fixture / connected-auth), deep link·`+native-intent.tsx` 규칙,
   로그인 전후 redirect.
@@ -735,7 +733,46 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 미검증 / 별도 승인 필요:
 
-- 라운드 1 범위와 착수, ADR 변경이 필요한 구조 변경, native rebuild
+- 라운드 1 착수(범위는 2026-09-22 고정), ADR 0009 반영을 포함한 구조 변경. 새 native module이 없어 native rebuild는 예상하지 않는다
+
+#### 라운드 1 범위 (2026-09-22 고정)
+
+- 결정(2026-09-22): 영역은 네비게이션 구조와 라우팅·화면 계층 정리로 한정하고, 스타일과 상태 화면은 이번 라운드에서 제외한다. tab bar를 도입한다([ADR 0009](adr/0009-tab-bar-navigation.md), ADR 0005 D3 대체). 크기는 작게(화면 3개)다. 범위 근거는 정적 코드 감사 기반 제안이며 사용자가 항목 A·B·C를 선택했다.
+- 상태: 범위 고정. 구현은 `not_started`이며 착수는 별도 승인. 실행 tracker는 로컬 전용 파일(gitignore 대상인 docs/plans 아래 004-m14-ui-ux-round-1)이다.
+- 선행: [ADR 0009](adr/0009-tab-bar-navigation.md)(Accepted, ADR 0005 D3 대체) 반영. 이 ADR 없이는 라운드 1 구현에 착수할 수 없다.
+
+항목:
+
+- **A. 3탭 Tab bar**: expo-router `(tabs)` 그룹으로 그룹 / 알림 / 계정 탭을 도입한다. 탭 구조, 헤더 아이콘·배지 제거, 대화·모달의 루트 Stack 배치, 알림 탭 badge 연결의 세부 규칙은 [ADR 0009](adr/0009-tab-bar-navigation.md) D1-D3을 따른다.
+- **B. 그룹 홈 재구성**: `groups/[groupId]`를 주제 목록 화면(현 TopicsScreen: 기본 대화 행, 날짜 칩, 주제 목록, 새 주제 버튼)으로 바꾸고 제목을 그룹 이름으로 한다. 멤버·초대·이름 변경·소유권 이전·나가기/삭제(현 GroupDetailScreen)는 `groups/[groupId]/info`(그룹 정보)로 옮기고 그룹 홈 헤더의 정보 버튼으로 진입한다. 깊이는 그룹 목록 → 그룹 홈 → 주제 상세 → 대화의 3단계가 되고, 기본 대화는 그룹 홈에서 한 번에 연다.
+- **C. 라우트 경로 정리**: 주제 목록을 렌더링하던 `groups/[groupId]/chatrooms/index.tsx`를 제거한다(그룹 홈이 흡수). 대화 `groups/[groupId]/chatrooms/[chatroomId]`와 주제 `groups/[groupId]/topics/{new,[topicId]}` 경로는 유지한다. 앱 코드의 push/replace 경로, 푸시 탭 handoff, 딥링크 경로표를 갱신하고 `+native-intent`는 바꾸지 않는다.
+
+화면: 그룹 목록, 그룹 홈, 그룹 정보(3개)와 루트/탭 레이아웃. 알림·계정 화면은 탭으로 옮기기만 하고 내용은 바꾸지 않는다.
+
+목표 라우트 맵(구현 시 파일 배치 세부는 조정할 수 있다):
+
+| 이전                                                             | 이후                                           | 비고                                  |
+| ---------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------- |
+| `/` (index: 로그인 또는 그룹 목록)                               | `/` → 로그인 화면 또는 `(tabs)` 진입           | 인증 게이트 분리(D)는 라운드 2        |
+| `/notifications` (헤더 아이콘)                                   | `(tabs)/notifications` 탭                      | 미읽음 badge                          |
+| `/account` (헤더 아이콘)                                         | `(tabs)/account` 탭                            | 화면 내용 변경 없음                   |
+| `/groups/[groupId]` (멤버·관리 + 주제 행)                        | `(tabs)/groups/[groupId]` = 그룹 홈(주제 목록) | 제목은 그룹 이름, 헤더에 정보·새 주제 |
+| `/groups/[groupId]/chatrooms` (주제 목록)                        | 제거                                           | 그룹 홈이 흡수                        |
+| (없음)                                                           | `(tabs)/groups/[groupId]/info` = 그룹 정보     | 현 GroupDetailScreen                  |
+| `/groups/[groupId]/topics/[topicId]`                             | 그룹 탭 내부 Stack 유지                        |                                       |
+| `/groups/[groupId]/chatrooms/[chatroomId]`                       | 루트 Stack 유지                                | tab bar 숨김                          |
+| `/groups/create`, `/groups/join`, `/groups/[groupId]/topics/new` | 루트 Stack 모달 유지                           |                                       |
+| `/oauth/[provider]`                                              | 변경 없음                                      |                                       |
+
+영향 코드(착수 시 확정): `src/app/_layout.tsx`, `src/app/index.tsx`, 신규 `(tabs)` 레이아웃 파일 2개(탭 루트 `_layout.tsx`, groups 스택 `_layout.tsx`), route 파일 이동·삭제, `group-list-screen.tsx`, `group-detail-screen.tsx`, `topics-screen.tsx`, `use-topic-screen.ts`, `group-form-screen.tsx`, 알림 badge 연결, 라우트를 참조하는 테스트, `tools/quality/check-architecture.cjs`의 경로 목록, `docs/product-intent.md` 7.1절 route 인벤토리, DESIGN.md 4절의 tab bar 규칙, ADR 0005 D3 → ADR 0009 대체. native rebuild 여부는 위 '미검증 / 별도 승인 필요' 항목을 따른다.
+
+라운드 1 완료 조건:
+
+- `bun run check:code` PASS(기존 coverage 기준 유지)와 라우트·푸시 handoff 회귀 테스트 갱신
+- iOS Simulator·Android Emulator에서 탭 전환, 그룹 목록 → 그룹 홈 → 기본 대화/주제 상세 → 대화, 알림 탭 → 대화 handoff, 계정 탭 로그아웃 확인
+- 사용자 리뷰. 만족이면 M14 종료, 아니면 라운드 2 지적 기록. evidence는 `docs/evidence/` 아래 M14 파일에 라운드 1로 기록(착수 시 생성·checker 등록)
+
+라운드 2 후보(이번 라운드 제외): D. 인증 게이트 라우팅 분리(`(auth)/sign-in` + Redirect, local-fixture 모드 별도 라우트); 채팅 화면 제목을 주제 제목이나 그룹명으로; 계정 화면의 '로컬 계정 저장소'·'서버 연결 진단' 섹션을 개발자 전용으로 정리; 스타일·컴포넌트와 상태 화면(loading/empty/error) 영역.
 
 ### M15. 소프트 삭제 수용 (서버 task-14 연동)
 
@@ -992,5 +1029,6 @@ M10은 `COMPLETED / USER_ACCEPTED`이며 [M10 evidence](evidence/M10.md)에 출�
 다듬기(native-first 유지, 만족 선언까지 라운드 반복), M15 소프트 삭제 수용(서버 task-14), M16 Sign in
 with Apple(iOS native, 서버 task-15), M17 잔여 백로그(네 묶음), M18 스토어 배포(iOS+Android, legacy 이관
 없음). M15-M17은 M14 라운드 사이에 병행하고 M18은 M14 만족 선언 이후에만 시작한다. 서버 측 상세는
-jamye-server 저장소 로드맵 문서의 task-14-16을 따른다. 이 등록은 구현 승인이 아니다. 다음 액션은 M14
-라운드 1 계획의 사용자 승인이다.
+jamye-server 저장소 로드맵 문서의 task-14-16을 따른다. 이 등록은 구현 승인이 아니다. 라운드 1 범위는 같은 날 고정했다.
+
+2026-09-22 M14 라운드 1 범위 고정: 항목 A(3탭 tab bar)·B(그룹 홈 재구성)·C(라우트 경로 정리), 화면 3개(그룹 목록·그룹 홈·그룹 정보), [ADR 0009](adr/0009-tab-bar-navigation.md)로 ADR 0005 D3 대체, 실행 tracker는 로컬 전용 파일(gitignore 대상인 docs/plans 아래 004-m14-ui-ux-round-1)이다. 이 고정은 구현 승인이 아니다. 다음 액션은 라운드 1 착수 승인이다.

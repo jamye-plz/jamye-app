@@ -1287,6 +1287,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "src/features/notifications/data/notifications-api.ts",
   "src/features/notifications/data/notifications-http.ts",
   "docs/adr/0008-account-lifecycle-placement.md",
+  "docs/adr/0009-tab-bar-navigation.md",
   "docs/evidence/M13.md",
   "src/core/contracts/server/users.ts",
   "src/core/http/http-requester.ts",
