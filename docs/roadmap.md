@@ -748,6 +748,11 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - 사용자 리뷰 5(2026-09-22) 반영: iOS 헤더 다크 모드 버그(react-navigation theme이 라이트 고정)를 `resolveNavigationTheme`로 수정, 주제 목록은 iOS SwiftUI `List` + `SwipeActions` / Android RNGH 카드로 분기(Compose 대응 `SwipeToDismissBox`는 `@expo/ui` 57 미노출), 날짜 가로 다이얼 구현(초기 오늘, 전체 날짜·이전 날짜 더 보기 없음, 스와이프로만 결정).
 - 사용자 리뷰 6(2026-09-22) 반영: iOS 목록의 빈 상태 오표시 수정, 스와이프 액션을 상세·삭제 2개로(삭제는 M15 T8 `DELETE …/topics/{topic_id}` 계약 intake 뒤 핸들러 연결 시 노출), 다이얼에 탭 선택 추가(SegmentedControl 드롭인은 세그먼트 4~5개 한계로 미채택).
 - 사용자 리뷰 7(2026-09-22) 반영: 그룹 정보 진입은 top bar 그룹명 버튼(`HeaderTitleButton`)으로, 헤더 액션은 그룹 대화방 → 새 주제 순. 리뷰 4~6은 0264bce·f3f0bb4로 커밋.
+- 사용자 리뷰 8(2026-09-22) 반영: 그룹 목록 본문을 `@expo/ui` universal `List`/`ListItem`/`Text`/`Icon`/`Column`/`Button`으로 전부 교체(native pull-to-refresh 포함). 리뷰 7은 f5518aa로 커밋.
+- 사용자 리뷰 9(2026-09-22) 반영: 로딩 행 제거, Android 당겨서 새로고침이 빈 영역에서 안 되던 원인(universal `List`가 내용 높이만 차지)을 `fillMaxSize` Compose 컨테이너로 수정.
+- 사용자 리뷰 10(2026-09-22) 반영: Android 주제 목록의 당겨서 새로고침을 Compose `PullToRefreshBox` + `RNHostView`로 옮겨 그룹 목록과 같은 Material 3 인디케이터로 통일(RN `RefreshControl` 제거).
+- 사용자 리뷰 11(2026-09-22) 반영: 공용 `NativeList`·`ActionListItem`(iOS 스와이프+컨텍스트 메뉴 / Android 길게 누르기+⋮ 드롭다운)으로 그룹·주제 목록 통일. 그룹 행 액션 = 초대 코드 발급·소유권 이전(소유자) / 그룹 나가기. Android 스와이프 삭제 전용 모듈은 M15 이후 후보.
+- 사용자 리뷰 12(2026-09-22) 반영: 그룹 목록을 regular title로 전환(iOS에서 제목과 `+`가 한 줄).
 
 항목:
 

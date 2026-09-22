@@ -1,34 +1,27 @@
-import { useRef } from "react";
-import type { ReactNode } from "react";
-import {
-  FlatList,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  View,
-} from "react-native";
-import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
-import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
+import { Button, Column, Host, Icon, Text } from "@expo/ui";
+import { StyleSheet } from "react-native";
 
 import type { Topic } from "@/core/contracts/server";
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appRadii, appSpacing } from "@/core/theme/tokens";
-import { AppSymbol } from "@/shared/ui/app-symbol";
-import { AppText } from "@/shared/ui/app-text";
-import { EmptyState } from "@/shared/ui/empty-state";
-import { NativeButton } from "@/shared/ui/native-button";
+import { ActionListItem } from "@/shared/ui/action-list-item";
+import type { RowAction } from "@/shared/ui/action-list-item.types";
+import { NativeList } from "@/shared/ui/native-list";
 
 import type { TopicListProps } from "./topic-list.types";
 
 export type * from "./topic-list.types";
 
+const MUTED = { opacity: 0.65 } as const;
+const EMPTY_ICON = {
+  android: require("../../../../assets/icons/material/forum.xml"),
+  ios: "text.bubble",
+} as const;
+
 /**
- * Topic list for Android (and the default platform): a virtualized FlatList of
- * swipeable cards. Tap opens the topic's chatroom; a trailing swipe reveals
- * 상세 and, when a delete handler exists, 삭제. iOS resolves to `topic-list.ios.tsx` (SwiftUI List + SwipeActions)
- * because expo-ui's Compose layer has no swipe-to-reveal primitive yet
- * (Material 3 `SwipeToDismissBox` is the Compose counterpart).
+ * Topic list on the shared native list and row: tap opens the topic's
+ * chatroom; 상세 (and 삭제 once a delete handler exists) surface as iOS swipe
+ * / context-menu actions and as the Android long-press / ⋮ menu. The empty
+ * and 더 보기 states are rows of the same list.
  */
 export function TopicList({
   empty,
@@ -37,196 +30,77 @@ export function TopicList({
   onOpenChat,
   onOpenDetail,
   onRefresh,
-  refreshing,
   topics,
 }: TopicListProps) {
+  const { colors } = useAppTheme();
   return (
-    <FlatList
-      // @expo/ui Host children start at zero size on Android; clipping would
-      // detach them before Compose reports their measured height.
-      removeClippedSubviews={false}
-      accessibilityLabel="주제 목록"
-      contentContainerStyle={styles.content}
-      contentInsetAdjustmentBehavior="automatic"
-      data={topics}
-      keyExtractor={(item) => item.id}
-      ListEmptyComponent={
-        empty ? (
-          <EmptyState
-            symbol={{ android: "forum", ios: "text.bubble" }}
-            title="선택한 날짜에 주제가 없습니다."
+    <Host seedColor={colors.primary} style={styles.host}>
+      <NativeList onRefresh={onRefresh} testID="topic-list">
+        {topics.map((topic) => (
+          <ActionListItem
+            actions={topicRowActions(topic, onOpenDetail, onDelete)}
+            key={topic.id}
+            onPress={() => onOpenChat(topic)}
+            supportingText={topicSubtitle(topic)}
+            testID={`topic-row-${topic.id}`}
+            title={topic.title}
           />
-        ) : null
-      }
-      ListFooterComponent={
-        loadMore ? (
-          <NativeButton
-            busy={loadMore.busy}
-            disabled={loadMore.disabled}
-            label="주제 더 보기"
+        ))}
+        {empty ? (
+          <Column
+            alignment="center"
+            spacing={8}
+            style={{ paddingVertical: 32 }}
+            testID="topic-list-empty"
+          >
+            <Icon name={EMPTY_ICON} size={44} style={MUTED} />
+            <Text textStyle={{ fontSize: 17, fontWeight: "600" }}>
+              선택한 날짜에 주제가 없습니다.
+            </Text>
+          </Column>
+        ) : null}
+        {loadMore ? (
+          <Button
+            disabled={loadMore.disabled || loadMore.busy}
+            label={loadMore.busy ? "주제 더 보기 처리 중…" : "주제 더 보기"}
             onPress={loadMore.onPress}
             variant="text"
           />
-        ) : null
-      }
-      refreshControl={
-        <RefreshControl
-          onRefresh={() => void onRefresh()}
-          refreshing={refreshing}
-        />
-      }
-      renderItem={({ item }) => (
-        <TopicRow
-          item={item}
-          onOpenChat={() => onOpenChat(item)}
-          onDelete={onDelete ? () => onDelete(item) : undefined}
-          onOpenDetail={() => onOpenDetail(item)}
-        />
-      )}
-      style={styles.list}
-    />
+        ) : null}
+      </NativeList>
+    </Host>
   );
 }
 
-/**
- * One topic as a swipeable card. Every swipe action is also exposed as an
- * accessibility action so screen readers never depend on the swipe.
- */
-function TopicRow({
-  item,
-  onDelete,
-  onOpenChat,
-  onOpenDetail,
-}: Readonly<{
-  item: Topic;
-  onDelete?: () => void;
-  onOpenChat: () => void;
-  onOpenDetail: () => void;
-}>) {
-  const { colors } = useAppTheme();
-  const swipeable = useRef<SwipeableMethods>(null);
-  const act = (run: () => void) => () => {
-    swipeable.current?.close();
-    run();
-  };
-  const renderActions = (): ReactNode => (
-    <View style={styles.rowActions}>
-      <Pressable
-        accessibilityLabel={`주제 ${item.title} 상세`}
-        accessibilityRole="button"
-        onPress={act(onOpenDetail)}
-        style={({ pressed }) => [
-          styles.rowAction,
-          { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.7 : 1 },
-        ]}
-      >
-        <AppSymbol name="info" size={22} tintColor={colors.text} />
-        <AppText color={colors.text} variant="caption">
-          상세
-        </AppText>
-      </Pressable>
-      {onDelete ? (
-        <Pressable
-          accessibilityLabel={`주제 ${item.title} 삭제`}
-          accessibilityRole="button"
-          onPress={act(onDelete)}
-          style={({ pressed }) => [
-            styles.rowAction,
-            {
-              backgroundColor: colors.surfaceMuted,
-              opacity: pressed ? 0.7 : 1,
-            },
-          ]}
-        >
-          <AppSymbol name="delete" size={22} tintColor={colors.error} />
-          <AppText color={colors.error} variant="caption">
-            삭제
-          </AppText>
-        </Pressable>
-      ) : null}
-    </View>
-  );
-  return (
-    <ReanimatedSwipeable
-      containerStyle={[
-        styles.card,
-        { backgroundColor: colors.secondaryGroupedBackground },
-      ]}
-      friction={2}
-      overshootRight={false}
-      ref={swipeable}
-      renderRightActions={renderActions}
-      rightThreshold={40}
-    >
-      <Pressable
-        accessibilityActions={[
-          { label: "대화방 열기", name: "activate" },
-          { label: "주제 상세", name: "detail" },
-          ...(onDelete ? [{ label: "주제 삭제", name: "delete" }] : []),
-        ]}
-        accessibilityHint={`대화방을 엽니다. 왼쪽으로 밀면 ${onDelete ? "상세·삭제" : "상세"} 동작이 나타납니다.`}
-        accessibilityLabel={`주제 ${item.title}, 작성자 ${item.authorNickname}`}
-        accessibilityRole="button"
-        onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === "detail") onOpenDetail();
-          else if (event.nativeEvent.actionName === "delete") onDelete?.();
-          else onOpenChat();
-        }}
-        onPress={onOpenChat}
-        style={({ pressed }) => [
-          styles.row,
-          pressed ? { backgroundColor: colors.fill } : null,
-        ]}
-      >
-        <View style={styles.textColumn}>
-          <AppText variant="headline">{item.title}</AppText>
-          <AppText color={colors.textMuted} variant="subheadline">
-            {topicSubtitle(item)}
-          </AppText>
-        </View>
-        {item.tags.length ? (
-          <AppText color={colors.textMuted} variant="caption">
-            {item.tags.map((tag) => `#${tag.tag}`).join(" ")}
-          </AppText>
-        ) : null}
-      </Pressable>
-    </ReanimatedSwipeable>
-  );
+export function topicRowActions(
+  topic: Topic,
+  onOpenDetail: (topic: Topic) => void,
+  onDelete: ((topic: Topic) => void) | undefined,
+): RowAction[] {
+  const actions: RowAction[] = [
+    {
+      key: "detail",
+      onPress: () => onOpenDetail(topic),
+      symbol: "info",
+      title: "상세",
+    },
+  ];
+  if (onDelete)
+    actions.push({
+      destructive: true,
+      key: "delete",
+      onPress: () => onDelete(topic),
+      symbol: "delete",
+      title: "삭제",
+    });
+  return actions;
 }
 
 export function topicSubtitle(topic: Topic): string {
-  return `${topic.authorNickname} · ${topic.status === "seed" ? "새 주제" : "이야기 있음"}`;
+  const base = `${topic.authorNickname} · ${topic.status === "seed" ? "새 주제" : "이야기 있음"}`;
+  return topic.tags.length
+    ? `${base} · ${topic.tags.map((tag) => `#${tag.tag}`).join(" ")}`
+    : base;
 }
 
-const styles = StyleSheet.create({
-  card: {
-    borderCurve: "continuous",
-    borderRadius: appRadii.medium,
-    overflow: "hidden",
-  },
-  content: {
-    alignSelf: "center",
-    gap: appSpacing.sm,
-    maxWidth: 720,
-    padding: appSpacing.md,
-    paddingBottom: Platform.OS === "android" ? appSpacing.xxxl : appSpacing.md,
-    width: "100%",
-  },
-  list: { flex: 1 },
-  row: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: appSpacing.sm,
-    minHeight: 64,
-    paddingHorizontal: appSpacing.md,
-    paddingVertical: appSpacing.sm,
-  },
-  rowAction: {
-    alignItems: "center",
-    gap: appSpacing.xxs,
-    justifyContent: "center",
-    width: 88,
-  },
-  rowActions: { flexDirection: "row" },
-  textColumn: { flex: 1, gap: appSpacing.xxs },
-});
+const styles = StyleSheet.create({ host: { flex: 1 } });

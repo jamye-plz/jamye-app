@@ -1,12 +1,12 @@
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
-import { appSpacing } from "@/core/theme/tokens";
 import { GroupsProvider } from "@/features/groups/model/groups-provider";
 import { createGroupsStore } from "@/features/groups/model/groups-store";
 import { GroupsApiError } from "@/features/groups/data/groups-api";
 import {
   GroupListScreen,
-  resolveGroupListContentPadding,
+  resolveGroupListErrorColor,
 } from "@/features/groups/ui/group-list-screen";
 import { GroupFormScreen } from "@/features/groups/ui/group-form-screen";
 import {
@@ -15,9 +15,25 @@ import {
   fakeGroupsApi,
   group,
   groupId,
+  member,
+  otherId,
   principal,
+  userId,
 } from "../groups-fixtures";
 import type { AuthorizedGroupsRequest } from "@/features/groups/model/groups-store";
+
+jest.mock("@/shared/ui/action-list-item", () =>
+  jest
+    .requireActual<typeof import("../../../support/action-list-item-mock")>(
+      "../../../support/action-list-item-mock",
+    )
+    .createActionListItemMock(),
+);
+jest.mock("@/core/providers/session-provider", () => ({
+  useSession: () => ({
+    principal: { userId: "22222222-2222-4222-8222-222222222222" },
+  }),
+}));
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -60,11 +76,96 @@ describe("M7 home, create and join", () => {
   }
   test("renders the canonical group list and navigates to a group on row press", async () => {
     const { screen } = await setup();
-    await fireEvent.press(screen.getByRole("button", { name: /우리 그룹/ }));
+    expect(screen.getByTestId("group-list")).toBeTruthy();
+    expect(screen.getByText(/^\d+ \/ \d+명$/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: /^우리 그룹, / }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/groups/[groupId]",
       params: { groupId },
     });
+  });
+  test("an owner's row offers 초대 코드 발급 and 소유권 이전, and the invite sheet opens on the opened group", async () => {
+    const { screen, api } = await setup();
+    expect(
+      screen.queryByRole("button", { name: "우리 그룹 그룹 나가기" }),
+    ).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "우리 그룹 초대 코드 발급" }),
+    );
+    expect(api.getGroup).toHaveBeenCalled();
+    expect(await screen.findByTestId("group-owner-panel-issue")).toBeTruthy();
+  });
+  test("소유권 이전 lists the other members and transfers only after the confirmation", async () => {
+    const api = fakeGroupsApi();
+    const other = {
+      ...member,
+      nickname: "다른 사람",
+      role: "member" as const,
+      userId: otherId,
+    };
+    api.listMembers.mockResolvedValue({
+      items: [member, other],
+      nextCursor: null,
+    });
+    const alert = jest
+      .spyOn(Alert, "alert")
+      .mockImplementation(() => undefined);
+    try {
+      const { screen } = await setup(undefined, api);
+      await fireEvent.press(
+        screen.getByRole("button", { name: "우리 그룹 소유권 이전" }),
+      );
+      const candidate = await screen.findByTestId(`group-transfer-${otherId}`);
+      expect(screen.queryByTestId(`group-transfer-${userId}`)).toBeNull();
+      await fireEvent.press(candidate);
+      expect(alert).toHaveBeenCalledWith(
+        "소유권 이전",
+        expect.stringContaining("다른 사람"),
+        expect.anything(),
+      );
+      expect(api.setMemberRole).not.toHaveBeenCalled();
+      await act(async () => {
+        alert.mock.calls[0]![2]![1]!.onPress?.();
+      });
+      await waitFor(() => expect(api.setMemberRole).toHaveBeenCalled());
+      expect(api.setMemberRole.mock.calls[0]).toContain(otherId);
+    } finally {
+      alert.mockRestore();
+    }
+  });
+  test("a member's row offers 그룹 나가기, which leaves only after the confirmation", async () => {
+    const api = fakeGroupsApi();
+    api.listGroups.mockResolvedValue({
+      items: [{ ...group, ownerId: otherId }],
+      nextCursor: null,
+    });
+    api.getGroup.mockResolvedValue({ ...group, ownerId: otherId });
+    const alert = jest
+      .spyOn(Alert, "alert")
+      .mockImplementation(() => undefined);
+    try {
+      const { screen } = await setup(undefined, api);
+      expect(
+        screen.queryByRole("button", { name: "우리 그룹 초대 코드 발급" }),
+      ).toBeNull();
+      await fireEvent.press(
+        screen.getByRole("button", { name: "우리 그룹 그룹 나가기" }),
+      );
+      expect(api.removeMember).not.toHaveBeenCalled();
+      await act(async () => {
+        alert.mock.calls[0]![2]![1]!.onPress?.();
+      });
+      await waitFor(() => expect(api.removeMember).toHaveBeenCalled());
+      expect(api.removeMember.mock.calls[0]).toContain(userId);
+    } finally {
+      alert.mockRestore();
+    }
+  });
+  test("pull-to-refresh on the native list reloads the groups", async () => {
+    const { screen, api } = await setup();
+    expect(api.listGroups).toHaveBeenCalledTimes(1);
+    await fireEvent(screen.getByTestId("group-list"), "refresh");
+    expect(api.listGroups).toHaveBeenCalledTimes(2);
   });
   test("the + header menu offers create and join as native menu items", async () => {
     const { screen } = await setup();
@@ -191,10 +292,11 @@ describe("M7 home, create and join", () => {
   });
 });
 
-describe("group list content padding", () => {
-  it("reserves navigation-bar room on Android only", () => {
-    expect(resolveGroupListContentPadding("android")).toBe(appSpacing.xxxl);
-    expect(resolveGroupListContentPadding("ios")).toBe(appSpacing.md);
-    expect(resolveGroupListContentPadding(undefined)).toBe(appSpacing.md);
+describe("group list error color for @expo/ui text", () => {
+  it("uses UIKit systemRed per scheme on iOS and the Material error on Android", () => {
+    expect(resolveGroupListErrorColor("ios", "light")).toBe("#FF3B30");
+    expect(resolveGroupListErrorColor("ios", "dark")).toBe("#FF453A");
+    expect(resolveGroupListErrorColor("android", "light")).toBe("#BA1A1A");
+    expect(resolveGroupListErrorColor("android", "dark")).toBe("#FFB4AB");
   });
 });

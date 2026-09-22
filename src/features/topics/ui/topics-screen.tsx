@@ -155,7 +155,6 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
               });
           }}
           onRefresh={() => store?.actions.refresh() ?? Promise.resolve()}
-          refreshing={state.status === "loading"}
           topics={scoped ? state.items : []}
         />
       ) : null}

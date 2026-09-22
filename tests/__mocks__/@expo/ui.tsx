@@ -19,6 +19,7 @@ import type {
   StyleProp,
   SwitchProps,
   TextStyle,
+  ViewProps,
   ViewStyle,
 } from "react-native";
 
@@ -45,7 +46,6 @@ export const Column = PassThroughView;
 export const Row = PassThroughView;
 export const Spacer = PassThroughView;
 export const FieldGroup = PassThroughView;
-export const List = PassThroughView;
 export const ScrollView = PassThroughView;
 export const Collapsible = PassThroughView;
 export const RNHostView = PassThroughView;
@@ -56,6 +56,23 @@ export const TextInput = PassThroughView;
 
 export function Icon() {
   return null;
+}
+
+/**
+ * `List` keeps `onRefresh` on the host view so `fireEvent(list, "refresh")`
+ * reaches it the way a pull would.
+ */
+export function List({
+  children,
+  onRefresh,
+  testID,
+}: PropsWithChildren<{ onRefresh?: () => Promise<void>; testID?: string }>) {
+  const refresh = { onRefresh } as unknown as ViewProps;
+  return (
+    <View {...refresh} testID={testID}>
+      {children}
+    </View>
+  );
 }
 
 export function Text({ children, testID, style }: PassThroughTextProps) {
@@ -103,7 +120,25 @@ type ListItemProps = Readonly<{
   leading?: ReactNode;
   trailing?: ReactNode;
   testID?: string;
+  /** Compose modifiers; a `combinedClickable` config wires tap / long press. */
+  modifiers?: readonly unknown[];
 }>;
+
+type ClickHandlers = Readonly<{
+  onClick?: () => void;
+  onLongClick?: () => void;
+}>;
+function clickHandlers(
+  modifiers: readonly unknown[] | undefined,
+): ClickHandlers {
+  const found = modifiers?.find(
+    (modifier): modifier is ClickHandlers =>
+      typeof modifier === "object" &&
+      modifier !== null &&
+      ("onClick" in modifier || "onLongClick" in modifier),
+  );
+  return found ?? {};
+}
 
 /**
  * Records one entry per `ListItem` mount (a new component instance being
@@ -128,15 +163,19 @@ export function ListItem({
   leading,
   trailing,
   testID,
+  modifiers,
 }: ListItemProps) {
   useEffect(() => {
     listItemMountLog.push({ testID });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- record on mount only, not on testID prop updates
   }, []);
+  const clicks = clickHandlers(modifiers);
+  const press = onPress ?? clicks.onClick;
   return (
     <Pressable
-      accessibilityRole={onPress ? "button" : undefined}
-      onPress={onPress}
+      accessibilityRole={press ? "button" : undefined}
+      onLongPress={clicks.onLongClick}
+      onPress={press}
       testID={testID}
     >
       {leading}

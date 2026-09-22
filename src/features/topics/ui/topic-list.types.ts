@@ -19,6 +19,5 @@ export type TopicListProps = Readonly<{
    */
   onDelete?: (topic: Topic) => void;
   onRefresh: () => Promise<void>;
-  refreshing: boolean;
   topics: readonly Topic[];
 }>;
