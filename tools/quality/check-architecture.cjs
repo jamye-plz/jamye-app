@@ -1139,7 +1139,7 @@ const APPROVED_RECOVERY_FILE_SHA256 = Object.freeze({
   "tsconfig.json":
     "b3fcbc507af0df8008ffae41c5132e2bafceb650f6f55347d7492e0d8f98e3c0",
   ".serena/project.yml":
-    "00427f142657314a6d58843d332fb5fcbc52b295634a895610fa38dd3118660b",
+    "315fb2361b37a78054205e9f69e27a6048fbff1160026f49c0113b688f96e159",
 });
 const APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256 = Object.freeze({
   "nix/android-avd-spec.json":
@@ -1154,7 +1154,7 @@ const APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256 = Object.freeze({
     "ade2efe2b149d926d83a91dbca5725280bd5e72a84f7a27a7bd0b9d1c20bbc7d",
 });
 const APPROVED_GITIGNORE_SHA256 =
-  "967a27fc61a32a7709c95e12d8bbf1d17758fd8bde69b95f606e41d7086d231b";
+  "40197561ee38a83d8256c572897bdfcad019f48d57eff69f60fbd8b3b226c3b3";
 const REQUIRED_GITIGNORE_ENTRIES = Object.freeze([
   "/coverage/",
   "/ios",
