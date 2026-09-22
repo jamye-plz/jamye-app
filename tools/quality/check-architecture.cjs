@@ -1184,6 +1184,7 @@ const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   "CLAUDE.md",
   ".mcp.json",
   "assets/",
+  ".github/",
   "tsconfig.json",
   "contracts/bootstrap/openapi.json",
   "contracts/bootstrap/realtime-event.schema.json",

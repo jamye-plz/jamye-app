@@ -183,6 +183,7 @@ describe("development workflow contract", () => {
         ".claude/",
         ".codex/",
         ".expo/",
+        ".github/",
         ".mcp.json",
         ".migration-backup/",
         ".qwen/",

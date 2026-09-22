@@ -1490,7 +1490,7 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
       "tsconfig.json":
         "b3fcbc507af0df8008ffae41c5132e2bafceb650f6f55347d7492e0d8f98e3c0",
       ".serena/project.yml":
-        "00427f142657314a6d58843d332fb5fcbc52b295634a895610fa38dd3118660b",
+        "315fb2361b37a78054205e9f69e27a6048fbff1160026f49c0113b688f96e159",
     });
     expect(APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256).toEqual({
       "nix/android-avd-spec.json":
