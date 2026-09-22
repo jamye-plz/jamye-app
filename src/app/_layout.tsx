@@ -1,4 +1,5 @@
 import { Stack, ThemeProvider } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AppErrorBoundary } from "@/core/errors/app-error-boundary";
 import { AppProviders } from "@/core/providers/app-providers";
@@ -26,12 +27,17 @@ function RootStack() {
   );
 }
 
+/** Gesture root for swipeable rows (topic list) and future gesture-driven UI. */
 export default function RootLayout() {
   return (
-    <AppErrorBoundary>
-      <AppProviders>
-        <RootStack />
-      </AppProviders>
-    </AppErrorBoundary>
+    <GestureHandlerRootView style={styles.root}>
+      <AppErrorBoundary>
+        <AppProviders>
+          <RootStack />
+        </AppProviders>
+      </AppErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = { root: { flex: 1 } } as const;

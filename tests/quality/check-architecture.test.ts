@@ -261,6 +261,10 @@ const M14_ROUND1_TEST_PATHS = [
   "tests/features/notifications/ui/use-notifications-unread-count.test.tsx",
   "tests/shared/ui/header-actions.test.tsx",
   "tests/shared/ui/header-actions.android.test.tsx",
+  "tests/features/topics/model/topics-dates.test.ts",
+  "tests/features/topics/ui/topic-date-dial.test.tsx",
+  "tests/features/topics/ui/topic-list.test.tsx",
+  "tests/features/topics/ui/topic-list.ios.test.tsx",
 ];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",

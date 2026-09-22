@@ -83,6 +83,15 @@ jest.mock("react-native-keyboard-controller", () => {
   };
 });
 
+jest.mock("react-native-gesture-handler", () => {
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    GestureHandlerRootView: (
+      props: Readonly<{ children?: React.ReactNode; style?: unknown }>,
+    ) => <View>{props.children}</View>,
+  };
+});
 jest.mock("react-native-reanimated", () => {
   const { FlatList, View } =
     jest.requireActual<typeof import("react-native")>("react-native");

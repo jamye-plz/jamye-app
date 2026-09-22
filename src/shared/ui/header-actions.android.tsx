@@ -33,6 +33,7 @@ const MATERIAL_ICONS: Record<
   ImageSourcePropType
 > = {
   add: require("../../../assets/icons/material/add.xml") as ImageSourcePropType,
+  chat: require("../../../assets/icons/material/forum.xml") as ImageSourcePropType,
   group:
     require("../../../assets/icons/material/group.xml") as ImageSourcePropType,
   info: require("../../../assets/icons/material/info.xml") as ImageSourcePropType,

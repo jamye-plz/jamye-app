@@ -7,6 +7,7 @@ import { TopicsScreen } from "@/features/topics/ui/topics-screen";
 import { TopicCreateScreen } from "@/features/topics/ui/topic-create-screen";
 import { TopicDetailScreen } from "@/features/topics/ui/topic-detail-screen";
 import { TopicsApiError } from "@/features/topics/data/topics-api";
+import type { TopicListProps } from "@/features/topics/ui/topic-list.types";
 import { authorize, topicsHarness } from "../topics-harness";
 import { groupId, topicId, roomId, otherId } from "../topics-fixtures";
 import TopicCreateRoute from "@/app/groups/[groupId]/topics/new";
@@ -55,6 +56,36 @@ jest.mock("expo-router", () => ({
 jest.mock("@/features/groups/model/groups-provider", () => ({
   useGroupName: () => "우리 그룹",
 }));
+// The platform topic lists (SwiftUI on iOS, swipeable cards elsewhere) have
+// their own tests; this stand-in keeps the rows reachable as plain buttons.
+jest.mock("@/features/topics/ui/topic-list", () => {
+  const { Pressable, Text, View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  function TopicList(props: TopicListProps) {
+    return (
+      <View>
+        {props.topics.map((topic) => (
+          <View key={topic.id}>
+            <Pressable
+              accessibilityLabel={`주제 ${topic.title}, 작성자 ${topic.authorNickname}`}
+              accessibilityRole="button"
+              onPress={() => props.onOpenChat(topic)}
+            >
+              <Text>{topic.title}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel={`주제 ${topic.title} 상세`}
+              accessibilityRole="button"
+              onPress={() => props.onOpenDetail(topic)}
+            />
+          </View>
+        ))}
+        {props.empty ? <Text>선택한 날짜에 주제가 없습니다.</Text> : null}
+      </View>
+    );
+  }
+  return { TopicList };
+});
 jest.mock("@/core/config/public-env", () => ({
   getPublicEnv: () => ({ appMode: "connected-auth" }),
 }));
@@ -117,29 +148,68 @@ describe("M10 topic views with real controller and fake API", () => {
     expect(f.screen.queryByText(topicId)).toBeNull();
     expect(f.screen.queryByText(/안읽음|읽지 않은/)).toBeNull();
     await fireEvent.press(
-      f.screen.getByRole("button", { name: "기본 주제 대화" }),
+      f.screen.getByRole("button", { name: "그룹 대화방" }),
     );
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
       params: { groupId, chatroomId: otherId },
     });
+    // Tapping a topic goes straight to its chatroom; 상세 is the swipe action.
     await fireEvent.press(
       f.screen.getByRole("button", { name: "주제 오늘 이야기, 작성자 작성자" }),
+    );
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
+      params: { groupId, chatroomId: roomId },
+    });
+    await fireEvent.press(
+      f.screen.getByRole("button", { name: "주제 오늘 이야기 상세" }),
     );
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/groups/[groupId]/topics/[topicId]",
       params: { groupId, topicId },
     });
+    expect(f.screen.queryByText(/서울 날짜/)).toBeNull();
+    expect(f.screen.queryByText("기본 주제 대화")).toBeNull();
+    expect(f.screen.queryByText("전체 날짜")).toBeNull();
     await fireEvent.press(f.screen.getByRole("button", { name: "그룹 정보" }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/groups/[groupId]/info",
       params: { groupId },
     });
-    await fireEvent.press(f.screen.getByRole("button", { name: "2026-09-11" }));
-    expect(f.api.listTopics).toHaveBeenLastCalledWith(
+  });
+  test("shows the empty state only for a settled date with no topics", async () => {
+    const fixture = topicsHarness();
+    fixture.api.listTopics.mockResolvedValue({ items: [], nextCursor: null });
+    const f = await setup(<TopicsScreen groupId={groupId} />, fixture);
+    expect(f.screen.getByText("선택한 날짜에 주제가 없습니다.")).toBeTruthy();
+  });
+  test("opens on today and commits a date only when the dial settles", async () => {
+    const fixture = topicsHarness();
+    fixture.api.listDates.mockResolvedValue({
+      today: "2026-09-11",
+      dates: ["2026-09-11", "2026-09-10"],
+      nextCursor: null,
+    });
+    const f = await setup(<TopicsScreen groupId={groupId} />, fixture);
+    expect(f.api.listTopics).toHaveBeenCalledWith(
       "test-token",
       groupId,
       { date: "2026-09-11", limit: 20 },
+      expect.anything(),
+    );
+    const dial = f.screen.getByLabelText("주제 날짜 선택");
+    expect(dial.props.accessibilityValue).toEqual({ text: "오늘" });
+    expect(f.screen.getByText("어제")).toBeTruthy();
+    expect(f.screen.getByText("오늘 이야기")).toBeTruthy();
+    expect(f.screen.queryByText("선택한 날짜에 주제가 없습니다.")).toBeNull();
+    await fireEvent(dial, "momentumScrollEnd", {
+      nativeEvent: { contentOffset: { x: 0 } },
+    });
+    expect(f.api.listTopics).toHaveBeenLastCalledWith(
+      "test-token",
+      groupId,
+      { date: "2026-09-10", limit: 20 },
       expect.anything(),
     );
   });
@@ -309,7 +379,7 @@ describe("M10 topic views with real controller and fake API", () => {
     expect(create.api.listTopics).toHaveBeenCalledWith(
       "test-token",
       groupId,
-      { limit: 20 },
+      { date: "2026-09-11", limit: 20 },
       expect.anything(),
     );
     await create.screen.unmount();

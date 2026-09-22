@@ -63,6 +63,7 @@ function setup(userId = authorId) {
     newKey,
     authorize: (execute, signal) =>
       execute("token", signal ?? new AbortController().signal),
+    today: () => "2026-09-11",
   });
   return { store, api, repository, watchGroup, getOwner, newKey };
 }
@@ -161,11 +162,11 @@ describe("M10 topics controller", () => {
     expect(api.listTopics).toHaveBeenLastCalledWith(
       "token",
       groupId,
-      { after: "topic-page-2", limit: 20 },
+      { after: "topic-page-2", date: "2026-09-11", limit: 20 },
       expect.anything(),
     );
     expect(store.getState().items).toEqual([topic, nextTopic]);
-    expect(repository.savePage).toHaveBeenCalledWith(groupId, "", {
+    expect(repository.savePage).toHaveBeenCalledWith(groupId, "2026-09-11", {
       items: [topic, nextTopic],
       nextCursor: null,
     });

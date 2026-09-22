@@ -63,6 +63,7 @@ export function topicsHarness() {
         watchGroup: watch,
         newKey: () => key,
         getOwner: async () => otherId,
+        today: () => "2026-09-11",
       });
       stores.push(store);
       return store;

@@ -744,6 +744,9 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - 선행: [ADR 0009](adr/0009-tab-bar-navigation.md)(Accepted, ADR 0005 D3 대체) 반영. 이 ADR 없이는 라운드 1 구현에 착수할 수 없다.
 - 사용자 리뷰 1(2026-09-22) 반영: tab bar는 expo-router `NativeTabs`, 헤더 버튼은 iOS native toolbar(`Stack.Toolbar`)·Android Material icon button으로 바꿨다. 상시 규칙은 [ADR 0010](adr/0010-platform-native-visual-language.md).
 - 사용자 리뷰 2·3(2026-09-22) 반영: `+`는 버튼 아래 native 메뉴(bottom sheet 제거). 색은 플랫폼 중립색 위에 Berry를 highlight로만 쓰고 Android는 Berry 시드 Material 3 팔레트로 고정한다([ADR 0011](adr/0011-color-system-platform-neutral-berry-highlight.md)).
+- 사용자 리뷰 4(2026-09-22, 그룹 홈) 반영: 그룹 홈은 regular title, 헤더는 새 주제·그룹 대화방·그룹 정보 순, 기본 주제 대화 행과 서울 날짜 캡션 제거, 주제 행은 스와이프 카드(탭 = 대화방, 스와이프 = 상세). 날짜 가로 다이얼은 조사 결과를 라운드 2 후보로 기록.
+- 사용자 리뷰 5(2026-09-22) 반영: iOS 헤더 다크 모드 버그(react-navigation theme이 라이트 고정)를 `resolveNavigationTheme`로 수정, 주제 목록은 iOS SwiftUI `List` + `SwipeActions` / Android RNGH 카드로 분기(Compose 대응 `SwipeToDismissBox`는 `@expo/ui` 57 미노출), 날짜 가로 다이얼 구현(초기 오늘, 전체 날짜·이전 날짜 더 보기 없음, 스와이프로만 결정).
+- 사용자 리뷰 6(2026-09-22) 반영: iOS 목록의 빈 상태 오표시 수정, 스와이프 액션을 상세·삭제 2개로(삭제는 M15 T8 `DELETE …/topics/{topic_id}` 계약 intake 뒤 핸들러 연결 시 노출), 다이얼에 탭 선택 추가(SegmentedControl 드롭인은 세그먼트 4~5개 한계로 미채택).
 
 항목:
 
@@ -776,7 +779,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - iOS Simulator·Android Emulator에서 탭 전환, 그룹 목록 → 그룹 홈 → 기본 대화/주제 상세 → 대화, 알림 탭 → 대화 handoff, 계정 탭 로그아웃 확인
 - 사용자 리뷰. 만족이면 M14 종료, 아니면 라운드 2 지적 기록. evidence는 `docs/evidence/` 아래 M14 파일에 라운드 1로 기록(착수 시 생성·checker 등록)
 
-라운드 2 후보(이번 라운드 제외): D. 인증 게이트 라우팅 분리(`(auth)/sign-in` + Redirect, local-fixture 모드 별도 라우트); 채팅 화면 제목을 주제 제목이나 그룹명으로; 계정 화면의 '로컬 계정 저장소'·'서버 연결 진단' 섹션을 개발자 전용으로 정리; 스타일·컴포넌트와 상태 화면(loading/empty/error) 영역; 미디어 뷰어 오버레이·채팅 composer의 Liquid Glass 적용 여부(ADR 0010 D2).
+라운드 2 후보(이번 라운드 제외): D. 인증 게이트 라우팅 분리(`(auth)/sign-in` + Redirect, local-fixture 모드 별도 라우트); 채팅 화면 제목을 주제 제목이나 그룹명으로; 계정 화면의 '로컬 계정 저장소'·'서버 연결 진단' 섹션을 개발자 전용으로 정리; 스타일·컴포넌트와 상태 화면(loading/empty/error) 영역; 미디어 뷰어 오버레이·채팅 composer의 Liquid Glass 적용 여부(ADR 0010 D2); 날짜 다이얼 haptic tick(`expo-haptics` 미설치 = native rebuild 필요); Android 주제 행의 native 스와이프(`@expo/ui`가 Compose `SwipeToDismissBox`를 노출할 때).
 
 ### M15. 소프트 삭제 수용 (서버 task-14 연동)
 

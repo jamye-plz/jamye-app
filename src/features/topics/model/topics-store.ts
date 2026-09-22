@@ -12,6 +12,7 @@ import {
   type TopicPatchInput,
   type TopicTagInput,
 } from "./topics-input";
+import { seoulToday } from "./topics-dates";
 import {
   emptyTopicDetail,
   emptyTopicMutation,
@@ -37,6 +38,8 @@ type Dependencies = Readonly<{
   newKey: () => string;
   getOwner: (groupId: string, signal: AbortSignal) => Promise<string>;
   watchGroup: (groupId: string) => Promise<void>;
+  /** Seoul calendar date used as the initial dial selection; defaults to now. */
+  today?: () => string;
 }>;
 
 function outcome(error: unknown): TopicsError {
@@ -178,7 +181,12 @@ export function createTopicsStore(deps: Dependencies) {
       intent = null;
       pageCursors.clear();
       dateCursors.clear();
-      publish({ ...initialTopicsState(), groupId });
+      // The date dial has no "all dates" entry: a group opens on today.
+      publish({
+        ...initialTopicsState(),
+        groupId,
+        date: (deps.today ?? seoulToday)(),
+      });
     }
     return active && !state.accessLost;
   }
