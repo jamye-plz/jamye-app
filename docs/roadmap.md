@@ -3,10 +3,10 @@
 - 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14-M18(UI/UX 다듬기·소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M13 프로필 수정과 계정 삭제 `COMPLETED / USER_ACCEPTED` (2026-09-22 사용자 디바이스 검증 완료 보고 및 종료 승인). 다음 milestone은 M14 UI/UX 다듬기 라운드 1이며 범위는 2026-09-22에 고정됐고 착수는 사용자 승인으로 시작한다. M15-M17은 M14 라운드 사이에 병행할 수 있고, M18 스토어 배포는 M14 만족 선언 이후에만 시작한다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
+- 현재 frontier: M13 프로필 수정과 계정 삭제 `COMPLETED / USER_ACCEPTED` (2026-09-22 사용자 디바이스 검증 완료 보고 및 종료 승인). M14 UI/UX 다듬기는 `in_progress`이며, 라운드 1(그룹 목록·그룹 상세·주제 목록·주제 상세)은 2026-09-27 사용자가 종료했다. 라운드 2 후보는 M14 절에 있다. M15-M17은 M14 라운드 사이에 병행할 수 있고, M18 스토어 배포는 M14 만족 선언 이후에만 시작한다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-09-22
+- 최종 수정일: 2026-09-27
 
 ## 1. 이 문서가 답하는 것
 
@@ -690,13 +690,19 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 ### M14. UI/UX 다듬기 (반복 라운드)
 
-- 상태: `in_progress` — 2026-09-22 사용자가 계획을 승인하고 라운드 1 착수를 지시; 라운드 1 구현과 자동 검사 완료, 사용자 리뷰 1(플랫폼 네이티브 chrome, ADR 0010) 반영, 양 플랫폼 재확인 대기(아래 '라운드 1 범위'와 `docs/evidence/` 아래 M14 파일 참조)
+- 상태: `in_progress` — 2026-09-22 사용자가 계획을 승인하고 라운드 1 착수를 지시; 2026-09-26 세션
+  `20260926-181036`에서 그룹 목록·그룹 상세·주제 목록·주제 상세를 native-first 범위로 확장하고,
+  서버 배포 뒤 양 플랫폼 기기 검증과 결함 수정을 기록했다([M14 evidence](evidence/M14.md)).
+  2026-09-27 사용자가 라운드 1 범위 종료를 선언했다("그룹 목록, 그룹 상세, 주제 목록, 주제 상세까지
+  전부 잘 마무리"). M14 전체 종료는 아니며 다음 라운드는 아래 후보에서 고른다.
 - 선행: M13(모든 제품 화면이 존재하는 상태)
 - 결정(2026-09-22): [ADR 0005](adr/0005-native-ui-toolkit-adoption.md)의 native-first 방향(`@expo/ui`, `expo-symbols`, `PlatformColor`, native Stack header)을 유지하되, D3(tab bar 없음)는 라운드 1에서 [ADR 0009](adr/0009-tab-bar-navigation.md)로 대체한다.
   종료 기준은 사용자의 만족 선언이며 라운드 수를 미리 정하지 않는다. 라운드 사이의 사용자 리뷰
   대기 시간에는 M15-M17을 병행할 수 있다.
 - 사용자 결과: 스타일, 페이지 네비게이션, 페이지 라우팅 전반이 사용자 취향에 맞는다.
-- 계약 범위: 없음(app-only). 서버 계약·migration 변경을 요구하지 않는다.
+- 계약 범위: 2026-09-22 초기 라운드는 app-only였지만, 2026-09-26 확장 범위는 서버의 App Links,
+  대화방 미디어 갤러리 API(C5), topic media 제거(MD3 제거)를 포함한다. 서버 변경은 jamye-server main
+  `5b987a2`로 운영 배포됐다.
 
 라운드 구조(모든 라운드 동일):
 
@@ -735,7 +741,8 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 미검증 / 별도 승인 필요:
 
-- 라운드 1 착수(범위는 2026-09-22 고정), ADR 0009 반영을 포함한 구조 변경. 새 native module이 없어 native rebuild는 예상하지 않는다
+- M14 종료는 사용자의 만족 선언이 필요하다.
+- release variant, App Store / Play Store 등록, Play signing key 추가와 store URL 채우기는 M18 범위다.
 
 #### 라운드 1 범위 (2026-09-22 고정)
 
@@ -785,7 +792,59 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - iOS Simulator·Android Emulator에서 탭 전환, 그룹 목록 → 그룹 홈 → 기본 대화/주제 상세 → 대화, 알림 탭 → 대화 handoff, 계정 탭 로그아웃 확인
 - 사용자 리뷰. 만족이면 M14 종료, 아니면 라운드 2 지적 기록. evidence는 `docs/evidence/` 아래 M14 파일에 라운드 1로 기록(착수 시 생성·checker 등록)
 
-라운드 2 후보(이번 라운드 제외): D. 인증 게이트 라우팅 분리(`(auth)/sign-in` + Redirect, local-fixture 모드 별도 라우트); 채팅 화면 제목을 주제 제목이나 그룹명으로; 계정 화면의 '로컬 계정 저장소'·'서버 연결 진단' 섹션을 개발자 전용으로 정리; 스타일·컴포넌트와 상태 화면(loading/empty/error) 영역; 미디어 뷰어 오버레이·채팅 composer의 Liquid Glass 적용 여부(ADR 0010 D2); 날짜 다이얼 haptic tick(`expo-haptics` 미설치 = native rebuild 필요); Android 주제 행의 native 스와이프(`@expo/ui`가 Compose `SwipeToDismissBox`를 노출할 때).
+#### 라운드 1 확장 기록 (세션 20260926-181036)
+
+- SSOT: jamye-server `.agents/results/requirements-20260926-181036.md`의 L5, E3, E5, E7, A1,
+  §4와 plan `task-docs-app`.
+- 범위: 그룹 목록, 그룹 상세(그룹 정보), 주제 목록(그룹 홈), 주제 상세. 네 화면은 iOS HIG/Liquid
+  Glass와 Android Material 3를 우선하고, 컴포넌트 선택 순서는 `@expo/ui` universal →
+  `@expo/ui/swift-ui` / `@expo/ui/jetpack-compose` 플랫폼 파일 → 로컬 `jamye-ui` Expo module이다.
+- 서버 선행 변경: jamye-server main `5b987a2`가 운영 배포됐다. 포함 범위는 C5 대화방 미디어 API,
+  public App Links(AASA·assetlinks·`/invite/{code}`), MD3 topic media 제거다. 운영 smoke는 AASA,
+  assetlinks, `/invite/{code}` 보안 header·CSP, C5 401, MD3 404를 확인했다.
+- 앱 링크 계약: `https://jamye-api.ridewithmin.com/invite/{code}`와 `jamye://invite/{code}`는
+  `+native-intent` → memory-only `pendingInviteStore` → 코드 없는 `/groups/join`으로 이어진다. 자동
+  가입은 없고 사용자가 `가입`을 눌러야 한다([ADR 0012](adr/0012-invite-links-public-link-contract.md)).
+- 로컬 native module: `jamye-ui`는 iOS `JamyeAvatarView`(SwiftUI `AsyncImage` + monogram fallback)와
+  Android `JamyeDateChipRowView`(reverse-layout `LazyRow` + M3 `FilterChip`)만 제공한다
+  ([ADR 0013](adr/0013-jamye-ui-local-native-module.md)).
+- 기기 검증과 결함 수정: Android dev client와 iOS 시뮬레이터에서 네 화면, C3 입력 화면, 초대 링크,
+  주제 대화방 갤러리, 대화방 헤더 흐름을 확인했다. 상세 스크린샷 경로와 결함 12건의 원인·수정·회귀
+  테스트는 [M14 evidence](evidence/M14.md)의 "라운드 1 (세션 20260926-181036)" 절에 누적한다.
+
+라운드 2 또는 이후 후보:
+
+- 아바타 변경(계정 화면 업로드 + 공개 URL).
+- haptics(날짜 선택 tick 등).
+- Android swipe-to-delete 모듈과 주제 삭제 UX(M15).
+- 그룹 기본 대화방 갤러리.
+- 알림 목적지(E5): `new_topic` push·알림함 목적지는 현재 주제 상세 URL 그대로다. 목록 → 대화방 → 주제
+  상세 흐름과 맞출지 라운드 2에서 재검토한다.
+- 알림·계정 화면, 채팅 본문 UI, 로그인 화면 재설계.
+- Android carousel `maskClip` 미노출로 중·소 항목이 사각으로 잘리는 문제.
+- 3열 grid 타일 모양(사진 앱 관례의 사각)과 서버 썸네일 도입.
+- iOS 그룹 정보의 `멤버`·`관리` 섹션 헤더.
+- iOS toolbar 강조 버튼(가입·만들기) tint.
+- 서버 공지 메시지의 markdown 링크 렌더링과 앱 경로 정리.
+- 그룹 목록을 거치지 않고 그룹 홈에 들어올 때 제목이 `그룹`으로 남는 문제.
+- 로컬 모드 DB(`jamye.db`) 쓰기 직렬화 적용 여부.
+- 아바타 URL 신뢰 경계: 서버 `PATCH /users/me`는 `avatar_url`을 512자 이하의 임의 문자열로 받는다. 앱은
+  절대 웹 URL만 불러오고 `http:`는 `https:`로 올리지만(`src/shared/ui/avatar.shared.ts`), 다른 멤버가 넣은
+  URL을 불러오면 보는 사람의 IP와 조회 시점이 그 host에 드러난다. 아바타 변경(업로드 + 공개 URL)과 함께
+  서버 검증이나 업로드 기반 URL로 바꾼다. 같은 작업에서 Kakao 로그인 profile 요청에 `secure_resource=true`를
+  넣고 이미 저장된 `http://` Kakao URL을 정리한다(서버 변경·재배포 필요).
+- 주제 태그 권한 맞추기: 앱은 2026-09-27 사용자 결정으로 주제 편집(제목·본문·태그)을 작성자만 한다. 서버 T6
+  태그 교체 API는 아직 작성자 또는 그룹 소유자를 허용하므로, 서버 권한도 작성자만으로 맞출지 정한다(서버 변경·재배포 필요).
+- 의존성 정리: `bun audit`가 Metro 경유 transitive `image-size`(>=1.2.0 <=2.0.2)의 high advisory 2건
+  (GHSA-5p2g-fcmc-qvqq, GHSA-w3rx-r6r6-pgpr, 무한 루프 DoS)을 보고한다. 빌드 도구 경로에만 있고 앱
+  번들에는 없다. upstream 갱신이나 `overrides`로 정리한다.
+- release variant / 스토어 등록 / Play signing key 추가 / store URL 값 채우기(M18).
+- 서버 task-14(soft delete), task-15(Apple 로그인), task-16 잔여 백로그.
+- 2026-09-22 라운드 1에서 넘어온 후보(아직 유효): D. 인증 게이트 라우팅 분리(`(auth)/sign-in` +
+  Redirect, local-fixture 모드 별도 라우트); 계정 화면의 '로컬 계정 저장소'·'서버 연결 진단' 섹션을
+  개발자 전용으로 정리; 이번 네 화면 밖의 스타일·컴포넌트와 상태 화면(loading/empty/error); 미디어 뷰어
+  오버레이·채팅 composer의 Liquid Glass 적용 여부(ADR 0010 D2). 채팅 화면 제목(D7·E11), 날짜 다이얼
+  haptic(위 haptics), Android 주제 행 스와이프(위 M15)는 이번 세션에서 처리했거나 위 항목으로 옮겼다.
 
 ### M15. 소프트 삭제 수용 (서버 task-14 연동)
 

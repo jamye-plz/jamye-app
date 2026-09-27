@@ -62,6 +62,41 @@ Korean body, message, input, and control copy use natural tracking. Font scaling
 
 ## 4. Component Stylings
 
+### M14 Native UI Principles
+
+M14 screens keep the native visual language as the first design constraint: iOS follows HIG and
+Liquid Glass for navigation chrome, sheets, forms and bar items; Android follows Material 3 for
+top bars, dialogs, FABs, menus, chips and list affordances. Shared copy, state meaning and data
+contracts stay common, but a screen must not force one platform's visible pattern onto the other.
+
+Component selection follows this order:
+
+1. Use `@expo/ui` universal components first (`Host`, `List`, `ListItem`, `BottomSheet`, `Button`,
+   `Text`, `Icon`, `Column`, `Row`, native refresh where available).
+2. If the universal layer cannot express a platform-native behavior, use platform files with
+   `@expo/ui/swift-ui` on iOS or `@expo/ui/jetpack-compose` on Android.
+3. Use the local Expo module `jamye-ui` only for behavior missing from both layers: iOS
+   `JamyeAvatarView` for async profile avatars and Android `JamyeDateChipRowView` for the
+   reverse-layout Material date chip row.
+
+React Native views remain acceptable for route glue, measured content inside `RNHostView`, and
+fallbacks that have no native owner, but they are not the first choice for a user-visible control.
+Interop rules found during M14 device verification are now part of the design contract:
+
+- A `Host` that contains horizontally scrolling or flow content (`LazyRow`, carousel, `FlowRow`)
+  uses `matchContents={{ vertical: true }}` so Compose is not measured with unbounded width.
+- SwiftUI and Compose state views must render inside a `Host`; do not place expo-ui `Text`,
+  `Column`, `ContentUnavailableView`-style blocks, or Material rows outside it.
+- Every Android `Host` receives the Berry `seedColor`; without it the Material You wallpaper colors
+  show through.
+- Rows that appear and disappear inside a Compose `LazyColumn` use Compose `Text`, not React Native
+  text, to avoid stale child ownership during pop/blur transitions.
+- React Native content placed inside a native list row or carousel item is wrapped with `RNHostView`
+  and given stable dimensions (`fillMaxSize`, row width, or explicit match contents).
+- Android C3 input screens are full-screen dialogs that hide the Stack header and draw their own M3
+  top bar. Link-opened C3 routes declare their modal options on the root `Stack`, not only inside
+  the screen component.
+
 ### Screen and Main Heading
 
 - The screen uses the semantic canvas color and platform safe-area insets.
@@ -72,12 +107,24 @@ Korean body, message, input, and control copy use natural tracking. Font scaling
 - The native Stack header (`expo-router`'s `Stack.Screen`) owns the screen title; there is no separate in-content heading component.
 - The group list and the group home use regular titles, so on iOS the title and the bar buttons share one compact bar row (a large title would push the `+` capsule into the row above it) and on Android the group name reads in the top app bar. Only the notifications inbox keeps a large title.
 - Lists of rows with secondary actions (group list, topic list) share two components. `NativeList` is the scrollable, refreshable container: the universal `@expo/ui` `List` on iOS (SwiftUI `List` + `.refreshable`), and on Android a Compose `PullToRefreshBox` + `LazyColumn` composed with `fillMaxSize`, because the universal `List` wraps its content height and a pull below the last row would do nothing. `ActionListItem` is the row: a universal `ListItem` (headline, supporting text) whose tap runs the primary action and whose secondary actions surface the platform way. iOS: trailing `swipeActions` (destructive action at the edge, full swipe off) and a `contextMenu` on long press with the same items, plus a muted chevron. Android: long press or the trailing ⋮ icon button opens a Material 3 `DropdownMenu` (Material Symbols glyphs, error color for destructive items); there is no swipe, since Material reserves row swipe for one dismiss action. Empty, error and 더 보기 states are `Text`, `Icon`, `Column` and text `Button` rows inside the same list, so these screens own no React Native views besides the `Host`. Loading has no row of its own: the native pull-to-refresh indicator is the only loading signal. Secondary text uses the platform label color at reduced opacity; error text uses the platform red as hex (`resolveGroupListErrorColor`).
-- Group row actions: an owner gets 초대 코드 발급 (opens the invite sheet on that group) and 소유권 이전 (a bottom sheet lists the other members; picking one asks for confirmation); everyone else gets 그룹 나가기 (destructive, confirmation required). The row actions reuse the group info screen's flows and close the opened group again when they settle.
+- Group row actions: an owner gets 초대 링크 공유 (creates a 7-day unlimited-use invite, then opens
+  the system share sheet) and 소유권 이전 (a bottom sheet lists the other members; picking one asks
+  for confirmation); everyone else gets 그룹 나가기 (destructive, confirmation required). The row
+  actions reuse the group info screen's flows and close the opened group again when they settle.
 - The top-level destinations are a three-item tab bar: 그룹 (`person.2` / `group`), 알림 (`bell` / `notifications`), 계정 (`person.crop.circle` / `account_circle`) via Expo Router `NativeTabs` (ADR 0009, ADR 0010): a `UITabBarController` in Liquid Glass on iOS 26 and a Material 3 navigation bar on Android. The active tab icon and label use Conversation Berry or Petal Berry. On iOS every other color, the indicator, and the minimize behavior stay the platform default; on Android the bar sits on `surface`, the active pill is `accentContainer`, and inactive icons and labels are `textMuted` (ADR 0011 D4). The notifications tab shows the unread count as a native badge, hidden at zero and capped at `99+`. Each tab owns its own native Stack so the rules above apply unchanged inside a tab.
 - The chat screen and the create/join/new-topic modals live on the root Stack, so the tab bar is hidden while they are open.
 - The group home is the topic list titled with the group name. The group list header keeps only the `+` menu. On the group home the title itself is a button (`HeaderTitleButton`: the group name plus a muted trailing chevron, rendered through `headerTitle` inside the native bar) that opens 그룹 정보; the bar actions are, left to right, 그룹 대화방 (`bubble.left.and.bubble.right` / `forum`) and 새 주제 (`plus` / `add`). There is no info icon, no in-content row for the group chatroom and no "서울 날짜" caption.
-- Topic rows are `ActionListItem`s in a `NativeList`: tapping a row opens the topic's chatroom; 상세 (title, body, tags, media) is a row action, and 삭제 (destructive) joins it only once the list receives a delete handler, which waits for the M15 topic delete contract. The supporting text reads author, state and tags. Rows never show unread badges. The empty state appears only for a settled date with no topics, never beside rows. A Material swipe-to-delete row (`SwipeToDismissBox` in a dedicated Expo module) is the planned Android addition once deleting is real.
-- The date picker on the group home is a horizontal center-lock dial (`TopicDateDial`): one 112pt cell per date, 오늘 and 어제 labelled as words, the centred date in a Berry pill and its neighbours faded and scaled down. The dial opens on today and has no 전체 날짜 or 이전 날짜 더 보기 item. Swipe to browse; a date commits when the strip settles on it or when the user taps a visible date (the strip then animates it to the centre). Accessibility: each date is a button with selected state and the strip is `adjustable` with increment/decrement. A native segmented control is not used here: `UISegmentedControl` and Material segmented buttons squeeze every segment into the available width and stop being readable past four or five items.
+- Topic rows are `ActionListItem`s in a `NativeList`: tapping a row opens the topic's chatroom.
+  They show the author's avatar, title, and supporting author/state/tag text. 상세 is reached from
+  the chatroom title -> topic detail flow, and 삭제 waits for the M15 topic delete contract. Rows
+  never show unread badges. The empty state appears only for a settled date with no topics, never
+  beside rows.
+- The date picker on the group home is a horizontal native chip row. iOS uses SwiftUI horizontal
+  scroll with Liquid Glass capsule buttons (`glassProminent` selected, `glass` otherwise;
+  `borderedProminent` / `bordered` below iOS 26) and opens with today at the trailing edge. Android uses `jamye-ui`'s `JamyeDateChipRowView`: a
+  reverse-layout Compose `LazyRow` of Material 3 `FilterChip`s, because `@expo/ui` 57 does not
+  expose reverse layout or initial trailing index control. Labels are 오늘 / 어제 / localized dates,
+  and the row contains 주제가 있는 날짜 plus today.
 - The heading focus rule now targets the header title, or on the chat screen the header subtitle: it receives initial accessibility focus once on route entry.
 
 ### Native Header, Buttons, Sheets, Rows
