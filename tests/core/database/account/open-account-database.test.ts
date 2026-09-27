@@ -1,3 +1,5 @@
+import type { SqliteRepositoryDatabase } from "@/core/database/types";
+
 type SqliteValue = string | number | null;
 type SqliteRow = Record<string, SqliteValue>;
 
@@ -311,5 +313,102 @@ describe("M6-03 native account database open glue", () => {
       ).rejects.toThrow(/origin/i);
       expect(openDatabaseAsync).not.toHaveBeenCalled();
     });
+  });
+});
+
+// Loaded in an isolated registry so it cannot pre-empt the jest.doMock
+// calls the behavioral open tests above rely on.
+function loadSerializeWrites() {
+  let serializeWrites!: (
+    database: SqliteRepositoryDatabase,
+  ) => SqliteRepositoryDatabase;
+  jest.isolateModules(() => {
+    serializeWrites = jest.requireActual<{
+      serializeWrites: typeof serializeWrites;
+    }>(
+      "../../../../src/core/database/account/open-account-database",
+    ).serializeWrites;
+  });
+  return serializeWrites;
+}
+
+function writeGate() {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, reject, resolve };
+}
+
+function fakeDatabase() {
+  const events: string[] = [];
+  const gates: ReturnType<typeof writeGate>[] = [];
+  const database: SqliteRepositoryDatabase = {
+    getAllAsync: jest.fn(async () => {
+      events.push("read");
+      return [];
+    }),
+    getFirstAsync: jest.fn(async () => null),
+    runAsync: jest.fn(async (statement: string) => {
+      events.push(`run:${statement}`);
+      return { changes: 1, lastInsertRowId: 1 };
+    }),
+    withExclusiveTransactionAsync: jest.fn(async (operation) => {
+      const gate = writeGate();
+      gates.push(gate);
+      events.push("tx:start");
+      await operation(database);
+      await gate.promise;
+      events.push("tx:end");
+    }),
+  };
+  return { database, events, gates };
+}
+
+const flush = () =>
+  new Promise<void>((resolve) => setImmediate(() => resolve()));
+
+describe("serializeWrites (account database write queue)", () => {
+  test("runs writes one at a time in call order, so a second writer never meets a held lock", async () => {
+    const { database, events, gates } = fakeDatabase();
+    const writes = loadSerializeWrites()(database);
+    const first = writes.withExclusiveTransactionAsync(async () => {});
+    const second = writes.runAsync("UPDATE b");
+    const third = writes.withExclusiveTransactionAsync(async () => {});
+    await flush();
+    expect(events).toEqual(["tx:start"]);
+    gates[0]!.resolve();
+    await first;
+    await second;
+    await flush();
+    expect(events).toEqual(["tx:start", "tx:end", "run:UPDATE b", "tx:start"]);
+    gates[1]!.resolve();
+    await third;
+    expect(events.at(-1)).toBe("tx:end");
+  });
+
+  test("reads are not queued behind a pending write", async () => {
+    const { database, events, gates } = fakeDatabase();
+    const writes = loadSerializeWrites()(database);
+    const pending = writes.withExclusiveTransactionAsync(async () => {});
+    await flush();
+    await writes.getAllAsync("SELECT 1");
+    expect(events).toEqual(["tx:start", "read"]);
+    gates[0]!.resolve();
+    await pending;
+  });
+
+  test("a failed write rejects its own caller and does not block the next write", async () => {
+    const { database, events, gates } = fakeDatabase();
+    const writes = loadSerializeWrites()(database);
+    const failing = writes.withExclusiveTransactionAsync(async () => {});
+    const next = writes.runAsync("UPDATE c");
+    await flush();
+    gates[0]!.reject(new Error("constraint failed"));
+    await expect(failing).rejects.toThrow("constraint failed");
+    await expect(next).resolves.toEqual({ changes: 1, lastInsertRowId: 1 });
+    expect(events).toEqual(["tx:start", "run:UPDATE c"]);
   });
 });
