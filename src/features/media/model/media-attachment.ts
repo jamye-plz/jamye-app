@@ -1,4 +1,4 @@
-import type { ChatUploadFinalizeResult } from "@/core/contracts/server/media";
+import type { UploadFinalizeResult } from "@/core/contracts/server/media";
 
 import type { MediaFileInput } from "./media-policy";
 
@@ -28,7 +28,7 @@ export type PendingAttachmentDraft = Readonly<{
 }>;
 
 export function toPendingAttachmentDraft(
-  finalized: ChatUploadFinalizeResult,
+  finalized: UploadFinalizeResult,
   file: MediaFileInput,
 ): PendingAttachmentDraft {
   return {

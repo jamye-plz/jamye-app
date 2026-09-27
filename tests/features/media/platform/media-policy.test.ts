@@ -43,20 +43,6 @@ describe("M11 platform media policy (Korean-message layer)", () => {
     );
   });
 
-  test("rejects a non-image attachment in topic scope", () => {
-    const result = evaluateSelectedMedia("topic", {
-      uri: "file:///a.mp4",
-      name: "a.mp4",
-      byteSize: 1024,
-      contentType: "video/mp4",
-      width: 100,
-      height: 100,
-    });
-    expect(result).toEqual(
-      expect.objectContaining({ accepted: false, reason: "scope_not_allowed" }),
-    );
-  });
-
   test("rejects an empty file", () => {
     const result = evaluateSelectedMedia("chat", {
       uri: "file:///a.jpg",

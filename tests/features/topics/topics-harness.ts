@@ -11,7 +11,9 @@ import { authorId, otherId, key, topicWire } from "./topics-fixtures";
 
 export const authorize: AuthorizedTopicsRequest = (execute, signal) =>
   execute("test-token", signal ?? new AbortController().signal);
-export function topicsHarness() {
+export function topicsHarness({
+  newKey = () => key,
+}: Readonly<{ newKey?: () => string }> = {}) {
   const topic = mapTopic(topicWire);
   const principal = {
     origin: "https://api.example.com",
@@ -61,7 +63,7 @@ export function topicsHarness() {
         userId: identity.userId,
         authorize: authorization,
         watchGroup: watch,
-        newKey: () => key,
+        newKey,
         getOwner: async () => otherId,
         today: () => "2026-09-11",
       });

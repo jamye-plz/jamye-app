@@ -261,7 +261,7 @@ export function createTopicsStore(deps: Dependencies) {
         status: "ready",
         error: null,
         permissions: state.detail.topic
-          ? topicPermissions(state.detail.topic, deps.userId, owner)
+          ? topicPermissions(state.detail.topic, deps.userId)
           : state.permissions,
       });
       // C1 owns chatroom subscriptions; this does not open another socket.
@@ -374,7 +374,7 @@ export function createTopicsStore(deps: Dependencies) {
           status: "ready",
           error: null,
         },
-        permissions: topicPermissions(complete, deps.userId, owner),
+        permissions: topicPermissions(complete, deps.userId),
       });
     } catch (error) {
       if (!(await handleFailure(error, ticket)) && ticket.current())
@@ -637,6 +637,11 @@ export function createTopicsStore(deps: Dependencies) {
       publish({
         mutation: { ...state.mutation, status: "uncertain", error: "network" },
       });
+    // An aborted detail read never publishes its result, so leaving it at
+    // "loading" would strand every reader (e.g. the chat header title) that
+    // waits for it; idle lets the next consumer request it again.
+    if (state.detail.status === "loading")
+      publish({ detail: { ...state.detail, status: "idle" } });
   }
   return {
     getState: () => state,

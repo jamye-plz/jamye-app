@@ -22,13 +22,13 @@
     "realtime/server-frame.schema.json": "1671da7f44048e673f9011c2e79a8a9708bfc9cda2c6f0a98f271f9790eb81b2",
     "realtime/topic.created.schema.json": "1db02f6910b016bd1100e45f2354935ba4e2d7b69a89f1d51e22a67ee10d98c5"
   },
-  "source_git_revision": "736eabcb10e4a60ebac6ebcc9fe275b62340b620",
+  "source_git_revision": "5b987a28e2488075224f01efddd206218b1ce750",
   "upstream_artifact_count": 21,
-  "upstream_bundle_sha256": "b95e463946861d981c9e973fa048f6ee6dc4e63307f5e29583be6478bc650b69",
+  "upstream_bundle_sha256": "ca275256289955f20a13a5f6d2f51df326c43da79ffd8b526ef867db5faf5a5c",
   "upstream_bundle_verified": true,
   "upstream_contract_version": "1",
-  "upstream_manifest_sha256": "810ea712202abe92e0c8bdf2d618bffa49060ef31ef7803ff31cd54d83bfdd52",
-  "upstream_openapi_sha256": "632d6b236cd50ffbb7ddf76efeb6b5ecdf59cfa8946d2d33f3c0b1a121a38974",
+  "upstream_manifest_sha256": "34be58862871915679cddf0ef35a5aa69a74ecd966817adb03f02d6eb614a156",
+  "upstream_openapi_sha256": "f6226265e99afd0b952cf25d17a977c13fb25b0eda62c02734cfb4e1efb1ae71",
   "upstream_server_commit": "dirty",
   "validator_identity": "ajv@8.20.0"
 }

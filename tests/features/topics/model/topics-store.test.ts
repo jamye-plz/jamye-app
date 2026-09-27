@@ -299,17 +299,17 @@ describe("M10 topics controller", () => {
     await first;
     store.dispose();
   });
-  test("owner can manage other author's tags but cannot edit body", async () => {
+  test("only the author edits a topic: the group owner cannot edit another author's body or tags", async () => {
     const { store, api } = setup(otherId);
     await store.actions.openTopic(groupId, topicId);
     expect(store.getState().permissions).toEqual({
       canEdit: false,
-      canManageTags: true,
+      canManageTags: false,
     });
     await store.actions.edit({ title: "수정" });
     expect(api.updateTopic).not.toHaveBeenCalled();
     await store.actions.saveTags([]);
-    expect(api.replaceTags).toHaveBeenCalled();
+    expect(api.replaceTags).not.toHaveBeenCalled();
     store.dispose();
   });
   test("collects every tag page preserving AI metadata before whole-set replacement", async () => {
@@ -369,6 +369,33 @@ describe("M10 topics controller", () => {
     await store.actions.create("주제");
     expect(api.createTopic).not.toHaveBeenCalled();
     expect(repository.invalidateGroup).toHaveBeenCalledWith(groupId);
+    store.dispose();
+  });
+  test("a blur that cancels an in-flight detail read hands the detail back to idle so it can be reopened", async () => {
+    // The chat header opens the topic while the group home is still
+    // focused; the group home's blur then aborts that read. A detail left
+    // at "loading" would never resolve, and nobody would request it again.
+    const { store, api } = setup();
+    const pending = deferred<typeof topic>();
+    api.getTopic.mockReturnValueOnce(pending.promise);
+    const task = store.actions.openTopic(groupId, topicId);
+    expect(store.getState().detail).toMatchObject({
+      id: topicId,
+      status: "loading",
+    });
+    store.actions.blur();
+    expect(store.getState().detail).toMatchObject({
+      id: topicId,
+      status: "idle",
+    });
+    pending.resolve(topic);
+    await task;
+    expect(store.getState().detail.status).toBe("idle");
+    await store.actions.openTopic(groupId, topicId);
+    expect(store.getState().detail).toMatchObject({
+      id: topicId,
+      status: "ready",
+    });
     store.dispose();
   });
   test("stale detail and disposed-account responses cannot publish or write cache", async () => {

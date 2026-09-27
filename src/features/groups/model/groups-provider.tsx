@@ -17,7 +17,18 @@ import type {
   GroupsState,
 } from "./groups-store";
 
-type Value = Readonly<{ state: GroupsState; actions: GroupsStoreActions }>;
+type Value = Readonly<{
+  state: GroupsState;
+  actions: GroupsStoreActions;
+  /**
+   * Imperative escape hatch to the store's live state. `state` above is a
+   * per-render snapshot, so a caller that awaits an action and then needs
+   * the value the store just published in the same tick (e.g. G5 reading
+   * the `Invite` a share flow just created) reads through here instead of
+   * waiting for this provider's own next render.
+   */
+  getState: () => GroupsState;
+}>;
 type Props = PropsWithChildren<
   Readonly<{
     origin: string;
@@ -70,7 +81,7 @@ function ScopedGroupsProvider({
     };
   }, [store]);
   const value = useMemo(
-    () => ({ state, actions: store.actions }),
+    () => ({ state, actions: store.actions, getState: store.getState }),
     [state, store],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;

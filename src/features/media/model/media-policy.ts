@@ -53,8 +53,6 @@ export function evaluateMediaContentPolicy(
     return { ok: false, reason: "empty_file" };
   const policy = getMediaContentPolicy(file.contentType);
   if (policy === null) return { ok: false, reason: "unsupported_mime" };
-  if (scope === "topic" && policy.kind !== "image")
-    return { ok: false, reason: "scope_not_allowed" };
   if (file.byteSize > policy.maxBytes)
     return { ok: false, reason: "file_too_large" };
   return { ok: true, kind: policy.kind };

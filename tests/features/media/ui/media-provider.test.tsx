@@ -67,7 +67,7 @@ let stateListeners: Set<(state: AppStateStatus) => void>;
 function Probe() {
   const currentRuntime = useMediaRuntime();
   const currentChatPicker = useMediaPicker("chat", "chat-scope");
-  const currentTopicPicker = useMediaPicker("topic", "topic-scope");
+  const currentTopicPicker = useMediaPicker("chat", "topic-scope");
   useLayoutEffect(() => {
     runtime = currentRuntime;
     chatPicker = currentChatPicker;
@@ -100,7 +100,7 @@ async function openEveryPicker() {
     await chatPicker.pickImageOrVideoAsset();
     await chatPicker.pickAudioAsset();
   });
-  expect(mockPickImage.mock.calls).toEqual([[true], [false]]);
+  expect(mockPickImage.mock.calls).toEqual([[], []]);
   expect(mockPickAudio).toHaveBeenCalledTimes(1);
 }
 

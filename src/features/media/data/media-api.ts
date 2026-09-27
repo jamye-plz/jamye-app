@@ -1,19 +1,19 @@
 import { parsePublicApiOrigin } from "@/core/config/public-env";
 import {
+  mapChatroomMediaPage,
   mapMediaAccessUrl,
-  mapTopicMediaEntryPage,
   mapUploadFinalizeResult,
   mapUploadIntentWithPresignedPut,
+  type ChatroomMediaPage,
   type MediaAccessUrl,
   type MediaScope,
-  type TopicMediaEntryPage,
   type UploadFinalizeResult,
   type UploadIntentWithPresignedPut,
 } from "@/core/contracts/server/media";
 import {
+  validateChatroomMediaPage,
   validateErrorEnvelope,
   validateMediaAccessUrl,
-  validateTopicMediaPage,
   validateUploadFinalize,
   validateUploadFinalizeResult,
   validateUploadIntentCreate,
@@ -57,7 +57,12 @@ export type MediaUploadFinalizeInput = Readonly<{
   posterUploadId?: string | null;
 }>;
 
-export type TopicMediaListParams = Readonly<{ after?: string; limit?: number }>;
+/** C5 (D4/E10): `before` is an opaque message_media.id cursor, `limit` is
+ * bounded [1, 100] (default 50 server-side). */
+export type ChatroomMediaListParams = Readonly<{
+  before?: string;
+  limit?: number;
+}>;
 
 export type MediaDownloadLocation = Readonly<{ location: string }>;
 
@@ -73,12 +78,12 @@ export type MediaApi = Readonly<{
     input: MediaUploadFinalizeInput,
     signal?: AbortSignal,
   ) => Promise<UploadFinalizeResult>;
-  listTopicMedia: (
+  listChatroomMedia: (
     accessToken: string,
-    topicId: string,
-    params: TopicMediaListParams,
+    chatroomId: string,
+    params: ChatroomMediaListParams,
     signal?: AbortSignal,
-  ) => Promise<TopicMediaEntryPage>;
+  ) => Promise<ChatroomMediaPage>;
   getAccess: (
     accessToken: string,
     mediaId: string,
@@ -130,14 +135,14 @@ function requireOrigin(url: string, origin: string): void {
   }
 }
 
-function pageQuery(params: TopicMediaListParams): string {
+function pageQuery(params: ChatroomMediaListParams): string {
   if (
     params.limit !== undefined &&
     (!Number.isInteger(params.limit) || params.limit < 1 || params.limit > 100)
   )
     throw new MediaApiError(422, "invalid_page_limit");
   const query = new URLSearchParams();
-  if (params.after !== undefined) query.set("after", params.after);
+  if (params.before !== undefined) query.set("before", params.before);
   if (params.limit !== undefined) query.set("limit", String(params.limit));
   const serialized = query.toString();
   return serialized ? `?${serialized}` : "";
@@ -270,31 +275,24 @@ export function createMediaApi(
       );
       if (!validateUploadFinalizeResult(payload))
         throw new MediaApiError(502, "invalid_upload_finalize_response");
-      const consistentId =
-        payload.scope === "chat"
-          ? payload.upload.id === uploadId
-          : payload.upload.id === uploadId &&
-            payload.topic_media.media_upload_id === uploadId;
-      if (!consistentId)
+      // S3 collapsed the response to the single chat-scope shape (no more
+      // oneOf(ChatUploadFinalizeResult, TopicUploadFinalizeResult) to narrow).
+      if (payload.upload.id !== uploadId)
         throw new MediaApiError(502, "invalid_upload_finalize_identity");
       return mapUploadFinalizeResult(payload);
     },
 
-    async listTopicMedia(accessToken, topicId, params, signal) {
+    async listChatroomMedia(accessToken, chatroomId, params, signal) {
       const { payload } = await request(
-        `/api/v1/topics/${identifier(topicId)}/media${pageQuery(params)}`,
+        `/api/v1/chatrooms/${identifier(chatroomId)}/media${pageQuery(params)}`,
         accessToken,
         { method: "GET" },
         signal,
         [200],
       );
-      if (
-        !validateTopicMediaPage(payload) ||
-        !payload.items.every((item) => item.topic_id === topicId)
-      ) {
-        throw new MediaApiError(502, "invalid_topic_media_page_response");
-      }
-      return mapTopicMediaEntryPage(payload);
+      if (!validateChatroomMediaPage(payload))
+        throw new MediaApiError(502, "invalid_chatroom_media_page_response");
+      return mapChatroomMediaPage(payload);
     },
 
     async getAccess(accessToken, mediaId, signal) {

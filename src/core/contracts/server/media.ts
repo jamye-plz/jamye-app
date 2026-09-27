@@ -1,8 +1,8 @@
 import type {
+  ChatroomMediaItemWire,
+  ChatroomMediaPageWire,
   ConfirmedUploadWire,
   MediaAccessUrlWire,
-  TopicMediaPageWire,
-  TopicMediaWire,
   UploadFinalizeResultWire,
   UploadIntentWithPresignedPutWire,
 } from "./validators";
@@ -11,8 +11,10 @@ import type {
  * MD1-5 durable domain objects intentionally omit object_key: it is a
  * storage-internal path, never used by the client (PUT uses put.url; access
  * uses MD4's short-lived url), and is not safe to carry into UI/DB state.
- * These types are new, non-conflicting names alongside topics.ts's existing
- * TopicMedia identity (which this file does not modify or reuse).
+ * S3 removed the topic-scoped upload branch and the TopicMedia identity this
+ * comment used to describe; C5's ChatroomMediaItem below is a separate,
+ * read-only projection of message attachments for gallery display, not a
+ * durable upload record.
  */
 
 export type MediaScope = ConfirmedUploadWire["scope"];
@@ -80,38 +82,11 @@ export type ConfirmedUpload = Readonly<{
   posterUploadId: string | null;
 }>;
 
-export type ChatUploadFinalizeResult = Readonly<{
+export type UploadFinalizeResult = Readonly<{
   scope: "chat";
   bound: false;
   upload: ConfirmedUpload;
 }>;
-
-export type TopicMediaEntry = Readonly<{
-  id: string;
-  topicId: string;
-  mediaUploadId: string;
-  contentType: string;
-  width: number | null;
-  height: number | null;
-  byteSize: number | null;
-  createdAt: string;
-}>;
-
-export type TopicMediaEntryPage = Readonly<{
-  items: readonly TopicMediaEntry[];
-  nextCursor: string | null;
-}>;
-
-export type TopicUploadFinalizeResult = Readonly<{
-  scope: "topic";
-  bound: true;
-  topicStatus: "enriched";
-  topicMedia: TopicMediaEntry;
-  upload: ConfirmedUpload;
-}>;
-
-export type UploadFinalizeResult =
-  ChatUploadFinalizeResult | TopicUploadFinalizeResult;
 
 export type MediaAccessUrl = Readonly<{
   id: string;
@@ -124,6 +99,34 @@ export type MediaAccessUrl = Readonly<{
   duration: number | null;
   filename: string | null;
   expiresIn: number;
+}>;
+
+/**
+ * C5 (D4/E10) chatroom media timeline item: a message_media row projected for
+ * gallery display, newest-message-first (`messages.created_at DESC, messages.id
+ * DESC, message_media.position ASC`). `contentType` is mapped from the wire's
+ * `type` field (the item's own MIME, e.g. "image/jpeg" or "video/mp4" -- this
+ * wire shape has no separate `kind` field). Images and audio-only messages are
+ * excluded server-side; `posterMediaId` is only ever set for `video/mp4`.
+ */
+export type ChatroomMediaItem = Readonly<{
+  id: string;
+  mediaUploadId: string;
+  contentType: string;
+  byteSize: number;
+  width: number | null;
+  height: number | null;
+  duration: number | null;
+  filename: string | null;
+  position: number;
+  posterMediaId: string | null;
+  messageId: string;
+  messageCreatedAt: string;
+}>;
+
+export type ChatroomMediaPage = Readonly<{
+  items: readonly ChatroomMediaItem[];
+  nextCursor: string | null;
 }>;
 
 export function mapUploadIntent(
@@ -166,48 +169,18 @@ export function mapConfirmedUpload(wire: ConfirmedUploadWire): ConfirmedUpload {
   };
 }
 
-export function mapTopicMediaEntry(wire: TopicMediaWire): TopicMediaEntry {
-  return {
-    id: wire.id,
-    topicId: wire.topic_id,
-    mediaUploadId: wire.media_upload_id,
-    contentType: wire.content_type,
-    width: wire.width,
-    height: wire.height,
-    byteSize: wire.byte_size,
-    createdAt: wire.created_at,
-  };
-}
-
-export function mapTopicMediaEntryPage(
-  wire: TopicMediaPageWire,
-): TopicMediaEntryPage {
-  return {
-    items: wire.items.map(mapTopicMediaEntry),
-    nextCursor: wire.next_cursor,
-  };
-}
-
 /**
- * scope is the discriminant on the wire's oneOf(ChatUploadFinalizeResult,
- * TopicUploadFinalizeResult); this narrows before mapping so a malformed
- * third scope value is a caller error, not a silently dropped branch.
+ * S3 collapsed UploadFinalizeResult to the single chat-scope shape (the
+ * server-side oneOf(ChatUploadFinalizeResult, TopicUploadFinalizeResult) this
+ * used to narrow on `wire.scope` no longer exists), so this is now a direct
+ * mapping rather than a branch.
  */
 export function mapUploadFinalizeResult(
   wire: UploadFinalizeResultWire,
 ): UploadFinalizeResult {
-  if (wire.scope === "chat") {
-    return {
-      scope: "chat",
-      bound: false,
-      upload: mapConfirmedUpload(wire.upload),
-    };
-  }
   return {
-    scope: "topic",
-    bound: true,
-    topicStatus: wire.topic_status,
-    topicMedia: mapTopicMediaEntry(wire.topic_media),
+    scope: "chat",
+    bound: false,
     upload: mapConfirmedUpload(wire.upload),
   };
 }
@@ -224,5 +197,33 @@ export function mapMediaAccessUrl(wire: MediaAccessUrlWire): MediaAccessUrl {
     duration: wire.duration,
     filename: wire.filename,
     expiresIn: wire.expires_in,
+  };
+}
+
+export function mapChatroomMediaItem(
+  wire: ChatroomMediaItemWire,
+): ChatroomMediaItem {
+  return {
+    id: wire.id,
+    mediaUploadId: wire.media_upload_id,
+    contentType: wire.type,
+    byteSize: wire.byte_size,
+    width: wire.width,
+    height: wire.height,
+    duration: wire.duration,
+    filename: wire.filename,
+    position: wire.position,
+    posterMediaId: wire.poster_media_id,
+    messageId: wire.message_id,
+    messageCreatedAt: wire.message_created_at,
+  };
+}
+
+export function mapChatroomMediaPage(
+  wire: ChatroomMediaPageWire,
+): ChatroomMediaPage {
+  return {
+    items: wire.items.map(mapChatroomMediaItem),
+    nextCursor: wire.next_cursor,
   };
 }

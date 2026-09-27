@@ -255,6 +255,14 @@ const M10_TEST_PATHS = [
 ];
 
 const M14_ROUND1_TEST_PATHS = [
+  // task-app-gallery (D4/D5/E1/E10/AC1-AC4): C5 chatroom-media gallery data
+  // hook, topic-detail carousel section (+ Android direct-require), grid
+  // screen (+ Android direct-require), and gallery route.
+  "tests/features/media/model/use-chatroom-gallery.test.ts",
+  "tests/features/media/ui/topic-media-gallery.test.tsx",
+  "tests/features/media/ui/topic-media-carousel-row.android.test.tsx",
+  "tests/features/media/ui/chatroom-media-grid-screen.test.tsx",
+  "tests/app/topic-gallery-route.test.tsx",
   "tests/app/tabs-layout.test.tsx",
   "tests/app/tab-routes.test.tsx",
   "tests/shared/ui/native-stack-screen-options.test.ts",
@@ -262,12 +270,43 @@ const M14_ROUND1_TEST_PATHS = [
   "tests/shared/ui/header-actions.test.tsx",
   "tests/shared/ui/header-actions.android.test.tsx",
   "tests/features/topics/model/topics-dates.test.ts",
-  "tests/features/topics/ui/topic-date-dial.test.tsx",
   "tests/features/topics/ui/topic-list.test.tsx",
   "tests/shared/ui/header-title-button.test.tsx",
   "tests/shared/ui/native-list.android.test.tsx",
   "tests/shared/ui/action-list-item.ios.test.tsx",
   "tests/shared/ui/action-list-item.android.test.tsx",
+  // task-app-module (A1/T3): jamye-ui local module JS bindings and Avatar.
+  "tests/shared/ui/jamye-ui-native.test.tsx",
+  "tests/shared/ui/avatar.test.tsx",
+  "tests/shared/ui/avatar.ios.test.tsx",
+  "tests/shared/ui/avatar.android.test.tsx",
+  // task-app-kit (A2/C1/C2/C3/G3/T5): shared UI kit for the groups/topics page tasks.
+  "tests/shared/ui/confirm-alert.test.tsx",
+  "tests/shared/ui/standard-state-view.test.tsx",
+  "tests/shared/ui/load-sentinel.test.tsx",
+  "tests/shared/ui/android-extended-fab.android.test.tsx",
+  "tests/shared/ui/snackbar-host.android.test.tsx",
+  "tests/shared/ui/native-input-shell.test.tsx",
+  // task-app-groups (C/G/L/A3/E6/E7/I): group list/detail/create/join screens,
+  // pending-invite receive flow, and the row-action leading/symbol extension.
+  "tests/features/groups/model/pending-invite-store.test.ts",
+  "tests/features/groups/ui/group-list-screen.android.test.tsx",
+  // task-app-topics (C1/T1-T7/D1-D3/D6-D7/E4/E5/E11): topic list date chips,
+  // integrated edit screen, root-Stack topic detail route, chat header title
+  // resolution, and the chatroom-context group-info route.
+  "tests/features/topics/ui/topic-date-chips.ios.test.tsx",
+  "tests/features/topics/ui/topic-date-chips.android.test.tsx",
+  "tests/features/topics/ui/topic-edit-button.test.tsx",
+  "tests/features/topics/ui/topic-edit-form.ios.test.tsx",
+  "tests/features/topics/ui/topic-edit-form.android.test.tsx",
+  "tests/features/chat/model/use-chatroom-title.test.tsx",
+  "tests/features/topics/ui/topic-tags-view.test.tsx",
+  "tests/features/topics/ui/topic-tags-view.android.test.tsx",
+  // Coverage backfill: dedicated ChatroomVideoThumbnail state-machine/retry
+  // and iOS carousel-row tests (previously covered only incidentally).
+  "tests/features/media/ui/chatroom-media-thumbnail.test.tsx",
+  "tests/features/media/ui/topic-media-carousel-row.ios.test.tsx",
+  "tests/features/topics/ui/use-close-edit-on-back.android.test.tsx",
 ];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",
@@ -371,11 +410,9 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   "tests/features/notifications/platform/push-notifications-adapter.test.ts",
   "tests/features/media/model/video-thumbnail-cache.test.ts",
   "tests/features/auth/oauth-callback-screen.test.tsx",
-  "tests/features/media/ui/topic-image-upload-button.test.tsx",
   "tests/features/home/account-screen.test.tsx",
   "tests/app/account-route.test.tsx",
   "tests/features/groups/ui/group-form-screen.test.tsx",
-  "tests/features/groups/ui/group-owner-panel.test.tsx",
   "tests/features/topics/ui/topic-detail-screen.test.tsx",
   "tests/features/topics/ui/topic-create-screen.test.tsx",
 ].filter((path, index, paths) => paths.indexOf(path) === index);
@@ -649,6 +686,12 @@ function buildValidRepositorySnapshot() {
   resolvedDevelopment.slug = "jamye-app";
   (resolvedDevelopment.ios as Record<string, unknown>).bundleIdentifier =
     "dev.local.jamyeapp";
+  (resolvedDevelopment.ios as Record<string, unknown>).appleTeamId =
+    "6ZH8V43A7D";
+  (resolvedDevelopment.ios as Record<string, unknown>).associatedDomains = [
+    "applinks:jamye-api.ridewithmin.com",
+    "applinks:jamye-api.ridewithmin.com?mode=developer",
+  ];
   (resolvedDevelopment.android as Record<string, unknown>).package =
     "dev.local.jamyeapp";
   (resolvedDevelopment.android as Record<string, unknown>).permissions = clone(
@@ -663,7 +706,7 @@ function buildValidRepositorySnapshot() {
       "expo-image-picker",
       {
         photosPermission:
-          "선택한 사진과 동영상을 주제에 첨부하기 위해 접근합니다.",
+          "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
         cameraPermission: false,
         microphonePermission: false,
       },
@@ -672,6 +715,20 @@ function buildValidRepositorySnapshot() {
   ];
   (resolvedDevelopment.android as Record<string, unknown>).googleServicesFile =
     "./google-services.json";
+  (resolvedDevelopment.android as Record<string, unknown>).intentFilters = [
+    {
+      action: "VIEW",
+      autoVerify: true,
+      data: [
+        {
+          scheme: "https",
+          host: "jamye-api.ridewithmin.com",
+          pathPrefix: "/invite",
+        },
+      ],
+      category: ["BROWSABLE", "DEFAULT"],
+    },
+  ];
   resolvedDevelopment.scheme = "jamye";
 
   return {

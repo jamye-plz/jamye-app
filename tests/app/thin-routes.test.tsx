@@ -132,7 +132,9 @@ jest.mock("expo-router", () => {
   const { Text, View } =
     jest.requireActual<typeof import("react-native")>("react-native");
 
-  function Stack(): React.JSX.Element {
+  function Stack({
+    children,
+  }: Readonly<{ children?: React.ReactNode }>): React.JSX.Element {
     if (mockRouterShouldThrow) {
       throw new Error("router-render-failure");
     }
@@ -145,19 +147,29 @@ jest.mock("expo-router", () => {
       <View
         accessibilityLabel={`Expo Router stack ${colorScheme}`}
         testID="expo-router-stack"
-      />
+      >
+        {children}
+      </View>
     );
   }
 
   // Screens configure their native header through `Stack.Screen`; surface
   // the configured title the way the native header would (as a heading).
   function StackScreen({
+    name,
     options,
   }: {
-    options?: { title?: string };
+    name?: string;
+    options?: { presentation?: string; title?: string };
   }): React.JSX.Element | null {
     return options?.title ? (
-      <Text accessibilityRole="header">{options.title}</Text>
+      <Text
+        accessibilityRole="header"
+        testID={name ? `screen-${name}` : undefined}
+        {...{ presentation: options.presentation }}
+      >
+        {options.title}
+      </Text>
     ) : null;
   }
   Stack.Screen = StackScreen;
@@ -329,6 +341,23 @@ describe("M3-I3 actual thin Expo Router modules", () => {
 
     expect(screen.getByTestId("expo-router-stack")).toBeTruthy();
     expect(screen.getByLabelText("Expo Router stack light")).toBeTruthy();
+  });
+
+  test("declares the C3 input routes as titled modals, so a link opening groups/join still gets them", async () => {
+    const RootLayout = loadActualRoute(
+      "../../src/app/_layout",
+      "src/app/_layout.tsx",
+    );
+    const screen = await render(<RootLayout />);
+    for (const [name, title] of [
+      ["groups/create", "새 그룹"],
+      ["groups/join", "초대 코드로 가입"],
+      ["groups/[groupId]/topics/new", "새 주제"],
+    ] as const) {
+      const route = screen.getByTestId(`screen-${name}`);
+      expect(route.props.presentation).toBe("modal");
+      expect(route.props.children).toBe(title);
+    }
   });
 
   test("hands react-navigation a dark theme when the system scheme is dark (iOS header follows dark mode)", async () => {

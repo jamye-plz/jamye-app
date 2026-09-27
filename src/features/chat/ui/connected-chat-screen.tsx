@@ -14,6 +14,7 @@ import {
   toChatConversation,
 } from "../model/connected-chat-presentation";
 import type { ConnectedPendingAttachment } from "../model/connected-chat-presentation";
+import { useChatroomTitle } from "../model/use-chatroom-title";
 import { ChatConversationScreen } from "./chat-screen";
 
 export function ConnectedChatScreen({
@@ -26,6 +27,21 @@ export function ConnectedChatScreen({
   const { colors } = useAppTheme();
   const router = useRouter();
   const focused = useRef<string | null>(null);
+  const titleResolution = useChatroomTitle(groupId, chatroomId);
+  const onTitlePress =
+    titleResolution.kind === "main"
+      ? () =>
+          router.push({
+            params: { groupId },
+            pathname: "/groups/[groupId]/chatrooms/info",
+          })
+      : titleResolution.kind === "topic" && titleResolution.targetTopicId
+        ? () =>
+            router.push({
+              params: { groupId, topicId: titleResolution.targetTopicId! },
+              pathname: "/groups/[groupId]/topics/[topicId]",
+            })
+        : undefined;
   const valid = isChatIdentifier(groupId) && isChatIdentifier(chatroomId);
   const attachments = useMediaUploadQueue(
     "chat",
@@ -115,7 +131,15 @@ export function ConnectedChatScreen({
   return (
     <ChatConversationScreen
       key={JSON.stringify([principal?.userId, principal?.epoch, chatroomId])}
-      title="대화"
+      title={titleResolution.title}
+      onTitlePress={onTitlePress}
+      titleAccessibilityHint={
+        titleResolution.kind === "main"
+          ? "그룹 정보를 엽니다"
+          : titleResolution.kind === "topic"
+            ? "주제 상세를 엽니다"
+            : undefined
+      }
       subtitle={
         state.sync === "connecting"
           ? "동기화 중…"

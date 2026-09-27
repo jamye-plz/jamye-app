@@ -18,9 +18,34 @@ const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"] as const;
 const MEDIA_PICKER_PLUGIN = [
   "expo-image-picker",
   {
-    photosPermission: "선택한 사진과 동영상을 주제에 첨부하기 위해 접근합니다.",
+    photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
     cameraPermission: false,
     microphonePermission: false,
+  },
+] as const;
+
+// L1/L5: invite links reuse the public API origin. Apple Team ID is only
+// preserved in ios/*.xcodeproj today, so `prebuild --clean` (this round)
+// would otherwise drop signing; appleTeamId keeps it in the generated
+// project. Associated Domains capability itself is enabled by the user in
+// the Apple Developer portal (docs/development/apple-associated-domains.md).
+const IOS_APPLE_TEAM_ID = "6ZH8V43A7D";
+const IOS_ASSOCIATED_DOMAINS = [
+  "applinks:jamye-api.ridewithmin.com",
+  "applinks:jamye-api.ridewithmin.com?mode=developer",
+] as const;
+const ANDROID_INTENT_FILTERS = [
+  {
+    action: "VIEW",
+    autoVerify: true,
+    data: [
+      {
+        scheme: "https",
+        host: "jamye-api.ridewithmin.com",
+        pathPrefix: "/invite",
+      },
+    ],
+    category: ["BROWSABLE", "DEFAULT"],
   },
 ] as const;
 
@@ -66,12 +91,15 @@ export default function resolveExpoConfig() {
     ios: {
       ...baseConfig.ios,
       bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier,
+      appleTeamId: IOS_APPLE_TEAM_ID,
+      associatedDomains: IOS_ASSOCIATED_DOMAINS,
     },
     android: {
       ...baseConfig.android,
       package: DEVELOPMENT_IDENTITY.androidPackage,
       // Firebase Android app for Expo push (FCM V1); public identifiers only.
       googleServicesFile: "./google-services.json",
+      intentFilters: ANDROID_INTENT_FILTERS,
     },
     // EAS project link. The project id is a public identifier (it ships in the
     // app manifest), not a secret; expo-notifications needs it for push tokens.

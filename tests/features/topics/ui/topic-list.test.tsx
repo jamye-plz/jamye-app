@@ -5,16 +5,6 @@ import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { TopicList, topicSubtitle } from "@/features/topics/ui/topic-list";
 import type { TopicListProps } from "@/features/topics/ui/topic-list.types";
 
-// The platform row affordances have their own tests; the stand-in exposes
-// the row and its actions as plain buttons.
-jest.mock("@/shared/ui/action-list-item", () =>
-  jest
-    .requireActual<typeof import("../../../support/action-list-item-mock")>(
-      "../../../support/action-list-item-mock",
-    )
-    .createActionListItemMock(),
-);
-
 const topic: Topic = {
   authorAvatarUrl: null,
   authorId: "22222222-2222-4222-8222-222222222222",
@@ -24,7 +14,6 @@ const topic: Topic = {
   createdAt: "2026-09-22T00:00:00Z",
   groupId: "11111111-1111-4111-8111-111111111111",
   id: "44444444-4444-4444-8444-444444444444",
-  media: [],
   status: "seed",
   tags: [
     {
@@ -42,10 +31,8 @@ const topic: Topic = {
 
 async function setup(overrides: Partial<TopicListProps> = {}) {
   const props: TopicListProps = {
-    empty: false,
     loadMore: null,
     onOpenChat: jest.fn(),
-    onOpenDetail: jest.fn(),
     onRefresh: jest.fn().mockResolvedValue(undefined),
     topics: [topic],
     ...overrides,
@@ -59,44 +46,34 @@ async function setup(overrides: Partial<TopicListProps> = {}) {
 }
 
 describe("TopicList on the shared native list and row", () => {
-  test("tap opens the chatroom, 상세 is a row action and the subtitle carries author, state and tags", async () => {
+  test("row tap opens the chatroom and the subtitle carries author, state and tags -- no other row action", async () => {
     const { props, screen } = await setup();
     expect(topicSubtitle(topic)).toBe("작성자 · 새 주제 · #여행");
-    await fireEvent.press(
-      screen.getByRole("button", {
-        name: `오늘 이야기, ${topicSubtitle(topic)}`,
-      }),
-    );
+    expect(screen.getByText(topicSubtitle(topic))).toBeTruthy();
+    await fireEvent.press(screen.getByTestId(`topic-row-${topic.id}`));
     expect(props.onOpenChat).toHaveBeenCalledWith(topic);
-    await fireEvent.press(
-      screen.getByRole("button", { name: "오늘 이야기 상세" }),
-    );
-    expect(props.onOpenDetail).toHaveBeenCalledWith(topic);
-    expect(
-      screen.queryByRole("button", { name: "오늘 이야기 삭제" }),
-    ).toBeNull();
+    expect(screen.queryByText("상세")).toBeNull();
+    expect(screen.queryByText("삭제")).toBeNull();
   });
 
-  test("삭제 appears only once a delete handler exists", async () => {
-    const onDelete = jest.fn();
-    const { screen } = await setup({ onDelete });
-    await fireEvent.press(
-      screen.getByRole("button", { name: "오늘 이야기 삭제" }),
-    );
-    expect(onDelete).toHaveBeenCalledWith(topic);
-  });
-
-  test("pull-to-refresh runs through the native list and the empty / load-more rows render", async () => {
-    const onPress = jest.fn();
-    const { props, screen } = await setup({
-      empty: true,
-      loadMore: { busy: false, disabled: false, onPress },
-      topics: [],
-    });
+  test("pull-to-refresh runs through the native list", async () => {
+    const { props, screen } = await setup();
     await fireEvent(screen.getByTestId("topic-list"), "refresh");
     expect(props.onRefresh).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("선택한 날짜에 주제가 없습니다.")).toBeTruthy();
-    await fireEvent.press(screen.getByRole("button", { name: "주제 더 보기" }));
-    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  test("the auto-load sentinel row is present when there is a next page", async () => {
+    const onVisible = jest.fn();
+    const { screen } = await setup({
+      loadMore: { isLoading: false, onVisible },
+    });
+    // Firing/gating semantics are LoadSentinel's own (tests/shared/ui/load-sentinel.test.tsx);
+    // this only proves the list wires a next page into the auto-load row.
+    expect(screen.getByTestId("topic-list-load-sentinel")).toBeTruthy();
+  });
+
+  test("no sentinel row when there is no next page", async () => {
+    const { screen } = await setup({ loadMore: null });
+    expect(screen.queryByTestId("topic-list-load-sentinel")).toBeNull();
   });
 });

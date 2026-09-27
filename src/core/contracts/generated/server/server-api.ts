@@ -85,6 +85,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/chatrooms/{chatroom_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List chatroom image and video attachments */
+        get: operations["C5"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chatrooms/{chatroom_id}/messages": {
         parameters: {
             query?: never;
@@ -504,23 +521,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/topics/{topic_id}/media": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List topic media */
-        get: operations["MD3"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -590,7 +590,6 @@ export interface components {
             group_id: string;
             /** Format: uuid */
             id: string;
-            media: components["schemas"]["TopicMedia"][];
             /** @enum {string} */
             status: "seed" | "enriched";
             tags: components["schemas"]["TopicTag"][];
@@ -602,15 +601,10 @@ export interface components {
         ChatUploadFinalizeResult: {
             /** @constant */
             bound: false;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
+            /** @constant */
             scope: "chat";
             /** @constant */
             status: "confirmed";
-            topic_media: null;
-            topic_status: null;
             upload: components["schemas"]["ConfirmedUpload"];
         };
         Chatroom: {
@@ -624,6 +618,30 @@ export interface components {
             topic_id: string | null;
             /** @enum {string} */
             type: "main" | "topic";
+        };
+        ChatroomMediaItem: {
+            byte_size: number;
+            duration: number | null;
+            filename: string | null;
+            height: number | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            media_upload_id: string;
+            /** Format: date-time */
+            message_created_at: string;
+            /** Format: uuid */
+            message_id: string;
+            position: number;
+            /** Format: uuid */
+            poster_media_id: string | null;
+            /** @enum {string} */
+            type: "image/jpeg" | "image/png" | "image/webp" | "image/gif" | "video/mp4";
+            width: number | null;
+        };
+        ChatroomMediaPage: {
+            items: components["schemas"]["ChatroomMediaItem"][];
+            next_cursor: string | null;
         };
         ChatroomPage: {
             items: components["schemas"]["Chatroom"][];
@@ -785,7 +803,7 @@ export interface components {
             media_upload_id: string;
         };
         /** @enum {string} */
-        MediaScope: "chat" | "topic";
+        MediaScope: "chat";
         Member: {
             avatar_url: string | null;
             /** Format: date-time */
@@ -1011,25 +1029,6 @@ export interface components {
             /** Format: date */
             today: string;
         };
-        TopicMedia: {
-            byte_size: number | null;
-            content_type: string;
-            /** Format: date-time */
-            created_at: string;
-            height: number | null;
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            media_upload_id: string;
-            object_key: string;
-            /** Format: uuid */
-            topic_id: string;
-            width: number | null;
-        };
-        TopicMediaPage: {
-            items: components["schemas"]["TopicMedia"][];
-            next_cursor: string | null;
-        };
         TopicPage: {
             items: components["schemas"]["CanonicalTopic"][];
             next_cursor: string | null;
@@ -1048,21 +1047,6 @@ export interface components {
             /** Format: uuid */
             topic_id: string;
         };
-        TopicUploadFinalizeResult: {
-            /** @constant */
-            bound: true;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            scope: "topic";
-            /** @constant */
-            status: "bound";
-            topic_media: components["schemas"]["TopicMedia"];
-            /** @constant */
-            topic_status: "enriched";
-            upload: components["schemas"]["ConfirmedUpload"];
-        };
         UnsupportedEventMarker: {
             cursor: string;
             /** Format: uuid */
@@ -1075,7 +1059,7 @@ export interface components {
             poster_upload_id?: string | null;
             width?: number | null;
         };
-        UploadFinalizeResult: components["schemas"]["ChatUploadFinalizeResult"] | components["schemas"]["TopicUploadFinalizeResult"];
+        UploadFinalizeResult: components["schemas"]["ChatUploadFinalizeResult"];
         UploadIntent: {
             byte_size: number;
             content_type: string;
@@ -1100,7 +1084,7 @@ export interface components {
             scope: components["schemas"]["MediaScope"];
             /** Format: uuid */
             target_id: string;
-        } & (unknown & unknown & unknown & unknown);
+        } & (unknown & unknown & unknown);
         UploadIntentWithPresignedPut: {
             put: components["schemas"]["PresignedPut"];
             upload: components["schemas"]["UploadIntent"];
@@ -1289,6 +1273,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TokenPair"];
+                };
+            };
+            /** @description Error response; inspect error.code for the stable machine-readable reason */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    C5: {
+        parameters: {
+            query?: {
+                /** @description Opaque pagination cursor returned by the previous page */
+                before?: string;
+                /** @description Bounded page size */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                chatroom_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response or canonical idempotent retry */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatroomMediaPage"];
                 };
             };
             /** @description Error response; inspect error.code for the stable machine-readable reason */
@@ -2584,42 +2604,6 @@ export interface operations {
             };
             /** @description Redis ticket service is unavailable */
             503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    MD3: {
-        parameters: {
-            query?: {
-                /** @description Opaque pagination cursor returned by the previous page */
-                after?: string;
-                /** @description Bounded page size */
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                topic_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful response or canonical idempotent retry */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TopicMediaPage"];
-                };
-            };
-            /** @description Error response; inspect error.code for the stable machine-readable reason */
-            default: {
                 headers: {
                     [name: string]: unknown;
                 };

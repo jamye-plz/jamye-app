@@ -1,0 +1,6 @@
+{
+  "platforms": ["apple", "android"],
+  "coreFeatures": ["swiftui", "compose"],
+  "apple": { "modules": ["JamyeUiModule"] },
+  "android": { "modules": ["dev.jamye.ui.JamyeUiModule"] }
+}

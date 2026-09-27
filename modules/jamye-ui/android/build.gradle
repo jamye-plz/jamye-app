@@ -1,0 +1,41 @@
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath("org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:${kotlinVersion}")
+  }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+group = 'dev.jamye.ui'
+version = '1.0.0'
+
+android {
+  namespace 'dev.jamye.ui'
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+  buildFeatures {
+    compose true
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation 'com.facebook.react:react-android'
+
+  // Same compose/material3 versions as node_modules/@expo/ui/android/build.gradle
+  // so the Host's Berry-seeded MaterialTheme (ADR 0011 D3) resolves for
+  // JamyeDateChipRowView's FilterChip without a duplicate/mismatched runtime.
+  implementation 'androidx.compose.foundation:foundation-android:1.10.6'
+  implementation 'androidx.compose.ui:ui-android:1.10.6'
+  implementation 'androidx.compose.material3:material3:1.5.0-alpha17'
+  implementation 'androidx.compose.material3:material3-android:1.5.0-alpha17'
+}

@@ -20,6 +20,8 @@ const GENERATOR_IDENTITY = "openapi-typescript@7.13.0";
 // are not OpenAPI operations and are validated separately from the
 // selectively vendored contracts/server/realtime/*.json artifacts.
 // M10 adds topics/tags; M11 adds MD1-MD5 media operations from the same snapshot.
+// M14 round 1 adds C5 (chatroom media gallery) and drops MD3 with the removed
+// topic media surface (server migration 0012).
 const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "A1",
   "A2",
@@ -43,6 +45,7 @@ const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "C2",
   "C3",
   "C4",
+  "C5",
   "S1",
   "R1",
   "T1",
@@ -54,7 +57,6 @@ const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "T7",
   "MD1",
   "MD2",
-  "MD3",
   "MD4",
   "MD5",
 ]);

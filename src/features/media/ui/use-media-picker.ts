@@ -149,7 +149,7 @@ export function useMediaPicker(scope: MediaScope, scopeKey?: string) {
   const pickImageOrVideoAsset = useCallback(
     () =>
       choose(async () => {
-        const picked = await pickImageOrVideo(scope === "topic");
+        const picked = await pickImageOrVideo();
         if (picked.status !== "picked") return picked;
         return {
           sourceUri: picked.asset.uri,
@@ -164,7 +164,7 @@ export function useMediaPicker(scope: MediaScope, scopeKey?: string) {
               : null,
         };
       }),
-    [scope, choose],
+    [choose],
   );
 
   const pickAudioAsset = useCallback(

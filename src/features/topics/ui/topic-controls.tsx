@@ -1,7 +1,9 @@
 import { InlineMessage } from "@/shared/ui/inline-message";
 import type { TopicsError } from "../model/topics-state";
 
-const errors: Record<TopicsError, string> = {
+/** Exported so `topics-screen.tsx` can reuse the same copy for the C1
+ * `StandardStateView` error description and the Android Snackbar message. */
+export const TOPICS_ERROR_MESSAGES: Record<TopicsError, string> = {
   network:
     "응답을 확인하지 못했습니다. 입력을 유지했으니 연결 상태를 확인한 뒤 같은 요청을 재시도해 주세요.",
   unavailable: "서버를 사용할 수 없습니다. 잠시 후 다시 확인해 주세요.",
@@ -18,5 +20,7 @@ const errors: Record<TopicsError, string> = {
 };
 
 export function TopicError({ error }: Readonly<{ error: TopicsError | null }>) {
-  return error ? <InlineMessage kind="error" message={errors[error]} /> : null;
+  return error ? (
+    <InlineMessage kind="error" message={TOPICS_ERROR_MESSAGES[error]} />
+  ) : null;
 }

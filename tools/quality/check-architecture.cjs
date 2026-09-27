@@ -400,7 +400,6 @@ const M7_AUTHORED_FILES = Object.freeze([
   "src/features/groups/ui/group-list-screen.tsx",
   "src/features/groups/ui/group-form-screen.tsx",
   "src/features/groups/ui/group-detail-screen.tsx",
-  "src/features/groups/ui/group-owner-panel.tsx",
   "src/features/groups/ui/group-route-guard.tsx",
   "tests/features/groups/groups-fixtures.ts",
   ...M7_TEST_PATHS,
@@ -594,8 +593,6 @@ const M11_AUTHORED_FILES = Object.freeze([
   "src/features/media/ui/use-media-video.ts",
   "src/features/media/ui/media-open-save-button.tsx",
   "src/features/media/ui/media-provider.tsx",
-  "src/features/media/ui/topic-image-upload-button.tsx",
-  "src/features/media/ui/topic-media-list.tsx",
   "src/features/media/ui/use-media-attachment-queue.ts",
   "src/features/media/ui/use-media-download.ts",
   "src/features/media/ui/use-media-picker.ts",
@@ -680,6 +677,14 @@ const OAUTH_TEST_PATHS = Object.freeze([
   "tests/features/auth/auth-screen.test.tsx",
 ]);
 const M14_ROUND1_TEST_PATHS = Object.freeze([
+  // task-app-gallery (D4/D5/E1/E10/AC1-AC4): C5 chatroom-media gallery data
+  // hook, topic-detail carousel section (+ Android direct-require), grid
+  // screen (+ Android direct-require), and gallery route.
+  "tests/features/media/model/use-chatroom-gallery.test.ts",
+  "tests/features/media/ui/topic-media-gallery.test.tsx",
+  "tests/features/media/ui/topic-media-carousel-row.android.test.tsx",
+  "tests/features/media/ui/chatroom-media-grid-screen.test.tsx",
+  "tests/app/topic-gallery-route.test.tsx",
   "tests/app/tabs-layout.test.tsx",
   "tests/app/tab-routes.test.tsx",
   "tests/shared/ui/native-stack-screen-options.test.ts",
@@ -687,12 +692,41 @@ const M14_ROUND1_TEST_PATHS = Object.freeze([
   "tests/shared/ui/header-actions.test.tsx",
   "tests/shared/ui/header-actions.android.test.tsx",
   "tests/features/topics/model/topics-dates.test.ts",
-  "tests/features/topics/ui/topic-date-dial.test.tsx",
   "tests/features/topics/ui/topic-list.test.tsx",
   "tests/shared/ui/header-title-button.test.tsx",
   "tests/shared/ui/native-list.android.test.tsx",
   "tests/shared/ui/action-list-item.ios.test.tsx",
   "tests/shared/ui/action-list-item.android.test.tsx",
+  // task-app-module (A1/T3): jamye-ui local module JS bindings and Avatar.
+  "tests/shared/ui/jamye-ui-native.test.tsx",
+  "tests/shared/ui/avatar.test.tsx",
+  "tests/shared/ui/avatar.ios.test.tsx",
+  "tests/shared/ui/avatar.android.test.tsx",
+  // task-app-kit (A2/C1/C2/C3/G3/T5): shared UI kit for the groups/topics page tasks.
+  "tests/shared/ui/confirm-alert.test.tsx",
+  "tests/shared/ui/standard-state-view.test.tsx",
+  "tests/shared/ui/load-sentinel.test.tsx",
+  "tests/shared/ui/android-extended-fab.android.test.tsx",
+  "tests/shared/ui/snackbar-host.android.test.tsx",
+  "tests/shared/ui/native-input-shell.test.tsx",
+  // task-app-groups (C/G/L/A3/E6/E7/I): group list/detail/create/join screens,
+  // pending-invite receive flow, and the row-action leading/symbol extension.
+  "tests/features/groups/model/pending-invite-store.test.ts",
+  "tests/features/groups/ui/group-list-screen.android.test.tsx",
+  "tests/features/topics/ui/topic-date-chips.ios.test.tsx",
+  "tests/features/topics/ui/topic-date-chips.android.test.tsx",
+  "tests/features/topics/ui/topic-edit-button.test.tsx",
+  "tests/features/topics/ui/topic-edit-form.ios.test.tsx",
+  "tests/features/topics/ui/topic-edit-form.android.test.tsx",
+  "tests/features/chat/model/use-chatroom-title.test.tsx",
+  "tests/features/topics/ui/topic-tags-view.test.tsx",
+  "tests/features/topics/ui/topic-tags-view.android.test.tsx",
+  // Coverage backfill: dedicated ChatroomVideoThumbnail state-machine/retry
+  // and iOS carousel-row tests (previously covered only incidentally).
+  "tests/features/media/ui/chatroom-media-thumbnail.test.tsx",
+  "tests/features/media/ui/topic-media-carousel-row.ios.test.tsx",
+  // Post-SHIP user feedback: Android system back closes topic edit mode.
+  "tests/features/topics/ui/use-close-edit-on-back.android.test.tsx",
 ]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
   ...new Set([
@@ -749,11 +783,9 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     "tests/features/notifications/platform/push-notifications-adapter.test.ts",
     "tests/features/media/model/video-thumbnail-cache.test.ts",
     "tests/features/auth/oauth-callback-screen.test.tsx",
-    "tests/features/media/ui/topic-image-upload-button.test.tsx",
     "tests/features/home/account-screen.test.tsx",
     "tests/app/account-route.test.tsx",
     "tests/features/groups/ui/group-form-screen.test.tsx",
-    "tests/features/groups/ui/group-owner-panel.test.tsx",
     "tests/features/topics/ui/topic-detail-screen.test.tsx",
     "tests/features/topics/ui/topic-create-screen.test.tsx",
   ]),
@@ -911,9 +943,32 @@ const APPROVED_FIREBASE_ANDROID_CONFIG = "google-services.json";
 const APPROVED_MEDIA_PICKER_PLUGIN = Object.freeze([
   "expo-image-picker",
   Object.freeze({
-    photosPermission: "선택한 사진과 동영상을 주제에 첨부하기 위해 접근합니다.",
+    photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
     cameraPermission: false,
     microphonePermission: false,
+  }),
+]);
+
+// M14 round 1 (L1/L5): invite links reuse the public API origin. appleTeamId
+// keeps the signing team that only lives in ios/*.xcodeproj today from being
+// dropped by `prebuild --clean`.
+const APPROVED_IOS_APPLE_TEAM_ID = "6ZH8V43A7D";
+const APPROVED_IOS_ASSOCIATED_DOMAINS = Object.freeze([
+  "applinks:jamye-api.ridewithmin.com",
+  "applinks:jamye-api.ridewithmin.com?mode=developer",
+]);
+const APPROVED_ANDROID_INTENT_FILTERS = Object.freeze([
+  Object.freeze({
+    action: "VIEW",
+    autoVerify: true,
+    data: Object.freeze([
+      Object.freeze({
+        scheme: "https",
+        host: "jamye-api.ridewithmin.com",
+        pathPrefix: "/invite",
+      }),
+    ]),
+    category: Object.freeze(["BROWSABLE", "DEFAULT"]),
   }),
 ]);
 
@@ -1226,12 +1281,25 @@ const RESERVED_DEFERRED_PATHS = Object.freeze([
 ]);
 
 const M14_ROUND1_AUTHORED_FILES = Object.freeze([
+  // task-app-gallery (D4/D5/E1/E10/AC1-AC4): see the matching comment in
+  // M14_ROUND1_TEST_PATHS above for the test files.
+  "src/features/media/model/use-chatroom-gallery.ts",
+  "src/features/media/ui/chatroom-media-thumbnail.tsx",
+  "src/features/media/ui/topic-media-carousel-row.ios.tsx",
+  "src/features/media/ui/topic-media-carousel-row.tsx",
+  "src/features/media/ui/topic-media-gallery.tsx",
+  "src/features/media/ui/chatroom-media-grid-screen.tsx",
+  "src/app/groups/[groupId]/topics/[topicId]/gallery.tsx",
+  "tests/features/media/model/use-chatroom-gallery.test.ts",
+  "tests/features/media/ui/topic-media-gallery.test.tsx",
+  "tests/features/media/ui/topic-media-carousel-row.android.test.tsx",
+  "tests/features/media/ui/chatroom-media-grid-screen.test.tsx",
+  "tests/app/topic-gallery-route.test.tsx",
   "src/app/(tabs)/_layout.tsx",
   "src/app/(tabs)/groups/_layout.tsx",
   "src/app/(tabs)/groups/index.tsx",
   "src/app/(tabs)/groups/[groupId]/index.tsx",
   "src/app/(tabs)/groups/[groupId]/info.tsx",
-  "src/app/(tabs)/groups/[groupId]/topics/[topicId].tsx",
   "src/app/(tabs)/notifications/_layout.tsx",
   "src/app/(tabs)/notifications/index.tsx",
   "src/app/(tabs)/account/_layout.tsx",
@@ -1249,7 +1317,6 @@ const M14_ROUND1_AUTHORED_FILES = Object.freeze([
   "assets/icons/material/refresh.xml",
   "src/features/notifications/ui/use-notifications-unread-count.ts",
   "src/features/topics/model/topics-dates.ts",
-  "src/features/topics/ui/topic-date-dial.tsx",
   "src/shared/ui/header-title-button.tsx",
   "src/shared/ui/native-list.tsx",
   "src/shared/ui/native-list.android.tsx",
@@ -1272,7 +1339,6 @@ const M14_ROUND1_AUTHORED_FILES = Object.freeze([
   "src/features/topics/ui/topic-list.types.ts",
   "tests/features/topics/ui/topic-list.ios.test.tsx",
   "tests/features/topics/model/topics-dates.test.ts",
-  "tests/features/topics/ui/topic-date-dial.test.tsx",
   "tests/features/topics/ui/topic-list.test.tsx",
   "tests/support/stack-toolbar-mock.tsx",
   "tests/shared/ui/header-actions.test.tsx",
@@ -1285,6 +1351,120 @@ const M14_ROUND1_AUTHORED_FILES = Object.freeze([
   "docs/adr/0009-tab-bar-navigation.md",
   "docs/adr/0010-platform-native-visual-language.md",
   "docs/adr/0011-color-system-platform-neutral-berry-highlight.md",
+  // task-app-module (A1/L5/E8/T1/T3): local jamye-ui Expo module + JS bindings.
+  "modules/jamye-ui/.gitignore",
+  "modules/jamye-ui/expo-module.config.json",
+  "modules/jamye-ui/ios/JamyeUi.podspec",
+  "modules/jamye-ui/ios/JamyeUiModule.swift",
+  "modules/jamye-ui/ios/JamyeAvatarView.swift",
+  "modules/jamye-ui/android/build.gradle",
+  "modules/jamye-ui/android/src/main/java/dev/jamye/ui/JamyeUiModule.kt",
+  "src/shared/ui/jamye-ui-native.ts",
+  "src/shared/ui/avatar.types.ts",
+  "src/shared/ui/avatar.tsx",
+  "src/shared/ui/avatar.ios.tsx",
+  "src/shared/ui/avatar.android.tsx",
+  "tests/shared/ui/jamye-ui-native.test.tsx",
+  "tests/shared/ui/avatar.test.tsx",
+  "tests/shared/ui/avatar.ios.test.tsx",
+  "tests/shared/ui/avatar.android.test.tsx",
+  // task-app-kit (A2/C1/C2/C3/G3/T5): shared UI kit for the groups/topics page tasks.
+  "src/shared/ui/confirm-alert.types.ts",
+  "src/shared/ui/confirm-alert.tsx",
+  "src/shared/ui/confirm-alert.ios.tsx",
+  "src/shared/ui/confirm-alert.android.tsx",
+  "src/shared/ui/standard-state-view.types.ts",
+  "src/shared/ui/standard-state-view.tsx",
+  "src/shared/ui/standard-state-view.ios.tsx",
+  "src/shared/ui/standard-state-view.android.tsx",
+  "src/shared/ui/load-sentinel.types.ts",
+  "src/shared/ui/load-sentinel.tsx",
+  "src/shared/ui/load-sentinel.ios.tsx",
+  "src/shared/ui/load-sentinel.android.tsx",
+  "src/shared/ui/snackbar-host.android.tsx",
+  "src/shared/ui/android-extended-fab.android.tsx",
+  "src/shared/ui/native-input-shell.types.ts",
+  "src/shared/ui/native-input-sheet.tsx",
+  "src/shared/ui/native-input-sheet.ios.tsx",
+  "src/shared/ui/native-input-dialog.tsx",
+  "src/shared/ui/native-input-dialog.android.tsx",
+  "assets/icons/material/error.xml",
+  "assets/icons/material/play_arrow.xml",
+  "assets/icons/material/photo_library.xml",
+  "assets/icons/material/tag.xml",
+  "assets/icons/material/group_add.xml",
+  "assets/icons/material/person_remove.xml",
+  "assets/icons/material/close.xml",
+  "tests/shared/ui/confirm-alert.test.tsx",
+  "tests/shared/ui/standard-state-view.test.tsx",
+  "tests/shared/ui/load-sentinel.test.tsx",
+  "tests/shared/ui/android-extended-fab.android.test.tsx",
+  "tests/shared/ui/snackbar-host.android.test.tsx",
+  "tests/shared/ui/native-input-shell.test.tsx",
+  // task-app-groups (C/G/L/A3/E6/E7/I): group list/detail/create/join screens,
+  // pending-invite receive flow, and the row-action leading/symbol extension.
+  "src/features/groups/model/pending-invite-store.ts",
+  "src/features/groups/ui/group-list-screen.android.tsx",
+  "assets/icons/material/share.xml",
+  "tests/features/groups/model/pending-invite-store.test.ts",
+  "tests/features/groups/ui/group-list-screen.android.test.tsx",
+  // task-app-groups (I3): the rename dialog's platform split (tested via
+  // tests/features/groups/ui/group-detail.test.tsx, no dedicated test file).
+  "src/features/groups/ui/group-rename-dialog.types.ts",
+  "src/features/groups/ui/group-rename-dialog.tsx",
+  "src/features/groups/ui/group-rename-dialog.ios.tsx",
+  "src/features/groups/ui/group-rename-dialog.android.tsx",
+  // task-app-topics (C1/T1-T7/D1-D3/D6-D7/E4/E5/E11): topic list date chips,
+  // integrated edit screen, root-Stack topic detail route, chat header title
+  // resolution, and the chatroom-context group-info route.
+  "src/features/topics/ui/topic-date-chips.types.ts",
+  "src/features/topics/ui/topic-date-chips.tsx",
+  "src/features/topics/ui/topic-date-chips.ios.tsx",
+  "src/features/topics/ui/topic-date-chips.android.tsx",
+  "src/features/topics/ui/topic-edit-button.types.ts",
+  "src/features/topics/ui/topic-edit-button.tsx",
+  "src/features/topics/ui/topic-edit-button.ios.tsx",
+  "src/features/topics/ui/topic-edit-button.android.tsx",
+  "src/features/topics/ui/topic-edit-form.types.ts",
+  "src/features/topics/ui/topic-edit-form.shared.ts",
+  "src/features/topics/ui/topic-edit-form.tsx",
+  "src/features/topics/ui/topic-edit-form.ios.tsx",
+  "src/features/topics/ui/topic-edit-form.android.tsx",
+  "src/features/topics/ui/topic-tags-view.types.ts",
+  "src/features/topics/ui/topic-tags-view.tsx",
+  "src/features/topics/ui/topic-tags-view.ios.tsx",
+  "src/features/topics/ui/topic-tags-view.android.tsx",
+  "assets/icons/material/edit.xml",
+  "src/app/groups/[groupId]/chatrooms/info.tsx",
+  "src/features/chat/model/use-chatroom-title.ts",
+  "tests/features/topics/ui/topic-date-chips.ios.test.tsx",
+  "tests/features/topics/ui/topic-date-chips.android.test.tsx",
+  "tests/features/topics/ui/topic-edit-button.test.tsx",
+  "tests/features/topics/ui/topic-edit-form.ios.test.tsx",
+  "tests/features/topics/ui/topic-edit-form.android.test.tsx",
+  "tests/features/chat/model/use-chatroom-title.test.tsx",
+  "tests/features/topics/ui/topic-tags-view.test.tsx",
+  "tests/features/topics/ui/topic-tags-view.android.test.tsx",
+  // task-app-device: C3 shell test double for the new-topic screen (T7).
+  "tests/support/native-input-shell-mock.tsx",
+  // task-docs-app: invite/public link contract and jamye-ui module ADRs, and
+  // the Associated Domains guide app.config.ts points to.
+  "docs/adr/0012-invite-links-public-link-contract.md",
+  "docs/adr/0013-jamye-ui-local-native-module.md",
+  "docs/development/apple-associated-domains.md",
+  // VERIFY Step 7 follow-up: https-only avatar URL guard shared by the
+  // platform avatar variants.
+  "src/shared/ui/avatar.shared.ts",
+  "src/features/groups/ui/group-rename-dialog.shared.ts",
+  "src/shared/ui/native-input-shell.shared.tsx",
+  // Coverage backfill: see the matching comment in M14_ROUND1_TEST_PATHS
+  // above for why these two test files were added.
+  "tests/features/media/ui/chatroom-media-thumbnail.test.tsx",
+  "tests/features/media/ui/topic-media-carousel-row.ios.test.tsx",
+  // Post-SHIP user feedback: Android system back closes topic edit mode.
+  "src/features/topics/ui/use-close-edit-on-back.ts",
+  "src/features/topics/ui/use-close-edit-on-back.android.ts",
+  "tests/features/topics/ui/use-close-edit-on-back.android.test.tsx",
 ]);
 
 const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
@@ -1400,13 +1580,11 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "docs/adr/0005-native-ui-toolkit-adoption.md",
   "docs/adr/0006-media-video-posters.md",
   "tests/features/auth/oauth-callback-screen.test.tsx",
-  "tests/features/media/ui/topic-image-upload-button.test.tsx",
   "src/app/account.tsx",
   "src/features/home/ui/account-screen.tsx",
   "tests/features/home/account-screen.test.tsx",
   "tests/app/account-route.test.tsx",
   "tests/features/groups/ui/group-form-screen.test.tsx",
-  "tests/features/groups/ui/group-owner-panel.test.tsx",
   "tests/features/topics/ui/topic-detail-screen.test.tsx",
   "tests/features/topics/ui/topic-create-screen.test.tsx",
   ...Object.keys(APPROVED_DEPENDENCY_PATCH_FILE_SHA256),
@@ -1447,12 +1625,20 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
   "src/app/notifications.tsx",
   "src/app/groups/[groupId].tsx",
   "src/app/groups/[groupId]/chatrooms/index.tsx",
-  "src/app/groups/[groupId]/topics/[topicId].tsx",
   "src/features/chat/ui/chat-rooms-screen.tsx",
   "src/features/chat/ui/chat-controls.tsx",
   "src/features/media/ui/attachment-picker-button.tsx",
   "src/features/home/ui/home-screen.tsx",
   "tests/features/home/home-screen.test.tsx",
+  // task-app-topics (D6/T1/D5): topic detail route back to the root Stack
+  // (superseding the M14-round-1 (tabs) move above), the RN Animated date
+  // dial replaced by the native chip row, and the M11 topic-image UI.
+  "src/app/(tabs)/groups/[groupId]/topics/[topicId].tsx",
+  "src/features/topics/ui/topic-date-dial.tsx",
+  "tests/features/topics/ui/topic-date-dial.test.tsx",
+  "src/features/media/ui/topic-image-upload-button.tsx",
+  "src/features/media/ui/topic-media-list.tsx",
+  "tests/features/media/ui/topic-image-upload-button.test.tsx",
   "patches/expo-router@57.0.19.patch",
   "app.json",
   "src/app/explore.tsx",
@@ -1488,6 +1674,10 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
   "assets/images/tabIcons/home@3x.png",
   "assets/images/tutorial-web.png",
   ...M5_RETIRED_PLACEHOLDER_PATHS,
+  // task-app-groups: G5 replaces the invite-issue sheet with a direct
+  // share-sheet flow (7-day unlimited invite -> system share).
+  "src/features/groups/ui/group-owner-panel.tsx",
+  "tests/features/groups/ui/group-owner-panel.test.tsx",
 ]);
 
 const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
@@ -2410,6 +2600,8 @@ function checkExpoBasePreservation(snapshot, violations) {
   const expectedIos = {
     ...APPROVED_EXPO_BASE.ios,
     bundleIdentifier: APPROVED_DEVELOPMENT_IDENTITY.iosBundleIdentifier,
+    appleTeamId: APPROVED_IOS_APPLE_TEAM_ID,
+    associatedDomains: APPROVED_IOS_ASSOCIATED_DOMAINS,
   };
   if (!deepEqual(ios, expectedIos)) {
     pushViolation(
@@ -2424,6 +2616,7 @@ function checkExpoBasePreservation(snapshot, violations) {
     package: APPROVED_DEVELOPMENT_IDENTITY.androidPackage,
     permissions: APPROVED_PREBUILD_ANDROID_PERMISSIONS,
     googleServicesFile: APPROVED_ANDROID_GOOGLE_SERVICES_FILE,
+    intentFilters: APPROVED_ANDROID_INTENT_FILTERS,
   };
   if (!deepEqual(android, expectedAndroid)) {
     pushViolation(
@@ -2681,7 +2874,9 @@ function discoverM5AuthoredInventory(root, { fs, path }) {
     ...retainedM5Paths,
     ...chatSourcePaths.filter(
       (file) =>
-        !M8_AUTHORED_FILES.includes(file) && !M9_AUTHORED_FILES.includes(file),
+        !M8_AUTHORED_FILES.includes(file) &&
+        !M9_AUTHORED_FILES.includes(file) &&
+        !M14_ROUND1_AUTHORED_FILES.includes(file),
     ),
   ].sort();
 }
@@ -2699,7 +2894,10 @@ function discoverM5TestInventory(root, { fs, path }) {
     ...retainedM5Paths,
     ...chatTestPaths.filter(
       (file) =>
-        !M8_AUTHORED_FILES.includes(file) && !M9_AUTHORED_FILES.includes(file),
+        !M8_AUTHORED_FILES.includes(file) &&
+        !M9_AUTHORED_FILES.includes(file) &&
+        !M14_ROUND1_AUTHORED_FILES.includes(file) &&
+        !M14_ROUND1_TEST_PATHS.includes(file),
     ),
   ].sort();
 }

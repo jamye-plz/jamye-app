@@ -184,9 +184,12 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
       expect.objectContaining({
         generator_identity: "openapi-typescript@7.13.0",
         intake_kind: "server-snapshot",
-        source_git_revision: "736eabcb10e4a60ebac6ebcc9fe275b62340b620",
+        // task-app-gallery (E1/AC1): re-intook from jamye-server main
+        // 5b987a28e2488075224f01efddd206218b1ce750 (C5 chatroom media +
+        // S3 topic-media removal).
+        source_git_revision: "5b987a28e2488075224f01efddd206218b1ce750",
         upstream_bundle_sha256:
-          "b95e463946861d981c9e973fa048f6ee6dc4e63307f5e29583be6478bc650b69",
+          "ca275256289955f20a13a5f6d2f51df326c43da79ffd8b526ef867db5faf5a5c",
         upstream_bundle_verified: true,
         upstream_contract_version: "1",
         upstream_server_commit: "dirty",
@@ -213,7 +216,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         server_commit: "dirty",
         server_tag: null,
         sha256:
-          "b95e463946861d981c9e973fa048f6ee6dc4e63307f5e29583be6478bc650b69",
+          "ca275256289955f20a13a5f6d2f51df326c43da79ffd8b526ef867db5faf5a5c",
       }),
     );
   });
@@ -271,6 +274,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         "C2",
         "C3",
         "C4",
+        "C5",
         "S1",
         "R1",
         "T1",
@@ -282,7 +286,6 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         "T7",
         "MD1",
         "MD2",
-        "MD3",
         "MD4",
         "MD5",
       ]);

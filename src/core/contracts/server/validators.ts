@@ -134,8 +134,8 @@ export type UploadFinalizeWire = components["schemas"]["UploadFinalize"];
 export type UploadFinalizeResultWire =
   components["schemas"]["UploadFinalizeResult"];
 export type ConfirmedUploadWire = components["schemas"]["ConfirmedUpload"];
-export type TopicMediaWire = components["schemas"]["TopicMedia"];
-export type TopicMediaPageWire = components["schemas"]["TopicMediaPage"];
+export type ChatroomMediaItemWire = components["schemas"]["ChatroomMediaItem"];
+export type ChatroomMediaPageWire = components["schemas"]["ChatroomMediaPage"];
 export type MediaAccessUrlWire = components["schemas"]["MediaAccessUrl"];
 export const validateUploadIntentCreate =
   compileComponentSchema("UploadIntentCreate");
@@ -146,8 +146,14 @@ export const validateUploadFinalize = compileComponentSchema("UploadFinalize");
 export const validateUploadFinalizeResult = compileComponentSchema(
   "UploadFinalizeResult",
 );
-export const validateTopicMedia = compileComponentSchema("TopicMedia");
-export const validateTopicMediaPage = compileComponentSchema("TopicMediaPage");
+// S3 removed MD3 (GET /api/v1/topics/{topic_id}/media) and the
+// TopicMedia/TopicMediaPage schemas; C5 (GET /api/v1/chatrooms/{chatroom_id}/media,
+// D4/E10) is the sole media-listing operation now, scoped to a chatroom's
+// message timeline instead of a topic.
+export const validateChatroomMediaItem =
+  compileComponentSchema("ChatroomMediaItem");
+export const validateChatroomMediaPage =
+  compileComponentSchema("ChatroomMediaPage");
 export const validateMediaAccessUrl = compileComponentSchema("MediaAccessUrl");
 
 // S1 (GET /api/v1/conversations/{conversation_id}/events) and R1

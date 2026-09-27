@@ -1,13 +1,11 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
-import { Alert } from "react-native";
+import type { ReactNode } from "react";
+import { Share } from "react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { GroupsProvider } from "@/features/groups/model/groups-provider";
 import { createGroupsStore } from "@/features/groups/model/groups-store";
 import { GroupsApiError } from "@/features/groups/data/groups-api";
-import {
-  GroupListScreen,
-  resolveGroupListErrorColor,
-} from "@/features/groups/ui/group-list-screen";
+import { GroupListScreen } from "@/features/groups/ui/group-list-screen";
 import { GroupFormScreen } from "@/features/groups/ui/group-form-screen";
 import {
   code,
@@ -35,6 +33,160 @@ jest.mock("@/core/providers/session-provider", () => ({
   }),
 }));
 
+// C2's centered `ConfirmAlert` (G6/G7 transfer/leave) and C1's
+// `StandardStateView` (empty/error/loading) both render through
+// `@expo/ui/swift-ui` -- one inline mock per the shared test rule (no global
+// auto-mock for swift-ui/jetpack-compose).
+jest.mock("@expo/ui/swift-ui", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { Pressable, Text, TextInput, View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  const AnyPressable = Pressable as unknown as React.ComponentType<
+    Record<string, unknown>
+  >;
+  type MockChildren = Readonly<{ children?: ReactNode; testID?: string }>;
+  function Alert(
+    props: Readonly<{
+      children?: ReactNode;
+      isPresented?: boolean;
+      testID?: string;
+      title?: string;
+    }>,
+  ) {
+    if (!props.isPresented) return null;
+    return (
+      <View testID={props.testID ?? "alert"}>
+        <Text accessibilityRole="header">{props.title}</Text>
+        {props.children}
+      </View>
+    );
+  }
+  const slot = () =>
+    function MockSlot({ children }: MockChildren) {
+      return <View>{children}</View>;
+    };
+  Alert.Trigger = slot();
+  Alert.Actions = slot();
+  Alert.Message = slot();
+  function Button(
+    props: Readonly<{
+      label?: string;
+      onPress?: () => void;
+      role?: string;
+    }>,
+  ) {
+    return (
+      <AnyPressable
+        accessibilityHint={props.role}
+        accessibilityLabel={props.label}
+        accessibilityRole="button"
+        onPress={props.onPress}
+      />
+    );
+  }
+  function Spacer() {
+    return <View testID="spacer" />;
+  }
+  function MockText({ children }: MockChildren) {
+    return <Text>{children}</Text>;
+  }
+  function VStack({ children, testID }: MockChildren) {
+    return <View testID={testID}>{children}</View>;
+  }
+  function ProgressView() {
+    return <View testID="progress-view" />;
+  }
+  function ContentUnavailableView(
+    props: Readonly<{
+      description?: string;
+      systemImage?: string;
+      title?: string;
+    }>,
+  ) {
+    return (
+      <View accessibilityHint={props.systemImage} testID="content-unavailable">
+        <Text accessibilityRole="header">{props.title}</Text>
+        {props.description ? <Text>{props.description}</Text> : null}
+      </View>
+    );
+  }
+  type MockObservableState = {
+    value: string;
+    get: () => string;
+    set: jest.Mock;
+  };
+  function useNativeState(initial: string): MockObservableState {
+    const ref = React.useRef<MockObservableState | null>(null);
+    if (!ref.current) {
+      const state: MockObservableState = {
+        value: initial,
+        get: () => state.value,
+        set: jest.fn((next: string) => {
+          state.value = next;
+        }),
+      };
+      ref.current = state;
+    }
+    return ref.current;
+  }
+  function Form({ children }: MockChildren) {
+    return <View>{children}</View>;
+  }
+  function Section({
+    children,
+    footer,
+  }: MockChildren & { footer?: ReactNode }) {
+    return (
+      <View>
+        {children}
+        {footer}
+      </View>
+    );
+  }
+  function TextField(
+    props: Readonly<{
+      autoFocus?: boolean;
+      modifiers?: { $type?: string; value?: boolean }[];
+      onTextChange?: (value: string) => void;
+      placeholder?: string;
+      text?: MockObservableState;
+    }>,
+  ) {
+    const isDisabled = props.modifiers?.some(
+      (modifier) => modifier.$type === "disabled" && modifier.value,
+    );
+    return (
+      <TextInput
+        autoFocus={props.autoFocus}
+        defaultValue={props.text?.value}
+        editable={!isDisabled}
+        onChangeText={props.onTextChange}
+        placeholder={props.placeholder}
+        testID="group-form-field"
+      />
+    );
+  }
+  return {
+    Alert,
+    Button,
+    ContentUnavailableView,
+    Form,
+    ProgressView,
+    Section,
+    Spacer,
+    Text: MockText,
+    TextField,
+    useNativeState,
+    VStack,
+  };
+});
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  buttonStyle: (value: string) => ({ $type: "buttonStyle", value }),
+  disabled: (value: boolean) => ({ $type: "disabled", value }),
+  fixedSize: (value: unknown) => ({ $type: "fixedSize", value }),
+  frame: (value: unknown) => ({ $type: "frame", value }),
+}));
+
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
@@ -56,7 +208,7 @@ jest.mock("expo-router", () => ({
 const authorized: AuthorizedGroupsRequest = (execute, signal) =>
   execute("fake", signal ?? new AbortController().signal);
 
-describe("M7 home, create and join", () => {
+describe("M14 groups home, create and join", () => {
   beforeEach(() => jest.clearAllMocks());
   async function setup(mode?: "create" | "join", api = fakeGroupsApi()) {
     const store = createGroupsStore({ createApi: () => api });
@@ -74,28 +226,50 @@ describe("M7 home, create and join", () => {
     );
     return { screen, api, store };
   }
-  test("renders the canonical group list and navigates to a group on row press", async () => {
+  test("renders the canonical group list (G1: monogram avatar, n/max, 소유자) and navigates on row press", async () => {
     const { screen } = await setup();
     expect(screen.getByTestId("group-list")).toBeTruthy();
-    expect(screen.getByText(/^\d+ \/ \d+명$/)).toBeTruthy();
+    expect(screen.getByText(/^\d+ \/ \d+명 · 소유자$/)).toBeTruthy();
     await fireEvent.press(screen.getByRole("button", { name: /^우리 그룹, / }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/groups/[groupId]",
       params: { groupId },
     });
   });
-  test("an owner's row offers 초대 코드 발급 and 소유권 이전, and the invite sheet opens on the opened group", async () => {
+  test("an owner's row offers 초대 링크 공유 (G5: 7-day unlimited invite, https link + code, 7일 valid) and 소유권 이전", async () => {
+    const share = jest
+      .spyOn(Share, "share")
+      .mockResolvedValue({ action: "sharedAction" });
     const { screen, api } = await setup();
     expect(
       screen.queryByRole("button", { name: "우리 그룹 그룹 나가기" }),
     ).toBeNull();
     await fireEvent.press(
-      screen.getByRole("button", { name: "우리 그룹 초대 코드 발급" }),
+      screen.getByRole("button", { name: "우리 그룹 초대 링크 공유" }),
     );
-    expect(api.getGroup).toHaveBeenCalled();
-    expect(await screen.findByTestId("group-owner-panel-issue")).toBeTruthy();
+    await waitFor(() => expect(api.createInvite).toHaveBeenCalled());
+    expect(api.createInvite.mock.calls[0][2]).toMatchObject({ maxUses: null });
+    await waitFor(() => expect(share).toHaveBeenCalled());
+    const message = share.mock.calls[0]![0]!.message as string;
+    expect(message).toContain(`/invite/${code}`);
+    expect(message).toContain(code);
+    expect(message).toContain("7일");
+    share.mockRestore();
   });
-  test("소유권 이전 lists the other members and transfers only after the confirmation", async () => {
+  test("초대 링크 공유 shows a centered retry alert when invite creation fails", async () => {
+    const api = fakeGroupsApi();
+    api.createInvite.mockRejectedValueOnce(
+      new GroupsApiError(503, "group_unavailable"),
+    );
+    const { screen } = await setup(undefined, api);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "우리 그룹 초대 링크 공유" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("초대 링크를 만들지 못했습니다")).toBeTruthy(),
+    );
+  });
+  test("소유권 이전 lists the other members and transfers only after the centered confirmation", async () => {
     const api = fakeGroupsApi();
     const other = {
       ...member,
@@ -107,59 +281,39 @@ describe("M7 home, create and join", () => {
       items: [member, other],
       nextCursor: null,
     });
-    const alert = jest
-      .spyOn(Alert, "alert")
-      .mockImplementation(() => undefined);
-    try {
-      const { screen } = await setup(undefined, api);
-      await fireEvent.press(
-        screen.getByRole("button", { name: "우리 그룹 소유권 이전" }),
-      );
-      const candidate = await screen.findByTestId(`group-transfer-${otherId}`);
-      expect(screen.queryByTestId(`group-transfer-${userId}`)).toBeNull();
-      await fireEvent.press(candidate);
-      expect(alert).toHaveBeenCalledWith(
-        "소유권 이전",
-        expect.stringContaining("다른 사람"),
-        expect.anything(),
-      );
-      expect(api.setMemberRole).not.toHaveBeenCalled();
-      await act(async () => {
-        alert.mock.calls[0]![2]![1]!.onPress?.();
-      });
-      await waitFor(() => expect(api.setMemberRole).toHaveBeenCalled());
-      expect(api.setMemberRole.mock.calls[0]).toContain(otherId);
-    } finally {
-      alert.mockRestore();
-    }
+    const { screen, api: usedApi } = await setup(undefined, api);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "우리 그룹 소유권 이전" }),
+    );
+    const candidate = await screen.findByTestId(`group-transfer-${otherId}`);
+    expect(screen.queryByTestId(`group-transfer-${userId}`)).toBeNull();
+    await fireEvent.press(candidate);
+    expect(screen.getByText("소유권 이전")).toBeTruthy();
+    expect(screen.getByText(/다른 사람/)).toBeTruthy();
+    expect(usedApi.setMemberRole).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "이전" }));
+    await waitFor(() => expect(usedApi.setMemberRole).toHaveBeenCalled());
+    expect(usedApi.setMemberRole.mock.calls[0]).toContain(otherId);
   });
-  test("a member's row offers 그룹 나가기, which leaves only after the confirmation", async () => {
+  test("a member's row offers 그룹 나가기, which leaves only after the centered confirmation", async () => {
     const api = fakeGroupsApi();
     api.listGroups.mockResolvedValue({
       items: [{ ...group, ownerId: otherId }],
       nextCursor: null,
     });
     api.getGroup.mockResolvedValue({ ...group, ownerId: otherId });
-    const alert = jest
-      .spyOn(Alert, "alert")
-      .mockImplementation(() => undefined);
-    try {
-      const { screen } = await setup(undefined, api);
-      expect(
-        screen.queryByRole("button", { name: "우리 그룹 초대 코드 발급" }),
-      ).toBeNull();
-      await fireEvent.press(
-        screen.getByRole("button", { name: "우리 그룹 그룹 나가기" }),
-      );
-      expect(api.removeMember).not.toHaveBeenCalled();
-      await act(async () => {
-        alert.mock.calls[0]![2]![1]!.onPress?.();
-      });
-      await waitFor(() => expect(api.removeMember).toHaveBeenCalled());
-      expect(api.removeMember.mock.calls[0]).toContain(userId);
-    } finally {
-      alert.mockRestore();
-    }
+    const { screen, api: usedApi } = await setup(undefined, api);
+    expect(
+      screen.queryByRole("button", { name: "우리 그룹 초대 링크 공유" }),
+    ).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "우리 그룹 그룹 나가기" }),
+    );
+    expect(screen.getByText("그룹 나가기")).toBeTruthy();
+    expect(usedApi.removeMember).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "나가기" }));
+    await waitFor(() => expect(usedApi.removeMember).toHaveBeenCalled());
+    expect(usedApi.removeMember.mock.calls[0]).toContain(userId);
   });
   test("pull-to-refresh on the native list reloads the groups", async () => {
     const { screen, api } = await setup();
@@ -179,7 +333,7 @@ describe("M7 home, create and join", () => {
     );
     expect(mockPush).toHaveBeenLastCalledWith("/groups/join");
   });
-  test("distinguishes empty and failed initial query with explicit retry", async () => {
+  test("distinguishes empty (G4: two entry-point buttons) and failed initial query with explicit retry", async () => {
     const api = fakeGroupsApi();
     api.listGroups.mockRejectedValueOnce(
       new GroupsApiError(503, "groups_unavailable"),
@@ -187,17 +341,19 @@ describe("M7 home, create and join", () => {
     const { screen } = await setup(undefined, api);
     expect(screen.getByText(/서버를 사용할 수 없습니다/)).toBeTruthy();
     api.listGroups.mockResolvedValueOnce({ items: [], nextCursor: null });
-    await fireEvent.press(
-      screen.getByRole("button", { name: "그룹 다시 불러오기" }),
-    );
+    await fireEvent.press(screen.getByRole("button", { name: "다시 시도" }));
     expect(screen.getByText(/아직 가입한 그룹이 없습니다/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "새 그룹 만들기" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "초대 코드로 가입" }),
+    ).toBeTruthy();
   });
-  test("does not submit invalid names and awaits confirmed create before navigation", async () => {
+  test("does not submit invalid names and awaits confirmed create before navigation (detailed C3 UI mechanics: group-form-screen.test.tsx)", async () => {
     const { screen, api } = await setup("create");
     const submit = screen.getByRole("button", { name: "만들기" });
     expect(submit).toBeDisabled();
     await fireEvent.changeText(
-      screen.getByLabelText("그룹 이름"),
+      screen.getByPlaceholderText("그룹 이름"),
       "😀".repeat(128),
     );
     const pending = deferred<typeof group>();
@@ -214,30 +370,17 @@ describe("M7 home, create and join", () => {
       params: { groupId },
     });
   });
-  test("unknown create has a separate explicit repeat confirmation", async () => {
-    const { screen, api } = await setup("create");
-    api.createGroup.mockRejectedValueOnce(
-      new GroupsApiError(408, "request_timeout"),
-    );
-    await fireEvent.changeText(screen.getByLabelText("그룹 이름"), "우리 그룹");
-    await fireEvent.press(screen.getByRole("button", { name: "만들기" }));
-    expect(screen.getByText(/이미 만들어졌을 수 있습니다/)).toBeTruthy();
-    await fireEvent.press(
-      screen.getByRole("button", {
-        name: "중복 생성 가능성을 이해하고 다시 만들기",
-      }),
-    );
-    expect(api.createGroup).toHaveBeenCalledTimes(2);
-  });
-  test("joins an already-member group only after G3; no invite code in navigation", async () => {
+  test("joins an already-member group only after explicit submit; no invite code anywhere in navigation", async () => {
     const { screen } = await setup("join");
-    await fireEvent.changeText(screen.getByLabelText("초대 코드"), code);
-    await fireEvent.press(screen.getByRole("button", { name: "가입하기" }));
+    await fireEvent.changeText(screen.getByPlaceholderText("초대 코드"), code);
+    await fireEvent.press(screen.getByRole("button", { name: "가입" }));
     expect(mockReplace).toHaveBeenCalledWith({
       pathname: "/groups/[groupId]",
       params: { groupId },
     });
+    expect(JSON.stringify(mockPush.mock.calls)).not.toContain(code);
     expect(JSON.stringify(mockReplace.mock.calls)).not.toContain(code);
+    expect(JSON.stringify(mockBack.mock.calls)).not.toContain(code);
   });
   test.each([
     [404, "invite_not_found", /초대 코드를 찾을 수 없습니다/],
@@ -252,8 +395,11 @@ describe("M7 home, create and join", () => {
       api.joinByInvite.mockRejectedValueOnce(
         new GroupsApiError(status, errorCode),
       );
-      await fireEvent.changeText(screen.getByLabelText("초대 코드"), code);
-      await fireEvent.press(screen.getByRole("button", { name: "가입하기" }));
+      await fireEvent.changeText(
+        screen.getByPlaceholderText("초대 코드"),
+        code,
+      );
+      await fireEvent.press(screen.getByRole("button", { name: "가입" }));
       expect(screen.getByText(message)).toBeTruthy();
       expect(mockReplace).not.toHaveBeenCalled();
     },
@@ -262,41 +408,15 @@ describe("M7 home, create and join", () => {
     const { screen, api } = await setup("create");
     const pending = deferred<typeof group>();
     api.createGroup.mockReturnValueOnce(pending.promise);
-    await fireEvent.changeText(screen.getByLabelText("그룹 이름"), "이름");
+    await fireEvent.changeText(
+      screen.getByPlaceholderText("그룹 이름"),
+      "이름",
+    );
     await fireEvent.press(screen.getByRole("button", { name: "만들기" }));
     await screen.unmount();
     await act(async () => {
       pending.resolve(group);
     });
     expect(mockReplace).not.toHaveBeenCalled();
-  });
-  test("join button honors Retry-After without automatically replaying", async () => {
-    jest.useFakeTimers();
-    try {
-      const { screen, api } = await setup("join");
-      api.joinByInvite.mockRejectedValueOnce(
-        new GroupsApiError(429, "rate_limit_exceeded", 2),
-      );
-      await fireEvent.changeText(screen.getByLabelText("초대 코드"), code);
-      await fireEvent.press(screen.getByRole("button", { name: "가입하기" }));
-      expect(screen.getByRole("button", { name: "가입하기" })).toBeDisabled();
-      await act(async () => {
-        jest.advanceTimersByTime(2000);
-      });
-      expect(screen.getByRole("button", { name: "가입하기" })).toBeEnabled();
-      expect(api.joinByInvite).toHaveBeenCalledTimes(1);
-      await screen.unmount();
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-});
-
-describe("group list error color for @expo/ui text", () => {
-  it("uses UIKit systemRed per scheme on iOS and the Material error on Android", () => {
-    expect(resolveGroupListErrorColor("ios", "light")).toBe("#FF3B30");
-    expect(resolveGroupListErrorColor("ios", "dark")).toBe("#FF453A");
-    expect(resolveGroupListErrorColor("android", "light")).toBe("#BA1A1A");
-    expect(resolveGroupListErrorColor("android", "dark")).toBe("#FFB4AB");
   });
 });

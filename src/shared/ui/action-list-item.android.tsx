@@ -29,19 +29,25 @@ const MATERIAL_ICONS: Record<RowActionSymbol | "more", ImageSourcePropType> = {
   leave:
     require("../../../assets/icons/material/logout.xml") as ImageSourcePropType,
   more: require("../../../assets/icons/material/more_vert.xml") as ImageSourcePropType,
+  removeMember:
+    require("../../../assets/icons/material/person_remove.xml") as ImageSourcePropType,
+  share:
+    require("../../../assets/icons/material/share.xml") as ImageSourcePropType,
   transfer:
     require("../../../assets/icons/material/swap_horiz.xml") as ImageSourcePropType,
 };
 const ICON_SIZE = 24;
 
 /**
- * Android row with Material affordances: a universal `ListItem` whose tap
- * runs the primary action and whose long press, like the trailing ⋮ icon
- * button, opens a Material 3 dropdown menu with the secondary actions. Swipe
- * is deliberately absent (Material reserves it for one dismiss action).
+ * Android row with Material affordances: a universal `ListItem` (with an
+ * optional leading slot, e.g. an `Avatar`) whose tap runs the primary action
+ * and whose long press, like the trailing ⋮ icon button, opens a Material 3
+ * dropdown menu with the secondary actions. Swipe is deliberately absent
+ * (Material reserves it for one dismiss action).
  */
 export function ActionListItem({
   actions,
+  leading,
   onPress,
   supportingText,
   testID,
@@ -54,6 +60,7 @@ export function ActionListItem({
   const open = () => setExpanded(true);
   return (
     <ListItem
+      leading={leading}
       modifiers={[
         combinedClickable({
           onClick: onPress,

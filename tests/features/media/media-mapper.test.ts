@@ -1,21 +1,20 @@
 import {
+  mapChatroomMediaItem,
+  mapChatroomMediaPage,
   mapConfirmedUpload,
   mapMediaAccessUrl,
-  mapTopicMediaEntry,
-  mapTopicMediaEntryPage,
   mapUploadFinalizeResult,
   mapUploadIntentWithPresignedPut,
 } from "@/core/contracts/server/media";
 import {
   chatUploadFinalizeResultWire,
+  chatroomMediaItemWire,
+  chatroomMediaPageWire,
   confirmedUploadWire,
   mediaAccessUrlWire,
   mediaId,
+  messageId,
   posterUploadId,
-  topicId,
-  topicMediaPageWire,
-  topicMediaWire,
-  topicUploadFinalizeResultWire,
   uploadId,
   uploadIntentWithPresignedPutWire,
 } from "./media-fixtures";
@@ -67,7 +66,7 @@ describe("M11-1 media contract mapping", () => {
     expect(value.posterUploadId).toBe(posterUploadId);
   });
 
-  test("MD2 chat finalize maps to the unbound branch", () => {
+  test("MD2 chat finalize maps to the single chat-scope shape (S3 removed the topic branch)", () => {
     const value = mapUploadFinalizeResult(chatUploadFinalizeResultWire);
     expect(value).toEqual({
       scope: "chat",
@@ -76,32 +75,28 @@ describe("M11-1 media contract mapping", () => {
     });
   });
 
-  test("MD2 topic finalize maps to the bound branch with topic_media", () => {
-    const value = mapUploadFinalizeResult(topicUploadFinalizeResultWire);
+  test("maps C5's chatroom media item, deriving contentType from the wire's type field", () => {
+    const value = mapChatroomMediaItem(chatroomMediaItemWire);
     expect(value).toEqual({
-      scope: "topic",
-      bound: true,
-      topicStatus: "enriched",
-      topicMedia: mapTopicMediaEntry(topicMediaWire),
-      upload: mapConfirmedUpload(topicUploadFinalizeResultWire.upload),
+      id: mediaId,
+      mediaUploadId: uploadId,
+      contentType: "image/jpeg",
+      byteSize: 12345,
+      width: 800,
+      height: 600,
+      duration: null,
+      filename: "photo.jpg",
+      position: 0,
+      posterMediaId: null,
+      messageId,
+      messageCreatedAt: "2026-09-10T23:00:05Z",
     });
   });
 
-  test("maps MD3's topic media page and preserves the opaque cursor", () => {
-    const value = mapTopicMediaEntryPage(topicMediaPageWire);
+  test("maps C5's chatroom media page and preserves the opaque cursor", () => {
+    const value = mapChatroomMediaPage(chatroomMediaPageWire);
     expect(value).toEqual({
-      items: [
-        {
-          id: mediaId,
-          topicId,
-          mediaUploadId: uploadId,
-          contentType: "image/jpeg",
-          width: 800,
-          height: 600,
-          byteSize: 12345,
-          createdAt: "2026-09-10T23:00:05Z",
-        },
-      ],
+      items: [mapChatroomMediaItem(chatroomMediaItemWire)],
       nextCursor: null,
     });
   });

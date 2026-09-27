@@ -21,7 +21,6 @@ export const topicWire = {
   body: null,
   status: "seed" as const,
   tags: [tagWire],
-  media: [],
   chatroom_id: roomId,
   unread: false,
   created_at: "2026-09-10T15:00:00Z",

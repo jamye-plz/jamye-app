@@ -1,34 +1,52 @@
-import { BottomSheet, Host, List, ListItem } from "@expo/ui";
+import { Host } from "@expo/ui";
+import {
+  Icon,
+  IconButton,
+  Text as ComposeText,
+  TextButton,
+} from "@expo/ui/jetpack-compose";
 import { Stack } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { useRef, useState } from "react";
+import { RefreshControl, StyleSheet, View } from "react-native";
+import type { ImageSourcePropType } from "react-native";
 
-import type { Topic, TopicTag } from "@/core/contracts/server";
-import type { UploadFinalizeResult } from "@/core/contracts/server/media";
-import { useAppTheme } from "@/core/theme/theme-provider";
-import { appSpacing } from "@/core/theme/tokens";
-import { useMediaUploadQueue } from "@/features/media/model/use-media-upload-queue";
-import { TopicImageUploadButton } from "@/features/media/ui/topic-image-upload-button";
-import { TopicMediaList } from "@/features/media/ui/topic-media-list";
+import { useAppTheme, useAppThemeOrSystem } from "@/core/theme/theme-provider";
+import { androidThemeColors, appSpacing } from "@/core/theme/tokens";
 import { AppScreen } from "@/shared/ui/app-screen";
 import { AppText } from "@/shared/ui/app-text";
-import { FormField } from "@/shared/ui/form-field";
+import { Avatar } from "@/shared/ui/avatar";
 import { GroupedSection } from "@/shared/ui/grouped-section";
-import { HeaderActions } from "@/shared/ui/header-actions";
-import { InlineMessage } from "@/shared/ui/inline-message";
-import { NativeButton } from "@/shared/ui/native-button";
+import { StandardStateView } from "@/shared/ui/standard-state-view";
 
-import {
-  isTopicPatch,
-  isTopicTags,
-  type TopicTagInput,
-} from "../model/topics-input";
-import type { TopicsStore } from "../model/topics-store";
-import { TopicError } from "./topic-controls";
+import { TopicMediaGallery } from "@/features/media/ui/topic-media-gallery";
+
+import { topicCreatedAtLabel } from "../model/topics-dates";
+import { TOPICS_ERROR_MESSAGES, TopicError } from "./topic-controls";
+import { TopicEditButton } from "./topic-edit-button";
+import { TopicEditForm } from "./topic-edit-form";
+import type {
+  TopicEditFormRef,
+  TopicEditFormSaveInput,
+} from "./topic-edit-form.types";
+import { useCloseEditOnBack } from "./use-close-edit-on-back";
+import { TopicTagsView } from "./topic-tags-view";
 import { useTopicScreen } from "./use-topic-screen";
 
-type EditMode = "body" | "tags" | null;
+const AVATAR_SIZE = 44;
+const IS_ANDROID = process.env.EXPO_OS === "android";
+const CLOSE_ICON =
+  require("../../../../assets/icons/material/close.xml") as ImageSourcePropType;
 
+/**
+ * Topic detail (D1-D3, D6): article header (title, author avatar/name/date,
+ * body) + a read-only tag section, and D2's single integrated edit screen
+ * toggled in place (not a separate route/modal) so the native top app bar's
+ * own left/right slots can host `취소`/`저장` -- `Stack.Toolbar` on iOS,
+ * `Stack.Screen`'s `headerLeft`/`headerRight` on Android (mirroring
+ * `topic-edit-button.android.tsx`'s own header wiring). `이 주제에서
+ * 대화하기`, the ⋮ menu, and the inline body/tags editors are gone (D6/D2);
+ * topic images are gone (D5, task-app-gallery owns the contract/API side).
+ */
 export function TopicDetailScreen({
   groupId,
   topicId,
@@ -37,74 +55,129 @@ export function TopicDetailScreen({
   topicId: string;
 }>) {
   const { colors } = useAppTheme();
+  const { colorScheme } = useAppThemeOrSystem();
+  const hex = androidThemeColors(colorScheme);
   const screen = useTopicScreen(groupId, topicId);
   const { state, store } = screen;
   const detail =
     screen.scoped && state.detail.id === topicId ? state.detail : null;
   const topic = detail?.topic;
-  // MD1/MD2 use the same topic-author OR live-group-owner rule as T7 tags.
-  const canManageImage =
-    state.permissions.canManageTags &&
-    detail?.status === "ready" &&
-    topic?.id === topicId;
   const detailReady = detail?.status === "ready" && topic !== undefined;
-  const canEdit = detailReady && state.permissions.canEdit;
-  const canManageTags = detailReady && state.permissions.canManageTags;
-  const [mediaRefreshToken, setMediaRefreshToken] = useState(0);
-  const [menu, setMenu] = useState(false);
-  const [mode, setMode] = useState<EditMode>(null);
-  const isScreenCurrent = screen.current;
-  const onImageConfirmed = useCallback(
-    (result: UploadFinalizeResult) => {
-      const latest = store?.getState();
-      if (
-        !isScreenCurrent() ||
-        !latest ||
-        latest.accessLost ||
-        latest.detail.topic?.id !== topicId ||
-        !latest.permissions.canManageTags ||
-        result.scope !== "topic" ||
-        result.topicMedia.topicId !== topicId
-      )
-        return;
-      setMediaRefreshToken((value) => value + 1);
-      void store?.actions.refreshDetail();
-    },
-    [store, topicId, isScreenCurrent],
-  );
-  const imageUpload = useMediaUploadQueue(
-    "topic",
-    topicId,
-    canManageImage && screen.ready && !state.accessLost,
-    onImageConfirmed,
-  );
+  const canEditBody = detailReady && state.permissions.canEdit;
+  const canEditTags = detailReady && state.permissions.canManageTags;
+  const canEditAnything = canEditBody || canEditTags;
+  const editing = state.editing && detailReady;
+  const busy = state.mutation.status === "pending";
+  const [canSave, setCanSave] = useState(false);
+  const formRef = useRef<TopicEditFormRef>(null);
+
+  const openEdit = () => {
+    store?.actions.clearMutation();
+    setCanSave(false);
+    store?.actions.setEditing(true);
+  };
+  const closeEdit = () => {
+    store?.actions.setEditing(false);
+    setCanSave(false);
+  };
+  useCloseEditOnBack(editing, () => {
+    if (!busy) closeEdit();
+  });
+  const handleSave = () => formRef.current?.submit();
+  const handleSubmit = (input: TopicEditFormSaveInput) => {
+    if (!store) return;
+    void (async () => {
+      if (input.patch) {
+        await store.actions.edit(input.patch);
+        if (store.getState().mutation.status !== "succeeded") return;
+      }
+      if (input.tags) {
+        await store.actions.saveTags(input.tags);
+        if (store.getState().mutation.status !== "succeeded") return;
+      }
+      closeEdit();
+    })();
+  };
+
+  const mutationErrorText =
+    (state.mutation.status === "error" ||
+      state.mutation.status === "uncertain") &&
+    state.mutation.error
+      ? TOPICS_ERROR_MESSAGES[state.mutation.error]
+      : undefined;
 
   return (
     <>
-      <Stack.Screen options={{ title: "주제" }} />
-      <HeaderActions
-        actions={
-          canEdit || canManageTags
-            ? [
-                {
-                  accessibilityLabel: "주제 편집 메뉴",
-                  key: "menu",
-                  onPress: () => setMenu(true),
-                  symbol: "more",
-                },
-              ]
-            : []
-        }
+      <Stack.Screen
+        options={{
+          headerLeft:
+            IS_ANDROID && editing
+              ? () => (
+                  <Host matchContents seedColor={hex.primary}>
+                    <IconButton enabled={!busy} onClick={closeEdit}>
+                      <Icon
+                        contentDescription="취소"
+                        size={24}
+                        source={CLOSE_ICON}
+                        tint={hex.text}
+                      />
+                    </IconButton>
+                  </Host>
+                )
+              : undefined,
+          headerRight:
+            IS_ANDROID && editing
+              ? () => (
+                  <Host matchContents seedColor={hex.primary}>
+                    <TextButton enabled={canSave && !busy} onClick={handleSave}>
+                      <ComposeText
+                        color={canSave && !busy ? hex.primary : hex.textMuted}
+                      >
+                        저장
+                      </ComposeText>
+                    </TextButton>
+                  </Host>
+                )
+              : undefined,
+          title: editing ? "주제 편집" : "주제",
+        }}
       />
+      {!IS_ANDROID && editing ? (
+        <>
+          <Stack.Toolbar placement="left">
+            <Stack.Toolbar.Button
+              accessibilityLabel="취소"
+              disabled={busy}
+              onPress={closeEdit}
+            >
+              취소
+            </Stack.Toolbar.Button>
+          </Stack.Toolbar>
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Button
+              accessibilityLabel="저장"
+              disabled={!canSave || busy}
+              onPress={handleSave}
+              variant="done"
+            >
+              저장
+            </Stack.Toolbar.Button>
+          </Stack.Toolbar>
+        </>
+      ) : !editing && canEditAnything ? (
+        <TopicEditButton onPress={openEdit} />
+      ) : null}
       <AppScreen
         refreshControl={
-          <RefreshControl
-            onRefresh={() => {
-              if (state.mutation.status !== "pending" && !state.editing)
-                void store?.actions.refreshDetail();
-            }}
-            refreshing={detail?.status === "loading"}
-          />
+          editing ? undefined : (
+            <RefreshControl
+              onRefresh={() => {
+                if (state.mutation.status !== "pending")
+                  void store?.actions.refreshDetail();
+              }}
+              refreshing={detail?.status === "loading"}
+            />
+          )
         }
       >
         {!screen.valid ? (
@@ -113,289 +186,88 @@ export function TopicDetailScreen({
           <AppText color={colors.textMuted}>주제 저장소 준비 중…</AppText>
         ) : state.accessLost ? (
           <TopicError error={state.error} />
-        ) : (
+        ) : detail?.status === "loading" && !topic ? (
+          // State views are SwiftUI/Compose nodes and need their own Host.
+          <Host matchContents={{ vertical: true }} seedColor={colors.primary}>
+            <StandardStateView kind="loading" testID="topic-detail-loading" />
+          </Host>
+        ) : detail?.status === "error" && !topic ? (
+          <Host matchContents={{ vertical: true }} seedColor={colors.primary}>
+            <StandardStateView
+              actions={[
+                {
+                  label: "다시 시도",
+                  onPress: () => void store?.actions.refreshDetail(),
+                  primary: true,
+                },
+              ]}
+              description={
+                detail.error ? TOPICS_ERROR_MESSAGES[detail.error] : undefined
+              }
+              kind="error"
+              systemImage="error"
+              testID="topic-detail-error"
+              title="주제를 불러오지 못했습니다."
+            />
+          </Host>
+        ) : topic && store && detail ? (
           <>
-            {detail?.status === "loading" ? (
-              <InlineMessage kind="notice" message="주제 상세 불러오는 중…" />
-            ) : null}
-            <TopicError error={detail?.error ?? null} />
-            {topic && store && detail?.status === "ready" ? (
-              <>
+            <TopicError error={detail.error} />
+            {editing ? (
+              <TopicEditForm
+                busy={busy}
+                canEditBody={canEditBody}
+                canEditTags={canEditTags}
+                errorText={mutationErrorText}
+                key={topic.id}
+                onCancel={closeEdit}
+                onSave={handleSubmit}
+                onValidityChange={setCanSave}
+                ref={formRef}
+                tags={detail.tags}
+                testID="topic-edit-form"
+                topic={topic}
+              />
+            ) : (
+              <View style={styles.article} testID="topic-article">
                 <AppText accessibilityRole="header" variant="title">
                   {topic.title}
                 </AppText>
-                <AppText color={colors.textMuted} variant="subheadline">
-                  작성자 {topic.authorNickname}
-                </AppText>
+                <View style={styles.byline}>
+                  <Avatar
+                    name={topic.authorNickname}
+                    size={AVATAR_SIZE}
+                    uri={topic.authorAvatarUrl}
+                  />
+                  <View style={styles.bylineText}>
+                    <AppText>{topic.authorNickname}</AppText>
+                    <AppText color={colors.textMuted} variant="footnote">
+                      {topicCreatedAtLabel(topic.createdAt)}
+                    </AppText>
+                  </View>
+                </View>
                 <AppText selectable variant="body">
                   {topic.body ?? "아직 본문이 없는 새 주제입니다."}
                 </AppText>
-                {detail.tags.length ? (
-                  <View style={styles.chipRow}>
-                    {detail.tags.map((tag) => (
-                      <View
-                        key={tag.tag}
-                        style={[styles.chip, { backgroundColor: colors.fill }]}
-                      >
-                        <AppText variant="caption">#{tag.tag}</AppText>
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <AppText color={colors.textMuted} variant="footnote">
-                    태그 없음
-                  </AppText>
-                )}
-                <NativeButton
-                  label="이 주제에서 대화하기"
-                  onPress={() => {
-                    if (
-                      screen.current() &&
-                      store.getState().detail.topic?.id === topicId
-                    )
-                      screen.router.push({
-                        pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
-                        params: { groupId, chatroomId: topic.chatroomId },
-                      });
-                  }}
-                />
-                <TopicEditing
-                  key={topic.id}
-                  mode={mode}
-                  setMode={setMode}
-                  store={store}
-                  tags={detail.tags}
-                  topic={topic}
-                />
-                <GroupedSection title="주제 이미지">
-                  <TopicImageUploadButton
-                    canManage={canManageImage}
-                    controller={imageUpload}
-                  />
-                  <TopicMediaList key={mediaRefreshToken} topicId={topicId} />
+                <GroupedSection title="태그">
+                  <TopicTagsView tags={detail.tags} testID="topic-tags-view" />
                 </GroupedSection>
-              </>
-            ) : null}
+                <TopicMediaGallery
+                  chatroomId={topic.chatroomId}
+                  groupId={groupId}
+                  topicId={topicId}
+                />
+              </View>
+            )}
           </>
-        )}
+        ) : null}
       </AppScreen>
-      <Host seedColor={colors.primary}>
-        <BottomSheet isPresented={menu} onDismiss={() => setMenu(false)}>
-          <List>
-            {canEdit ? (
-              <ListItem
-                onPress={() => {
-                  store?.actions.clearMutation();
-                  setMode("body");
-                  setMenu(false);
-                }}
-              >
-                <AppText>제목·본문 편집</AppText>
-              </ListItem>
-            ) : null}
-            {canManageTags ? (
-              <ListItem
-                onPress={() => {
-                  store?.actions.clearMutation();
-                  setMode("tags");
-                  setMenu(false);
-                }}
-              >
-                <AppText>태그 편집</AppText>
-              </ListItem>
-            ) : null}
-          </List>
-        </BottomSheet>
-      </Host>
     </>
-  );
-}
-
-function TopicEditing({
-  mode,
-  setMode,
-  store,
-  tags,
-  topic,
-}: Readonly<{
-  mode: EditMode;
-  setMode: (mode: EditMode) => void;
-  store: TopicsStore;
-  tags: readonly TopicTag[];
-  topic: Topic;
-}>) {
-  const { permissions, mutation } = store.getState();
-  useEffect(() => {
-    store.actions.setEditing(
-      (mode === "body" && permissions.canEdit) ||
-        (mode === "tags" && permissions.canManageTags),
-    );
-    return () => store.actions.setEditing(false);
-  }, [mode, permissions.canEdit, permissions.canManageTags, store]);
-  return (
-    <>
-      <TopicError error={mutation.error} />
-      {mutation.status === "succeeded" ? (
-        <InlineMessage kind="notice" message="저장했습니다." />
-      ) : null}
-      {mode === "body" && permissions.canEdit ? (
-        <BodyEditor close={() => setMode(null)} store={store} topic={topic} />
-      ) : mode === "tags" && permissions.canManageTags ? (
-        <TagsEditor close={() => setMode(null)} store={store} tags={tags} />
-      ) : null}
-    </>
-  );
-}
-
-function BodyEditor({
-  close,
-  store,
-  topic,
-}: Readonly<{ close: () => void; store: TopicsStore; topic: Topic }>) {
-  const { colors } = useAppTheme();
-  const [title, setTitle] = useState(topic.title);
-  const [body, setBody] = useState(topic.body ?? "");
-  const patch = {
-    ...(title !== topic.title ? { title } : {}),
-    ...(body !== (topic.body ?? "") ? { body } : {}),
-  };
-  const valid =
-    (title !== topic.title || body !== (topic.body ?? "")) &&
-    isTopicPatch(patch);
-  const busy = store.getState().mutation.status === "pending";
-  return (
-    <View style={styles.gap}>
-      <FormField
-        editable={!busy}
-        label="주제 제목 수정"
-        onChangeText={setTitle}
-        value={title}
-      />
-      <FormField
-        editable={!busy}
-        label="주제 본문"
-        multiline
-        onChangeText={setBody}
-        value={body}
-      />
-      <AppText color={colors.textMuted} variant="footnote">
-        본문을 비우는 기능은 지원하지 않습니다. 줄바꿈은 입력되고 저장
-        버튼으로만 반영됩니다.
-      </AppText>
-      <NativeButton
-        busy={busy}
-        disabled={!valid}
-        label="제목·본문 저장"
-        onPress={() =>
-          void store.actions.edit(patch).then(() => {
-            if (store.getState().mutation.status === "succeeded") close();
-          })
-        }
-      />
-      <NativeButton
-        disabled={busy}
-        label="편집 취소"
-        onPress={close}
-        variant="text"
-      />
-    </View>
-  );
-}
-
-function TagsEditor({
-  close,
-  store,
-  tags,
-}: Readonly<{
-  close: () => void;
-  store: TopicsStore;
-  tags: readonly TopicTag[];
-}>) {
-  const { colors } = useAppTheme();
-  const [draft, setDraft] = useState<readonly TopicTagInput[]>(() =>
-    tags.map(({ tag, source, confidence }) => ({ tag, source, confidence })),
-  );
-  const [input, setInput] = useState("");
-  const busy = store.getState().mutation.status === "pending";
-  const next = [...draft, { tag: input, source: "user" as const }];
-  return (
-    <View style={styles.gap}>
-      <AppText color={colors.textMuted} variant="footnote">
-        태그 전체 목록을 저장합니다. 기존 태그의 출처는 유지되며 새 태그는 직접
-        입력한 태그로 등록됩니다.
-      </AppText>
-      <View style={styles.chipRow}>
-        {draft.map((tag) => (
-          <Pressable
-            key={tag.tag}
-            accessibilityLabel={`${tag.tag} 태그 제거`}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: busy }}
-            disabled={busy}
-            onPress={() =>
-              setDraft(draft.filter((item) => item.tag !== tag.tag))
-            }
-            style={[styles.chip, { backgroundColor: colors.fill }]}
-          >
-            <AppText variant="caption">{tag.tag} ×</AppText>
-          </Pressable>
-        ))}
-      </View>
-      <FormField
-        editable={!busy}
-        label="새 태그"
-        onChangeText={setInput}
-        value={input}
-      />
-      <NativeButton
-        disabled={busy || !isTopicTags(next)}
-        label="태그 추가"
-        onPress={() => {
-          setDraft([
-            ...draft,
-            { tag: input.trim(), source: "user", confidence: null },
-          ]);
-          setInput("");
-        }}
-        variant="text"
-      />
-      {!draft.length ? (
-        <AppText color={colors.textMuted} variant="footnote">
-          저장하면 모든 태그가 제거됩니다.
-        </AppText>
-      ) : null}
-      <NativeButton
-        busy={busy}
-        disabled={!isTopicTags(draft) || input.trim().length > 0}
-        label="태그 전체 저장"
-        onPress={() =>
-          void store.actions.saveTags(draft).then(() => {
-            if (store.getState().mutation.status === "succeeded") close();
-          })
-        }
-      />
-      <NativeButton
-        disabled={busy}
-        label="태그 편집 취소"
-        onPress={close}
-        variant="text"
-      />
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  chip: {
-    borderCurve: "continuous",
-    borderRadius: 999,
-    minHeight: 36,
-    justifyContent: "center",
-    paddingHorizontal: appSpacing.sm,
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: appSpacing.xs,
-  },
-  gap: { gap: appSpacing.sm },
+  article: { gap: appSpacing.md },
+  byline: { alignItems: "center", flexDirection: "row", gap: appSpacing.sm },
+  bylineText: { gap: 2 },
 });

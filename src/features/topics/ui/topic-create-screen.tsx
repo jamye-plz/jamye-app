@@ -1,91 +1,96 @@
 import { Stack } from "expo-router";
 import { useState } from "react";
 
-import { AppScreen } from "@/shared/ui/app-screen";
-import { AppText } from "@/shared/ui/app-text";
-import { FormField } from "@/shared/ui/form-field";
-import { InlineMessage } from "@/shared/ui/inline-message";
-import { NativeButton } from "@/shared/ui/native-button";
+import { NativeInputDialog } from "@/shared/ui/native-input-dialog";
+import { NativeInputSheet } from "@/shared/ui/native-input-sheet";
 
 import { isTopicTitle } from "../model/topics-input";
-import type { TopicsStore } from "../model/topics-store";
-import { TopicError } from "./topic-controls";
+import { TOPICS_ERROR_MESSAGES } from "./topic-controls";
 import { useTopicScreen } from "./use-topic-screen";
 
+const HELPER_TEXT =
+  "제목으로 주제를 만들고, 자세한 이야기는 만든 뒤 추가합니다.";
+const LOCKED_TEXT =
+  "생성 결과가 불확실합니다. 같은 제목으로 재시도하면 이미 만들어진 주제를 중복 없이 확인합니다. 제목을 바꿔 만들면 새 주제로 시도하니 이전 주제가 만들어졌는지 먼저 확인하세요.";
+
+/**
+ * New topic (T7) on the kit's one-line input shell (C3): iOS
+ * `NativeInputSheet` (modal `Form` sheet), Android `NativeInputDialog` (M3
+ * full-screen dialog). Creation replaces this screen with the new topic's own
+ * chatroom -- `create` already returns `Topic.chatroomId`, so no extra lookup
+ * is needed.
+ *
+ * A create whose outcome is unknown keeps its title and idempotency key in
+ * the store. The shell has a single action, so it carries both ways out: with
+ * the kept title it is 재시도 (same key, so the server hands back the topic if
+ * the first attempt landed); with an edited title it is an explicit new
+ * attempt (reset, then create under a new key).
+ */
 export function TopicCreateScreen({ groupId }: Readonly<{ groupId: string }>) {
   const screen = useTopicScreen(groupId);
-  return (
-    <>
-      <Stack.Screen options={{ presentation: "modal", title: "새 주제" }} />
-      <AppScreen>
-        {screen.valid && screen.ready && screen.scoped && screen.store ? (
-          <CreateForm
-            onCreated={(topicId) => {
-              if (screen.current())
-                screen.router.replace({
-                  pathname: "/groups/[groupId]/topics/[topicId]",
-                  params: { groupId, topicId },
-                });
-            }}
-            store={screen.store}
-          />
-        ) : (
-          <AppText>
-            {screen.state.accessLost
-              ? "그룹에 접근할 수 없습니다."
-              : "주제 만들기를 준비하고 있습니다."}
-          </AppText>
-        )}
-      </AppScreen>
-    </>
-  );
-}
+  const store =
+    screen.valid && screen.ready && screen.scoped ? screen.store : null;
+  const [input, setInput] = useState("");
+  const [prefill, setPrefill] = useState<string | undefined>(undefined);
+  // Seed once per store with a title kept by an earlier uncertain attempt
+  // (a render-phase update, so the field never shows empty first).
+  const [seededFrom, setSeededFrom] = useState<typeof store>(null);
+  if (store !== seededFrom) {
+    setSeededFrom(store);
+    const kept = store?.getCreateTitle();
+    if (kept) {
+      setInput(kept);
+      setPrefill(kept);
+    }
+  }
 
-function CreateForm({
-  onCreated,
-  store,
-}: Readonly<{ onCreated: (id: string) => void; store: TopicsStore }>) {
-  const [title, setTitle] = useState(() => store.getCreateTitle());
-  const mutation = store.getState().mutation;
-  const busy = mutation.status === "pending";
+  const mutation = screen.state.mutation;
   const locked =
     mutation.status === "uncertain" || mutation.error === "conflict";
+  const retrying = locked && input.trim() === (store?.getCreateTitle() ?? "");
+
+  async function submit(): Promise<void> {
+    if (!store || !isTopicTitle(input)) return;
+    if (locked && !retrying) store.actions.resetCreate();
+    const topic = await store.actions.create(input);
+    if (topic && screen.current())
+      screen.router.replace({
+        pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
+        params: { groupId, chatroomId: topic.chatroomId },
+      });
+  }
+
+  const errorText = screen.state.accessLost
+    ? "그룹에 접근할 수 없습니다."
+    : locked
+      ? LOCKED_TEXT
+      : mutation.status === "error" && mutation.error
+        ? TOPICS_ERROR_MESSAGES[mutation.error]
+        : undefined;
+  const shellProps = {
+    autoFocus: true,
+    busy: mutation.status === "pending",
+    errorText,
+    helperText: store ? HELPER_TEXT : "주제 만들기를 준비하고 있습니다.",
+    initialValue: prefill,
+    onCancel: () => screen.router.back(),
+    onChangeValue: setInput,
+    onSubmit: () => void submit(),
+    placeholder: "주제 제목",
+    submitDisabled: !store || !isTopicTitle(input),
+    submitLabel: retrying ? "재시도" : "만들기",
+    testID: "topic-create-screen",
+    title: "새 주제",
+    value: input,
+  };
   return (
     <>
-      <FormField
-        editable={!busy && !locked}
-        helper="제목으로 주제를 만들고, 자세한 이야기는 만든 뒤 추가합니다."
-        label="주제 제목"
-        onChangeText={setTitle}
-        value={title}
-      />
-      <TopicError error={mutation.error} />
-      {locked ? (
-        <InlineMessage
-          kind="error"
-          message="생성 결과가 불확실합니다. 먼저 같은 제목으로 재시도하세요. 새 시도는 이전 주제가 이미 생성됐는지 확인한 뒤 선택하세요."
-        />
-      ) : null}
-      <NativeButton
-        busy={busy}
-        disabled={!isTopicTitle(title)}
-        label={locked ? "같은 주제 생성 재시도" : "주제 만들기"}
-        onPress={() =>
-          void store.actions.create(title).then((topic) => {
-            if (topic) onCreated(topic.id);
-          })
-        }
-      />
-      {locked ? (
-        <NativeButton
-          label="이전 결과 확인 후 새 시도"
-          onPress={() => {
-            store.actions.resetCreate();
-            setTitle("");
-          }}
-          variant="outlined"
-        />
-      ) : null}
+      <Stack.Screen options={{ presentation: "modal" }} />
+      {process.env.EXPO_OS === "ios" ? (
+        <NativeInputSheet {...shellProps} />
+      ) : (
+        <NativeInputDialog {...shellProps} />
+      )}
     </>
   );
 }

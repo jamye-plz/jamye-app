@@ -72,7 +72,7 @@ function setup() {
       getDownloadLocation: jest.fn(),
       createUpload: jest.fn(),
       finalizeUpload: jest.fn(),
-      listTopicMedia: jest.fn(),
+      listChatroomMedia: jest.fn(),
     },
     authorize: (execute, signal) =>
       execute("bearer-only-for-api", signal ?? new AbortController().signal),

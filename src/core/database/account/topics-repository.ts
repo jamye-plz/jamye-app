@@ -21,8 +21,7 @@ function parseTopic(text: string, groupId: string, topicId?: string): Topic {
     !validateCanonicalTopic(value) ||
     value.group_id !== groupId ||
     (topicId !== undefined && value.id !== topicId) ||
-    value.tags.some((tag) => tag.topic_id !== value.id) ||
-    value.media.some((item) => item.topic_id !== value.id)
+    value.tags.some((tag) => tag.topic_id !== value.id)
   )
     throw new Error("Invalid cached topic scope.");
   return mapTopic(value);

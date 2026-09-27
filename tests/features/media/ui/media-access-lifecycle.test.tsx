@@ -15,9 +15,7 @@ import type { MediaRuntime } from "@/features/media/model/media-runtime";
 import { MediaImage } from "@/features/media/ui/media-image";
 import { useMediaDownload } from "@/features/media/ui/use-media-download";
 import { useMediaPicker } from "@/features/media/ui/use-media-picker";
-import { TopicMediaList } from "@/features/media/ui/topic-media-list";
 import { MediaOpenSaveButton } from "@/features/media/ui/media-open-save-button";
-import { TopicImageUploadButton } from "@/features/media/ui/topic-image-upload-button";
 import { useMediaAttachmentQueue } from "@/features/media/ui/use-media-attachment-queue";
 import type { MediaAttachmentController } from "@/features/media/ui/media-attachment-types";
 
@@ -87,7 +85,7 @@ function setup() {
     .fn()
     .mockResolvedValue({ id: mediaId, url: signed, byteSize: 10 });
   const getDownloadLocation = jest.fn().mockResolvedValue({ location: signed });
-  const listTopicMedia = jest
+  const listChatroomMedia = jest
     .fn()
     .mockResolvedValue({ items: [], nextCursor: null });
   const runtime: MediaRuntime = {
@@ -98,7 +96,7 @@ function setup() {
       getDownloadLocation,
       createUpload: jest.fn(),
       finalizeUpload: jest.fn(),
-      listTopicMedia,
+      listChatroomMedia,
     },
     authorize: (execute, signal) =>
       execute("api-bearer", signal ?? new AbortController().signal),
@@ -116,7 +114,7 @@ function setup() {
     Wrapper,
     getAccess,
     getDownloadLocation,
-    listTopicMedia,
+    listChatroomMedia,
   };
 }
 async function flush() {
@@ -206,45 +204,6 @@ test.each(["addImageOrVideo", "addAudio"] as const)(
   },
 );
 
-test.each(["uploading", "finalizing"] as const)(
-  "topic image %s cannot open another picker",
-  async (status) => {
-    const { Wrapper } = setup();
-    const controller = emptyAttachmentController([{ ...queuedImage, status }]);
-    const screen = await render(
-      <Wrapper>
-        <TopicImageUploadButton canManage controller={controller} />
-      </Wrapper>,
-    );
-    const button = screen.getByRole("button", { name: "주제 이미지 추가" });
-    expect(button).toBeDisabled();
-    await fireEvent.press(button);
-    expect(mockPick).not.toHaveBeenCalled();
-  },
-);
-
-test("topic upload failure offers retry and cancellation for the same item", async () => {
-  const { Wrapper } = setup();
-  const controller = emptyAttachmentController([
-    { ...queuedImage, status: "failed", errorMessage: "업로드 실패" },
-  ]);
-  const screen = await render(
-    <Wrapper>
-      <TopicImageUploadButton canManage controller={controller} />
-    </Wrapper>,
-  );
-  expect(screen.getByText("업로드 실패")).toBeTruthy();
-  await fireEvent.press(
-    screen.getByRole("button", { name: "주제 이미지 업로드 다시 시도" }),
-  );
-  expect(controller.retry).toHaveBeenCalledWith(queuedImage.localId);
-  await fireEvent.press(
-    screen.getByRole("button", { name: "주제 이미지 업로드 취소" }),
-  );
-  expect(controller.remove).toHaveBeenCalledWith(queuedImage.localId);
-  expect(mockPick).not.toHaveBeenCalled();
-});
-
 test.each([true, false])(
   "chat picker permission denial explains recovery when canAskAgain=%s",
   async (canAskAgain) => {
@@ -261,34 +220,6 @@ test.each([true, false])(
         ? "사진·동영상 접근 권한이 필요합니다."
         : "사진·동영상 접근 권한이 거부되었습니다. 기기 설정에서 Jamye의 사진 접근을 허용해 주세요.",
     );
-    expect(controller.addImageOrVideo).not.toHaveBeenCalled();
-    expect(mockStage).not.toHaveBeenCalled();
-    expect(runtime.api.createUpload).not.toHaveBeenCalled();
-  },
-);
-
-test.each([true, false])(
-  "topic picker permission denial explains recovery when canAskAgain=%s",
-  async (canAskAgain) => {
-    const { Wrapper, runtime } = setup();
-    const controller = emptyAttachmentController();
-    mockPick.mockResolvedValue({ status: "permission_denied", canAskAgain });
-    const screen = await render(
-      <Wrapper>
-        <TopicImageUploadButton canManage controller={controller} />
-      </Wrapper>,
-    );
-    await fireEvent.press(
-      screen.getByRole("button", { name: "주제 이미지 추가" }),
-    );
-    await flush();
-    expect(
-      screen.getByText(
-        canAskAgain
-          ? "사진 접근 권한이 필요합니다."
-          : "사진 접근 권한이 거부되었습니다. 기기 설정에서 Jamye의 사진 접근을 허용해 주세요.",
-      ),
-    ).toBeTruthy();
     expect(controller.addImageOrVideo).not.toHaveBeenCalled();
     expect(mockStage).not.toHaveBeenCalled();
     expect(runtime.api.createUpload).not.toHaveBeenCalled();
@@ -527,7 +458,7 @@ test("a staged selection returning after blur is removed without deleting the pi
   expect(mockRemoveStaged).not.toHaveBeenCalledWith(picked.asset.uri);
 });
 
-test.each(["chat", "topic"] as const)(
+test.each(["chat"] as const)(
   "%s stages converted metadata and releases only the encoder output",
   async (scope) => {
     const { Wrapper } = setup();
@@ -626,164 +557,9 @@ test.each(["unmount", "account-change", "background"])(
   },
 );
 
-const entry = (id = mediaId) => ({ id, contentType: "image/jpeg" });
-
-test("topic media handles empty, denied and retry states without inventing images", async () => {
-  const { Wrapper, listTopicMedia } = setup();
-  listTopicMedia.mockRejectedValueOnce(new Error("denied"));
-  const screen = await render(
-    <Wrapper>
-      <TopicMediaList topicId="topic-1" />
-    </Wrapper>,
-  );
-  await flush();
-  expect(screen.getByText("미디어 목록을 불러오지 못했습니다.")).toBeTruthy();
-  await fireEvent.press(
-    screen.getByRole("button", { name: "미디어 목록 다시 불러오기" }),
-  );
-  await flush();
-  expect(screen.getByText("등록된 이미지가 없습니다.")).toBeTruthy();
-  expect(listTopicMedia).toHaveBeenCalledTimes(2);
-  expect(mockDownload).not.toHaveBeenCalled();
-});
-
-test("topic media paginates with an opaque cursor, merges duplicate identities and stops at the end", async () => {
-  const { Wrapper, listTopicMedia } = setup();
-  listTopicMedia.mockResolvedValueOnce({
-    items: [entry()],
-    nextCursor: "opaque+/=",
-  });
-  listTopicMedia.mockResolvedValueOnce({
-    items: [entry(), entry("22222222-2222-4222-8222-222222222222")],
-    nextCursor: null,
-  });
-  const screen = await render(
-    <Wrapper>
-      <TopicMediaList topicId="topic-1" />
-    </Wrapper>,
-  );
-  await flush();
-  expect(screen.getAllByRole("image")).toHaveLength(1);
-  await fireEvent.press(screen.getByRole("button", { name: "이미지 더 보기" }));
-  await flush();
-  expect(listTopicMedia).toHaveBeenLastCalledWith(
-    "api-bearer",
-    "topic-1",
-    { after: "opaque+/=" },
-    expect.any(AbortSignal),
-  );
-  expect(screen.getAllByRole("image")).toHaveLength(2);
-  expect(screen.queryByRole("button", { name: "이미지 더 보기" })).toBeNull();
-});
-
-test.each(["non-advancing", "network-error"])(
-  "topic pagination preserves the first page on %s and retries the same cursor",
-  async (failure) => {
-    const { Wrapper, listTopicMedia } = setup();
-    listTopicMedia.mockResolvedValueOnce({
-      items: [entry()],
-      nextCursor: "cursor-1",
-    });
-    if (failure === "non-advancing")
-      listTopicMedia.mockResolvedValueOnce({
-        items: [],
-        nextCursor: "cursor-1",
-      });
-    else listTopicMedia.mockRejectedValueOnce(new Error("network"));
-    listTopicMedia.mockResolvedValueOnce({ items: [], nextCursor: null });
-    const screen = await render(
-      <Wrapper>
-        <TopicMediaList topicId="topic-1" />
-      </Wrapper>,
-    );
-    await flush();
-    await fireEvent.press(
-      screen.getByRole("button", { name: "이미지 더 보기" }),
-    );
-    await flush();
-    expect(screen.getAllByRole("image")).toHaveLength(1);
-    expect(
-      screen.getByText("이미지를 더 불러오지 못했습니다. 다시 시도해 주세요."),
-    ).toBeTruthy();
-    await fireEvent.press(
-      screen.getByRole("button", { name: "이미지 더 보기" }),
-    );
-    await flush();
-    expect(
-      screen.queryByText(
-        "이미지를 더 불러오지 못했습니다. 다시 시도해 주세요.",
-      ),
-    ).toBeNull();
-    expect(listTopicMedia.mock.calls.slice(1).map((call) => call[2])).toEqual([
-      { after: "cursor-1" },
-      { after: "cursor-1" },
-    ]);
-  },
-);
-
-test("a late topic page cannot populate the next target and an in-flight page cannot double-submit", async () => {
-  const { Wrapper, listTopicMedia } = setup();
-  let finish!: (value: unknown) => void;
-  listTopicMedia.mockResolvedValueOnce({
-    items: [entry()],
-    nextCursor: "cursor-1",
-  });
-  listTopicMedia.mockReturnValueOnce(
-    new Promise((resolve) => {
-      finish = resolve;
-    }),
-  );
-  const screen = await render(
-    <Wrapper>
-      <TopicMediaList topicId="topic-1" />
-    </Wrapper>,
-  );
-  await flush();
-  await fireEvent.press(screen.getByRole("button", { name: "이미지 더 보기" }));
-  await fireEvent.press(screen.getByRole("button", { name: "이미지 더 보기" }));
-  expect(listTopicMedia).toHaveBeenCalledTimes(2);
-  await screen.rerender(
-    <Wrapper>
-      <TopicMediaList topicId="topic-2" />
-    </Wrapper>,
-  );
-  await flush();
-  expect(listTopicMedia.mock.calls[1][3].aborted).toBe(true);
-  finish({ items: [entry()], nextCursor: null });
-  await flush();
-  expect(screen.getByText("등록된 이미지가 없습니다.")).toBeTruthy();
-  expect(screen.queryByRole("image")).toBeNull();
-});
-
-test("background cancels the first topic page and returning refetches instead of applying stale data", async () => {
-  const { Wrapper, lifetime, listTopicMedia } = setup();
-  let finish!: (value: unknown) => void;
-  listTopicMedia.mockReturnValueOnce(
-    new Promise((resolve) => {
-      finish = resolve;
-    }),
-  );
-  const screen = await render(
-    <Wrapper>
-      <TopicMediaList topicId="topic-1" />
-    </Wrapper>,
-  );
-  expect(screen.getByText("미디어 불러오는 중…")).toBeTruthy();
-  await act(() => lifetime.setForeground(false));
-  expect(listTopicMedia.mock.calls[0][3].aborted).toBe(true);
-  finish({ items: [entry()], nextCursor: null });
-  await flush();
-  expect(screen.queryByRole("image")).toBeNull();
-  await act(() => lifetime.setForeground(true));
-  await flush();
-  expect(screen.getByText("등록된 이미지가 없습니다.")).toBeTruthy();
-  expect(listTopicMedia).toHaveBeenCalledTimes(2);
-});
-
-test("media-less screens disable object access while the topic list explains unavailability", async () => {
+test("media-less screens disable object access", async () => {
   const screen = await render(
     <AppThemeProvider>
-      <TopicMediaList topicId="topic-1" />
       <MediaOpenSaveButton
         mediaId={mediaId}
         filename={null}
@@ -791,7 +567,6 @@ test("media-less screens disable object access while the topic list explains una
       />
     </AppThemeProvider>,
   );
-  expect(screen.getByText("미디어를 사용할 수 없습니다.")).toBeTruthy();
   expect(
     screen.getByRole("button", { name: "첨부 파일 열기 또는 저장" }).props
       .accessibilityState.disabled,

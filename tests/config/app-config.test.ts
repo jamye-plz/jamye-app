@@ -45,9 +45,28 @@ const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"];
 const MEDIA_PICKER_PLUGIN = [
   "expo-image-picker",
   {
-    photosPermission: "선택한 사진과 동영상을 주제에 첨부하기 위해 접근합니다.",
+    photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
     cameraPermission: false,
     microphonePermission: false,
+  },
+];
+const IOS_APPLE_TEAM_ID = "6ZH8V43A7D";
+const IOS_ASSOCIATED_DOMAINS = [
+  "applinks:jamye-api.ridewithmin.com",
+  "applinks:jamye-api.ridewithmin.com?mode=developer",
+];
+const ANDROID_INTENT_FILTERS = [
+  {
+    action: "VIEW",
+    autoVerify: true,
+    data: [
+      {
+        scheme: "https",
+        host: "jamye-api.ridewithmin.com",
+        pathPrefix: "/invite",
+      },
+    ],
+    category: ["BROWSABLE", "DEFAULT"],
   },
 ];
 // M12: Expo push wiring (EAS project link, FCM V1 config, notifications plugin).
@@ -218,11 +237,14 @@ describe("M3-I1 Expo configuration contract", () => {
       ios: {
         ...(base.ios as UnknownRecord),
         bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier,
+        appleTeamId: IOS_APPLE_TEAM_ID,
+        associatedDomains: IOS_ASSOCIATED_DOMAINS,
       },
       android: {
         ...(base.android as UnknownRecord),
         package: DEVELOPMENT_IDENTITY.androidPackage,
         googleServicesFile: ANDROID_GOOGLE_SERVICES_FILE,
+        intentFilters: ANDROID_INTENT_FILTERS,
       },
       scheme: "jamye",
       extra: {
@@ -240,8 +262,15 @@ describe("M3-I1 Expo configuration contract", () => {
     expect(resolved).toMatchObject({
       name: DEVELOPMENT_IDENTITY.name,
       slug: DEVELOPMENT_IDENTITY.slug,
-      ios: { bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier },
-      android: { package: DEVELOPMENT_IDENTITY.androidPackage },
+      ios: {
+        bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier,
+        appleTeamId: IOS_APPLE_TEAM_ID,
+        associatedDomains: IOS_ASSOCIATED_DOMAINS,
+      },
+      android: {
+        package: DEVELOPMENT_IDENTITY.androidPackage,
+        intentFilters: ANDROID_INTENT_FILTERS,
+      },
     });
     expect(resolved.scheme).toBe("jamye");
     expect(resolved.plugins).toEqual([

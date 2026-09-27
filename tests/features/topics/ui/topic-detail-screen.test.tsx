@@ -4,29 +4,16 @@ import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { TopicsProvider } from "@/features/topics/model/topics-provider";
 import { TopicDetailScreen } from "@/features/topics/ui/topic-detail-screen";
 import { authorize, topicsHarness } from "../topics-harness";
-import { groupId, topicId, otherId } from "../topics-fixtures";
+import { groupId, topicId } from "../topics-fixtures";
 
-// T5b owns the upload button/media grid markup; isolate this file from its
-// later restyling by consuming stub components with matching export names.
-jest.mock("@/features/media/ui/topic-image-upload-button", () => ({
-  TopicImageUploadButton: () => null,
-}));
-jest.mock("@/features/media/ui/topic-media-list", () => ({
-  TopicMediaList: () => null,
-}));
-
-const mockPush = jest.fn();
-const mockReplace = jest.fn();
+let lastStackScreenOptions: Record<string, unknown> | undefined;
 const mockLoadRooms = jest.fn().mockResolvedValue(undefined);
 const mockCloseRooms = jest.fn();
-let lastStackScreenOptions: Record<string, unknown> | undefined;
 jest.mock("expo-router", () => ({
   Stack: {
-    Screen: (props: {
-      options?: Record<string, unknown> & { headerRight?: () => unknown };
-    }) => {
+    Screen: (props: { options?: Record<string, unknown> }) => {
       lastStackScreenOptions = props.options;
-      return props.options?.headerRight ? props.options.headerRight() : null;
+      return null;
     },
     ...jest
       .requireActual<typeof import("../../../support/stack-toolbar-mock")>(
@@ -35,12 +22,45 @@ jest.mock("expo-router", () => ({
       .createStackToolbarMock(),
   },
   useLocalSearchParams: () => ({}),
-  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
   useFocusEffect: (callback: () => void | (() => void)) => {
     const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(callback, [callback]);
   },
 }));
+// task-app-gallery (D4): TopicMediaGallery -> ... -> media-image-viewer.tsx
+// imports react-native-reanimated at module scope, which crashes under jest
+// without a manual mock (matches tests/features/media/ui/media-image-viewer.test.tsx's
+// own mock; react-native-gesture-handler is already handled by the jest-expo preset).
+jest.mock("react-native-reanimated", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { Image } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    __esModule: true,
+    default: {
+      Image,
+      createAnimatedComponent: (component: unknown) => component,
+    },
+    useAnimatedStyle: () => ({}),
+    useSharedValue: (initial: number) => {
+      const ref = React.useRef<{
+        get: () => number;
+        set: (next: number) => void;
+      } | null>(null);
+      if (!ref.current) {
+        let value = initial;
+        ref.current = {
+          get: () => value,
+          set: (next: number) => {
+            value = next;
+          },
+        };
+      }
+      return ref.current;
+    },
+  };
+});
 jest.mock("@/core/config/public-env", () => ({
   getPublicEnv: () => ({ appMode: "connected-auth" }),
 }));
@@ -63,11 +83,28 @@ jest.mock("@/features/chat/model/connected-chat-provider", () => ({
     ready: true,
   }),
 }));
+// D2's integrated form has its own coverage (topics-screens.test.tsx's save
+// flow, and its own future dedicated test); this file only needs a title
+// field to drive the "편집" header title change and the busy/error text.
+jest.mock("@/features/topics/ui/topic-edit-form", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { Text, View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  const TopicEditForm = React.forwardRef(function TopicEditForm(
+    props: { errorText?: string },
+    ref: React.Ref<{ submit: () => void }>,
+  ) {
+    React.useImperativeHandle(ref, () => ({ submit: () => {} }));
+    return (
+      <View testID="topic-edit-form-stub">
+        {props.errorText ? <Text>{props.errorText}</Text> : null}
+      </View>
+    );
+  });
+  return { TopicEditForm };
+});
 
-// Neither the topic author nor the group owner from `topicsHarness`.
-const strangerId = "77777777-7777-4777-8777-777777777777";
-
-describe("TopicDetailScreen edit menu, sheet items, and inline editors", () => {
+describe("TopicDetailScreen article structure (D1) and edit-mode header (D2)", () => {
   const previousAppState = AppState.currentState;
   beforeEach(() => {
     jest.clearAllMocks();
@@ -96,74 +133,29 @@ describe("TopicDetailScreen edit menu, sheet items, and inline editors", () => {
     return { ...f, screen };
   }
 
-  test("sets the native header title and shows title, author, body, and a tag chip", async () => {
+  test("article header shows title, byline (author + created-at) and body", async () => {
     const f = await setup();
     expect(lastStackScreenOptions?.title).toBe("주제");
     expect(f.screen.getByText("오늘 이야기")).toBeTruthy();
-    expect(f.screen.getByText("작성자 작성자")).toBeTruthy();
+    expect(f.screen.getByText("작성자")).toBeTruthy();
     expect(f.screen.getByText("#여행")).toBeTruthy();
   });
 
-  test("hides the edit menu icon entirely for a viewer with neither edit nor tag permission", async () => {
+  test("no tags renders 태그 없음 instead of an empty chip row", async () => {
     const f = topicsHarness();
-    f.principal.userId = strangerId;
+    f.api.getTopic.mockResolvedValue(f.topic);
+    f.api.listTags.mockResolvedValue({ items: [], nextCursor: null });
     const rendered = await setup(f);
-    expect(
-      rendered.screen.queryByRole("button", { name: "주제 편집 메뉴" }),
-    ).toBeNull();
+    await rendered.screen.findByText("태그 없음");
   });
 
-  test("author sees both sheet items; picking title/body opens the body editor and cancel closes it", async () => {
+  test("편집 switches the native header title to 주제 편집 and back on 취소", async () => {
     const f = await setup();
-    await fireEvent.press(
-      f.screen.getByRole("button", { name: "주제 편집 메뉴" }),
-    );
-    expect(
-      f.screen.getByRole("button", { name: "제목·본문 편집" }),
-    ).toBeTruthy();
-    expect(f.screen.getByRole("button", { name: "태그 편집" })).toBeTruthy();
-    await fireEvent.press(
-      f.screen.getByRole("button", { name: "제목·본문 편집" }),
-    );
-    expect(f.screen.getByLabelText("주제 제목 수정")).toBeTruthy();
-    expect(f.screen.getByLabelText("주제 본문")).toBeTruthy();
-    await fireEvent.press(f.screen.getByRole("button", { name: "편집 취소" }));
-    expect(f.screen.queryByLabelText("주제 본문")).toBeNull();
-  });
-
-  test("group owner without authorship sees only the tag sheet item", async () => {
-    const fixture = topicsHarness();
-    fixture.principal.userId = otherId;
-    const f = await setup(fixture);
-    await fireEvent.press(
-      f.screen.getByRole("button", { name: "주제 편집 메뉴" }),
-    );
-    expect(
-      f.screen.queryByRole("button", { name: "제목·본문 편집" }),
-    ).toBeNull();
-    await fireEvent.press(f.screen.getByRole("button", { name: "태그 편집" }));
-    expect(f.screen.getByLabelText("새 태그")).toBeTruthy();
-    await fireEvent.press(
-      f.screen.getByRole("button", { name: "태그 편집 취소" }),
-    );
-    expect(f.screen.queryByLabelText("새 태그")).toBeNull();
-  });
-
-  test("saving an edited body shows a success notice", async () => {
-    const f = await setup();
-    await fireEvent.press(
-      f.screen.getByRole("button", { name: "주제 편집 메뉴" }),
-    );
-    await fireEvent.press(
-      f.screen.getByRole("button", { name: "제목·본문 편집" }),
-    );
-    await fireEvent.changeText(
-      f.screen.getByLabelText("주제 본문"),
-      "새로운 본문",
-    );
-    await fireEvent.press(
-      f.screen.getByRole("button", { name: "제목·본문 저장" }),
-    );
-    expect(f.screen.getByText("저장했습니다.")).toBeTruthy();
+    await fireEvent.press(f.screen.getByRole("button", { name: "주제 편집" }));
+    expect(lastStackScreenOptions?.title).toBe("주제 편집");
+    expect(f.screen.getByTestId("topic-edit-form-stub")).toBeTruthy();
+    await fireEvent.press(f.screen.getByRole("button", { name: "취소" }));
+    expect(lastStackScreenOptions?.title).toBe("주제");
+    expect(f.screen.queryByTestId("topic-edit-form-stub")).toBeNull();
   });
 });

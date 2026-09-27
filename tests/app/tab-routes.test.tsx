@@ -136,14 +136,12 @@ describe("M14 round 1 tab routes", () => {
     );
   });
 
-  test("topic detail stays reachable under the groups tab stack", async () => {
+  test("topic detail (D6) is a root-Stack route, above the chatroom, inside the chat guard", async () => {
     mockParams = {
       groupId: "11111111-1111-4111-8111-111111111111",
       topicId: "22222222-2222-4222-8222-222222222222",
     };
-    const Route = loadRoute(
-      "../../src/app/(tabs)/groups/[groupId]/topics/[topicId]",
-    );
+    const Route = loadRoute("../../src/app/groups/[groupId]/topics/[topicId]");
     const screen = await render(<Route />);
     expect(screen.getByTestId("chat-route-guard")).toBeTruthy();
     expect(mockTopicDetailScreen).toHaveBeenCalledWith(

@@ -71,8 +71,7 @@ function validTopic(
     validateCanonicalTopic(value) &&
     value.group_id === groupId &&
     (topicId === undefined || value.id === topicId) &&
-    value.tags.every((tag) => tag.topic_id === value.id) &&
-    value.media.every((media) => media.topic_id === value.id)
+    value.tags.every((tag) => tag.topic_id === value.id)
   );
 }
 function requireTopic(value: unknown, groupId: string, topicId?: string) {

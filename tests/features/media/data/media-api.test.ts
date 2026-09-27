@@ -2,20 +2,19 @@ import { createMediaApi, MediaApiError } from "@/features/media/data/media-api";
 import type { MediaHttpResponse } from "@/features/media/data/media-transport";
 import {
   chatUploadFinalizeResultWire,
+  chatroomMediaItemWire,
+  chatroomMediaPageWire,
   mediaAccessUrlWire,
   mediaId,
   otherId,
   targetId,
-  topicId,
-  topicMediaPageWire,
-  topicMediaWire,
-  topicUploadFinalizeResultWire,
   uploadId,
   uploadIntentWithPresignedPutWire,
 } from "../media-fixtures";
 
 const API_ORIGIN = "https://api.example.com";
 const MEDIA_ORIGIN = "https://media.example.com";
+const CHATROOM_ID = "44444444-4444-4444-8444-444444444444";
 
 describe("M11-1 media transport contract", () => {
   const fetchMock = jest.fn();
@@ -170,16 +169,6 @@ describe("M11-1 media transport contract", () => {
     );
   });
 
-  test("MD2 topic finalize maps the bound branch and checks upload/topic_media identity", async () => {
-    reply(topicUploadFinalizeResultWire);
-    const value = await api.finalizeUpload("token", uploadId, {});
-    expect(value).toMatchObject({
-      scope: "topic",
-      bound: true,
-      topicStatus: "enriched",
-    });
-  });
-
   test("MD2 rejects a response whose confirmed upload id does not match the requested upload_id", async () => {
     reply({
       ...chatUploadFinalizeResultWire,
@@ -190,33 +179,47 @@ describe("M11-1 media transport contract", () => {
     ).rejects.toMatchObject({ status: 502 });
   });
 
-  test("MD3 lists topic media and rejects cross-topic items", async () => {
-    reply(topicMediaPageWire);
-    const page = await api.listTopicMedia("token", topicId, { limit: 20 });
+  test("C5 lists chatroom media newest-first with the before/limit query", async () => {
+    reply(chatroomMediaPageWire);
+    const page = await api.listChatroomMedia("token", CHATROOM_ID, {
+      before: "cursor-1",
+      limit: 20,
+    });
     expect(page.items).toEqual([
       {
         id: mediaId,
-        topicId,
         mediaUploadId: uploadId,
         contentType: "image/jpeg",
+        byteSize: 12345,
         width: 800,
         height: 600,
-        byteSize: 12345,
-        createdAt: topicMediaWire.created_at,
+        duration: null,
+        filename: "photo.jpg",
+        position: 0,
+        posterMediaId: null,
+        messageId: chatroomMediaItemWire.message_id,
+        messageCreatedAt: chatroomMediaItemWire.message_created_at,
       },
     ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_ORIGIN}/api/v1/chatrooms/${CHATROOM_ID}/media?before=cursor-1&limit=20`,
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  test("C5 rejects a malformed page response", async () => {
     reply({
-      items: [{ ...topicMediaWire, topic_id: otherId }],
+      items: [{ ...chatroomMediaItemWire, id: "not-a-uuid" }],
       next_cursor: null,
     });
     await expect(
-      api.listTopicMedia("token", topicId, {}),
+      api.listChatroomMedia("token", CHATROOM_ID, {}),
     ).rejects.toMatchObject({ status: 502 });
   });
 
-  test("MD3 rejects an out-of-range page limit before I/O", async () => {
+  test("C5 rejects an out-of-range page limit before I/O", async () => {
     await expect(
-      api.listTopicMedia("token", topicId, { limit: 101 }),
+      api.listChatroomMedia("token", CHATROOM_ID, { limit: 101 }),
     ).rejects.toMatchObject({ status: 422 });
     expect(fetchMock).not.toHaveBeenCalled();
   });

@@ -35,9 +35,21 @@ const IMAGE_SIZE = 160;
 export function MediaImage({
   mediaId,
   filename,
+  size = IMAGE_SIZE,
+  fill = false,
+  label: labelOverride,
 }: Readonly<{
   mediaId: string;
   filename: string | null;
+  /** @default IMAGE_SIZE (160) -- the chat-bubble size. Gallery call sites
+   * (D4/E10) pass a carousel/grid-specific size instead. */
+  size?: number;
+  /** Take the container's size instead of a `size` square (the Android
+   * gallery carousel, whose items change width as they scroll). */
+  fill?: boolean;
+  /** @default filename ?? "첨부 이미지". Gallery call sites pass "사진" so the
+   * accessibility label doesn't depend on whether the message set a filename. */
+  label?: string;
 }>) {
   const { colors } = useAppTheme();
   const runtime = useMediaRuntime();
@@ -107,15 +119,17 @@ export function MediaImage({
     setAttempt((value) => value + 1);
   };
 
-  const label = filename ?? "첨부 이미지";
+  const label = labelOverride ?? filename ?? "첨부 이미지";
+  const box = fill
+    ? { height: "100%" as const, width: "100%" as const }
+    : { height: size, width: size };
   const placeholderStyle = {
     alignItems: "center" as const,
     backgroundColor: colors.surfaceMuted,
     borderCurve: "continuous" as const,
     borderRadius: appRadii.medium,
-    height: IMAGE_SIZE,
     justifyContent: "center" as const,
-    width: IMAGE_SIZE,
+    ...box,
   };
 
   if (!access || !runtime) {
@@ -187,6 +201,7 @@ export function MediaImage({
         onPress={() => {
           if (runtime.isCurrent(generation)) setExpandedKey(viewKey);
         }}
+        style={fill ? box : undefined}
       >
         <Image
           accessible
@@ -197,11 +212,7 @@ export function MediaImage({
           onError={imageFailed}
           recyclingKey={viewKey}
           source={{ uri: state.uri }}
-          style={{
-            borderRadius: appRadii.medium,
-            height: IMAGE_SIZE,
-            width: IMAGE_SIZE,
-          }}
+          style={{ borderRadius: appRadii.medium, ...box }}
           transition={150}
         />
       </Pressable>

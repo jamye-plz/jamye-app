@@ -60,7 +60,7 @@ function setup() {
     api: {
       createUpload,
       finalizeUpload,
-      listTopicMedia: jest.fn(),
+      listChatroomMedia: jest.fn(),
       getAccess: jest.fn(),
       getDownloadLocation: jest.fn(),
     },
@@ -179,7 +179,7 @@ test("removal/revocation and composition guard prevent orphan drafts or a second
 });
 
 test("reconfiguring a disabled empty queue preserves its snapshot without a render notification", () => {
-  const queue = createMediaDraftQueue(null, "topic", targetId);
+  const queue = createMediaDraftQueue(null, "chat", targetId);
   const initial = queue.getSnapshot();
   const listener = jest.fn();
   queue.subscribe(listener);

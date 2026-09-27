@@ -17,6 +17,8 @@ const SF_SYMBOLS: Record<RowActionSymbol, SystemImage> = {
   info: "info.circle",
   invite: "ticket",
   leave: "rectangle.portrait.and.arrow.right",
+  removeMember: "person.badge.minus",
+  share: "square.and.arrow.up",
   transfer: "arrow.left.arrow.right",
 };
 
@@ -35,12 +37,15 @@ function actionButton(action: RowAction, keyPrefix: string) {
 
 /**
  * iOS row with the platform's own action affordances: a universal `ListItem`
- * inside SwiftUI `swipeActions` (trailing; the destructive action sits at the
- * edge, full swipe stays off) and a `contextMenu` on long press with the same
- * items. Tap runs the primary action.
+ * (with an optional leading slot, e.g. an `Avatar`) inside SwiftUI
+ * `swipeActions` (trailing; the destructive action sits at the edge, full
+ * swipe stays off) and a `contextMenu` on long press with the same items.
+ * Tap runs the primary action.
  */
 export function ActionListItem({
   actions,
+  disclosure = true,
+  leading,
   onPress,
   supportingText,
   testID,
@@ -48,11 +53,14 @@ export function ActionListItem({
 }: ActionListItemProps) {
   const row = (
     <ListItem
+      leading={leading}
       onPress={onPress}
       supportingText={supportingText}
       testID={testID}
       trailing={
-        <Icon name="chevron.right" size={14} style={{ opacity: 0.3 }} />
+        disclosure ? (
+          <Icon name="chevron.right" size={14} style={{ opacity: 0.3 }} />
+        ) : undefined
       }
     >
       <Text>{title}</Text>

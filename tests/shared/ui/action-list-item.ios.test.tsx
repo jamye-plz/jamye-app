@@ -4,6 +4,15 @@ import type { ReactNode } from "react";
 import { ActionListItem } from "@/shared/ui/action-list-item";
 import type { RowAction } from "@/shared/ui/action-list-item.types";
 
+// The shared manual mock renders Icon as null; make the chevron queryable.
+jest.mock("@expo/ui", () => {
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    ...jest.requireActual<Record<string, unknown>>("../../__mocks__/@expo/ui"),
+    Icon: ({ name }: { name: string }) => <View testID={`icon-${name}`} />,
+  };
+});
 jest.mock("@expo/ui/swift-ui", () => {
   const { Pressable, Text, View } =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -98,6 +107,25 @@ describe("ActionListItem (iOS)", () => {
     expect(screen.queryByTestId("swipe-actions")).toBeNull();
     expect(screen.queryByTestId("context-menu")).toBeNull();
     expect(screen.getByText("우리 그룹")).toBeTruthy();
+  });
+
+  test("a row that opens another screen shows the chevron", async () => {
+    const screen = await render(
+      <ActionListItem actions={[]} onPress={jest.fn()} title="우리 그룹" />,
+    );
+    expect(screen.getByTestId("icon-chevron.right")).toBeTruthy();
+  });
+
+  test("disclosure={false} drops the chevron for rows that act in place", async () => {
+    const screen = await render(
+      <ActionListItem
+        actions={[]}
+        disclosure={false}
+        onPress={jest.fn()}
+        title="초대 링크 공유"
+      />,
+    );
+    expect(screen.queryByTestId("icon-chevron.right")).toBeNull();
   });
 
   test("a disabled action is disabled in both the swipe and the menu", async () => {

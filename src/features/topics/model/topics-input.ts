@@ -60,13 +60,15 @@ export function isTopicTags(tags: readonly TopicTagInput[]): boolean {
     new Set(normalized.map((item) => item.tag)).size === normalized.length
   );
 }
+/**
+ * Editing a topic (title, body and tags) belongs to its author only: the
+ * group owner does not edit or re-tag another member's topic from the app
+ * (user decision, M14 round 1 follow-up).
+ */
 export function topicPermissions(
   topic: Readonly<{ authorId: string }>,
   userId: string,
-  ownerId: string,
 ) {
-  return {
-    canEdit: topic.authorId === userId,
-    canManageTags: topic.authorId === userId || ownerId === userId,
-  };
+  const isAuthor = topic.authorId === userId;
+  return { canEdit: isAuthor, canManageTags: isAuthor };
 }

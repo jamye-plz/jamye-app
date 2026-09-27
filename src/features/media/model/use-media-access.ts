@@ -19,14 +19,19 @@ export function useMediaAccess() {
                   runtime.api.getDownloadLocation(token, id, authSignal),
                 signal,
               ),
-            listTopicMedia: (
-              id: string,
-              params: { after?: string; limit?: number },
+            listChatroomMedia: (
+              chatroomId: string,
+              params: { before?: string; limit?: number },
               signal?: AbortSignal,
             ) =>
               runtime.authorize(
                 (token, authSignal) =>
-                  runtime.api.listTopicMedia(token, id, params, authSignal),
+                  runtime.api.listChatroomMedia(
+                    token,
+                    chatroomId,
+                    params,
+                    authSignal,
+                  ),
                 signal,
               ),
           }

@@ -1,23 +1,25 @@
 import type { Topic } from "@/core/contracts/server";
 
+export type TopicListTopError = Readonly<{
+  message: string;
+  onRetry: () => void;
+}>;
+
 export type TopicListLoadMore = Readonly<{
-  busy: boolean;
-  disabled: boolean;
-  onPress: () => void;
+  isLoading: boolean;
+  onVisible: () => void;
 }>;
 
 export type TopicListProps = Readonly<{
-  /** True once the query settled with no topics for the selected date. */
-  empty: boolean;
-  loadMore: TopicListLoadMore | null;
   onOpenChat: (topic: Topic) => void;
-  onOpenDetail: (topic: Topic) => void;
-  /**
-   * Trailing swipe 삭제. Rendered only when provided: the server has no topic
-   * delete contract until M15 (T8 `DELETE …/topics/{topic_id}`), so the group
-   * home leaves it undefined for now.
-   */
-  onDelete?: (topic: Topic) => void;
   onRefresh: () => Promise<void>;
+  /** Auto-load sentinel row at the end of the list; `null` when there is no
+   * next page (C1's "더 보기" is automatic, not a button). */
+  loadMore: TopicListLoadMore | null;
+  /** iOS-only inline top-of-list pagination error (C1's "행 있음" error
+   * path); Android surfaces the same failure through a Snackbar instead, see
+   * `topics-screen.tsx`. */
+  topError?: TopicListTopError | null;
+  testID?: string;
   topics: readonly Topic[];
 }>;

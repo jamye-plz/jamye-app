@@ -13,17 +13,6 @@ export type TopicTag = Readonly<{
   source: "user" | "ai";
   confidence: number | null;
 }>;
-export type TopicMedia = Readonly<{
-  id: string;
-  topicId: string;
-  mediaUploadId: string;
-  contentType: string;
-  objectKey: string;
-  width: number | null;
-  height: number | null;
-  byteSize: number | null;
-  createdAt: string;
-}>;
 export type Topic = Readonly<{
   id: string;
   groupId: string;
@@ -34,7 +23,6 @@ export type Topic = Readonly<{
   body: string | null;
   status: "seed" | "enriched";
   tags: readonly TopicTag[];
-  media: readonly TopicMedia[];
   chatroomId: string;
   unread: boolean;
   createdAt: string;
@@ -63,6 +51,11 @@ export function mapTopicTag(wire: TopicTagWire): TopicTag {
     confidence: wire.confidence,
   };
 }
+/**
+ * D5/S3 removed the CanonicalTopic.media entry (topic-scoped images); a
+ * topic's images/videos now live only in its chatroom's message timeline
+ * (C5, see contracts/server/media.ts's ChatroomMediaItem).
+ */
 export function mapTopic(wire: CanonicalTopicWire): Topic {
   return {
     id: wire.id,
@@ -74,17 +67,6 @@ export function mapTopic(wire: CanonicalTopicWire): Topic {
     body: wire.body,
     status: wire.status,
     tags: wire.tags.map(mapTopicTag),
-    media: wire.media.map((item) => ({
-      id: item.id,
-      topicId: item.topic_id,
-      mediaUploadId: item.media_upload_id,
-      contentType: item.content_type,
-      objectKey: item.object_key,
-      width: item.width,
-      height: item.height,
-      byteSize: item.byte_size,
-      createdAt: item.created_at,
-    })),
     chatroomId: wire.chatroom_id,
     unread: wire.unread,
     createdAt: wire.created_at,
@@ -121,17 +103,6 @@ export function topicToWire(topic: Topic): CanonicalTopicWire {
       tag: tag.tag,
       source: tag.source,
       confidence: tag.confidence,
-    })),
-    media: topic.media.map((item) => ({
-      id: item.id,
-      topic_id: item.topicId,
-      media_upload_id: item.mediaUploadId,
-      content_type: item.contentType,
-      object_key: item.objectKey,
-      width: item.width,
-      height: item.height,
-      byte_size: item.byteSize,
-      created_at: item.createdAt,
     })),
   };
 }

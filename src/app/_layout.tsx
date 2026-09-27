@@ -22,6 +22,22 @@ function RootStack() {
     <ThemeProvider value={navigationTheme}>
       <Stack screenOptions={screenOptions}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        {/* C3 input screens. Declared here, not only from inside the
+            screens: options a screen sets on itself never reach a route
+            opened by a link (an invite link lands on groups/join), which
+            then showed as a full screen titled with its path. */}
+        <Stack.Screen
+          name="groups/create"
+          options={{ presentation: "modal", title: "새 그룹" }}
+        />
+        <Stack.Screen
+          name="groups/join"
+          options={{ presentation: "modal", title: "초대 코드로 가입" }}
+        />
+        <Stack.Screen
+          name="groups/[groupId]/topics/new"
+          options={{ presentation: "modal", title: "새 주제" }}
+        />
       </Stack>
     </ThemeProvider>
   );

@@ -1,10 +1,11 @@
 import {
-  validateUploadIntentCreate,
+  validateChatroomMediaItem,
+  validateChatroomMediaPage,
+  validateMediaAccessUrl,
+  validateMessageCreate,
   validateUploadFinalize,
   validateUploadFinalizeResult,
-  validateMediaAccessUrl,
-  validateTopicMediaPage,
-  validateMessageCreate,
+  validateUploadIntentCreate,
 } from "@/core/contracts/server";
 
 const id = "11111111-1111-4111-8111-111111111111";
@@ -41,9 +42,9 @@ describe("M11 server media runtime contract", () => {
     expect(validateUploadIntentCreate({ ...input, byte_size: 0 })).toBe(false);
   });
 
-  test("MD1 rejects unsupported MIME, nonimage topic uploads, unowned object keys and long filenames", () => {
+  test("MD1 rejects unsupported MIME, non-chat scope, unowned object keys and long filenames", () => {
     const input = {
-      scope: "topic",
+      scope: "chat",
       target_id: id,
       content_type: "image/png",
       byte_size: 1,
@@ -53,13 +54,15 @@ describe("M11 server media runtime contract", () => {
       "image/heic",
       "image/avif",
       "video/quicktime",
-      "video/mp4",
-      "audio/ogg",
     ]) {
       expect(validateUploadIntentCreate({ ...input, content_type })).toBe(
         false,
       );
     }
+    // S3 removed MediaScope's "topic" member; only "chat" validates now.
+    expect(validateUploadIntentCreate({ ...input, scope: "topic" })).toBe(
+      false,
+    );
     expect(
       validateUploadIntentCreate({ ...input, object_key: "arbitrary" }),
     ).toBe(false);
@@ -73,14 +76,7 @@ describe("M11 server media runtime contract", () => {
     expect(validateUploadFinalize({ width: 10, height: 20 })).toBe(true);
     expect(validateUploadFinalize({ duration: 30 })).toBe(false);
     expect(validateUploadFinalize({ width: 0 })).toBe(false);
-    const result = {
-      scope: "chat",
-      status: "confirmed",
-      bound: false,
-      upload,
-      topic_media: null,
-      topic_status: null,
-    };
+    const result = { scope: "chat", status: "confirmed", bound: false, upload };
     expect(validateUploadFinalizeResult(result)).toBe(true);
     expect(validateUploadFinalizeResult({ ...result, bound: true })).toBe(
       false,
@@ -106,14 +102,7 @@ describe("M11 server media runtime contract", () => {
   });
 
   test("response direction: ConfirmedUpload.poster_upload_id is a required nullable uuid", () => {
-    const result = {
-      scope: "chat",
-      status: "confirmed",
-      bound: false,
-      upload,
-      topic_media: null,
-      topic_status: null,
-    };
+    const result = { scope: "chat", status: "confirmed", bound: false, upload };
     expect(
       validateUploadFinalizeResult({
         ...result,
@@ -131,18 +120,33 @@ describe("M11 server media runtime contract", () => {
     ).toBe(false);
     const { poster_upload_id: _dropped, ...uploadMissingPoster } = upload;
     expect(
-      validateUploadFinalizeResult({
-        ...result,
-        upload: uploadMissingPoster,
-      }),
+      validateUploadFinalizeResult({ ...result, upload: uploadMissingPoster }),
     ).toBe(false);
   });
 
-  test("MD3 pagination and MD4 IDs/TTL are not collapsed into an upload ID", () => {
+  test("C5 chatroom media item/page require the full projection; MD4 IDs/TTL are not collapsed into an upload ID", () => {
+    const item = {
+      id,
+      media_upload_id: "22222222-2222-4222-8222-222222222222",
+      message_id: "33333333-3333-4333-8333-333333333333",
+      message_created_at: "2026-09-10T00:00:00Z",
+      type: "image/jpeg",
+      byte_size: 1,
+      width: 10,
+      height: 20,
+      duration: null,
+      filename: null,
+      position: 0,
+      poster_media_id: null,
+    };
+    expect(validateChatroomMediaItem(item)).toBe(true);
+    const { width: _droppedWidth, ...itemMissingWidth } = item;
+    expect(validateChatroomMediaItem(itemMissingWidth)).toBe(false);
     expect(
-      validateTopicMediaPage({ items: [], next_cursor: "opaque+/=" }),
+      validateChatroomMediaPage({ items: [item], next_cursor: "opaque+/=" }),
     ).toBe(true);
-    expect(validateTopicMediaPage({ items: [] })).toBe(false);
+    expect(validateChatroomMediaPage({ items: [item] })).toBe(false);
+
     const access = {
       id,
       media_upload_id: "22222222-2222-4222-8222-222222222222",

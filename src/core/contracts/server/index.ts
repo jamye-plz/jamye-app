@@ -3,16 +3,16 @@ export {
   validateUploadIntentWithPresignedPut,
   validateUploadFinalize,
   validateUploadFinalizeResult,
-  validateTopicMedia,
-  validateTopicMediaPage,
+  validateChatroomMediaItem,
+  validateChatroomMediaPage,
   validateMediaAccessUrl,
   type UploadIntentCreateWire,
   type UploadIntentWithPresignedPutWire,
   type UploadFinalizeWire,
   type UploadFinalizeResultWire,
   type ConfirmedUploadWire,
-  type TopicMediaWire,
-  type TopicMediaPageWire,
+  type ChatroomMediaItemWire,
+  type ChatroomMediaPageWire,
   type MediaAccessUrlWire,
 } from "./validators";
 export {
@@ -23,7 +23,6 @@ export {
   mapTopicTags,
   type Topic,
   type TopicDatePage,
-  type TopicMedia,
   type TopicPage,
   type TopicTag,
   type TopicTagPage,
@@ -173,8 +172,8 @@ export {
   mapUploadIntentWithPresignedPut,
   mapConfirmedUpload,
   mapUploadFinalizeResult,
-  mapTopicMediaEntry,
-  mapTopicMediaEntryPage,
+  mapChatroomMediaItem,
+  mapChatroomMediaPage,
   mapMediaAccessUrl,
 } from "./media";
 export type {
@@ -183,11 +182,9 @@ export type {
   UploadIntent,
   UploadIntentWithPresignedPut,
   ConfirmedUpload,
-  ChatUploadFinalizeResult,
-  TopicUploadFinalizeResult,
   UploadFinalizeResult,
-  TopicMediaEntry,
-  TopicMediaEntryPage,
+  ChatroomMediaItem,
+  ChatroomMediaPage,
   MediaAccessUrl,
 } from "./media";
 export {

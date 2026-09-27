@@ -87,6 +87,28 @@ jest.mock("@/core/providers/app-providers", () => ({
 jest.mock("@/features/chat/model/connected-chat-provider", () => ({
   useConnectedChat: () => mockChat,
 }));
+// D7/E4 title resolution reads the group name and (for a topic room) the
+// shared topics store; these tests care about the chat screen itself, not
+// those two providers, so both are lightweight stand-ins.
+let mockGroupName: string | null = "그룹 이름";
+jest.mock("@/features/groups/model/groups-provider", () => ({
+  useGroupName: () => mockGroupName,
+}));
+let mockTopicsState: {
+  detail: {
+    id: string | null;
+    status: string;
+    topic: { title: string } | null;
+  };
+};
+const mockOpenTopic = jest.fn().mockResolvedValue(undefined);
+jest.mock("@/features/topics/model/topics-provider", () => ({
+  useTopics: () => ({
+    state: mockTopicsState,
+    store: { actions: { openTopic: mockOpenTopic } },
+    ready: true,
+  }),
+}));
 // Native image gestures have their own viewer tests; these tests exercise chat
 // visibility/read receipts without initializing a native gesture detector.
 jest.mock("@/features/media/ui/media-image-viewer", () => ({
@@ -180,6 +202,8 @@ beforeEach(() => {
   mockAppMode = "connected-auth";
   mockParams = { groupId: GROUP_ID, chatroomId: CHATROOM_ID };
   mockAccount = { state: { status: "ready" }, retry: jest.fn() };
+  mockGroupName = "그룹 이름";
+  mockTopicsState = { detail: { id: null, status: "idle", topic: null } };
   const initial = createConnectedChatStore({
     clock: fakeClock(),
     createApi: fakeChatApi,

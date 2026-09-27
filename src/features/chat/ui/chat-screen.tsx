@@ -21,9 +21,9 @@ import {
 } from "@/features/chat/model/chat-fixture";
 import { createChatSendController } from "@/features/chat/model/chat-send";
 import type { ChatSendController } from "@/features/chat/model/chat-send";
-import { AppText } from "@/shared/ui/app-text";
 import { HeaderActions } from "@/shared/ui/header-actions";
 import type { HeaderAction } from "@/shared/ui/header-actions";
+import { HeaderTitleButton } from "@/shared/ui/header-title-button";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import type { ChatConversation } from "../use-chat-conversation";
 
@@ -51,30 +51,6 @@ function defaultFocusMainHeading(target: MainHeadingTarget): void {
   if (nativeHandle !== null) {
     AccessibilityInfo.setAccessibilityFocus(nativeHandle);
   }
-}
-
-/**
- * Native-header title block, rendered through `Stack.Screen`'s
- * `options.headerTitle` (only when a sync `subtitle` exists) rather than in
- * the scrollable body — the in-body heading `Text` this replaced is gone, so
- * `focusMainHeading`'s `nativeRef` legitimately stays `{ current: null }`
- * (see `defaultFocusMainHeading`, which already no-ops on a null handle).
- */
-function HeaderTitle({
-  title,
-  subtitle,
-}: Readonly<{ subtitle?: string; title: string }>) {
-  const { colors } = useAppTheme();
-  return (
-    <View accessibilityRole="header" style={{ alignItems: "center" }}>
-      <AppText variant="headline">{title}</AppText>
-      {subtitle ? (
-        <AppText color={colors.textMuted} variant="caption">
-          {subtitle}
-        </AppText>
-      ) : null}
-    </View>
-  );
 }
 
 export function ChatScreen({
@@ -111,6 +87,8 @@ export function ChatScreen({
 export function ChatConversationScreen({
   title,
   subtitle,
+  titleAccessibilityHint,
+  onTitlePress,
   notice,
   conversation,
   controller,
@@ -126,6 +104,11 @@ export function ChatConversationScreen({
 }: Readonly<{
   title: string;
   subtitle?: string;
+  /** D7/E4: main chatroom → 그룹 정보, topic chatroom → 주제 상세. Omitted
+   * (including while title resolution is pending) renders a non-interactive
+   * title, per `HeaderTitleButton`. */
+  onTitlePress?: () => void;
+  titleAccessibilityHint?: string;
   notice?: string;
   conversation: ChatConversation;
   controller: Pick<ChatSendController, "send">;
@@ -177,9 +160,17 @@ export function ChatConversationScreen({
     <>
       <Stack.Screen
         options={{
-          headerTitle: subtitle
-            ? () => <HeaderTitle subtitle={subtitle} title={title} />
-            : undefined,
+          headerTitle:
+            subtitle || onTitlePress
+              ? () => (
+                  <HeaderTitleButton
+                    accessibilityHint={titleAccessibilityHint}
+                    onPress={onTitlePress}
+                    subtitle={subtitle}
+                    title={title}
+                  />
+                )
+              : undefined,
           title,
         }}
       />

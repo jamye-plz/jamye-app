@@ -129,12 +129,10 @@ export function createMediaDraftQueue(
     const selected = [...assets.values()];
     if (
       assets.has(asset.localId) ||
-      (scope === "topic" && selected.length > 0) ||
-      (scope === "chat" &&
-        (selected.length >= 4 ||
-          (selected.length > 0 &&
-            (asset.kind === "audio" ||
-              selected.some((item) => item.kind === "audio")))))
+      selected.length >= 4 ||
+      (selected.length > 0 &&
+        (asset.kind === "audio" ||
+          selected.some((item) => item.kind === "audio")))
     ) {
       reject();
       return;

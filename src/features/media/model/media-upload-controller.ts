@@ -347,8 +347,6 @@ export function createMediaUploadController(
         result.upload.contentType !== record.input.file.contentType ||
         result.upload.byteSize !== record.input.file.byteSize ||
         result.upload.posterUploadId !== posterUploadId ||
-        (result.scope === "topic" &&
-          result.topicMedia.topicId !== record.input.targetId) ||
         (result.upload.kind === "audio" &&
           !isAuthoritativeAudioDuration(result.upload.duration))
       ) {

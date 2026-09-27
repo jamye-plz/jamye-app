@@ -34,7 +34,14 @@ export type AppSymbolName =
   | "check"
   | "notification"
   | "info"
-  | "invite";
+  | "invite"
+  | "removeMember"
+  | "gallery"
+  | "hashtag"
+  | "videoPlay"
+  | "groupAdd"
+  | "emptyGroups"
+  | "emptyTopics";
 
 export const APP_SYMBOLS: Record<
   AppSymbolName,
@@ -69,6 +76,18 @@ export const APP_SYMBOLS: Record<
   notification: { ios: "bell", android: "notifications" },
   info: { ios: "info.circle", android: "info" },
   invite: { ios: "ticket", android: "confirmation_number" },
+  // M14 round 1 (task-app-kit): pre-registered for the groups/topics page
+  // tasks; "gallery"/"hashtag" are deliberately distinct from the existing
+  // "photo"/"tag" entries above (different Android glyph).
+  removeMember: { ios: "person.badge.minus", android: "person_remove" },
+  gallery: { ios: "photo.on.rectangle", android: "photo_library" },
+  hashtag: { ios: "number", android: "tag" },
+  videoPlay: { ios: "play.fill", android: "play_arrow" },
+  groupAdd: { ios: "person.2.badge.plus", android: "group_add" },
+  // Empty-list icons (G4, T6): alias the existing "group"/"chat" glyphs so
+  // callers get a self-documenting name without a duplicate drawable.
+  emptyGroups: { ios: "person.2", android: "group" },
+  emptyTopics: { ios: "bubble.left.and.bubble.right", android: "forum" },
 };
 
 export function AppSymbol({

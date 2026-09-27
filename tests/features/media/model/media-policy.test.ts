@@ -23,16 +23,14 @@ function file(
 
 describe("M11-2 media content policy", () => {
   test.each(["image/jpeg", "image/png", "image/webp", "image/gif"])(
-    "accepts %s for chat and topic scope within the size limit",
+    "accepts %s for chat within the size limit",
     (contentType) => {
-      for (const scope of ["chat", "topic"] as const) {
-        expect(
-          evaluateMediaContentPolicy(
-            scope,
-            file({ contentType, byteSize: MAX_IMAGE_BYTES }),
-          ),
-        ).toEqual({ ok: true, kind: "image" });
-      }
+      expect(
+        evaluateMediaContentPolicy(
+          "chat",
+          file({ contentType, byteSize: MAX_IMAGE_BYTES }),
+        ),
+      ).toEqual({ ok: true, kind: "image" });
     },
   );
 
@@ -45,23 +43,20 @@ describe("M11-2 media content policy", () => {
     ).toEqual({ ok: false, reason: "file_too_large" });
   });
 
-  test("accepts video/mp4 for chat at the 50 MiB boundary but not for topic", () => {
+  // S3 removed MediaScope's "topic" member, so this file no longer has a
+  // "chat accepts, topic rejects" pairing to test for video/audio -- there is
+  // only one scope now, and it always accepts video/audio within budget.
+  test("accepts video/mp4 for chat at the 50 MiB boundary", () => {
     expect(
       evaluateMediaContentPolicy(
         "chat",
         file({ contentType: "video/mp4", byteSize: MAX_VIDEO_BYTES }),
       ),
     ).toEqual({ ok: true, kind: "video" });
-    expect(
-      evaluateMediaContentPolicy(
-        "topic",
-        file({ contentType: "video/mp4", byteSize: MAX_VIDEO_BYTES }),
-      ),
-    ).toEqual({ ok: false, reason: "scope_not_allowed" });
   });
 
   test.each(["audio/webm", "audio/mp4", "audio/ogg"])(
-    "accepts %s for chat at the 15 MiB boundary but not for topic",
+    "accepts %s for chat at the 15 MiB boundary",
     (contentType) => {
       expect(
         evaluateMediaContentPolicy(
@@ -69,12 +64,6 @@ describe("M11-2 media content policy", () => {
           file({ contentType, byteSize: MAX_AUDIO_BYTES }),
         ),
       ).toEqual({ ok: true, kind: "audio" });
-      expect(
-        evaluateMediaContentPolicy(
-          "topic",
-          file({ contentType, byteSize: MAX_AUDIO_BYTES }),
-        ),
-      ).toEqual({ ok: false, reason: "scope_not_allowed" });
     },
   );
 
