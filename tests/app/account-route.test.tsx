@@ -2,6 +2,7 @@ import { render } from "@testing-library/react-native";
 import React from "react";
 
 const mockAccountScreen = jest.fn(() => null);
+const mockNicknameEditScreen = jest.fn(() => null);
 const mockGroupRouteGuard = jest.fn(
   ({ children }: { children: React.ReactNode }) => {
     const { View } =
@@ -24,6 +25,16 @@ jest.mock("@/features/groups/ui/group-route-guard", () => ({
   GroupRouteGuard: (props: { children: React.ReactNode }) =>
     mockGroupRouteGuard(props),
 }));
+jest.mock("@/features/account/ui/nickname-edit-screen", () => {
+  const { Text } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    NicknameEditScreen: () => {
+      mockNicknameEditScreen();
+      return <Text testID="nickname-edit-screen">nickname</Text>;
+    },
+  };
+});
 
 describe("account route", () => {
   beforeEach(() => {
@@ -40,5 +51,21 @@ describe("account route", () => {
     expect(screen.getByTestId("group-route-guard")).toBeTruthy();
     expect(screen.getByTestId("account-screen")).toBeTruthy();
     expect(mockAccountScreen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("account nickname route", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("renders the actual /account/nickname route (A2/C3) with NicknameEditScreen", async () => {
+    const NicknameRoute = jest.requireActual<{
+      default: () => React.JSX.Element;
+    }>("../../src/app/account/nickname").default;
+    const screen = await render(<NicknameRoute />);
+
+    expect(screen.getByTestId("nickname-edit-screen")).toBeTruthy();
+    expect(mockNicknameEditScreen).toHaveBeenCalledTimes(1);
   });
 });

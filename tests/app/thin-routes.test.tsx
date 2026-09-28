@@ -6,6 +6,64 @@ import type { ComponentType, ReactNode } from "react";
 jest.mock("@/features/media/ui/media-image-viewer", () => ({
   MediaImageViewer: () => null,
 }));
+// W2: `chat-composer.ios.tsx` renders a native SwiftUI `TextField` by
+// default (`COMPOSER_TEXT_FIELD_IMPL === "native"`). See the matching mock in
+// `chat-composer.test.tsx` for why this stand-in is needed (jest-expo renders
+// `@expo/ui`'s components as an opaque host node).
+jest.mock("@expo/ui/swift-ui", () => {
+  const actual =
+    jest.requireActual<Record<string, unknown>>("@expo/ui/swift-ui");
+  const mockReact = jest.requireActual<typeof import("react")>("react");
+  const { TextInput } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  function extractLabel(modifiers?: readonly unknown[]): string | undefined {
+    const found = modifiers?.find(
+      (modifier): modifier is { $type: string; value: string } =>
+        typeof modifier === "object" &&
+        modifier !== null &&
+        (modifier as { $type?: unknown }).$type === "accessibilityLabel",
+    );
+    return found?.value;
+  }
+  const TextField = mockReact.forwardRef(function MockSwiftUITextField(
+    props: {
+      axis?: string;
+      modifiers?: readonly unknown[];
+      onFocusChange?: (focused: boolean) => void;
+      onTextChange?: (text: string) => void;
+      placeholder?: string;
+    },
+    ref: React.Ref<{ clear: () => void }>,
+  ) {
+    const [text, setText] = mockReact.useState("");
+    mockReact.useImperativeHandle(ref, () => ({
+      clear: () => setText(""),
+      focus: () => undefined,
+    }));
+    return (
+      <TextInput
+        accessibilityLabel={extractLabel(props.modifiers)}
+        multiline={props.axis === "vertical"}
+        onBlur={() => props.onFocusChange?.(false)}
+        onChangeText={(next: string) => {
+          setText(next);
+          props.onTextChange?.(next);
+        }}
+        onFocus={() => props.onFocusChange?.(true)}
+        placeholder={props.placeholder}
+        value={text}
+      />
+    );
+  });
+  return { ...actual, TextField };
+});
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  accessibilityLabel: (value: string) => ({
+    $type: "accessibilityLabel",
+    value,
+  }),
+  lineLimit: (range: unknown) => ({ $type: "lineLimit", range }),
+}));
 
 let mockRouterShouldThrow = false;
 const mockShellRepository = {
@@ -160,8 +218,16 @@ jest.mock("expo-router", () => {
     options,
   }: {
     name?: string;
-    options?: { presentation?: string; title?: string };
+    options?: { headerShown?: boolean; presentation?: string; title?: string };
   }): React.JSX.Element | null {
+    // An untitled route declaration still surfaces its header visibility.
+    if (name && !options?.title)
+      return (
+        <View
+          testID={`route-${name}`}
+          {...{ headerShown: options?.headerShown }}
+        />
+      );
     return options?.title ? (
       <Text
         accessibilityRole="header"
@@ -358,6 +424,15 @@ describe("M3-I3 actual thin Expo Router modules", () => {
       expect(route.props.presentation).toBe("modal");
       expect(route.props.children).toBe(title);
     }
+  });
+
+  test("the entry route never shows a header titled with its path (device regression: `index` while its redirect was pending)", async () => {
+    const RootLayout = loadActualRoute(
+      "../../src/app/_layout",
+      "src/app/_layout.tsx",
+    );
+    const screen = await render(<RootLayout />);
+    expect(screen.getByTestId("route-index").props.headerShown).toBe(false);
   });
 
   test("hands react-navigation a dark theme when the system scheme is dark (iOS header follows dark mode)", async () => {

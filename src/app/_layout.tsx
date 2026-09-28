@@ -21,6 +21,10 @@ function RootStack() {
   return (
     <ThemeProvider value={navigationTheme}>
       <Stack screenOptions={screenOptions}>
+        {/* The entry route only renders the login screen (which hides the
+            header itself) or a redirect; while that redirect is pending, or
+            restore outlasts the splash, it showed a header titled "index". */}
+        <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         {/* C3 input screens. Declared here, not only from inside the
             screens: options a screen sets on itself never reach a route
@@ -37,6 +41,18 @@ function RootStack() {
         <Stack.Screen
           name="groups/[groupId]/topics/new"
           options={{ presentation: "modal", title: "새 주제" }}
+        />
+        <Stack.Screen
+          name="account/nickname"
+          options={{ presentation: "modal", title: "닉네임 변경" }}
+        />
+        {/* R3 full-screen attachment viewer -- declared here (not only in
+            media-viewer.tsx) for the same reason as the C3 screens above:
+            self-set options never reach a route opened other than through
+            its own screen render. */}
+        <Stack.Screen
+          name="media-viewer"
+          options={{ headerShown: false, presentation: "fullScreenModal" }}
         />
       </Stack>
     </ThemeProvider>
