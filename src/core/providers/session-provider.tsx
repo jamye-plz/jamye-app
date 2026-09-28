@@ -1,3 +1,4 @@
+import * as SplashScreen from "expo-splash-screen";
 import * as WebBrowser from "expo-web-browser";
 import {
   createContext,
@@ -5,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useSyncExternalStore,
 } from "react";
 import type { PropsWithChildren } from "react";
@@ -18,6 +20,21 @@ import { secureSessionStore } from "@/core/auth/secure-session-store";
 import { parsePublicApiOrigin } from "@/core/config/public-env";
 import type { OAuthProvider, UserProfile } from "@/core/auth/types";
 import { createProfileRecovery } from "@/features/sync/model/profile-recovery";
+
+/**
+ * L3/E12: the native splash screen must survive session restore so the
+ * login screen never flashes behind it. `preventAutoHideAsync` runs once at
+ * module evaluation time -- this file is statically imported (directly by
+ * `app/index.tsx`, and transitively via `app-providers.tsx` from the root
+ * layout) regardless of app mode, so this fires at process start even in
+ * `local-fixture` mode, where `SessionProvider` itself never mounts and
+ * `app/index.tsx` hides the splash immediately instead (see its own E12
+ * comment). `void` matches the existing fire-and-forget style below (`void
+ * controller.restore()`).
+ */
+void SplashScreen.preventAutoHideAsync();
+/** Safety fallback (E12) so a stuck restore never leaves the splash on screen. */
+const SPLASH_SAFETY_TIMEOUT_MS = 3000;
 
 export type SessionPrincipal = Readonly<{
   origin: string;
@@ -125,6 +142,27 @@ export function SessionProvider({
       controller.dispose();
     };
   }, [controller]);
+
+  // L3/E12: hide the splash the first moment restore is no longer in flight
+  // (signed-in/signed-out/error), or after a 3s safety timeout, whichever
+  // comes first. `hiddenSplash` fences both triggers so only the earliest
+  // one actually calls `hideAsync` -- a later flip back to "loading" (e.g.
+  // `retryProfile`'s own transient loading state, long after launch) never
+  // re-triggers this once the splash is already gone.
+  const hiddenSplash = useRef(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (hiddenSplash.current) return;
+      hiddenSplash.current = true;
+      void SplashScreen.hideAsync();
+    }, SPLASH_SAFETY_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (state.status === "loading" || hiddenSplash.current) return;
+    hiddenSplash.current = true;
+    void SplashScreen.hideAsync();
+  }, [state.status]);
 
   const principal = useMemo<SessionPrincipal | null>(() => {
     if (state.status !== "signed-in" || !state.profile) return null;

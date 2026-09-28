@@ -1,5 +1,6 @@
 import { fireEvent, render } from "@testing-library/react-native";
-import React from "react";
+import React, { type ReactNode } from "react";
+import { StyleSheet } from "react-native";
 
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { AuthScreen } from "@/features/auth/ui/auth-screen";
@@ -47,6 +48,93 @@ jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
   __esModule: true,
   default: jest.fn(() => "light"),
 }));
+jest.mock("expo-image", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't use ES import
+  const { Image: RNImage } = require("react-native");
+  return {
+    Image: (props: { source?: unknown }) => (
+      <RNImage source={props.source} testID="brand-logo-image" />
+    ),
+  };
+});
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  background: jest.fn(),
+  buttonStyle: jest.fn(),
+  contentShape: jest.fn(),
+  disabled: jest.fn(),
+  font: jest.fn(),
+  foregroundStyle: jest.fn(),
+  frame: jest.fn(),
+  opacity: jest.fn(),
+  padding: jest.fn(),
+  shapes: { capsule: jest.fn() },
+  strokeBorder: jest.fn(),
+}));
+// The SwiftUI `Alert`/`Button`/`Spacer` used by `SystemFeedbackHost` and the
+// `Button`/`HStack`/`ProgressView` used by `BrandLoginButton` are both
+// `@expo/ui/swift-ui`, mocked once here the same way as
+// `system-feedback.test.tsx` (which exercises the identical upstream Alert).
+jest.mock("@expo/ui/swift-ui", () => {
+  const { ActivityIndicator, Pressable, Text, View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  type MockChildren = Readonly<{ children?: ReactNode }>;
+  function Alert(
+    props: Readonly<{
+      children?: ReactNode;
+      isPresented?: boolean;
+      testID?: string;
+      title?: string;
+    }>,
+  ) {
+    if (!props.isPresented) return null;
+    return (
+      <View testID={props.testID ?? "alert"}>
+        <Text accessibilityRole="header">{props.title}</Text>
+        {props.children}
+      </View>
+    );
+  }
+  const slot = () =>
+    function MockSlot({ children }: MockChildren) {
+      return <View>{children}</View>;
+    };
+  Alert.Trigger = slot();
+  Alert.Actions = slot();
+  Alert.Message = slot();
+  function Button(
+    props: Readonly<{
+      children?: ReactNode;
+      label?: string;
+      onPress?: () => void;
+      role?: string;
+      modifiers?: readonly unknown[];
+    }>,
+  ) {
+    return (
+      <Pressable
+        accessibilityLabel={props.label}
+        accessibilityRole="button"
+        disabled={!props.onPress}
+        onPress={props.onPress}
+      >
+        {props.children ?? <Text>{props.label}</Text>}
+      </Pressable>
+    );
+  }
+  function HStack({ children }: MockChildren) {
+    return <View>{children}</View>;
+  }
+  function ProgressView({ testID }: Readonly<{ testID?: string }>) {
+    return <ActivityIndicator testID={testID} />;
+  }
+  function Spacer() {
+    return <View testID="spacer" />;
+  }
+  function MockText({ children }: MockChildren) {
+    return <Text>{children}</Text>;
+  }
+  return { Alert, Button, HStack, ProgressView, Spacer, Text: MockText };
+});
 
 describe("connected auth screen (session-driven, no owned controller)", () => {
   const previousMode = process.env.EXPO_PUBLIC_APP_MODE;
@@ -60,6 +148,37 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
   afterAll(() => {
     process.env.EXPO_PUBLIC_APP_MODE = previousMode;
     process.env.EXPO_PUBLIC_API_ORIGIN = previousOrigin;
+  });
+
+  test("puts the app name at the centre of the whole screen, the intro below it without moving it (device: it sat left-aligned, centred only above the buttons)", async () => {
+    const screen = await render(
+      <AppThemeProvider>
+        <AuthScreen />
+      </AppThemeProvider>,
+    );
+    expect(
+      StyleSheet.flatten(screen.getByTestId("auth-brand").props.style),
+    ).toMatchObject({
+      bottom: 0,
+      justifyContent: "center",
+      left: 0,
+      position: "absolute",
+      right: 0,
+      top: 0,
+    });
+    expect(
+      StyleSheet.flatten(
+        screen.getByRole("header", { name: "잼얘좀" }).props.style,
+      ),
+    ).toMatchObject({ textAlign: "center" });
+    expect(
+      StyleSheet.flatten(screen.getByTestId("auth-intro").props.style),
+    ).toMatchObject({ position: "absolute", textAlign: "center", top: "100%" });
+    // Still read before the buttons.
+    const tree = JSON.stringify(screen.toJSON());
+    expect(tree.indexOf("잼얘좀")).toBeLessThan(
+      tree.indexOf("카카오로 계속하기"),
+    );
   });
 
   test("never renders a signed-in profile card; the shared session drives sign-in/out only", async () => {
@@ -101,7 +220,7 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
     expect(mockRetryProfile).toHaveBeenCalledTimes(1);
   });
 
-  test("restarts login through provider choices when no session was established", async () => {
+  test("restarts login through provider choices when no session was established, offering only 확인 (no retry action)", async () => {
     mockState = { status: "error", profile: null, message: "로그인 실패" };
     const screen = await render(
       <AppThemeProvider>
@@ -111,11 +230,51 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
     expect(
       screen.queryByRole("button", { name: "프로필 다시 시도" }),
     ).toBeNull();
+    expect(screen.getByRole("button", { name: "확인" })).toBeTruthy();
     await fireEvent.press(
       screen.getByRole("button", { name: "카카오로 계속하기" }),
     );
     expect(mockLogin).toHaveBeenCalledTimes(1);
     expect(mockRetryProfile).not.toHaveBeenCalled();
+  });
+
+  test.each(["loading", "signing-in"] as const)(
+    "disables both provider buttons while %s",
+    async (status) => {
+      mockState = { status, profile: null, message: null };
+      const screen = await render(
+        <AppThemeProvider>
+          <AuthScreen />
+        </AppThemeProvider>,
+      );
+      const kakao = screen.getByRole("button", { name: "카카오로 계속하기" });
+      const google = screen.getByRole("button", {
+        name: "Google로 계속하기",
+      });
+      expect(kakao).toBeDisabled();
+      expect(google).toBeDisabled();
+      await fireEvent.press(kakao);
+      await fireEvent.press(google);
+      expect(mockLogin).not.toHaveBeenCalled();
+    },
+  );
+
+  test("returns to the original screen with no announcement after a cancelled login", async () => {
+    mockState = {
+      status: "signed-out",
+      profile: null,
+      message: "로그인이 취소되었습니다.",
+    };
+    const screen = await render(
+      <AppThemeProvider>
+        <AuthScreen />
+      </AppThemeProvider>,
+    );
+    expect(screen.queryByText("로그인이 취소되었습니다.")).toBeNull();
+    expect(screen.queryByTestId("alert")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "카카오로 계속하기" }),
+    ).toBeEnabled();
   });
 
   test.each([
@@ -141,45 +300,6 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
       expect(mockRetryProfile).not.toHaveBeenCalled();
     },
   );
-
-  test.each(["loading", "signing-in"] as const)(
-    "disables provider buttons while %s",
-    async (status) => {
-      mockState = { status, profile: null, message: null };
-      const screen = await render(
-        <AppThemeProvider>
-          <AuthScreen />
-        </AppThemeProvider>,
-      );
-      const kakao = screen.getByRole("button", { name: "로그인 준비 중…" });
-      const google = screen.getByRole("button", { name: "Google로 계속하기" });
-      expect(kakao).toBeDisabled();
-      expect(google).toBeDisabled();
-      await fireEvent.press(kakao);
-      await fireEvent.press(google);
-      expect(mockLogin).not.toHaveBeenCalled();
-    },
-  );
-
-  test("shows a cancelled login as recoverable without a profile retry", async () => {
-    mockState = {
-      status: "signed-out",
-      profile: null,
-      message: "로그인이 취소되었습니다.",
-    };
-    const screen = await render(
-      <AppThemeProvider>
-        <AuthScreen />
-      </AppThemeProvider>,
-    );
-    expect(screen.getByText("로그인이 취소되었습니다.")).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "프로필 다시 시도" }),
-    ).toBeNull();
-    expect(
-      screen.getByRole("button", { name: "카카오로 계속하기" }),
-    ).toBeEnabled();
-  });
 
   test("offers accessible provider choices and sends a fixed callback URI through the shared session", async () => {
     const screen = await render(

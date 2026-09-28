@@ -7,6 +7,8 @@ const mockChatScreen = jest.fn(() => <Text testID="chat-screen">chat</Text>);
 const mockRedirect = jest.fn(({ href }: { href: string }) => (
   <Text testID="redirect">{href}</Text>
 ));
+const mockHideAsync = jest.fn(async () => undefined);
+const mockPreventAutoHideAsync = jest.fn(async () => undefined);
 let mockPrincipal: Readonly<{
   origin: string;
   userId: string;
@@ -15,6 +17,10 @@ let mockPrincipal: Readonly<{
 
 jest.mock("expo-router", () => ({
   Redirect: (props: { href: string }) => mockRedirect(props),
+}));
+jest.mock("expo-splash-screen", () => ({
+  hideAsync: () => mockHideAsync(),
+  preventAutoHideAsync: () => mockPreventAutoHideAsync(),
 }));
 jest.mock("@/features/auth/ui/auth-screen", () => ({
   AuthScreen: () => mockAuthScreen(),
@@ -89,6 +95,14 @@ describe("mode-aware index route", () => {
       expect(screen.queryByTestId("redirect")).toBeNull();
       expect(screen.getByTestId("auth-screen")).toBeTruthy();
     });
+
+    test("never hides the splash screen itself (E12: SessionProvider owns that in connected-auth mode)", async () => {
+      const IndexRoute = jest.requireActual<{
+        default: () => React.JSX.Element;
+      }>("../../src/app/index").default;
+      await render(<IndexRoute />);
+      expect(mockHideAsync).not.toHaveBeenCalled();
+    });
   });
 
   describe("local-fixture mode", () => {
@@ -106,6 +120,14 @@ describe("mode-aware index route", () => {
       expect(screen.getByTestId("chat-screen")).toBeTruthy();
       expect(mockAuthScreen).not.toHaveBeenCalled();
       expect(mockRedirect).not.toHaveBeenCalled();
+    });
+
+    test("hides the splash screen immediately (E12: fixture mode never mounts SessionProvider)", async () => {
+      const IndexRoute = jest.requireActual<{
+        default: () => React.JSX.Element;
+      }>("../../src/app/index").default;
+      await render(<IndexRoute />);
+      expect(mockHideAsync).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -1,5 +1,5 @@
-import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
+import React from "react";
 
 import { OAuthCallbackScreen } from "@/features/auth/ui/oauth-callback-screen";
 
@@ -8,12 +8,45 @@ jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
   useRouter: () => ({ replace: mockReplace }),
 }));
+// Same stand-in as `tests/features/topics/ui/topics-screens.test.tsx`: this
+// screen's own behavior is "pass the right props to StandardStateView and
+// wire its action", not StandardStateView's own rendering (covered by
+// `tests/shared/ui/standard-state-view.test.tsx`).
+jest.mock("@/shared/ui/standard-state-view", () => {
+  const { Pressable, Text, View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  function StandardStateView(props: {
+    kind: string;
+    testID?: string;
+    title?: string;
+    description?: string;
+    actions?: readonly { label: string; onPress: () => void }[];
+  }) {
+    return (
+      <View testID={props.testID}>
+        <Text accessibilityRole="header">{props.title}</Text>
+        {props.description ? <Text>{props.description}</Text> : null}
+        {(props.actions ?? []).map((action) => (
+          <Pressable
+            accessibilityLabel={action.label}
+            accessibilityRole="button"
+            key={action.label}
+            onPress={action.onPress}
+          >
+            <Text>{action.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+  }
+  return { StandardStateView };
+});
 
 beforeEach(() => {
   mockReplace.mockClear();
 });
 
-test("explains the unverifiable login request as an empty state and offers a way back", async () => {
+test("explains the unverifiable login request as a standard error state and offers a way back", async () => {
   const screen = await render(<OAuthCallbackScreen />);
   expect(screen.getByText("로그인 요청을 확인할 수 없습니다")).toBeTruthy();
   expect(
