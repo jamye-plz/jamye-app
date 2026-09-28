@@ -47,7 +47,15 @@ const MEDIA_PICKER_PLUGIN = [
   {
     photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
     cameraPermission: false,
-    microphonePermission: false,
+  },
+];
+const AUDIO_PLUGIN = [
+  "expo-audio",
+  {
+    microphonePermission:
+      "대화방에서 음성 메시지를 녹음하기 위해 마이크를 사용합니다.",
+    enableBackgroundRecording: false,
+    enableBackgroundPlayback: false,
   },
 ];
 const IOS_APPLE_TEAM_ID = "6ZH8V43A7D";
@@ -256,6 +264,7 @@ describe("M3-I1 Expo configuration contract", () => {
         DEV_CLIENT_PLUGIN,
         ...OAUTH_NATIVE_PLUGINS,
         MEDIA_PICKER_PLUGIN,
+        AUDIO_PLUGIN,
         PUSH_NOTIFICATIONS_PLUGIN,
       ],
     });
@@ -278,6 +287,7 @@ describe("M3-I1 Expo configuration contract", () => {
       DEV_CLIENT_PLUGIN,
       ...OAUTH_NATIVE_PLUGINS,
       MEDIA_PICKER_PLUGIN,
+      AUDIO_PLUGIN,
       PUSH_NOTIFICATIONS_PLUGIN,
     ]);
   });
