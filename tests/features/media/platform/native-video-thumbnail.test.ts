@@ -61,13 +61,29 @@ jest.mock("expo-file-system", () => ({
 const source = "file:///cache/media-downloads/movie.mp4";
 const generated =
   "file:///cache/ImageManipulator/11111111-1111-4111-8111-111111111111.jpg";
+type StatusListener = (payload: { status: string }) => void;
 function setup() {
   const frame = { release: jest.fn() };
+  const statusListeners = new Set<StatusListener>();
+  const subscription = { remove: jest.fn() };
   const player = {
+    status: "readyToPlay",
     replaceAsync: jest.fn().mockResolvedValue(undefined),
     generateThumbnailsAsync: jest.fn().mockResolvedValue([frame]),
+    addListener: jest.fn((event: string, listener: StatusListener) => {
+      if (event === "statusChange") statusListeners.add(listener);
+      subscription.remove.mockImplementation(() =>
+        statusListeners.delete(listener),
+      );
+      return subscription;
+    }),
     release: jest.fn(),
     play: jest.fn(),
+  };
+  /** Mirrors the native player: update `status`, then emit `statusChange`. */
+  const emitStatus = (status: string) => {
+    player.status = status;
+    for (const listener of [...statusListeners]) listener({ status });
   };
   const image = {
     saveAsync: jest.fn().mockResolvedValue({ uri: generated }),
@@ -81,7 +97,20 @@ function setup() {
   mockManipulate.mockReturnValue(context);
   const releaseFile = jest.fn();
   mockHold.mockReturnValue(releaseFile);
-  return { frame, player, image, context, releaseFile };
+  return {
+    frame,
+    player,
+    image,
+    context,
+    releaseFile,
+    emitStatus,
+    subscription,
+  };
+}
+
+/** Lets pending promise continuations (replaceAsync, the ready wait) run. */
+async function flushMicrotasks() {
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
 }
 beforeEach(() => {
   jest.clearAllMocks();
@@ -391,6 +420,91 @@ test("fails with a generate-stage code only after both the 0.5s and 1.5s attempt
     createNativeVideoThumbnail(source, new AbortController().signal),
   ).rejects.toThrow("thumbnail_unavailable:generate:frame_unavailable");
   expect(player.generateThumbnailsAsync).toHaveBeenCalledTimes(2);
+});
+
+describe("waits for the player to be ready (device regression: iOS swaps the item in after replaceAsync resolves)", () => {
+  afterEach(() => jest.useRealTimers());
+
+  test("requests a frame only after the player reports readyToPlay", async () => {
+    const { player, emitStatus, subscription } = setup();
+    player.status = "loading";
+    // Model the bridge: with no current item yet, the native call finds
+    // nothing to decode and returns no frames.
+    const readyFrame = { release: jest.fn() };
+    player.generateThumbnailsAsync.mockImplementation(async () =>
+      player.status === "readyToPlay" ? [readyFrame] : [],
+    );
+    const result = createNativeVideoThumbnail(
+      source,
+      new AbortController().signal,
+    );
+    await flushMicrotasks();
+    expect(player.generateThumbnailsAsync).not.toHaveBeenCalled();
+
+    emitStatus("readyToPlay");
+    await expect(result).resolves.toBe(
+      "file:///cache/media-downloads/thumb.jpg",
+    );
+    expect(player.generateThumbnailsAsync).toHaveBeenCalledTimes(1);
+    expect(player.generateThumbnailsAsync).toHaveBeenCalledWith([0.5], {
+      maxWidth: 320,
+      maxHeight: 320,
+    });
+    expect(subscription.remove).toHaveBeenCalledTimes(1);
+  });
+
+  test("a player load error fails at the generate stage without requesting frames", async () => {
+    const { player, emitStatus, releaseFile } = setup();
+    player.status = "loading";
+    const result = createNativeVideoThumbnail(
+      source,
+      new AbortController().signal,
+    );
+    await flushMicrotasks();
+    emitStatus("error");
+    await expect(result).rejects.toThrow(
+      "thumbnail_unavailable:generate:load_failed",
+    );
+    expect(player.generateThumbnailsAsync).not.toHaveBeenCalled();
+    expect(player.release).toHaveBeenCalledTimes(1);
+    expect(releaseFile).toHaveBeenCalledTimes(1);
+  });
+
+  test("cancelling while waiting stops without requesting frames", async () => {
+    const { player, subscription, releaseFile } = setup();
+    player.status = "loading";
+    const controller = new AbortController();
+    const result = createNativeVideoThumbnail(source, controller.signal);
+    await flushMicrotasks();
+    controller.abort();
+    await expect(result).rejects.toThrow(
+      "thumbnail_unavailable:cancelled:aborted",
+    );
+    expect(player.generateThumbnailsAsync).not.toHaveBeenCalled();
+    expect(subscription.remove).toHaveBeenCalledTimes(1);
+    expect(releaseFile).toHaveBeenCalledTimes(1);
+  });
+
+  test("a player that never becomes ready fails after a bounded wait", async () => {
+    jest.useFakeTimers();
+    const { player } = setup();
+    player.status = "loading";
+    const result = createNativeVideoThumbnail(
+      source,
+      new AbortController().signal,
+    ).then(
+      (uri) => ({ uri }),
+      (error: Error) => ({ error: error.message }),
+    );
+    await jest.advanceTimersByTimeAsync(9_999);
+    expect(player.generateThumbnailsAsync).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+    expect(await result).toEqual({
+      error: "thumbnail_unavailable:generate:not_ready",
+    });
+    expect(player.generateThumbnailsAsync).not.toHaveBeenCalled();
+    expect(player.release).toHaveBeenCalledTimes(1);
+  });
 });
 
 test("accepts an owned staged file and retains/releases it via the staging share-hold", async () => {

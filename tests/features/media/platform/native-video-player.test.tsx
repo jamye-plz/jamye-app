@@ -93,6 +93,12 @@ test("local playback uses native controls, disables background/PiP/casting, and 
   ];
   await act(() => status[1]({ status: "readyToPlay" }));
   expect(screen.queryByText("동영상 준비 중…")).toBeNull();
+  // Device regression: a clip that ends leaves readyToPlay; the loading
+  // text must not come back over it.
+  await act(() => status[1]({ status: "idle" }));
+  expect(screen.queryByText("동영상 준비 중…")).toBeNull();
+  await act(() => status[1]({ status: "loading" }));
+  expect(screen.getByText("동영상 준비 중…")).toBeTruthy();
   await unmountAndCheck();
   async function unmountAndCheck() {
     await screen.unmount();

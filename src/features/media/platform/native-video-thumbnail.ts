@@ -25,6 +25,8 @@ export type ThumbnailFailureStage =
 
 /** Seconds to request a frame at: first attempt, then a bounded fallback attempt. */
 const FRAME_ATTEMPT_SECONDS = [0.5, 1.5] as const;
+/** Upper bound for an owned local file to become playable before giving up. */
+const READY_TIMEOUT_MS = 10_000;
 
 const KNOWN_FAILURES: Record<
   string,
@@ -59,6 +61,48 @@ function boundedSeconds(seconds: number, duration: number | undefined): number {
     return Math.min(seconds, duration);
   }
   return seconds;
+}
+
+/**
+ * Resolves once the player reports `readyToPlay`. On iOS `replaceAsync`
+ * resolves before the new item is swapped into the player (that happens on
+ * the main queue afterwards), so an immediate frame request can find no
+ * current item and return no frames -- seen on device as status `loading`
+ * with zero frames on both attempts.
+ */
+function waitUntilReady(
+  player: VideoPlayer,
+  signal: AbortSignal,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const settle = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      subscription.remove();
+      signal.removeEventListener("abort", onAbort);
+      if (error) reject(error);
+      else resolve();
+    };
+    const onStatus = (status: VideoPlayer["status"]) => {
+      if (status === "readyToPlay") settle();
+      else if (status === "error")
+        settle(failureError("generate", "load_failed"));
+    };
+    const onAbort = () => settle(new Error("thumbnail_cancelled"));
+    const timeout = setTimeout(
+      () => settle(failureError("generate", "not_ready")),
+      READY_TIMEOUT_MS,
+    );
+    const subscription = player.addListener("statusChange", ({ status }) =>
+      onStatus(status),
+    );
+    signal.addEventListener("abort", onAbort, { once: true });
+    // Read after subscribing, so a transition just before it is not missed.
+    if (signal.aborted) onAbort();
+    else onStatus(player.status);
+  });
 }
 
 /**
@@ -123,6 +167,8 @@ export async function createNativeVideoThumbnail(
     player.showNowPlayingNotification = false;
     player.audioMixingMode = "mixWithOthers";
     await player.replaceAsync({ uri, useCaching: false });
+    current();
+    await waitUntilReady(player, signal);
     current();
     frames = await generateFrame(player, current);
     if (!frames[0]) throw new Error("missing_thumbnail_frame");

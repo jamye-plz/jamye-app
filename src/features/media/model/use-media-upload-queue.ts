@@ -39,6 +39,7 @@ function queueItem(
   return {
     localId: asset.localId,
     kind: asset.kind,
+    uri: asset.uri,
     filename: asset.filename,
     byteSize: asset.byteSize,
     width: asset.width,
