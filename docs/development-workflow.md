@@ -10,12 +10,12 @@ Nix가 Bun을 공급하므로 저장소 바깥의 전역 Bun이 아니라 프로
 열고 작업이 끝날 때까지 재사용한다.
 
 ```sh
-rtk proxy nix develop . --no-write-lock-file --command bash --noprofile --norc
+ nix develop . --no-write-lock-file --command bash --noprofile --norc
 ```
 
 `nix develop .`은 Bun script보다 앞선 bootstrap 명령이라 `package.json` alias를 두지
 않는다. devShell에 들어온 뒤에는 직접 `bunx`나 도구 binary를 조합하지 않고 이 문서의
-`bun run <script>` 진입점을 사용한다. 에이전트가 실행하는 shell 명령에는 `rtk`를 붙인다.
+`bun run <script>` 진입점을 사용한다.
 
 ### 에이전트의 devShell 세션 재사용
 
@@ -138,11 +138,11 @@ server checkout이나 실제 API를 호출하지 않는다.
 
 ```sh
 # 이미 intake된 sibling contract를 변경하지 않고 snapshot을 갱신해야 할 때만 별도 승인
-rtk proxy bun tools/contracts/intake-server-contract.mjs
-rtk proxy bun tools/contracts/generate-server-contract.mjs
+ bun tools/contracts/intake-server-contract.mjs
+ bun tools/contracts/generate-server-contract.mjs
 
 # 현재 checked-in snapshot/generated output의 read-only drift check
-rtk proxy bun tools/contracts/check-server-contract.mjs
+ bun tools/contracts/check-server-contract.mjs
 ```
 
 M6 runtime schema closure는 H1/H2 health, A1-A5 OAuth/session, U1 profile이다. Generated
@@ -288,21 +288,21 @@ fixture/bootstrap, SecureStore/MMKV cache, M5 outbox, WebSocket eviction은 이 
 
 focused 결과는 서로 다른 실행의 결과이며 additive aggregate가 아니다.
 
-| 실행 범위                                      | 결과                                                               |
-| ---------------------------------------------- | ------------------------------------------------------------------ |
-| task1 contract/auth                            | 6 suites / 92 tests                                                |
-| M6 관련 회귀                                   | 10 suites / 62 tests                                               |
-| architecture fixture                           | 72 tests                                                           |
-| auth cancellation follow-up                    | 2 suites / 41 tests                                                |
-| task2 API/state/error                          | 3 suites / 65 tests                                                |
-| groups provider + app provider                 | 2 suites / 18 tests                                                |
-| management/store/connected-index               | 3 suites / 27 tests                                                |
-| groups home/detail/connected-index             | 3 suites / 24 tests                                                |
-| TypeScript no-emit typecheck                   | exit 0                                                             |
-| final aggregate `rtk proxy bun run check:code` | exit 0; 51 suites / 551 tests                                      |
-| final global coverage                          | statements 90.16%, branches 83.40%, functions 92.62%, lines 92.49% |
-| contract checker                               | `status:ok`, exit 0                                                |
-| transport/architecture regression              | 2 suites / 75 tests passed                                         |
+| 실행 범위                             | 결과                                                               |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| task1 contract/auth                   | 6 suites / 92 tests                                                |
+| M6 관련 회귀                          | 10 suites / 62 tests                                               |
+| architecture fixture                  | 72 tests                                                           |
+| auth cancellation follow-up           | 2 suites / 41 tests                                                |
+| task2 API/state/error                 | 3 suites / 65 tests                                                |
+| groups provider + app provider        | 2 suites / 18 tests                                                |
+| management/store/connected-index      | 3 suites / 27 tests                                                |
+| groups home/detail/connected-index    | 3 suites / 24 tests                                                |
+| TypeScript no-emit typecheck          | exit 0                                                             |
+| final aggregate ` bun run check:code` | exit 0; 51 suites / 551 tests                                      |
+| final global coverage                 | statements 90.16%, branches 83.40%, functions 92.62%, lines 92.49% |
+| contract checker                      | `status:ok`, exit 0                                                |
+| transport/architecture regression     | 2 suites / 75 tests passed                                         |
 
 Task2 초안은 테스트 실행 전에 중단된 외부 작업에서 작성됐고 coordinator가 실제 failure regression
 cases를 추가·수정했다. 따라서 위 ledger는 clean blank-slate TDD 총계가 아니다. 최종 aggregate는
@@ -340,7 +340,7 @@ M8은 `COMPLETED / USER_ACCEPTED`로 종료했다. C1-C4 server contract를 사�
 주제 목록·메시지 조회·전송·수동 재시도·내 읽음 위치 저장을 기존 화면에 연결했다.
 화면의 메시지 원본은 account-scoped SQLite이며 bootstrap/fixture와 계정 데이터는 분리한다.
 
-통합 구현의 `rtk proxy bun run check:code`는 60 suites / 673 tests, architecture 위반 0건과
+통합 구현의 ` bun run check:code`는 60 suites / 673 tests, architecture 위반 0건과
 coverage 기준을 통과했다. 서버 C3 보강·리뷰 수정 배포 이후 기존 Development Build와
 Metro를 재사용해 양 플랫폼을 실행했고, 사용자가 송수신·읽음 결과 표시, 한글 입력·줄바꿈,
 이전 메시지 로딩·스크롤 유지, 실패 후 재시도를 모두 정상으로 확인하고 종료를 승인했다.
@@ -387,7 +387,7 @@ T1-T7 validator/mapper/API, additive account v4 주제 캐시, 목록·생성·�
 session/provider와 계약 회귀를 포함한다. 별도 실행들의 테스트 수를 더한 값이 아니라 아래 한 실행의 결과다.
 
 ```sh
-rtk proxy bun run test --runInBand tests/features/topics tests/core/database/account tests/core/contracts tests/features/chat tests/features/sync tests/features/groups tests/quality/topics-boundaries.test.ts tests/core/providers tests/core/app-providers.test.tsx tests/app/thin-routes.test.tsx
+ bun run test --runInBand tests/features/topics tests/core/database/account tests/core/contracts tests/features/chat tests/features/sync tests/features/groups tests/quality/topics-boundaries.test.ts tests/core/providers tests/core/app-providers.test.tsx tests/app/thin-routes.test.tsx
 ```
 
 실제 임시 SQLite에서는 v3 → v4 후 기존 room/message/outbox/checkpoint 보존, 재실행,
