@@ -1,6 +1,6 @@
 {
   "contract_version": "1",
-  "generated_sha256": "f9c5319f6a50262df7b14139f8b6bb3278c6e61b4365e9583caf68d4e5c5456c",
+  "generated_sha256": "c922a97906ca9521c256f7ee0d03103b60ed90162d4ac22dd851b7c3acda6431",
   "generator_identity": "openapi-typescript@7.13.0",
   "schema_closure_operation_ids": [
     "A1",
@@ -40,5 +40,5 @@
     "MD4",
     "MD5"
   ],
-  "source_sha256": "f6226265e99afd0b952cf25d17a977c13fb25b0eda62c02734cfb4e1efb1ae71"
+  "source_sha256": "f12b212f3339a4800ed97a8013800b6c1975c2e70e847c6913d3728d00c0ba78"
 }

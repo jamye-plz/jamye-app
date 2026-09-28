@@ -330,7 +330,9 @@ export function parseOAuthCallbackQuery(
 // server D9-defined single-key record (author_display_name for new_topic,
 // sender_display_name for chat_unread); unrecognized keys/types are the
 // consumer's (notification-copy.ts) responsibility to render safely, never
-// this validator's.
+// this validator's. M14 round 2 S1 adds optional group_name/topic_title
+// context keys alongside the type-keyed field; see notifications.ts's
+// NotificationArgs doc comment and readNotificationContextString.
 export type NotificationArgsWire = components["schemas"]["NotificationArgs"];
 export type NotificationWire = components["schemas"]["Notification"];
 export type NotificationPageWire = components["schemas"]["NotificationPage"];
