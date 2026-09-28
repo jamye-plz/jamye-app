@@ -1,12 +1,16 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14-M18(UI/UX 다듬기·소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15-M18(소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M13 프로필 수정과 계정 삭제 `COMPLETED / USER_ACCEPTED` (2026-09-22 사용자 디바이스 검증 완료 보고 및 종료 승인). M14 UI/UX 다듬기는 `in_progress`이며, 라운드 1(그룹 목록·그룹 상세·주제 목록·주제 상세)은 2026-09-27 사용자가 종료했다. 라운드 2 후보는 M14 절에 있다. M15-M17은 M14 라운드 사이에 병행할 수 있고, M18 스토어 배포는 M14 만족 선언 이후에만 시작한다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
+- 현재 frontier: M14 UI/UX 다듬기 `COMPLETED / USER_ACCEPTED` (2026-09-28 사용자 종료 승인).
+  라운드 1(그룹 목록·그룹 상세·주제 목록·주제 상세)은 2026-09-27, 라운드 2(로그인·계정·알림·대화방
+  네이티브 UI, 사진·동영상·음성 첨부, 세션 20260927-120934)는 2026-09-28 사용자 확인으로 마쳤다(§M14
+  참고). 다음 milestone은 미정이며 사용자 결정으로 시작한다. M14 만족 선언으로 M18 스토어 배포도
+  별도 승인 뒤 착수할 수 있다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-09-27
+- 최종 수정일: 2026-09-28
 
 ## 1. 이 문서가 답하는 것
 
@@ -690,11 +694,12 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 ### M14. UI/UX 다듬기 (반복 라운드)
 
-- 상태: `in_progress` — 2026-09-22 사용자가 계획을 승인하고 라운드 1 착수를 지시; 2026-09-26 세션
+- 상태: `COMPLETED / USER_ACCEPTED` — 2026-09-28 사용자가 라운드 2의 마지막 수정(R4)을 확인하고
+  M14 종료를 승인했다. 경과: 2026-09-22 사용자가 계획을 승인하고 라운드 1 착수를 지시; 2026-09-26 세션
   `20260926-181036`에서 그룹 목록·그룹 상세·주제 목록·주제 상세를 native-first 범위로 확장하고,
   서버 배포 뒤 양 플랫폼 기기 검증과 결함 수정을 기록했다([M14 evidence](evidence/M14.md)).
   2026-09-27 사용자가 라운드 1 범위 종료를 선언했다("그룹 목록, 그룹 상세, 주제 목록, 주제 상세까지
-  전부 잘 마무리"). M14 전체 종료는 아니며 다음 라운드는 아래 후보에서 고른다.
+  전부 잘 마무리"). 2026-09-27 라운드 2(세션 `20260927-120934`)를 시작해 2026-09-28 마쳤다.
 - 선행: M13(모든 제품 화면이 존재하는 상태)
 - 결정(2026-09-22): [ADR 0005](adr/0005-native-ui-toolkit-adoption.md)의 native-first 방향(`@expo/ui`, `expo-symbols`, `PlatformColor`, native Stack header)을 유지하되, D3(tab bar 없음)는 라운드 1에서 [ADR 0009](adr/0009-tab-bar-navigation.md)로 대체한다.
   종료 기준은 사용자의 만족 선언이며 라운드 수를 미리 정하지 않는다. 라운드 사이의 사용자 리뷰
@@ -820,7 +825,9 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - 그룹 기본 대화방 갤러리.
 - 알림 목적지(E5): `new_topic` push·알림함 목적지는 현재 주제 상세 URL 그대로다. 목록 → 대화방 → 주제
   상세 흐름과 맞출지 라운드 2에서 재검토한다.
-- 알림·계정 화면, 채팅 본문 UI, 로그인 화면 재설계.
+- 알림·계정 화면, 채팅 본문 UI, 로그인 화면 재설계 — 라운드 2(세션 20260927-120934)에서 로그인·
+  계정·알림함·대화방(그룹·주제) 전체를 네이티브 UI로 구현하고 기기 검증했다(아래 "라운드 2" 절,
+  [M14 evidence](evidence/M14.md)).
 - Android carousel `maskClip` 미노출로 중·소 항목이 사각으로 잘리는 문제.
 - 3열 grid 타일 모양(사진 앱 관례의 사각)과 서버 썸네일 도입.
 - iOS 그룹 정보의 `멤버`·`관리` 섹션 헤더.
@@ -832,9 +839,13 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
   절대 웹 URL만 불러오고 `http:`는 `https:`로 올리지만(`src/shared/ui/avatar.shared.ts`), 다른 멤버가 넣은
   URL을 불러오면 보는 사람의 IP와 조회 시점이 그 host에 드러난다. 아바타 변경(업로드 + 공개 URL)과 함께
   서버 검증이나 업로드 기반 URL로 바꾼다. 같은 작업에서 Kakao 로그인 profile 요청에 `secure_resource=true`를
-  넣고 이미 저장된 `http://` Kakao URL을 정리한다(서버 변경·재배포 필요).
+  넣고 이미 저장된 `http://` Kakao URL을 정리한다(서버 변경·재배포 필요). 라운드 2 서버 배포로
+  해결: S3(https 절대 URL만 허용, `secure_resource=true`)·S4(migration 0013으로 저장된 `http://`
+  값을 `https://`로 일괄 변환), PR #9 → `a77cac5`(2026-09-27).
 - 주제 태그 권한 맞추기: 앱은 2026-09-27 사용자 결정으로 주제 편집(제목·본문·태그)을 작성자만 한다. 서버 T6
   태그 교체 API는 아직 작성자 또는 그룹 소유자를 허용하므로, 서버 권한도 작성자만으로 맞출지 정한다(서버 변경·재배포 필요).
+  라운드 2 서버 배포로 해결: S2(작성자만 허용, 비작성자는 403 `topic_author_required`), PR #9 →
+  `a77cac5`(2026-09-27).
 - 의존성 정리: `bun audit`가 Metro 경유 transitive `image-size`(>=1.2.0 <=2.0.2)의 high advisory 2건
   (GHSA-5p2g-fcmc-qvqq, GHSA-w3rx-r6r6-pgpr, 무한 루프 DoS)을 보고한다. 빌드 도구 경로에만 있고 앱
   번들에는 없다. upstream 갱신이나 `overrides`로 정리한다.
@@ -845,6 +856,65 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
   개발자 전용으로 정리; 이번 네 화면 밖의 스타일·컴포넌트와 상태 화면(loading/empty/error); 미디어 뷰어
   오버레이·채팅 composer의 Liquid Glass 적용 여부(ADR 0010 D2). 채팅 화면 제목(D7·E11), 날짜 다이얼
   haptic(위 haptics), Android 주제 행 스와이프(위 M15)는 이번 세션에서 처리했거나 위 항목으로 옮겼다.
+  위 항목 중 개발자 전용 계정 섹션 정리(A3)와 composer/미디어 뷰어의 Liquid Glass 적용(W1, R3)은
+  라운드 2(세션 20260927-120934)에서 구현했다. 인증 게이트 라우팅 분리(`(auth)/sign-in`)는 이번에도
+  범위 밖으로 유지했다.
+
+#### 라운드 2 (세션 20260927-120934) — 로그인·계정·알림·대화방 네이티브 UI, 사진·동영상·음성
+
+- SSOT: jamye-server `.agents/results/requirements-20260927-120934.md`(L1-L3, A1-A4, N1-N4, R1-R4,
+  W1-W4, V1-V4, S1-S5, E1-E15), 계획 `.agents/results/plan-20260927-120934.json`.
+- 범위: 로그인, 계정, 알림함, 대화방(그룹 기본 대화방과 주제 대화방 모두) — 메시지 목록·말풍선
+  무리·길게 눌러 메시지 메뉴·전체 화면 미디어 뷰어, 입력창(`+`·텍스트 필드·마이크/보내기), 사진·
+  동영상 다중 첨부, 대화방 안 음성 녹음·전송·재생. iOS는 Liquid Glass·HIG, Android는 Material
+  3(Berry seed)를 우선했다(ADR 0010, ADR 0011).
+- 새 native 의존성(재빌드 승인): `expo-audio`(녹음·재생), `expo-haptics`(iOS 녹음 시작·정지·전송
+  햅틱), `expo-clipboard`(메시지 메뉴 `복사`). 마이크 권한 문구는
+  `대화방에서 음성 메시지를 녹음하기 위해 마이크를 사용합니다.`다
+  ([ADR 0014](adr/0014-voice-messages-and-microphone-permission.md)). 기존 파일 기반 음성 첨부
+  (`음성 파일 첨부`, `audio-file-picker.ts`)와 `expo-document-picker` 의존성은 제거했다(의존성은
+  2026-09-28 제거, 이미 설치된 dev client의 native 모듈은 다음 재빌드 때 빠진다).
+- 서버 선행·동반 변경(jamye-server, 이번 세션 배포): S1 알림 args에 그룹 이름·주제 제목 보강(계약
+  변경 없음), S2 주제 태그 교체(T6) 권한을 작성자만으로 축소, S3 프로필 사진 URL을 절대 https만
+  허용하고 카카오 조회에 `secure_resource=true`를 추가, S4 migration
+  `0013_https_avatar_urls.sql`로 저장된 `http://` 프로필 사진 URL을 `https://`로 일괄 변환. 커밋
+  `d5167c3` → PR #9 → merge `a77cac5` → homelab 배포(2026-09-27 06:42:46Z).
+- 서버 후속 배포(2026-09-28): 기기 검증 중 발견한 HTTP 전송 첨부 1개 제한(첨부 2개 이상이 422
+  `media_not_available`로 거부됨)을 해제해, 계약이 이미 지원하던 최대 4개까지 받도록 수정. 커밋
+  `9a6cba1`+`fd07187` → PR #10 → merge `c7f71a8` → homelab 배포. 상세는 jamye-server
+  `.agents/results/deploy-20260927-120934.md` §10.
+- 기기 검증과 결함 수정: iOS 시뮬레이터(`13042A23-6898-4477-B2DF-76803E4616F9`)와 Android
+  에뮬레이터(`jamye_pixel_9_api_36`)에서 배포된 운영 서버 기준으로 검증했다. 발견한 결함 24건(Host
+  밖 렌더, Compose `LazyColumn` 안 RN 콘텐츠 측정 무한 루프, Compose 슬롯의 bare 문자열/RN 뷰,
+  상시 마운트된 전체 화면 Compose host의 RN hit-test 차단, `BadgedBox`·`onLayoutContent` 오사용,
+  `NativeButton` Host stretch, 입력 shell `initialValue`/`value` 혼동, `expo-video`
+  `replaceAsync`/`readyToPlay` 순서, 서버에 없는 미디어 크기로 인한 정사각형 강제, 앱 소유 staging을
+  거치지 않은 음성 업로드, 뷰어 focus 전 재생 준비, 해제된 player 호출, 썸네일 큐 정체, back stack
+  없이 열린 그룹 홈, 로그인 버튼의 SwiftUI modifier 순서와 로고 배경 등)와 회귀 테스트는
+  [M14 evidence](evidence/M14.md)의 "라운드 2" 절에 기록한다.
+- 사용자 확인(2026-09-28, iOS·Android): L1-L3, A1-A4, N1-N4, R1-R4, W1-W4, V1-V4. R4의 iOS 목록
+  끌어서 키보드 닫기는 구현 누락을 고친 뒤(결함 24) 사용자가 확인했다. V2 iPhone 무음 모드 재생,
+  V3 햅틱, iOS 전화 수신 중단은 시뮬레이터로 확인할 수 없어 실기기 검증(M18 출시 준비)으로 넘긴다.
+- 종료(2026-09-28): 사용자가 R4 수정을 확인하고 M14 종료를 승인했다. 종료 시점 `bun run check:code`
+  exit 0(224 suites / 2,094 tests, coverage statements/branches/functions/lines 87.9% / 82.24% /
+  87.55% / 90.61%, `check-architecture` PASS). ultrawork의 VERIFY·REFINE·SHIP 격리 리뷰는 사용자의
+  종료 결정으로 실행하지 않았다(아래 후속 후보의 품질 정리 항목 참고).
+
+M14 종료 후 후속 후보(각각 별도 결정):
+
+- 주제 공지(announcement) 메시지가 markdown 링크를 원문 그대로 렌더한다(raw markdown link).
+- 업로드가 만료된(1시간 초과) 실패 메시지는 다시 보내기도, 버리기도 할 수 없다. 재시도 시 만료된
+  첨부 재업로드 또는 실패 메시지 버리기 기능이 필요하다.
+- 공용 입력 shell 테스트 mock(`NativeInputSheet`/`NativeInputDialog`의 테스트 대역)이 `value`를
+  렌더해 실제 shell의 `initialValue` 기반 동작과 어긋난다. mock을 실제 동작에 맞게 고친다.
+- 서버 미디어 어댑터 테스트 fixture가 호스트 `now`와 DB `clock_timestamp()`를 섞어 써서 시계
+  오차가 있으면 간헐적으로 실패한다(`media_uploads_timestamp_check`).
+- dev build 콜드 스타트가 에뮬레이터에서 긴 빈 화면을 보인다. release build 기준으로 다시 측정한다.
+- 실기기 검증: V2 iPhone 무음 모드 재생, V3 iOS 햅틱, iOS 전화 수신 중단 뒤 미리듣기 유지.
+- 관찰: 기기 검증 중 새 메시지가 도착하던 시점에 Android 뷰어가 한 번 닫혔고 원인은 확인하지 못했다.
+- 품질 정리(라운드 2 REFINE 후보): lint 경고 15건, media 화면의 eslint 예외 설정
+  (`react-hooks/refs`·immutability), 동영상 플레이어와 음성 재생 조정기 미연결(음성을 틀어도 동영상이
+  멈추지 않음), 중복된 player hook, 두 개의 알림 snackbar host.
 
 ### M15. 소프트 삭제 수용 (서버 task-14 연동)
 

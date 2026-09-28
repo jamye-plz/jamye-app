@@ -212,9 +212,12 @@ React Native의 semantic token과 platform API로 다시 표현한다.
 | icon button 최소 hit target |                                            44×44px |
 | 짧은 press feedback         |                       최대 150ms, layout 이동 없음 |
 
-현재 slice에는 text input과 send button만 있다. media, microphone, recording state는
-composer에 자리만 예약하거나 skeleton을 만들지 않고 backlog로 남긴다. composer는 bottom
-safe area를 소유하고 마지막 message를 가리지 않아야 한다.
+M14 라운드 2(2026-09-27, 세션 20260927-120934)부터 composer는 사진·동영상 첨부와 마이크 음성
+녹음을 실제로 포함한다([roadmap.md](roadmap.md),
+[ADR 0014](adr/0014-voice-messages-and-microphone-permission.md)). 마이크는 composer를 처음
+탭한 시점에만 권한을 요청하며(앱 시작 시점이 아님), 요청 문구는
+`대화방에서 음성 메시지를 녹음하기 위해 마이크를 사용합니다.`다. composer가 bottom safe area를
+소유하고 마지막 message를 가리지 않아야 한다는 원칙은 그대로 유지한다.
 
 ### 4.4 접근성과 platform 적응
 
