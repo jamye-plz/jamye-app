@@ -12,19 +12,22 @@ shared session/account-safe connected-auth shell이 구현돼 있다. `local-fix
 origin+UUID account namespace와 authenticated home을 표시한다. M7 connected-auth mode는
 server-backed group navigation을 제공하고, M8은 실제 주제 목록·메시지 조회·전송·내 읽음 위치 저장,
 M9는 영속 outbox와 실시간·누락 복구를 연결했다. M10 주제·태그는 전체 자동 검증·독립 리뷰와
-양 플랫폼 사용자 수용 4/4 확인과 종료 승인을 받아 완료했다. 아래 명령은 실행 절차이며
+양 플랫폼 사용자 수용 4/4 확인과 종료 승인을 받아 완료했다. 이후 M11 미디어 업로드·첨부, M12
+알림함·Expo 푸시, M13 프로필 수정·계정 삭제, M14 UI/UX 다듬기(탭 구조, 네이티브 화면, 사진·동영상·음성
+첨부)도 각각 사용자 종료 승인으로 마쳤다. 아래 명령은 실행 절차이며
 그 자체로 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제 관찰 결과는
 각 마일스톤 증거에 기록한다: [M3](docs/evidence/M3.md),
 [M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md),
 [M6 네이티브·로그인 검증](docs/oauth-development.md), [M7 그룹·계정 전환 검증](docs/evidence/M7.md),
 [M8 REST 채팅 검증](docs/evidence/M8.md), [M9 동기화 검증](docs/evidence/M9.md),
 [M10 주제·태그 검증](docs/evidence/M10.md), [M11 미디어 구현·검증 현황](docs/evidence/M11.md),
-[M12 알림·푸시 증거](docs/evidence/M12.md).
+[M12 알림·푸시 증거](docs/evidence/M12.md), [M13 계정 수명주기 증거](docs/evidence/M13.md),
+[M14 UI/UX 증거](docs/evidence/M14.md).
 
 ## 현재 범위
 
 M0-M5는 역사적으로 완료된 기반이다. M5는 **fixture 대화방 하나의 로컬 채팅 읽기·쓰기**까지
-완료했고, 이후 Kakao/Google OAuth와 U1 profile이 추가 구현됐다. 현재 M6 빌드에서는
+완료했고, 이후 Kakao/Google OAuth와 U1 profile이 추가 구현됐다. M6 빌드에서는
 사용자가 iOS·Android 모두 Kakao·Google 실계정 로그인 성공을 확인했다. 추가 세션 검증과
 iOS 취소·재로그인 사용자 확인을 마친 뒤 2026-09-09 M6를 정식 종료했다.
 화면은 SQLite를
@@ -49,7 +52,9 @@ M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도�
 - M10: 주제·태그 — 완료 (2026-09-10 양 플랫폼 사용자 수용 4/4 확인 및 종료 승인)
 - M11: 미디어 업로드·첨부·접근 — 완료 (2026-09-16 양 플랫폼 사용자 확인 및 종료 승인). 형식 호환성 재빌드, 버튼 대비·영상 카드·앱 내 native 영상 재생, 영상 미리보기 안정화와 발신 단말 JPEG 포스터, realtime 발신자 표시·첨부 즉시 반영을 포함
 - M12: 알림함과 Expo 푸시 — 완료 (2026-09-21 iPhone 실기기 푸시 수신·탭 handoff·미리보기 off·기본 대화방 알림 확인 및 종료 승인). 서버 가시 페이로드(PR #6)와 기본 대화방 알림(PR #7) 배포 포함
-- 다음: M13 프로필 수정과 계정 삭제 (`planned_unapproved`, 별도 승인 필요)
+- M13: 프로필 수정과 계정 삭제 — 완료 (2026-09-22 사용자 디바이스 확인 및 종료 승인)
+- M14: UI/UX 다듬기 — 완료 (2026-09-28 사용자 종료 승인). 라운드 1은 탭 구조와 그룹·주제 화면, 라운드 2는 로그인·계정·알림·대화방 네이티브 UI와 사진·동영상·음성 첨부
+- 다음: 미정. M15-M18(소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포)은 `planned_unapproved`이며 각각 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
 
 M10의 확정 범위와 순서는 [로드맵의 M10 계획](docs/roadmap.md#m10-주제태그)에 있다.
 계약·데이터 연결 → 주제·태그 화면 → M9 동기화 연결 → 자동 검증·양 플랫폼 수용 순서이며,
@@ -60,10 +65,12 @@ M10의 확정 범위와 순서는 [로드맵의 M10 계획](docs/roadmap.md#m10-
 M10 종료·로컬 커밋을 승인했다. 출처별 결과와 한계는 [M10 evidence](docs/evidence/M10.md)와
 [개발 검증 기록](docs/development-workflow.md#m10-구현과-focused-검증--2026-09-10)에 있다. Push·배포는 별도다.
 
-Apple login, STT/on-device AI, presence/typing/reaction, message edit/delete와 새 push
-backend는 현재 서버 계약 밖의 별도 backlog다. 의존성 보안 수정 후에도 원본 감사의 image-size
-High 2건과 Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용 및 배포 revision binding은
-남아 있어 production readiness는 `NOT READY`다. M6-M10 종료는 이 출시 항목들의 완료를 뜻하지 않는다.
+새 OAuth provider(Apple 제외), STT/on-device AI와 새 push backend는 현재 서버 계약 밖의 별도
+backlog다. Apple login(M16), 메시지 삭제(M15), 메시지 편집과 presence/typing/reaction(M17(C))은
+2026-09-22 로드맵에 `planned_unapproved`로 등록됐고 서버 계약이 선행한다. 의존성 보안 수정 후에도
+원본 감사의 image-size High 2건과 Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용 및 배포
+revision binding은 남아 있어 production readiness는 `NOT READY`다. M6-M14 종료는 이 출시 항목들의
+완료를 뜻하지 않는다.
 패치 검증과 감사 결과는 [개발 검증 기록](docs/development-workflow.md)에 구분한다. 자세한 경계는
 [`docs/roadmap.md`](docs/roadmap.md)와
 [`docs/product-intent.md`](docs/product-intent.md)를 기준으로 한다.
@@ -140,7 +147,7 @@ M8은 `COMPLETED / USER_ACCEPTED`다. 그룹 상세에서 주제 목록으로 �
 앱의 사용자용 명칭은 '주제'이며 API 경로와 내부 `chatroom` 식별자는 유지한다.
 
 읽음 결과는 **내 읽음 위치 저장**을 뜻한다. 메시지별 상대방 읽음 표시와 주제별 안읽음 표시는
-구현하지 않았고 기존 마일스톤에도 추가하지 않는다. 새 주제 생성은 기존 M10, 실시간 수신과
+구현하지 않았다. 두 기능은 2026-09-22 M17(C) 후보로 등록됐고 서버 계약이 선행한다. 새 주제 생성은 기존 M10, 실시간 수신과
 자동 outbox 처리는 후속 M9에서 완료했다. 결과 출처와 검증 한계는 [M8 evidence](docs/evidence/M8.md)를 따른다.
 
 ## M9 영속 outbox와 실시간·delta 동기화
@@ -225,9 +232,12 @@ Development variant의 simulator/emulator 식별자는 다음 네 값으로만 �
 `src/core/config/expo-base-config.json`은 SDK 57 template에서 보존한 non-identity Expo
 설정에 M4의 option-free native plugin인 `expo-sqlite`, `expo-font`를 그 순서로 등록한
 단일 base fragment다. 두 plugin에는 option이나 font asset path를 넣지 않는다. `app.config.ts`는
-이 JSON 전체에서 development identity와 `['expo-dev-client', { addGeneratedScheme: true }]`만
-더한다. 이 generated scheme은 개발 launcher 연결용일 뿐 공개 custom scheme, universal link
-또는 app link 계약이 아니다.
+이 JSON 위에 development identity, 공개 scheme `jamye`, `['expo-dev-client', { addGeneratedScheme: true }]`,
+OAuth(`expo-web-browser`, `expo-secure-store`)·사진 선택(`expo-image-picker`)·음성 녹음(`expo-audio`)·
+푸시(`expo-notifications`) plugin과 권한 문구, 초대 링크용 iOS associated domains·Android intent
+filter, 푸시용 EAS project id와 Android FCM 설정을 더한다. dev-client의 generated scheme은 개발
+launcher 연결용일 뿐 공개 custom scheme, universal link 또는 app link 계약이 아니다. 초대 링크
+계약은 [ADR 0012](docs/adr/0012-invite-links-public-link-contract.md)를 따른다.
 
 결정 근거는 다음 ADR에 있다.
 
@@ -235,6 +245,9 @@ Development variant의 simulator/emulator 식별자는 다음 네 값으로만 �
 - [`ADR 0002 — Bun-only package management`](docs/adr/0002-bun-only-package-management.md)
 - [`ADR 0003 — M2 bootstrap 품질 증거의 M3 이관`](docs/adr/0003-m2-bootstrap-quality-evidence-deferment.md)
 - [`ADR 0004 — M3 앱 기반과 preference 보류`](docs/adr/0004-m3-app-foundation-and-preference-deferral.md)
+
+이후 UI toolkit, 미디어, 푸시, 계정 수명주기, 탭 구조, 시각 언어·색, 초대 링크, 로컬 native
+module과 음성 메시지 결정은 [`docs/adr/`](docs/adr/)의 ADR 0005-0014에 있다.
 
 ## 개발 환경
 
@@ -407,12 +420,14 @@ bun run deps:install:frozen
 Lifecycle script가 필요하다는 실제 실패 근거와 사용자 승인 없이 `trustedDependencies`를
 추가하지 않는다.
 
-`@expo/ui`(57.0.17), `expo-symbols`(57.0.2), `expo-glass-effect`(57.0.2)는 이번 세션에서
-추가된 direct dependency다. 세 패키지 모두 Expo module이며 현재 실행 중인 iOS Simulator,
-Android Emulator development build에 이미 linked돼 있어 별도의 clean prebuild 없이
-사용한다. `expo-image`(~57.0.5)는 후속 승인으로 추가했으며 native rebuild가 필요하므로 clean
-prebuild와 iOS·Android rebuild/install을 거쳐 사용한다. 배경과 checker 정책 변경은
-[ADR 0005](docs/adr/0005-native-ui-toolkit-adoption.md)를 따른다.
+`@expo/ui`(57.0.17), `expo-symbols`(57.0.2), `expo-glass-effect`(57.0.2)는 native UI
+toolkit으로 추가한 direct dependency이며, 배경과 checker 정책 변경은
+[ADR 0005](docs/adr/0005-native-ui-toolkit-adoption.md)를 따른다. 이후 미디어·푸시·음성 같은
+native module도 milestone마다 별도 승인을 받아 추가했고, native module 추가는 clean prebuild와
+iOS·Android rebuild/install을 거친다. 최근 변경은 M14 라운드 2의 `expo-audio`·`expo-haptics`·
+`expo-clipboard` 추가와 2026-09-28 `expo-document-picker` 제거다. 제거한 module은 이미 설치된
+dev client에 남아 있다가 다음 재빌드 때 빠진다. 승인된 direct dependency와 version의 원본은
+`tools/quality/check-architecture.cjs`의 `APPROVED_DEPENDENCIES`다.
 
 ## Development Build와 CNG
 
@@ -457,24 +472,32 @@ build/install 결과일 뿐 현재 JavaScript bundle의 runtime 동작 증거가
 ## 현재 구조와 다음 경계
 
 ```text
-src/app/                          얇은 Expo Router route와 root composition
+src/app/                          얇은 Expo Router route, 탭 레이아웃과 root composition
 src/core/config/                  Expo base config와 공개 environment validation
 src/core/logging/                 structured redacted local logging
 src/core/errors/                  root Error Boundary와 recovery UI
 src/core/database/                SQLite open·migration·repository lifecycle
 src/core/auth/                    A1-A4/U1 adapter, PKCE, controller와 SecureStore session
 src/core/contracts/server/        server wire type·validator·domain mapper
+src/core/health/                  H1/H2 health adapter
 src/core/http/                    account-safe authorized request boundary
 src/core/providers/               theme·database·keyboard·runtime provider composition
 src/core/theme/                   semantic light/dark token과 system theme provider
 src/features/chat/data/           C1-C4 server adapter
 src/features/chat/model/          fixture 및 connected chat state, send/read/lifecycle
 src/features/chat/ui/             native list, row, composer, platform keyboard adapter
+src/features/chat/platform/       메시지 복사·iOS haptics adapter
 src/features/chat/                repository 구독 기반 conversation hook
-src/features/auth/                login/profile/logout UI와 callback landing
+src/features/auth/                로그인 화면과 OAuth callback landing
+src/features/home/                계정 탭 화면(profile·logout)과 서버 연결 진단
+src/features/account/             U2 닉네임 변경·U3 계정 삭제 adapter·state·UI
 src/features/groups/              account-scoped API·state·group/member/invite UI
+src/features/topics/              T1-T7 주제·태그 API·state·UI
+src/features/media/               MD1/MD2/MD4/MD5·C5 adapter, 업로드·첨부·뷰어·음성 녹음/재생
+src/features/notifications/       N1/N2 알림함, P2-P4 푸시 설치와 알림 탭 handoff
 src/features/sync/                account-owned outbox·delta·WebSocket·profile recovery
-src/shared/ui/                    native screen/text primitive
+src/shared/datetime/              알림·대화 시각 label
+src/shared/ui/                    native screen/text primitive와 플랫폼별 list·header·dialog·feedback 컴포넌트
 ```
 
 - Route는 auth·chat·group screen과 root provider를 조합하고 persistence 구현을 직접 import하지 않는다.
@@ -487,17 +510,21 @@ src/shared/ui/                    native screen/text primitive
   UI-thread scroll을 사용한다.
 - Theme는 React Native `useColorScheme()`만 따르며 저장 preference나 state library가 없다.
 - Local fixture는 production server, HTTP, WebSocket 또는 auth를 사용하지 않는다.
-- `src/app/index.tsx`는 `local-fixture`의 M5 chat과 `connected-auth`의 로그인·인증 home을
-  구분한다. 인증 후에는 account-scoped M7 group route로 이동할 수 있다.
-- `AppProviders`는 connected mode에서 shared session, account scope와 groups/chat store를 조합한다.
+- `src/app/index.tsx`는 `local-fixture`의 M5 chat과 `connected-auth`의 로그인 화면을 구분한다.
+  인증 후에는 그룹·알림·계정 탭의 그룹 목록으로, 로그인 전에 받은 초대 링크가 있으면 가입 확인
+  화면으로 이동한다.
+- `AppProviders`는 connected mode에서 shared session, account scope와 groups/topics/chat store,
+  media·푸시 수명주기 provider를 조합한다.
   fixture DB/seed는 local-fixture mode에서만 사용하며, 실제 계정 namespace와 분리한다.
 - ESLint가 `app.config.ts`와 route/UI 계층의 직접 transport를 금지한다. 현재 허용된 실제
-  네트워크 호출은 auth·health·groups·chat·sync·topics의 지정 adapter와 `src/core/http/` 경계를 통과한다.
-  이후 server adapter도 별도 boundary로 승인·검증한다.
+  네트워크 호출은 auth·health·groups·chat·topics·sync·notifications(알림함·푸시 설치)의 지정
+  adapter, media native adapter의 Expo fetch와 `src/core/http/` 경계를 통과한다. 이후 server
+  adapter도 별도 boundary로 승인·검증한다.
 
 M8은 이 경계 안에서 server-backed REST chat을, M9는 persistent outbox processor와
-canonical event/delta recovery를 연결했다. 실제 `jamye-server` 연결은 M6-M9의 수용 범위에
-기록하며, credential과 session/token은 fixture나 문서에 보존하지 않는다.
+canonical event/delta recovery를 연결했고, M10-M14는 같은 경계로 주제·미디어·알림·계정
+adapter를 더했다. 실제 `jamye-server` 연결은 각 milestone evidence의 수용 범위에 기록하며,
+credential과 session/token은 fixture나 문서에 보존하지 않는다.
 
 ## 품질 명령과 coverage 계약
 
