@@ -189,9 +189,15 @@ jest.mock("@expo/ui/swift-ui/modifiers", () => ({
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
+const mockDismissTo = jest.fn();
 const mockBack = jest.fn();
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack }),
+  useRouter: () => ({
+    back: mockBack,
+    dismissTo: mockDismissTo,
+    push: mockPush,
+    replace: mockReplace,
+  }),
   useFocusEffect: (callback: () => () => void) => {
     const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(callback, [callback]);
@@ -361,25 +367,26 @@ describe("M14 groups home, create and join", () => {
     await fireEvent.press(submit);
     await fireEvent.press(submit);
     expect(api.createGroup).toHaveBeenCalledTimes(1);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockDismissTo).not.toHaveBeenCalled();
     await act(async () => {
       pending.resolve(group);
     });
-    expect(mockReplace).toHaveBeenCalledWith({
-      pathname: "/groups/[groupId]",
-      params: { groupId },
-    });
+    expect(mockDismissTo).toHaveBeenCalledWith(
+      { params: { groupId }, pathname: "/groups/[groupId]" },
+      { withAnchor: true },
+    );
   });
   test("joins an already-member group only after explicit submit; no invite code anywhere in navigation", async () => {
     const { screen } = await setup("join");
     await fireEvent.changeText(screen.getByPlaceholderText("초대 코드"), code);
     await fireEvent.press(screen.getByRole("button", { name: "가입" }));
-    expect(mockReplace).toHaveBeenCalledWith({
-      pathname: "/groups/[groupId]",
-      params: { groupId },
-    });
+    expect(mockDismissTo).toHaveBeenCalledWith(
+      { params: { groupId }, pathname: "/groups/[groupId]" },
+      { withAnchor: true },
+    );
     expect(JSON.stringify(mockPush.mock.calls)).not.toContain(code);
     expect(JSON.stringify(mockReplace.mock.calls)).not.toContain(code);
+    expect(JSON.stringify(mockDismissTo.mock.calls)).not.toContain(code);
     expect(JSON.stringify(mockBack.mock.calls)).not.toContain(code);
   });
   test.each([
@@ -401,7 +408,7 @@ describe("M14 groups home, create and join", () => {
       );
       await fireEvent.press(screen.getByRole("button", { name: "가입" }));
       expect(screen.getByText(message)).toBeTruthy();
-      expect(mockReplace).not.toHaveBeenCalled();
+      expect(mockDismissTo).not.toHaveBeenCalled();
     },
   );
   test("leaving a form fences late navigation", async () => {
@@ -417,6 +424,6 @@ describe("M14 groups home, create and join", () => {
     await act(async () => {
       pending.resolve(group);
     });
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockDismissTo).not.toHaveBeenCalled();
   });
 });

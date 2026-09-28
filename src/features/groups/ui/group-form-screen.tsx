@@ -8,6 +8,7 @@ import { isGroupName } from "../model/groups-input";
 import { useGroupsStore } from "../model/groups-provider";
 import { pendingInviteStore } from "../model/pending-invite-store";
 import { groupErrorMessage } from "./group-controls";
+import { showGroupHome } from "./show-group-home";
 
 /**
  * One-line input screen (C3): 새 그룹 만들기 / 초대 코드로 가입, on the kit's
@@ -87,7 +88,7 @@ export function GroupFormScreen({
     if (result && started && focused.current === started) {
       const groupId = "id" in result ? result.id : result.groupId;
       setInput("");
-      router.replace({ pathname: "/groups/[groupId]", params: { groupId } });
+      showGroupHome(router, groupId);
     }
   }
 
