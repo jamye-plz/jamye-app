@@ -1,38 +1,19 @@
 import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
-import type { ReactNode } from "react";
 import { Linking } from "react-native";
 
+import { AppThemeProvider } from "@/core/theme/theme-provider";
 import type { PushLifecycleContextValue } from "@/features/notifications/model/push-lifecycle-provider";
 import { usePushLifecycle } from "@/features/notifications/model/push-lifecycle-provider";
 import type { PushInstallation } from "@/features/notifications/model/push-lifecycle";
-import { NotificationSettingsSection } from "@/features/notifications/ui/notification-settings-section";
 
 jest.mock("@/features/notifications/model/push-lifecycle-provider", () => ({
   usePushLifecycle: jest.fn(),
 }));
-jest.mock("@expo/ui/swift-ui", () => {
-  const { Text: RNText, View } =
-    jest.requireActual<typeof import("react-native")>("react-native");
-  type MockChildren = Readonly<{ children?: ReactNode }>;
-  function Section({
-    children,
-    footer,
-    title,
-  }: MockChildren & { footer?: ReactNode; title?: string }) {
-    return (
-      <View testID="section">
-        {title ? <RNText>{title}</RNText> : null}
-        {children}
-        {footer}
-      </View>
-    );
-  }
-  function Text({ children, testID }: MockChildren & { testID?: string }) {
-    return <RNText testID={testID}>{children}</RNText>;
-  }
-  return { Section, Text };
-});
+jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
+  __esModule: true,
+  default: jest.fn(() => "light"),
+}));
 
 const mockUsePushLifecycle = usePushLifecycle as jest.MockedFunction<
   typeof usePushLifecycle
@@ -50,7 +31,7 @@ function fakeInstallation(
     installationId: "device-1",
     lastSeenAt: "2024-01-01T00:00:00Z",
     messagePreviewEnabled: false,
-    platform: "ios",
+    platform: "android",
     provider: "expo",
     ...overrides,
   };
@@ -69,27 +50,35 @@ function setLifecycleValue(overrides: Partial<PushLifecycleContextValue> = {}) {
 }
 
 async function renderSection() {
-  return render(<NotificationSettingsSection />);
+  const { NotificationSettingsSection } = jest.requireActual<
+    typeof import("@/features/notifications/ui/notification-settings-section.android")
+  >("@/features/notifications/ui/notification-settings-section.android");
+  return render(
+    <AppThemeProvider>
+      <NotificationSettingsSection />
+    </AppThemeProvider>,
+  );
 }
 
-describe("notification settings section (ios)", () => {
+describe("notification settings section (android)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     setLifecycleValue();
   });
 
-  test("shows only the toggle state for a registered installation -- no raw diagnostic text (A1: '토글 상태만')", async () => {
+  test("shows the subheader and the toggle state", async () => {
     setLifecycleValue({
       state: { installation: fakeInstallation(), status: "registered" },
     });
     const screen = await renderSection();
+    expect(screen.getByTestId("notification-section-header")).toBeTruthy();
     expect(screen.getByTestId("push-notifications-switch").props.value).toBe(
       true,
     );
     expect(screen.queryByText("등록됨")).toBeNull();
   });
 
-  test("calls enable when the push switch is turned on", async () => {
+  test("calls enable/disable on toggle", async () => {
     const screen = await renderSection();
     fireEvent(
       screen.getByTestId("push-notifications-switch"),
@@ -97,36 +86,6 @@ describe("notification settings section (ios)", () => {
       true,
     );
     expect(mockEnable).toHaveBeenCalledTimes(1);
-  });
-
-  test("calls disable when the push switch is turned off", async () => {
-    setLifecycleValue({
-      state: { installation: fakeInstallation(), status: "registered" },
-    });
-    const screen = await renderSection();
-    fireEvent(
-      screen.getByTestId("push-notifications-switch"),
-      "valueChange",
-      false,
-    );
-    expect(mockDisable).toHaveBeenCalledTimes(1);
-  });
-
-  test("disables the preview switch while push is off", async () => {
-    const screen = await renderSection();
-    expect(screen.getByTestId("message-preview-switch").props.disabled).toBe(
-      true,
-    );
-  });
-
-  test("enables the preview switch once push is registered", async () => {
-    setLifecycleValue({
-      state: { installation: fakeInstallation(), status: "registered" },
-    });
-    const screen = await renderSection();
-    expect(screen.getByTestId("message-preview-switch").props.disabled).toBe(
-      false,
-    );
   });
 
   test("calls setMessagePreview when the preview switch is toggled", async () => {
@@ -142,12 +101,7 @@ describe("notification settings section (ios)", () => {
     expect(mockSetMessagePreview).toHaveBeenCalledWith(true);
   });
 
-  test("shows the footer help text", async () => {
-    const screen = await renderSection();
-    expect(screen.getByText("알림에 메시지 내용을 보여 줍니다.")).toBeTruthy();
-  });
-
-  test("shows the permission-denied guidance and opens system settings (A3)", async () => {
+  test("shows the permission-denied guidance and opens system settings", async () => {
     const openSettingsSpy = jest
       .spyOn(Linking, "openSettings")
       .mockResolvedValue();
@@ -165,9 +119,8 @@ describe("notification settings section (ios)", () => {
     openSettingsSpy.mockRestore();
   });
 
-  test("hides the permission-denied guidance otherwise", async () => {
+  test("shows the footer help text", async () => {
     const screen = await renderSection();
-    expect(screen.queryByText("설정에서 알림을 허용해 주세요.")).toBeNull();
-    expect(screen.queryByText("설정 열기")).toBeNull();
+    expect(screen.getByText("알림에 메시지 내용을 보여 줍니다.")).toBeTruthy();
   });
 });

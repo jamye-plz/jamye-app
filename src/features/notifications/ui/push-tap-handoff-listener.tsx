@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
 
 import { useSession } from "@/core/providers/session-provider";
 import {
@@ -57,21 +58,27 @@ export function PushTapHandoffListener({
 }> = {}) {
   const { principal, authorizedRequest } = useSession();
   const router = useRouter();
-  // Bind the notifications-store singleton to the session identity. The
-  // first bind happens synchronously during the first render (lazy
-  // initializer, mirroring groups-provider.tsx) so screen effects that call
-  // `store.actions.refresh()` in the same commit already see an authorized
-  // store; later identity changes (sign-in, account switch, sign-out) rebind
-  // through the effect below, and unmount clears the binding.
+  // Bind the notifications-store singleton to the session identity. This
+  // runs in an effect (never during render -- a render-time `setPrincipal`
+  // synchronously published to every store subscriber, which could commit a
+  // different component's state mid-render and trip React's "Cannot update a
+  // component while rendering a different component" warning; discovery
+  // §3/M14 round 2). Later identity changes (sign-in, account switch,
+  // sign-out) rebind through the same effect, and unmount clears the binding.
   const authorize = principal ? authorizedRequest : null;
-  useState(() => {
-    store.setPrincipal(principal, authorize);
-    return null;
-  });
   useEffect(() => {
     store.setPrincipal(principal, authorize);
   }, [store, principal, authorize]);
   useEffect(() => () => store.setPrincipal(null, null), [store]);
+  // Badge foreground refresh: whenever the app returns to the foreground,
+  // re-pull the unread count/list so the tab badge (and an already-mounted
+  // inbox screen) stay live even if a push was delivered while backgrounded.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") void store.actions.refresh();
+    });
+    return () => subscription.remove();
+  }, [store]);
   const principalRef = useRef(principal);
   // Keep the "latest value" ref in sync after every commit (never during
   // render itself -- react-hooks/refs forbids that), so the async listener
@@ -98,11 +105,20 @@ export function PushTapHandoffListener({
 
   const applyOutcome = useCallback(
     (outcome: PushTapOutcome | null) => {
-      if (outcome?.status === "navigate") router.push(outcome.route);
-      // A tapped notification whose conversation is no longer reachable still
-      // gets a visible response: open the inbox, where the row explains it.
-      else if (outcome?.status === "inaccessible")
-        router.push("/notifications");
+      if (outcome?.status === "navigate") {
+        router.push(outcome.route);
+        return;
+      }
+      // A tapped notification that can't be opened (inaccessible: 403/404/no
+      // conversation; failed: network/5xx) still gets a visible response:
+      // open the inbox with a minimal, non-sensitive flag so it shows the
+      // matching N4 notice exactly once (listener -> inbox handoff, N4).
+      if (outcome?.status === "inaccessible" || outcome?.status === "failed") {
+        router.push({
+          params: { pushOpenFailure: outcome.status },
+          pathname: "/notifications",
+        });
+      }
     },
     [router],
   );

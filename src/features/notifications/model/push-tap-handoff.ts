@@ -4,7 +4,7 @@ import type { NotificationDestination } from "@/features/notifications/data/noti
 /**
  * Pure orchestration for one tapped/cold-started push notification: parse ->
  * best-effort mark-read -> resolve destination -> a route to push, or an
- * `inaccessible`/`ignored` outcome. No React, no native module imports (the
+ * `inaccessible`/`failed`/`ignored` outcome. No React, no native module imports (the
  * adapter's plain-value `PushTapHandoff`/cold-start function are the only
  * platform-adjacent inputs, injected by the caller -- this file never
  * imports `expo-notifications` itself).
@@ -25,6 +25,11 @@ export type PushTapRoute =
 export type PushTapOutcome =
   | Readonly<{ status: "navigate"; route: PushTapRoute }>
   | Readonly<{ status: "inaccessible" }>
+  // N4: resolving the destination threw (network/5xx/etc, not a 403/404
+  // "unauthorized"/"not_found" outcome) -- distinct from "inaccessible" so
+  // the caller can show "알림을 열 수 없습니다." + 다시 시도 instead of the
+  // permanent "더 이상 접근할 수 없는 알림입니다." copy.
+  | Readonly<{ status: "failed" }>
   // Already handled (duplicate notification_id, e.g. cold-start + a warm tap
   // for the same notification, or the same cold-start check re-entering).
   | Readonly<{ status: "ignored" }>;
@@ -79,9 +84,16 @@ export function createPushTapHandoff(deps: PushTapHandoffDeps) {
     // Best-effort: a failed mark-read must never block routing to the
     // resolved destination (the user still tapped a real notification).
     await deps.markRead(handoff.notificationId).catch(() => {});
-    const destination = await deps.resolveDestination(handoff.conversationId);
-    const route = routeForNotification(destination, handoff.type);
-    return route ? { route, status: "navigate" } : { status: "inaccessible" };
+    // N4: a thrown resolve (network/5xx) must not become an unhandled
+    // rejection -- report it as "failed" instead of the 403/404-shaped
+    // "inaccessible" outcome.
+    try {
+      const destination = await deps.resolveDestination(handoff.conversationId);
+      const route = routeForNotification(destination, handoff.type);
+      return route ? { route, status: "navigate" } : { status: "inaccessible" };
+    } catch {
+      return { status: "failed" };
+    }
   }
 
   /**

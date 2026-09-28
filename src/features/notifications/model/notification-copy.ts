@@ -2,6 +2,7 @@ import type {
   NotificationArgs,
   NotificationType,
 } from "@/core/contracts/server";
+import { readNotificationContextString } from "@/core/contracts/server/notifications";
 
 /**
  * Pure `type` + `args` -> Korean copy renderer. Never interpolates raw
@@ -54,4 +55,32 @@ export function getNotificationCopy(
   // "other" and any future/unrecognized server-sent type value both land
   // here; this must stay a fixed, safe copy independent of `args`.
   return GENERIC_COPY;
+}
+
+/**
+ * Row icon kind (N1). Model-layer only: returns a semantic kind, never a UI
+ * symbol name, so this file stays free of a `shared/ui` import. Callers map
+ * "other" to whatever generic notification glyph their platform uses.
+ */
+export type NotificationKind = "newTopic" | "newMessage" | "other";
+
+export function getNotificationKind(type: NotificationType): NotificationKind {
+  if (type === "new_topic") return "newTopic";
+  if (type === "chat_unread") return "newMessage";
+  return "other";
+}
+
+/**
+ * N3/S1/E5: `그룹 이름 · 주제 제목` (topic-related types) or `그룹 이름` alone,
+ * using the shared `readNotificationContextString` accessor so a missing key
+ * or a non-string value is treated identically (no line at all) -- never a
+ * duplicate narrowing of the E5 rule here.
+ */
+export function getNotificationContextLine(
+  args: NotificationArgs,
+): string | null {
+  const groupName = readNotificationContextString(args, "group_name");
+  if (!groupName) return null;
+  const topicTitle = readNotificationContextString(args, "topic_title");
+  return topicTitle ? `${groupName} · ${topicTitle}` : groupName;
 }

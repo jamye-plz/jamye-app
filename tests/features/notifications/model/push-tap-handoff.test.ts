@@ -101,6 +101,15 @@ describe("createPushTapHandoff.handle", () => {
     },
   );
 
+  test("N4: a thrown resolve (network/5xx) reports 'failed' instead of an unhandled rejection", async () => {
+    const d = deps({
+      resolveDestination: jest.fn().mockRejectedValue(new Error("network")),
+    });
+    const controller = createPushTapHandoff(d);
+    const outcome = await controller.handle(handoff());
+    expect(outcome).toEqual({ status: "failed" });
+  });
+
   test("markRead failure is swallowed (best-effort) and routing still proceeds", async () => {
     const d = deps({
       markRead: jest.fn().mockRejectedValue(new Error("boom")),
