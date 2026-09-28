@@ -50,6 +50,8 @@ const PINNED_BASE = {
 };
 
 const PREBUILD_ANDROID_PERMISSIONS = [
+  "android.permission.RECORD_AUDIO",
+  "android.permission.MODIFY_AUDIO_SETTINGS",
   "android.permission.READ_EXTERNAL_STORAGE",
   "android.permission.WRITE_EXTERNAL_STORAGE",
   "android.permission.INTERNET",
@@ -308,6 +310,86 @@ const M14_ROUND1_TEST_PATHS = [
   "tests/features/media/ui/topic-media-carousel-row.ios.test.tsx",
   "tests/features/topics/ui/use-close-edit-on-back.android.test.tsx",
 ];
+const M14_ROUND2_TEST_PATHS = [
+  // task-app-kit (E6/L2/N4/N2): time-label table and useSystemFeedback host
+  // tests; the ActionListItem leading-swipe/symbol-registration extensions
+  // live in the existing M14 round-1 shared-kit test files above.
+  "tests/shared/datetime/relative-labels.test.ts",
+  "tests/shared/ui/system-feedback.test.tsx",
+  "tests/shared/ui/system-feedback.android.test.tsx",
+  // task-app-composer: platform wrapper tests for the voice recorder (V1)
+  // and the chat-scoped haptics wrapper (V3).
+  "tests/features/chat/platform/haptics.test.ts",
+  "tests/features/media/platform/recorder.test.ts",
+  // task-app-composer rerun (W1/W2/W4): Android M3 composer render/E11,
+  // the W2 rn-fallback path's E11 invariants, and the W4 video draft
+  // thumbnail. chat-composer.test.tsx keeps its pre-existing path (content
+  // updated for the native-field default, not moved).
+  "tests/features/chat/chat-composer.android.test.tsx",
+  "tests/features/chat/chat-composer-field-rn-fallback.test.tsx",
+  "tests/features/media/ui/attachment-queue-list.test.tsx",
+  // task-app-account (A1-A4): native account settings list, nickname C3
+  // screen, developer section, and the notification-settings-section
+  // native split. account-screen.test.tsx / account-route.test.tsx /
+  // notification-settings-section.test.tsx keep their pre-existing paths
+  // (content rewritten, not moved) so they are not re-listed here.
+  "tests/features/home/account-screen.android.test.tsx",
+  "tests/features/account/ui/nickname-edit-screen.test.tsx",
+  "tests/features/account/ui/nickname-edit-screen.android.test.tsx",
+  "tests/features/account/model/use-delete-account-flow.test.ts",
+  "tests/features/account/ui/developer-section.test.tsx",
+  "tests/features/account/ui/developer-section.android.test.tsx",
+  "tests/features/notifications/ui/notification-settings-section.android.test.tsx",
+  // task-app-notifications: new Android inbox screen test (the iOS test
+  // keeps its pre-existing path, notifications-inbox-screen.test.tsx).
+  "tests/features/notifications/ui/notifications-inbox-screen.android.test.tsx",
+  // task-app-auth (L1-L3/E12/E13): new brand-button platform tests and the
+  // splash-hold integration test. auth-screen.test.tsx /
+  // oauth-callback-screen.test.tsx / connected-index-route.test.tsx keep
+  // their pre-existing paths (content rewritten, not moved).
+  "tests/features/auth/brand-login-button.ios.test.tsx",
+  "tests/features/auth/brand-login-button.android.test.tsx",
+  "tests/features/auth/session-splash.test.tsx",
+  // task-app-chat-list (R1/R2/R4/E7/E11/E14): grouping/date-time model, R4
+  // near-bottom/new-message-pill decision model, R2 message menu platform
+  // tests, and the R2 clipboard wrapper test. chat-accessibility.test.tsx /
+  // connected-chat-screens.test.tsx keep their pre-existing paths (content
+  // updated, not moved).
+  "tests/features/chat/model/chat-message-grouping.test.ts",
+  "tests/features/chat/model/chat-new-message-scroll.test.ts",
+  "tests/features/chat/platform/clipboard.test.ts",
+  "tests/features/chat/ui/chat-new-message-pill.test.tsx",
+  "tests/features/chat/ui/chat-message-menu.ios.test.tsx",
+  "tests/features/chat/ui/chat-message-menu.android.test.tsx",
+  // task-app-device: R1 row layout regressions found on device.
+  "tests/features/chat/ui/chat-message-row.test.tsx",
+  "tests/features/chat/ui/chat-message-list-pin.test.tsx",
+  // task-app-device: voice upload staging, thumbnail queue release, and the
+  // dark-theme video tile glyphs found on device.
+  "tests/features/chat/ui/chat-composer-voice-upload.test.tsx",
+  "tests/features/media/model/video-thumbnail-queue.test.ts",
+  "tests/features/media/ui/media-video-card-overlay.test.tsx",
+  // task-app-device: a new/joined group's home opened without the group
+  // list beneath it (no back button), found scanning for the iOS chat
+  // back-button report.
+  "tests/features/groups/ui/show-group-home.test.tsx",
+  // task-app-device: the login brand marks lost their white/grey backing
+  // squares (device).
+  "tests/features/auth/brand-logo-assets.test.ts",
+  // task-app-media (R2 save/share, R3 attachment grid + full-screen viewer,
+  // V2 voice bubble): new component/model/platform tests. message-media-
+  // presentation.test.tsx / media-image-viewer.test.tsx /
+  // media-video-card.test.tsx / media-access-lifecycle.test.tsx /
+  // media-provider.test.tsx keep their pre-existing paths (content updated
+  // for this round's additive props and the picker/recorder API changes,
+  // not moved).
+  "tests/features/media/ui/message-attachments-view.test.tsx",
+  "tests/features/media/ui/voice-message-bubble.test.tsx",
+  "tests/features/media/ui/media-viewer-screen.test.tsx",
+  "tests/features/media/model/media-sharing.test.ts",
+  "tests/features/media/model/audio-playback-coordinator.test.ts",
+  "tests/features/media/platform/player.test.ts",
+];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",
   "tests/core/public-media-env.test.ts",
@@ -320,7 +402,6 @@ const M11_TEST_PATHS = [
   "tests/features/media/model/media-upload-controller.test.ts",
   "tests/features/media/model/media-draft-queue.test.ts",
   "tests/features/media/model/media-lifetime.test.ts",
-  "tests/features/media/platform/audio-file-picker.test.ts",
   "tests/features/media/platform/image-video-picker.test.ts",
   "tests/features/media/platform/media-image-normalizer.test.ts",
   "tests/features/media/platform/media-downloads.test.ts",
@@ -371,6 +452,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M10_TEST_PATHS,
   ...M11_TEST_PATHS,
   ...M14_ROUND1_TEST_PATHS,
+  ...M14_ROUND2_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
   "tests/core/theme/tokens.test.ts",
@@ -397,8 +479,6 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   "tests/core/contracts/server/users.test.ts",
   "tests/features/account/data/account-api.test.ts",
   "tests/features/account/model/account-lifecycle.test.ts",
-  "tests/features/account/ui/delete-account-section.test.tsx",
-  "tests/features/account/ui/nickname-section.test.tsx",
   "tests/core/http/http-requester.test.ts",
   "tests/core/contracts/server/notifications.test.ts",
   "tests/core/contracts/server/push-installations.test.ts",
@@ -452,14 +532,16 @@ const APPROVED_DEPENDENCIES = {
   "@expo/ui": "57.0.17",
   ajv: "8.20.0",
   expo: "~57.0.21",
+  "expo-audio": "~57.0.5",
   "expo-auth-session": "~57.0.11",
+  "expo-clipboard": "~57.0.2",
   "expo-constants": "~57.0.17",
   "expo-crypto": "~57.0.2",
   "expo-dev-client": "~57.0.18",
   "expo-device": "~57.0.2",
-  "expo-document-picker": "~57.0.1",
   "expo-file-system": "~57.0.6",
   "expo-glass-effect": "57.0.2",
+  "expo-haptics": "~57.0.3",
   "expo-image": "~57.0.5",
   "expo-image-picker": "~57.0.16",
   "expo-sharing": "~57.0.18",
@@ -508,7 +590,7 @@ const APPROVED_DEPENDENCY_OVERRIDES = {
 };
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "7cff493646ef92c2050a9b3cff18159dea47a1c9d4e6ebc8a4552f74256cbf04";
+  "e452041bd0ec6ec96f920035fc32b48030da345137071ee9cbd61aa934f0b78e";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -575,6 +657,9 @@ const REQUIRED_ROUTE_PERSISTENCE_MODULES = [
   "expo-video",
   "expo-document-picker",
   "expo-sharing",
+  "expo-audio",
+  "expo-haptics",
+  "expo-clipboard",
 ];
 
 const COVERAGE_DECLARATION_RATIONALE =
@@ -708,7 +793,15 @@ function buildValidRepositorySnapshot() {
         photosPermission:
           "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
         cameraPermission: false,
-        microphonePermission: false,
+      },
+    ],
+    [
+      "expo-audio",
+      {
+        microphonePermission:
+          "대화방에서 음성 메시지를 녹음하기 위해 마이크를 사용합니다.",
+        enableBackgroundRecording: false,
+        enableBackgroundPlayback: false,
       },
     ],
     "expo-notifications",
