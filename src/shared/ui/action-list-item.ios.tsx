@@ -17,16 +17,21 @@ const SF_SYMBOLS: Record<RowActionSymbol, SystemImage> = {
   info: "info.circle",
   invite: "ticket",
   leave: "rectangle.portrait.and.arrow.right",
+  markRead: "envelope.open",
   removeMember: "person.badge.minus",
   share: "square.and.arrow.up",
   transfer: "arrow.left.arrow.right",
 };
 
-function actionButton(action: RowAction, keyPrefix: string) {
+function actionButton(
+  action: RowAction,
+  keyPrefix: string,
+  useSwipeLabel = false,
+) {
   return (
     <Button
       key={`${keyPrefix}-${action.key}`}
-      label={action.title}
+      label={useSwipeLabel ? (action.swipeLabel ?? action.title) : action.title}
       modifiers={action.disabled ? [disabled(true)] : undefined}
       onPress={action.onPress}
       role={action.destructive ? "destructive" : undefined}
@@ -38,9 +43,13 @@ function actionButton(action: RowAction, keyPrefix: string) {
 /**
  * iOS row with the platform's own action affordances: a universal `ListItem`
  * (with an optional leading slot, e.g. an `Avatar`) inside SwiftUI
- * `swipeActions` (trailing; the destructive action sits at the edge, full
- * swipe stays off) and a `contextMenu` on long press with the same items.
- * Tap runs the primary action.
+ * `swipeActions` -- a trailing group (destructive action at the edge, full
+ * swipe stays off) and, when an action opts in via `edge: "leading"` (N2
+ * "읽음"), a second leading-edge group -- plus a `contextMenu` on long press
+ * listing every action (leading and trailing alike) in the given order. Tap
+ * runs the primary action. A leading action may set `swipeLabel` for a
+ * shorter swipe-button caption (e.g. "읽음") distinct from its `title`, which
+ * stays the context-menu wording (e.g. "읽음으로 표시").
  */
 export function ActionListItem({
   actions,
@@ -67,7 +76,9 @@ export function ActionListItem({
     </ListItem>
   );
   if (actions.length === 0) return row;
-  const swipeOrder = [...actions].sort(
+  const leadingActions = actions.filter((action) => action.edge === "leading");
+  const trailingActions = actions.filter((action) => action.edge !== "leading");
+  const trailingOrder = [...trailingActions].sort(
     (a, b) => Number(Boolean(b.destructive)) - Number(Boolean(a.destructive)),
   );
   return (
@@ -78,9 +89,20 @@ export function ActionListItem({
           {actions.map((action) => actionButton(action, "menu"))}
         </ContextMenu.Items>
       </ContextMenu>
-      <SwipeActions.Actions allowsFullSwipe={false} edge="trailing">
-        {swipeOrder.map((action) => actionButton(action, "swipe"))}
-      </SwipeActions.Actions>
+      {leadingActions.length > 0 ? (
+        <SwipeActions.Actions edge="leading">
+          {leadingActions.map((action) =>
+            actionButton(action, "swipe-leading", true),
+          )}
+        </SwipeActions.Actions>
+      ) : null}
+      {trailingOrder.length > 0 ? (
+        <SwipeActions.Actions allowsFullSwipe={false} edge="trailing">
+          {trailingOrder.map((action) =>
+            actionButton(action, "swipe-trailing", true),
+          )}
+        </SwipeActions.Actions>
+      ) : null}
     </SwipeActions>
   );
 }

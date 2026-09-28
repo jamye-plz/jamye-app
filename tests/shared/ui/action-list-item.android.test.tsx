@@ -168,4 +168,21 @@ describe("ActionListItem (Android)", () => {
     expect(screen.queryByTestId("dropdown-menu")).toBeNull();
     expect(screen.getByTestId("row").props.onLongPress).toBeUndefined();
   });
+
+  test("N2: a markRead action (edge/swipeLabel are iOS-only) still surfaces in the ⋮ menu by its title", async () => {
+    const onPress = jest.fn();
+    const { screen } = await setup([
+      {
+        edge: "leading",
+        key: "markRead",
+        onPress,
+        swipeLabel: "읽음",
+        symbol: "markRead",
+        title: "읽음으로 표시",
+      },
+    ]);
+    await fireEvent.press(screen.getByLabelText("우리 그룹 메뉴"));
+    await fireEvent.press(screen.getByText("읽음으로 표시"));
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
 });

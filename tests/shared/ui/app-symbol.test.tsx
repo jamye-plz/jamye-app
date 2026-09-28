@@ -34,6 +34,31 @@ describe("APP_SYMBOLS", () => {
       expect(entry.android.length).toBeGreaterThan(0);
     }
   });
+
+  it("adds only the round-2 names (M14 round 2) without touching existing entries", () => {
+    const added: Record<string, { ios: string; android: string }> = {
+      copy: { android: "content_copy", ios: "doc.on.doc" },
+      markRead: { android: "mark_email_read", ios: "envelope.open" },
+      microphone: { android: "mic", ios: "mic" },
+      newMessage: { android: "chat", ios: "bubble.left" },
+      newTopic: { android: "article", ios: "doc.text" },
+      pause: { android: "pause", ios: "pause.fill" },
+      scrollDown: { android: "arrow_downward", ios: "arrow.down" },
+      stop: { android: "stop", ios: "stop.fill" },
+    };
+    for (const [name, expected] of Object.entries(added)) {
+      expect(APP_SYMBOLS[name as AppSymbolName]).toEqual(expected);
+    }
+    // Existing entries are reused as-is, not aliased.
+    expect(APP_SYMBOLS.play).toEqual({
+      android: "play_circle",
+      ios: "play.circle.fill",
+    });
+    expect(APP_SYMBOLS.share).toEqual({
+      android: "share",
+      ios: "square.and.arrow.up",
+    });
+  });
 });
 
 describe("AppSymbol", () => {

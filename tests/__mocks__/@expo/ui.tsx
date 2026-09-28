@@ -8,7 +8,7 @@
  * explicit `jest.mock("@expo/ui")` call in the consuming test file.
  */
 import type { PropsWithChildren, ReactNode } from "react";
-import { useEffect } from "react";
+import { createContext, useContext, useEffect } from "react";
 import {
   Pressable,
   Switch as RNSwitch,
@@ -41,14 +41,58 @@ function PassThroughView({ children, testID, style }: PassThroughViewProps) {
   );
 }
 
-export const Host = PassThroughView;
+/**
+ * Mirrors the runtime rule that every SwiftUI/Compose view renders inside a
+ * `Host` (DESIGN.md §4): `Host` marks its subtree native and `RNHostView`
+ * marks its React Native subtree non-native again. A platform mock that calls
+ * `useMockHostGuard` fails the test when its view mounts outside a Host,
+ * the way it red-boxes on device ("is being mounted inside a standard
+ * UIView").
+ */
+const MockHostContext = createContext(false);
+
+export function Host({
+  children,
+  onLayoutContent,
+  testID,
+  style,
+}: PassThroughViewProps &
+  Readonly<{ onLayoutContent?: (event: unknown) => void }>) {
+  // The native host reports its first content layout after it mounts.
+  useEffect(() => {
+    onLayoutContent?.({ nativeEvent: { height: 0, width: 0 } });
+  }, [onLayoutContent]);
+  return (
+    <MockHostContext.Provider value>
+      <PassThroughView style={style} testID={testID}>
+        {children}
+      </PassThroughView>
+    </MockHostContext.Provider>
+  );
+}
+
+export function RNHostView({ children, testID, style }: PassThroughViewProps) {
+  return (
+    <MockHostContext.Provider value={false}>
+      <PassThroughView style={style} testID={testID}>
+        {children}
+      </PassThroughView>
+    </MockHostContext.Provider>
+  );
+}
+
+export function useMockHostGuard(component: string): void {
+  if (!useContext(MockHostContext)) {
+    throw new Error(`${component} must render inside a <Host> (DESIGN.md §4).`);
+  }
+}
+
 export const Column = PassThroughView;
 export const Row = PassThroughView;
 export const Spacer = PassThroughView;
 export const FieldGroup = PassThroughView;
 export const ScrollView = PassThroughView;
 export const Collapsible = PassThroughView;
-export const RNHostView = PassThroughView;
 export const Picker = PassThroughView;
 export const Slider = PassThroughView;
 export const Checkbox = PassThroughView;

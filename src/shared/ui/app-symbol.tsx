@@ -41,7 +41,15 @@ export type AppSymbolName =
   | "videoPlay"
   | "groupAdd"
   | "emptyGroups"
-  | "emptyTopics";
+  | "emptyTopics"
+  | "microphone"
+  | "stop"
+  | "pause"
+  | "copy"
+  | "markRead"
+  | "newTopic"
+  | "newMessage"
+  | "scrollDown";
 
 export const APP_SYMBOLS: Record<
   AppSymbolName,
@@ -88,6 +96,16 @@ export const APP_SYMBOLS: Record<
   // callers get a self-documenting name without a duplicate drawable.
   emptyGroups: { ios: "person.2", android: "group" },
   emptyTopics: { ios: "bubble.left.and.bubble.right", android: "forum" },
+  // M14 round 2 (task-app-kit): voice recording, message actions, and
+  // notification-row affordances for the round-2 screen tasks.
+  microphone: { ios: "mic", android: "mic" },
+  stop: { ios: "stop.fill", android: "stop" },
+  pause: { ios: "pause.fill", android: "pause" },
+  copy: { ios: "doc.on.doc", android: "content_copy" },
+  markRead: { ios: "envelope.open", android: "mark_email_read" },
+  newTopic: { ios: "doc.text", android: "article" },
+  newMessage: { ios: "bubble.left", android: "chat" },
+  scrollDown: { ios: "arrow.down", android: "arrow_downward" },
 };
 
 export function AppSymbol({
