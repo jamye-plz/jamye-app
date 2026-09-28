@@ -666,19 +666,32 @@ export function createConnectedChatStore(
     historyBlocked = false;
     historyHttpCursor = null;
     historyRepoNextBefore = null;
+    // R4: reopening the *same* already-open room (a refocus after group
+    // info/topic detail, or an app foreground resync) must not blank the
+    // list back to `대화 준비 중…`/`메시지 불러오는 중...` -- keep the
+    // currently rendered rows and resync quietly; the HTTP+repository read
+    // below still runs and republishes a fresh window once it resolves. A
+    // genuine room switch or a previously errored room still gets the full
+    // loading reset.
+    const quietResync =
+      !roomChanged &&
+      state.history.status !== "error" &&
+      state.history.items.length > 0;
     publish({
       ...state,
       chatroomId,
       accessLost: false,
       read: emptyReadState(),
       send: roomChanged ? { status: "idle" } : state.send,
-      history: {
-        status: "loading",
-        items: [],
-        hasMore: false,
-        loadingMore: false,
-        error: null,
-      },
+      history: quietResync
+        ? { ...state.history, error: null }
+        : {
+            status: "loading",
+            items: [],
+            hasMore: false,
+            loadingMore: false,
+            error: null,
+          },
     });
     try {
       await interruptedWrite;

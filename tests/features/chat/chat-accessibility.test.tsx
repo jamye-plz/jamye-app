@@ -29,6 +29,64 @@ jest.mock("expo-router", () => ({
   },
 }));
 
+// W2: `chat-composer.ios.tsx` renders a native SwiftUI `TextField` by
+// default (`COMPOSER_TEXT_FIELD_IMPL === "native"`). See the matching mock in
+// `chat-composer.test.tsx` for why this stand-in is needed (jest-expo renders
+// `@expo/ui`'s components as an opaque host node).
+jest.mock("@expo/ui/swift-ui", () => {
+  const actual =
+    jest.requireActual<Record<string, unknown>>("@expo/ui/swift-ui");
+  const mockReact = jest.requireActual<typeof import("react")>("react");
+  const { TextInput } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  function extractLabel(modifiers?: readonly unknown[]): string | undefined {
+    const found = modifiers?.find(
+      (modifier): modifier is { $type: string; value: string } =>
+        typeof modifier === "object" &&
+        modifier !== null &&
+        (modifier as { $type?: unknown }).$type === "accessibilityLabel",
+    );
+    return found?.value;
+  }
+  const TextField = mockReact.forwardRef(function MockSwiftUITextField(
+    props: {
+      axis?: string;
+      modifiers?: readonly unknown[];
+      onFocusChange?: (focused: boolean) => void;
+      onTextChange?: (text: string) => void;
+      placeholder?: string;
+    },
+    ref: React.Ref<{ clear: () => void }>,
+  ) {
+    const [text, setText] = mockReact.useState("");
+    mockReact.useImperativeHandle(ref, () => ({
+      clear: () => setText(""),
+      focus: () => undefined,
+    }));
+    return (
+      <TextInput
+        accessibilityLabel={extractLabel(props.modifiers)}
+        multiline={props.axis === "vertical"}
+        onBlur={() => props.onFocusChange?.(false)}
+        onChangeText={(next: string) => {
+          setText(next);
+          props.onTextChange?.(next);
+        }}
+        onFocus={() => props.onFocusChange?.(true)}
+        placeholder={props.placeholder}
+        value={text}
+      />
+    );
+  });
+  return { ...actual, TextField };
+});
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  accessibilityLabel: (value: string) => ({
+    $type: "accessibilityLabel",
+    value,
+  }),
+  lineLimit: (range: unknown) => ({ $type: "lineLimit", range }),
+}));
 jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
   __esModule: true,
   default: jest.fn(),
@@ -70,6 +128,10 @@ jest.mock("react-native-keyboard-controller", () => {
   return {
     KeyboardProvider: ({ children }: { children: unknown }) =>
       mockReact.createElement(mockReact.Fragment, null, children as never),
+    // R4 끌어서 키보드 닫기: a plain passthrough is enough for these
+    // source-level/coordinator tests -- no real drag gesture is driven here.
+    KeyboardGestureArea: ({ children }: { children: unknown }) =>
+      mockReact.createElement(mockReact.Fragment, null, children as never),
     KeyboardState: {
       UNKNOWN: 0,
       OPENING: 1,
@@ -110,7 +172,15 @@ jest.mock("react-native-reanimated", () => {
 
   return {
     __esModule: true,
-    default: { FlatList, View },
+    default: {
+      FlatList,
+      View,
+      // R2: `MessageAttachmentsView`'s voice bubble pulls in
+      // `react-native-gesture-handler`'s `GestureDetector`, which calls this
+      // at require time -- a passthrough is enough for these source-level
+      // and coordinator tests (no real gesture is ever driven here).
+      createAnimatedComponent: (Component: unknown) => Component,
+    },
     scrollTo: jest.fn(),
     useAnimatedReaction: () => undefined,
     useAnimatedRef: () => ({ current: null }),
@@ -231,15 +301,28 @@ type GetKeyboardAnchoredScrollOffset = (
     restingViewportHeight: number;
   }>,
 ) => number;
+type ChatMessageRowMeta = Readonly<{
+  localId: string;
+  isSystem: boolean;
+  isOutgoing: boolean;
+  isGroupedWithPrevious: boolean;
+  isLastInGroup: boolean;
+  showDateSeparator: boolean;
+  dateSeparatorLabel: string;
+  timeLabel: string;
+  showSentStatus: boolean;
+}>;
 type ChatMessageRow = (
   props: Readonly<{
     message: ChatMessage;
+    rowMeta: ChatMessageRowMeta;
     onRetryFailedMessage: (
       input: Readonly<{
         clientMsgId: string;
         conversationId: string;
       }>,
     ) => void;
+    onShareAttachment: (attachment: unknown) => void;
   }>,
 ) => React.JSX.Element;
 
@@ -1004,12 +1087,30 @@ describe("M5-UI-1 accessible local chat screen", () => {
       status: "pending" as const,
     };
     const retry = jest.fn();
+    const shareAttachment = jest.fn();
+    // R1/E7: grouping/date/time/status-position metadata is computed once
+    // per list (`buildChatMessageRowMeta`, see its own dedicated tests) and
+    // handed to the row -- this row-level test only exercises the
+    // status-change announcement, so a single static descriptor is enough.
+    const rowMeta = {
+      dateSeparatorLabel: "",
+      isGroupedWithPrevious: false,
+      isLastInGroup: true,
+      isOutgoing: true,
+      isSystem: false,
+      localId: pendingMessage.localId,
+      showDateSeparator: false,
+      showSentStatus: true,
+      timeLabel: "오후 12:00",
+    };
     try {
       const screen = await render(
         <AppThemeProvider>
           <ChatMessageRow
             message={pendingMessage}
             onRetryFailedMessage={retry}
+            onShareAttachment={shareAttachment}
+            rowMeta={rowMeta}
           />
         </AppThemeProvider>,
       );
@@ -1020,6 +1121,8 @@ describe("M5-UI-1 accessible local chat screen", () => {
           <ChatMessageRow
             message={pendingMessage}
             onRetryFailedMessage={retry}
+            onShareAttachment={shareAttachment}
+            rowMeta={rowMeta}
           />
         </AppThemeProvider>,
       );
@@ -1030,6 +1133,8 @@ describe("M5-UI-1 accessible local chat screen", () => {
           <ChatMessageRow
             message={{ ...pendingMessage, status: "sent" }}
             onRetryFailedMessage={retry}
+            onShareAttachment={shareAttachment}
+            rowMeta={rowMeta}
           />
         </AppThemeProvider>,
       );
@@ -1041,6 +1146,8 @@ describe("M5-UI-1 accessible local chat screen", () => {
           <ChatMessageRow
             message={{ ...pendingMessage, status: "sent" }}
             onRetryFailedMessage={retry}
+            onShareAttachment={shareAttachment}
+            rowMeta={rowMeta}
           />
         </AppThemeProvider>,
       );

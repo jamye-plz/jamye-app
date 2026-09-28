@@ -134,17 +134,83 @@ jest.mock("@/features/chat/ui/chat-composer", () => {
     },
   };
 });
+// W2: the composer's `chat-composer.ios.tsx` mock above delegates to the
+// real implementation, which renders a native SwiftUI `TextField` by default
+// (`COMPOSER_TEXT_FIELD_IMPL === "native"`). See the matching mock in
+// `chat-composer.test.tsx` for why this stand-in is needed (jest-expo renders
+// `@expo/ui`'s components as an opaque host node).
+jest.mock("@expo/ui/swift-ui", () => {
+  const actual =
+    jest.requireActual<Record<string, unknown>>("@expo/ui/swift-ui");
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { TextInput } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  function extractLabel(modifiers?: readonly unknown[]): string | undefined {
+    const found = modifiers?.find(
+      (modifier): modifier is { $type: string; value: string } =>
+        typeof modifier === "object" &&
+        modifier !== null &&
+        (modifier as { $type?: unknown }).$type === "accessibilityLabel",
+    );
+    return found?.value;
+  }
+  const TextField = React.forwardRef(function MockSwiftUITextField(
+    props: {
+      axis?: string;
+      modifiers?: readonly unknown[];
+      onFocusChange?: (focused: boolean) => void;
+      onTextChange?: (text: string) => void;
+      placeholder?: string;
+    },
+    ref: React.Ref<{ clear: () => void }>,
+  ) {
+    const [text, setText] = React.useState("");
+    React.useImperativeHandle(ref, () => ({
+      clear: () => setText(""),
+      focus: () => undefined,
+    }));
+    return (
+      <TextInput
+        accessibilityLabel={extractLabel(props.modifiers)}
+        multiline={props.axis === "vertical"}
+        onBlur={() => props.onFocusChange?.(false)}
+        onChangeText={(next: string) => {
+          setText(next);
+          props.onTextChange?.(next);
+        }}
+        onFocus={() => props.onFocusChange?.(true)}
+        placeholder={props.placeholder}
+        value={text}
+      />
+    );
+  });
+  return { ...actual, TextField };
+});
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  accessibilityLabel: (value: string) => ({
+    $type: "accessibilityLabel",
+    value,
+  }),
+  lineLimit: (range: unknown) => ({ $type: "lineLimit", range }),
+}));
 jest.mock("react-native-safe-area-context", () => ({
   ...jest.requireActual("react-native-safe-area-context"),
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-jest.mock("react-native-keyboard-controller", () => ({
-  KeyboardState: { UNKNOWN: 0, OPENING: 1, OPEN: 2, CLOSING: 3, CLOSED: 4 },
-  useAnimatedKeyboard: () => ({
-    height: { value: 0, get: () => 0 },
-    state: { value: 0, get: () => 0 },
-  }),
-}));
+jest.mock("react-native-keyboard-controller", () => {
+  const mockReact = jest.requireActual<typeof import("react")>("react");
+  return {
+    KeyboardState: { UNKNOWN: 0, OPENING: 1, OPEN: 2, CLOSING: 3, CLOSED: 4 },
+    // R4 끌어서 키보드 닫기: a plain passthrough is enough here -- no real
+    // drag gesture is driven in these lifecycle/focus tests.
+    KeyboardGestureArea: ({ children }: { children: unknown }) =>
+      mockReact.createElement(mockReact.Fragment, null, children as never),
+    useAnimatedKeyboard: () => ({
+      height: { value: 0, get: () => 0 },
+      state: { value: 0, get: () => 0 },
+    }),
+  };
+});
 jest.mock("react-native-reanimated", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   const { FlatList, View } =
@@ -170,7 +236,15 @@ jest.mock("react-native-reanimated", () => {
   };
   return {
     __esModule: true,
-    default: { FlatList: ObservedList, View },
+    default: {
+      FlatList: ObservedList,
+      View,
+      // R2: `MessageAttachmentsView`'s voice bubble pulls in
+      // `react-native-gesture-handler`'s `GestureDetector`, which calls this
+      // at require time -- a passthrough is enough here (no real gesture is
+      // ever driven in these lifecycle/focus tests).
+      createAnimatedComponent: (Component: unknown) => Component,
+    },
     scrollTo: jest.fn(),
     useAnimatedReaction: () => undefined,
     useAnimatedRef: () => ({ current: null }),
@@ -352,10 +426,11 @@ test("the connected conversation uses existing chat UI, visible canonical IDs an
     screen.getByRole("button", { name: "메시지 다시 보내기" }),
   );
   expect(mockChat.actions.retryMessage).toHaveBeenCalledWith("retry-exact");
-  await fireEvent.press(
-    screen.getByRole("button", { name: "메시지 새로고침" }),
-  );
-  expect(mockChat.actions.openRoom).toHaveBeenLastCalledWith(CHATROOM_ID);
+  // R4: the header refresh action is removed -- there is no longer a
+  // "메시지 새로고침" button; a room this screen owns still resyncs on
+  // unmount having closed it (below), and on every focus via `openRoom`
+  // (see the lifecycle-specific tests further down).
+  expect(screen.queryByRole("button", { name: "메시지 새로고침" })).toBeNull();
   await screen.unmount();
   expect(mockChat.actions.closeRoom).toHaveBeenCalledTimes(1);
 });
@@ -383,7 +458,11 @@ test("a deleted sender and a system message are not visually grouped as the same
   };
   const screen = await render(roomTree());
   expect(screen.getByText("알 수 없는 사용자")).toBeTruthy();
-  expect(screen.getByText("시스템")).toBeTruthy();
+  // AC2/R1: a system message renders bubble-less, centered body text -- not
+  // its "시스템" sender caption (that only ever showed above an incoming
+  // bubble, which system rows no longer have).
+  expect(screen.getByText("그룹 안내")).toBeTruthy();
+  expect(screen.queryByText("시스템")).toBeNull();
 });
 
 test("C3 failure stays separate from history and the composer, with explicit retry", async () => {

@@ -4,16 +4,78 @@ import { Keyboard } from "react-native";
 
 import { AppThemeProvider } from "../../../src/core/theme/theme-provider";
 import type { MediaAttachmentController } from "../../../src/features/media/ui/media-attachment-types";
-import {
-  listItemMountLog,
-  resetListItemMountLog,
-} from "../../__mocks__/@expo/ui";
-
 jest.mock("expo-router", () => ({
   useFocusEffect: (callback: () => (() => void) | void) =>
     jest
       .requireActual<typeof import("react")>("react")
       .useEffect(callback, [callback]),
+}));
+// W2: `chat-composer-field.ios.tsx` renders a native SwiftUI `TextField` by
+// default (`COMPOSER_TEXT_FIELD_IMPL === "native"`). jest-expo renders
+// `@expo/ui`'s components as an opaque host node (see
+// `tests/__mocks__/@expo/ui.tsx`'s docstring), so this mock stands in an RN
+// `TextInput` that mirrors the same public contract (`axis` -> `multiline`,
+// `modifiers=[accessibilityLabel(...)]` -> `accessibilityLabel`,
+// `onTextChange` -> `onChangeText`, `onFocusChange` -> `onFocus`/`onBlur`,
+// `ref.clear()` -> resets its own text) so every existing assertion here
+// (`.props.value`, `.props.multiline`, `.props.placeholder`,
+// `fireEvent.changeText`) keeps working unchanged against the native path.
+jest.mock("@expo/ui/swift-ui", () => {
+  // Spread the real module (not just `{ TextField }`) so unrelated
+  // `@expo/ui/swift-ui` consumers in the same tree (e.g. `SystemFeedbackHost`
+  // -> `system-feedback.ios.tsx`'s `Alert`) keep their real components.
+  const actual =
+    jest.requireActual<Record<string, unknown>>("@expo/ui/swift-ui");
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { TextInput } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  function extractLabel(modifiers?: readonly unknown[]): string | undefined {
+    const found = modifiers?.find(
+      (modifier): modifier is { $type: string; value: string } =>
+        typeof modifier === "object" &&
+        modifier !== null &&
+        (modifier as { $type?: unknown }).$type === "accessibilityLabel",
+    );
+    return found?.value;
+  }
+  const TextField = React.forwardRef(function MockSwiftUITextField(
+    props: {
+      axis?: string;
+      modifiers?: readonly unknown[];
+      onFocusChange?: (focused: boolean) => void;
+      onTextChange?: (text: string) => void;
+      placeholder?: string;
+    },
+    ref: React.Ref<{ clear: () => void }>,
+  ) {
+    const [text, setText] = React.useState("");
+    React.useImperativeHandle(ref, () => ({
+      clear: () => setText(""),
+      focus: () => undefined,
+    }));
+    return (
+      <TextInput
+        accessibilityLabel={extractLabel(props.modifiers)}
+        multiline={props.axis === "vertical"}
+        onBlur={() => props.onFocusChange?.(false)}
+        onChangeText={(next: string) => {
+          setText(next);
+          props.onTextChange?.(next);
+        }}
+        onFocus={() => props.onFocusChange?.(true)}
+        placeholder={props.placeholder}
+        value={text}
+      />
+    );
+  });
+  return { ...actual, TextField };
+});
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  accessibilityLabel: (value: string) => ({
+    $type: "accessibilityLabel",
+    value,
+  }),
+  lineLimit: (range: unknown) => ({ $type: "lineLimit", range }),
 }));
 
 type FileSystemModule = Readonly<{
@@ -38,6 +100,7 @@ type ChatComposer = (
     onMessageCommitted?: (localId: string) => void;
     blocked?: boolean;
     attachmentController?: MediaAttachmentController | null;
+    onHeightChange?: (height: number) => void;
   }>,
 ) => React.JSX.Element;
 
@@ -50,10 +113,6 @@ function fakeAttachmentController(): MediaAttachmentController {
     retry: jest.fn(),
     remove: jest.fn(),
   };
-}
-
-function mountCountFor(testID: string): number {
-  return listItemMountLog.filter((entry) => entry.testID === testID).length;
 }
 
 function createDeferred<Value>() {
@@ -162,7 +221,7 @@ describe("M5-UI-1 explicit-send Korean IME composer", () => {
     const send = screen.getByRole("button", { name: "메시지 보내기" });
 
     expect(input.props.multiline).toBe(true);
-    expect(input.props.placeholder).toBe("메시지 입력...");
+    expect(input.props.placeholder).toBe("메시지");
     expect(send.props.accessibilityState).toEqual(
       expect.objectContaining({ disabled: true }),
     );
@@ -347,8 +406,14 @@ describe("M5-UI-1 explicit-send Korean IME composer", () => {
 
   test("keeps Enter, submit-editing, and composition handling free of send bindings and consumes the approved layout tokens", () => {
     const filesystem = jest.requireActual<FileSystemModule>("node:fs");
+    // M14 round 2 (W1/W2) splits the composer into `chat-composer.ios.tsx`
+    // (rendered here, Liquid Glass) and `chat-composer.android.tsx` (M3);
+    // `chat-composer.tsx` is now only the generic tsc bare-import fallback
+    // (never rendered under jest, which always resolves iOS -- see its
+    // docstring), so the source-of-truth invariant scan targets the file
+    // that actually renders.
     const source = filesystem.readFileSync(
-      `${process.cwd()}/src/features/chat/ui/chat-composer.tsx`,
+      `${process.cwd()}/src/features/chat/ui/chat-composer.ios.tsx`,
       "utf8",
     );
 
@@ -359,22 +424,48 @@ describe("M5-UI-1 explicit-send Korean IME composer", () => {
       /appChatComposer|composerMinHeight|composerMaxHeight/,
     );
     expect(source).toMatch(/44/);
-    // M11 adds attachment UI; "media" is no longer excluded here (see
-    // media-attachment-types.ts and the M11 UI seam note). Capture/record/skeleton
-    // remain out of scope.
-    expect(source).not.toMatch(/microphone|recording|skeleton/i);
+    // M11 added attachment UI; M14 round 2 (W1/V1) adds the mic<->send swap
+    // and the record/preview bars, so "microphone"/"recording" are now
+    // expected here. "skeleton" remains out of scope.
+    expect(source).not.toMatch(/skeleton/i);
   });
 
-  test("remounts (not prop-updates) the attach-sheet ListItem when availability flips, and keeps handlers wired on available options", async () => {
-    // Regression test for the upstream @expo/ui Android bug: ListItem.android.tsx
-    // forwards `modifiers={undefined}` when `onPress` goes from present to absent
-    // on an already-mounted instance, which expo-modules-core's
-    // `ListTypeConverter.convertFromDynamic` cannot cast, crashing the app. The
-    // fix keys each option by its own availability so React remounts instead of
-    // diffing `onPress` away. This test fails (RED) without the `key` fix because
-    // the mount count does not increase when availability flips -- the mocked
-    // ListItem is updated in place rather than remounted.
-    resetListItemMountLog();
+  test("reports its measured height (draft row + record bar included) through onHeightChange, deduping repeat layouts", async () => {
+    const ChatComposer = loadChatComposer();
+    const send = jest.fn(async () => ({ outcome: "empty" as const }));
+    const onHeightChange = jest.fn();
+    const screen = await render(
+      <AppThemeProvider>
+        <ChatComposer controller={{ send }} onHeightChange={onHeightChange} />
+      </AppThemeProvider>,
+    );
+    const root = screen.getByTestId("chat-composer-root");
+
+    await act(() => {
+      fireEvent(root, "layout", {
+        nativeEvent: { layout: { height: 96, width: 320, x: 0, y: 0 } },
+      });
+    });
+    expect(onHeightChange).toHaveBeenCalledTimes(1);
+    expect(onHeightChange).toHaveBeenLastCalledWith(96);
+
+    await act(() => {
+      fireEvent(root, "layout", {
+        nativeEvent: { layout: { height: 96, width: 320, x: 0, y: 0 } },
+      });
+    });
+    expect(onHeightChange).toHaveBeenCalledTimes(1);
+
+    await act(() => {
+      fireEvent(root, "layout", {
+        nativeEvent: { layout: { height: 148, width: 320, x: 0, y: 0 } },
+      });
+    });
+    expect(onHeightChange).toHaveBeenCalledTimes(2);
+    expect(onHeightChange).toHaveBeenLastCalledWith(148);
+  });
+
+  test("W1: shows mic (not a disabled send button) once a controller is present, empty input, and no attachments", async () => {
     const ChatComposer = loadChatComposer();
     const send = jest.fn(async () => ({ outcome: "empty" as const }));
     const attachment = fakeAttachmentController();
@@ -385,55 +476,33 @@ describe("M5-UI-1 explicit-send Korean IME composer", () => {
       </AppThemeProvider>,
     );
 
-    await fireEvent.press(screen.getByLabelText("첨부 추가"));
+    expect(screen.getByLabelText("음성 메시지 녹음")).toBeTruthy();
+    expect(screen.queryByLabelText("메시지 보내기")).toBeNull();
 
-    // Initial mount while both options are available.
-    expect(mountCountFor("attachment-option-image")).toBe(1);
-    expect(mountCountFor("attachment-option-audio")).toBe(1);
-    expect(screen.queryByText("지금은 추가할 수 없습니다")).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText("메시지 입력"), "글");
+    expect(screen.getByLabelText("메시지 보내기")).toBeTruthy();
+    expect(screen.queryByLabelText("음성 메시지 녹음")).toBeNull();
+  });
 
-    await act(async () => {
-      await screen.rerender(
-        <AppThemeProvider>
-          <ChatComposer
-            controller={{ send }}
-            attachmentController={attachment}
-            blocked
-          />
-        </AppThemeProvider>,
-      );
-    });
+  test("W1/E3: tapping mic starts recording and replaces the whole input row with the record bar", async () => {
+    const ChatComposer = loadChatComposer();
+    const send = jest.fn(async () => ({ outcome: "empty" as const }));
+    const attachment = fakeAttachmentController();
 
-    // Availability flipped to unavailable (blocked gates both options): the
-    // ListItem must have been torn down and reconstructed, not merely
-    // updated in place -- this is the exact transition that crashes on
-    // Android upstream without the availability-keyed remount.
-    expect(mountCountFor("attachment-option-image")).toBe(2);
-    expect(mountCountFor("attachment-option-audio")).toBe(2);
-    expect(screen.getAllByText("지금은 추가할 수 없습니다")).toHaveLength(2);
+    const screen = await render(
+      <AppThemeProvider>
+        <ChatComposer controller={{ send }} attachmentController={attachment} />
+      </AppThemeProvider>,
+    );
 
     await act(async () => {
-      await screen.rerender(
-        <AppThemeProvider>
-          <ChatComposer
-            controller={{ send }}
-            attachmentController={attachment}
-          />
-        </AppThemeProvider>,
-      );
+      await fireEvent.press(screen.getByLabelText("음성 메시지 녹음"));
     });
 
-    // Availability flipped back to available: another remount.
-    expect(mountCountFor("attachment-option-image")).toBe(3);
-    expect(mountCountFor("attachment-option-audio")).toBe(3);
-    expect(screen.queryByText("지금은 추가할 수 없습니다")).toBeNull();
-
-    // The remounted, now-available option still calls its real handler:
-    // pressing it closes the sheet (the composer's `addImageOrVideo`
-    // callback runs `setSheetOpen(false)` synchronously before staging).
-    await act(async () => {
-      await fireEvent.press(screen.getByTestId("attachment-option-image"));
-    });
-    expect(screen.queryByTestId("attachment-option-image")).toBeNull();
+    expect(screen.getByTestId("voice-recording-bar")).toBeTruthy();
+    expect(screen.queryByLabelText("메시지 입력")).toBeNull();
+    expect(screen.queryByLabelText("첨부 추가")).toBeNull();
+    expect(screen.getByLabelText("정지")).toBeTruthy();
+    expect(screen.getByLabelText("삭제")).toBeTruthy();
   });
 });

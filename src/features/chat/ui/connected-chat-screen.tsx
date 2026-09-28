@@ -54,9 +54,33 @@ export function ConnectedChatScreen({
       if (valid && ready) void actions.openRoom(chatroomId);
       return () => {
         focused.current = null;
-        actions.closeRoom();
       };
     }, [actions, chatroomId, ready, valid]),
+  );
+  // R4 lifecycle fix: a `useFocusEffect` blur fires whenever another screen
+  // is pushed on top (group info, topic detail) even though this screen
+  // stays mounted in the stack underneath -- closing the room there used to
+  // swap `ChatConversationScreen` for the "대화 준비 중…" placeholder
+  // (`state.chatroomId !== chatroomId` below), unmounting `ChatComposer`
+  // with it (losing the in-progress draft) and re-triggering the one-shot
+  // initial-reveal effect on the way back. The room instead stays open the
+  // whole time this component instance is mounted (`openRoom` on every
+  // focus, including a refocus of the *same* room, is now a quiet resync --
+  // see `connected-chat-store.ts`'s `openRoom`) and is only closed when this
+  // screen instance actually goes away (unmount: back navigation, or this
+  // chatroomId being replaced by a different one). `stateChatroomIdRef`
+  // guards against closing a room a differently-focused screen has since
+  // taken over, in case an unmount effect flushes after that other screen's
+  // own `openRoom` already reassigned it.
+  const stateChatroomIdRef = useRef(state.chatroomId);
+  useEffect(() => {
+    stateChatroomIdRef.current = state.chatroomId;
+  }, [state.chatroomId]);
+  useEffect(
+    () => () => {
+      if (stateChatroomIdRef.current === chatroomId) actions.closeRoom();
+    },
+    [actions, chatroomId],
   );
   useEffect(() => {
     if (state.chatroomId === chatroomId && state.accessLost)
@@ -147,15 +171,6 @@ export function ConnectedChatScreen({
             ? "오프라인 · 기기에 저장 후 자동 전송"
             : undefined
       }
-      headerActions={[
-        {
-          accessibilityLabel: "메시지 새로고침",
-          disabled: state.history.status === "loading",
-          key: "refresh",
-          onPress: () => void actions.openRoom(chatroomId),
-          symbol: "refresh",
-        },
-      ]}
       conversation={conversation}
       controller={controller}
       attachmentController={attachments}

@@ -1,6 +1,7 @@
 import React from "react";
 import { render } from "@testing-library/react-native";
 import { ChatMessageRow } from "@/features/chat/ui/chat-message-row";
+import type { ChatMessageRowMeta } from "@/features/chat/model/chat-message-grouping";
 import { darkTheme, lightTheme } from "@/core/theme/tokens";
 
 jest.mock("@/features/media/ui/media-image-viewer", () => ({
@@ -17,6 +18,7 @@ jest.mock("expo-router", () => ({
     jest
       .requireActual<typeof import("react")>("react")
       .useEffect(callback, [callback]),
+  router: { push: jest.fn(), back: jest.fn(), canGoBack: () => false },
 }));
 jest.mock("@/features/media/ui/use-media-download", () => ({
   useMediaDownload: () => ({
@@ -27,7 +29,7 @@ jest.mock("@/features/media/ui/use-media-download", () => ({
   }),
 }));
 // Observes the real hook's call args (mediaId/enabled/posterMediaId) without
-// replacing its behaviour — there is no MediaRuntimeProvider in this file, so
+// replacing its behaviour -- there is no MediaRuntimeProvider in this file, so
 // the real hook is already an inert no-op (`access`/`runtime` are both null).
 const mockMediaVideoThumbnailSpy = jest.fn();
 jest.mock("@/features/media/ui/use-media-video-thumbnail", () => {
@@ -47,6 +49,27 @@ beforeEach(() => {
   mockMediaVideoThumbnailSpy.mockClear();
 });
 
+/** Minimal `ChatMessageRowMeta` for an outgoing, non-grouped, non-system row
+ * -- this file only cares about how R3 attachments render, not R1/R4's
+ * grouping/date-separator decisions (covered by
+ * `chat-message-grouping.test.ts`, owned by task-app-chat-list). */
+function outgoingRowMeta(
+  overrides: Partial<ChatMessageRowMeta> = {},
+): ChatMessageRowMeta {
+  return {
+    localId: "local-1",
+    isSystem: false,
+    isOutgoing: true,
+    isGroupedWithPrevious: false,
+    isLastInGroup: true,
+    showDateSeparator: false,
+    dateSeparatorLabel: "",
+    timeLabel: "오후 12:01",
+    showSentStatus: false,
+    ...overrides,
+  };
+}
+
 const video = {
   id: "11111111-1111-4111-8111-111111111111",
   mediaUploadId: "upload-1",
@@ -61,11 +84,12 @@ const video = {
 };
 
 test.each([lightTheme, darkTheme])(
-  "outgoing media actions contrast against the $colorScheme message bubble",
+  "an outgoing video attachment renders through ChatMessageRow -> MessageAttachmentsView -> MediaVideoCard in the $colorScheme theme",
   async (theme) => {
     mockColors = theme.colors;
     const screen = await render(
       <ChatMessageRow
+        rowMeta={outgoingRowMeta()}
         message={{
           localId: "local-1",
           conversationId: "room-1",
@@ -79,20 +103,22 @@ test.each([lightTheme, darkTheme])(
           media: [video],
         }}
         onRetryFailedMessage={jest.fn()}
+        onShareAttachment={jest.fn()}
       />,
     );
+    // R3: the per-attachment share icon (`MediaOpenSaveButton`) is gone --
+    // save/share now only happens through the message menu (`onShareAttachment`)
+    // and the full-screen viewer.
     expect(
-      screen.getByRole("button", { name: "첨부 파일 열기 또는 저장" }),
-    ).toBeTruthy();
-    const icon = screen.getByTestId("media-open-save-icon");
-    expect(icon.props.children.props.tintColor).toBe(theme.colors.onPrimary);
+      screen.queryByRole("button", { name: "첨부 파일 열기 또는 저장" }),
+    ).toBeNull();
     expect(
       screen.getByRole("button", { name: "첨부 동영상 재생" }),
     ).toBeTruthy();
   },
 );
 
-test("passes the item's posterMediaId through row -> card -> the thumbnail hook, including for a pending (optimistic) row", async () => {
+test("passes the item's posterMediaId through row -> MessageAttachmentsView -> card -> the thumbnail hook, including for a pending (optimistic) row", async () => {
   mockColors = lightTheme.colors;
   const posterId = "22222222-2222-4222-8222-222222222222";
   const posterVideo = {
@@ -102,6 +128,7 @@ test("passes the item's posterMediaId through row -> card -> the thumbnail hook,
   };
   await render(
     <ChatMessageRow
+      rowMeta={outgoingRowMeta()}
       message={{
         localId: "local-2",
         conversationId: "room-1",
@@ -115,6 +142,7 @@ test("passes the item's posterMediaId through row -> card -> the thumbnail hook,
         media: [posterVideo],
       }}
       onRetryFailedMessage={jest.fn()}
+      onShareAttachment={jest.fn()}
     />,
   );
   expect(mockMediaVideoThumbnailSpy).toHaveBeenCalledWith(
@@ -128,6 +156,7 @@ test("passes null through when the item has no posterMediaId", async () => {
   mockColors = lightTheme.colors;
   await render(
     <ChatMessageRow
+      rowMeta={outgoingRowMeta()}
       message={{
         localId: "local-3",
         conversationId: "room-1",
@@ -141,6 +170,7 @@ test("passes null through when the item has no posterMediaId", async () => {
         media: [video],
       }}
       onRetryFailedMessage={jest.fn()}
+      onShareAttachment={jest.fn()}
     />,
   );
   expect(mockMediaVideoThumbnailSpy).toHaveBeenCalledWith(
@@ -148,4 +178,28 @@ test("passes null through when the item has no posterMediaId", async () => {
     false,
     null,
   );
+});
+
+test("an incoming video attachment still renders through the same chain (no crash without a sender avatar)", async () => {
+  mockColors = lightTheme.colors;
+  const screen = await render(
+    <ChatMessageRow
+      rowMeta={outgoingRowMeta({ isOutgoing: false, isLastInGroup: true })}
+      message={{
+        localId: "local-4",
+        conversationId: "room-1",
+        clientMsgId: null,
+        body: "",
+        status: "sent",
+        senderLabel: "상대방",
+        isOutgoing: false,
+        createdAtMs: 1,
+        senderId: "other",
+        media: [video],
+      }}
+      onRetryFailedMessage={jest.fn()}
+      onShareAttachment={jest.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "첨부 동영상 재생" })).toBeTruthy();
 });
