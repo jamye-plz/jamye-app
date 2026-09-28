@@ -5,6 +5,7 @@ export type RowActionSymbol =
   | "info"
   | "invite"
   | "leave"
+  | "markRead"
   | "removeMember"
   | "share"
   | "transfer";
@@ -13,9 +14,22 @@ export type RowActionSymbol =
 export type RowAction = Readonly<{
   destructive?: boolean;
   disabled?: boolean;
+  /**
+   * iOS swipe edge (N2, e.g. "읽음"). Android ignores this -- every action
+   * surfaces the same way, via long-press or the trailing ⋮ menu.
+   * @default "trailing"
+   */
+  edge?: "leading" | "trailing";
   key: string;
   onPress: () => void;
   symbol: RowActionSymbol;
+  /**
+   * iOS swipe-button caption, for when it should read shorter than `title`
+   * (e.g. "읽음" on a swipe button whose context-menu row says "읽음으로
+   * 표시"). Falls back to `title`. Android always uses `title` (no swipe
+   * surface).
+   */
+  swipeLabel?: string;
   title: string;
 }>;
 

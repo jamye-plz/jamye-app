@@ -523,7 +523,6 @@ const M11_TEST_PATHS = Object.freeze([
   "tests/features/media/model/media-upload-controller.test.ts",
   "tests/features/media/model/media-draft-queue.test.ts",
   "tests/features/media/model/media-lifetime.test.ts",
-  "tests/features/media/platform/audio-file-picker.test.ts",
   "tests/features/media/platform/image-video-picker.test.ts",
   "tests/features/media/platform/media-image-normalizer.test.ts",
   "tests/features/media/platform/native-video-player.test.tsx",
@@ -567,7 +566,6 @@ const M11_AUTHORED_FILES = Object.freeze([
   "src/features/media/model/media-upload-ports.ts",
   "src/features/media/model/use-media-access.ts",
   "src/features/media/model/use-media-upload-queue.ts",
-  "src/features/media/platform/audio-file-picker.ts",
   "src/features/media/platform/image-video-picker.ts",
   "src/features/media/platform/media-image-normalizer.ts",
   "src/features/media/platform/native-video-player.tsx",
@@ -728,6 +726,89 @@ const M14_ROUND1_TEST_PATHS = Object.freeze([
   // Post-SHIP user feedback: Android system back closes topic edit mode.
   "tests/features/topics/ui/use-close-edit-on-back.android.test.tsx",
 ]);
+const M14_ROUND2_TEST_PATHS = Object.freeze([
+  // task-app-kit (E6/L2/N4/N2): time-label table, useSystemFeedback host
+  // (iOS default resolution + Android requireActual), and the
+  // ActionListItem leading-swipe/symbol-registration extensions live in the
+  // existing M14 round-1 shared-kit test files above (app-symbol.test.tsx,
+  // action-list-item.ios/android.test.tsx); these two are the only new test
+  // files this round.
+  "tests/shared/datetime/relative-labels.test.ts",
+  "tests/shared/ui/system-feedback.test.tsx",
+  "tests/shared/ui/system-feedback.android.test.tsx",
+  // task-app-composer: platform wrapper tests for the voice recorder (V1)
+  // and the chat-scoped haptics wrapper (V3).
+  "tests/features/chat/platform/haptics.test.ts",
+  "tests/features/media/platform/recorder.test.ts",
+  // task-app-composer rerun (W1/W2/W4): Android M3 composer render/E11,
+  // the W2 rn-fallback path's E11 invariants, and the W4 video draft
+  // thumbnail. chat-composer.test.tsx keeps its pre-existing path (content
+  // updated for the native-field default, not moved).
+  "tests/features/chat/chat-composer.android.test.tsx",
+  "tests/features/chat/chat-composer-field-rn-fallback.test.tsx",
+  "tests/features/media/ui/attachment-queue-list.test.tsx",
+  // task-app-account (A1-A4): native account settings list, nickname C3
+  // screen, developer section, and the notification-settings-section
+  // native split. account-screen.test.tsx / account-route.test.tsx /
+  // notification-settings-section.test.tsx keep their pre-existing paths
+  // (content rewritten, not moved) so they are not re-listed here.
+  "tests/features/home/account-screen.android.test.tsx",
+  "tests/features/account/ui/nickname-edit-screen.test.tsx",
+  "tests/features/account/ui/nickname-edit-screen.android.test.tsx",
+  "tests/features/account/model/use-delete-account-flow.test.ts",
+  "tests/features/account/ui/developer-section.test.tsx",
+  "tests/features/account/ui/developer-section.android.test.tsx",
+  "tests/features/notifications/ui/notification-settings-section.android.test.tsx",
+  // task-app-notifications: new Android inbox screen test (the iOS test
+  // keeps its pre-existing path, notifications-inbox-screen.test.tsx).
+  "tests/features/notifications/ui/notifications-inbox-screen.android.test.tsx",
+  // task-app-auth (L1-L3/E12/E13): new brand-button platform tests and the
+  // splash-hold integration test. auth-screen.test.tsx /
+  // oauth-callback-screen.test.tsx / connected-index-route.test.tsx keep
+  // their pre-existing paths (content rewritten, not moved).
+  "tests/features/auth/brand-login-button.ios.test.tsx",
+  "tests/features/auth/brand-login-button.android.test.tsx",
+  "tests/features/auth/session-splash.test.tsx",
+  // task-app-chat-list (R1/R2/R4/E7/E11/E14): grouping/date-time model, R4
+  // near-bottom/new-message-pill decision model, R2 message menu platform
+  // tests, and the R2 clipboard wrapper test. chat-accessibility.test.tsx /
+  // connected-chat-screens.test.tsx keep their pre-existing paths (content
+  // updated, not moved).
+  "tests/features/chat/model/chat-message-grouping.test.ts",
+  "tests/features/chat/model/chat-new-message-scroll.test.ts",
+  "tests/features/chat/platform/clipboard.test.ts",
+  "tests/features/chat/ui/chat-new-message-pill.test.tsx",
+  "tests/features/chat/ui/chat-message-menu.ios.test.tsx",
+  "tests/features/chat/ui/chat-message-menu.android.test.tsx",
+  // task-app-device: R1 row layout regressions found on device.
+  "tests/features/chat/ui/chat-message-row.test.tsx",
+  "tests/features/chat/ui/chat-message-list-pin.test.tsx",
+  // task-app-device: voice upload staging, thumbnail queue release, and the
+  // dark-theme video tile glyphs found on device.
+  "tests/features/chat/ui/chat-composer-voice-upload.test.tsx",
+  "tests/features/media/model/video-thumbnail-queue.test.ts",
+  "tests/features/media/ui/media-video-card-overlay.test.tsx",
+  // task-app-device: a new/joined group's home opened without the group
+  // list beneath it (no back button), found scanning for the iOS chat
+  // back-button report.
+  "tests/features/groups/ui/show-group-home.test.tsx",
+  // task-app-device: the login brand marks lost their white/grey backing
+  // squares (device).
+  "tests/features/auth/brand-logo-assets.test.ts",
+  // task-app-media (R2 save/share, R3 attachment grid + full-screen viewer,
+  // V2 voice bubble): new component/model/platform tests. message-media-
+  // presentation.test.tsx / media-image-viewer.test.tsx /
+  // media-video-card.test.tsx keep their pre-existing paths (unaffected by
+  // this round's additive `MediaImage`/`MediaVideoCard` props; see the
+  // result report for why message-media-presentation.test.tsx itself was
+  // left untouched -- it exercises chat-list-owned chat-message-row.tsx).
+  "tests/features/media/ui/message-attachments-view.test.tsx",
+  "tests/features/media/ui/voice-message-bubble.test.tsx",
+  "tests/features/media/ui/media-viewer-screen.test.tsx",
+  "tests/features/media/model/media-sharing.test.ts",
+  "tests/features/media/model/audio-playback-coordinator.test.ts",
+  "tests/features/media/platform/player.test.ts",
+]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
   ...new Set([
     ...ACTIVE_M3_TEST_PATHS,
@@ -744,6 +825,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M10_TEST_PATHS,
     ...M11_TEST_PATHS,
     ...M14_ROUND1_TEST_PATHS,
+    ...M14_ROUND2_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
     "tests/core/theme/tokens.test.ts",
@@ -770,8 +852,6 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     "tests/core/contracts/server/users.test.ts",
     "tests/features/account/data/account-api.test.ts",
     "tests/features/account/model/account-lifecycle.test.ts",
-    "tests/features/account/ui/delete-account-section.test.tsx",
-    "tests/features/account/ui/nickname-section.test.tsx",
     "tests/core/http/http-requester.test.ts",
     "tests/core/contracts/server/notifications.test.ts",
     "tests/core/contracts/server/push-installations.test.ts",
@@ -830,15 +910,17 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   "@expo/ui": "57.0.17",
   ajv: "8.20.0",
   expo: "~57.0.21",
+  "expo-audio": "~57.0.5",
   "expo-auth-session": "~57.0.11",
+  "expo-clipboard": "~57.0.2",
   "expo-constants": "~57.0.17",
   "expo-crypto": "~57.0.2",
   "expo-dev-client": "~57.0.18",
   "expo-device": "~57.0.2",
-  "expo-document-picker": "~57.0.1",
   "expo-file-system": "~57.0.6",
   "expo-font": "~57.0.3",
   "expo-glass-effect": "57.0.2",
+  "expo-haptics": "~57.0.3",
   "expo-image": "~57.0.5",
   "expo-image-manipulator": "~57.0.16",
   "expo-image-picker": "~57.0.16",
@@ -918,7 +1000,7 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "7cff493646ef92c2050a9b3cff18159dea47a1c9d4e6ebc8a4552f74256cbf04";
+  "e452041bd0ec6ec96f920035fc32b48030da345137071ee9cbd61aa934f0b78e";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -945,7 +1027,18 @@ const APPROVED_MEDIA_PICKER_PLUGIN = Object.freeze([
   Object.freeze({
     photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
     cameraPermission: false,
-    microphonePermission: false,
+  }),
+]);
+// V3/E4: microphonePermission is intentionally absent above so expo-audio
+// below owns the microphone permission text. Recording-only: background
+// recording/playback stay disabled so no UIBackgroundModes "audio" is added.
+const APPROVED_AUDIO_PLUGIN = Object.freeze([
+  "expo-audio",
+  Object.freeze({
+    microphonePermission:
+      "대화방에서 음성 메시지를 녹음하기 위해 마이크를 사용합니다.",
+    enableBackgroundRecording: false,
+    enableBackgroundPlayback: false,
   }),
 ]);
 
@@ -973,6 +1066,12 @@ const APPROVED_ANDROID_INTENT_FILTERS = Object.freeze([
 ]);
 
 const APPROVED_PREBUILD_ANDROID_PERMISSIONS = Object.freeze([
+  // V3/E4: expo-audio's config plugin adds RECORD_AUDIO (also requested by
+  // expo-image-picker now that its microphonePermission is no longer
+  // `false`) and MODIFY_AUDIO_SETTINGS; the live `expo config --type
+  // prebuild` merge places both ahead of the pre-existing three.
+  "android.permission.RECORD_AUDIO",
+  "android.permission.MODIFY_AUDIO_SETTINGS",
   "android.permission.READ_EXTERNAL_STORAGE",
   "android.permission.WRITE_EXTERNAL_STORAGE",
   "android.permission.INTERNET",
@@ -1132,6 +1231,13 @@ const REQUIRED_ROUTE_PERSISTENCE_MODULES = Object.freeze([
   "expo-video",
   "expo-document-picker",
   "expo-sharing",
+  // V3/E1: voice recording/playback and copy native modules. Sanctioned
+  // import points (screens/models/routes must not import these directly):
+  // expo-audio -> src/features/media/platform/**; expo-haptics and
+  // expo-clipboard -> src/features/chat/platform/**.
+  "expo-audio",
+  "expo-haptics",
+  "expo-clipboard",
 ]);
 
 const REQUIRED_SCREEN_FILES_GLOBS = Object.freeze([
@@ -1467,6 +1573,207 @@ const M14_ROUND1_AUTHORED_FILES = Object.freeze([
   "tests/features/topics/ui/use-close-edit-on-back.android.test.tsx",
 ]);
 
+const M14_ROUND2_AUTHORED_FILES = Object.freeze([
+  // task-app-native (V3/E1/E4/E9): jest mocks for the new native modules
+  // installed for the voice-recording rebuild.
+  "tests/__mocks__/expo-audio.ts",
+  "tests/__mocks__/expo-haptics.ts",
+  "tests/__mocks__/expo-clipboard.ts",
+  // task-app-kit (E6/L2/N4/N2): round-2 shared kit -- time label, platform
+  // notice host, new AppSymbol names, and the ActionListItem leading-swipe
+  // extension for N2 "mark read".
+  "src/shared/datetime/relative-labels.ts",
+  "tests/shared/datetime/relative-labels.test.ts",
+  "src/shared/ui/system-feedback.types.ts",
+  "src/shared/ui/system-feedback.tsx",
+  "src/shared/ui/system-feedback.ios.tsx",
+  "src/shared/ui/system-feedback.android.tsx",
+  "tests/shared/ui/system-feedback.test.tsx",
+  "tests/shared/ui/system-feedback.android.test.tsx",
+  "assets/icons/material/mark_email_read.xml",
+  // task-app-device (M14 round 2 device verification): the Android M3 list
+  // subheader shared by the account screen sections, and the notification
+  // kind icons the Compose-only inbox row draws.
+  "src/shared/ui/list-subheader.tsx",
+  "assets/icons/material/article.xml",
+  "assets/icons/material/chat.xml",
+  "assets/icons/material/notifications.xml",
+  "assets/icons/material/mic.xml",
+  "assets/icons/material/send.xml",
+  // task-app-composer (W1-W4/V1/V4/E2/E3/E8/E9): voice recorder platform
+  // wrappers, the chat-scoped haptics wrapper, the composer's recording
+  // orchestrator hook, and the record/preview bar UI. `player.ios.ts` and
+  // `player.android.ts` are shared with task-app-media's V2 playback session
+  // (see the in-file docstrings for how the two coexist).
+  "src/features/chat/platform/haptics.ios.ts",
+  "src/features/chat/platform/haptics.android.ts",
+  "src/features/media/platform/recorder.ios.ts",
+  "src/features/media/platform/recorder.android.ts",
+  "src/features/media/platform/player.ios.ts",
+  "src/features/media/platform/player.android.ts",
+  "src/features/chat/ui/chat-composer-recorder.ts",
+  "src/features/media/ui/voice-recorder-bar.tsx",
+  // task-app-composer rerun (W1 Liquid Glass/M3 composer, W2 native text
+  // field default + rn fallback switch): the composer splits into
+  // `chat-composer.ios.tsx` (Liquid Glass, `expo-glass-effect`) and
+  // `chat-composer.android.tsx` (M3, `@expo/ui/jetpack-compose`), sharing
+  // state/business logic via `use-chat-composer.ts`; `chat-composer.tsx` is
+  // now the generic tsc bare-import fallback (modified, not new, so not
+  // re-listed). The text field is its own interchangeable trio
+  // (`chat-composer-field.ios.tsx` / `.android.tsx` / `-fallback.tsx`) behind
+  // `chat-composer-field-impl.ts`'s `COMPOSER_TEXT_FIELD_IMPL` switch, plus a
+  // `chat-composer-field.tsx` tsc bare-import fallback (same pattern as
+  // `chat-composer.tsx`). `tests/__mocks__/expo-glass-effect.tsx` is the new
+  // native module this round introduces (GlassView/GlassContainer are plain
+  // `View`-shaped wrappers, unlike `@expo/ui`, so one shared manual mock
+  // covers every consumer -- see its docstring).
+  "src/features/chat/ui/chat-composer-field.types.ts",
+  "src/features/chat/ui/chat-composer-field-impl.ts",
+  "src/features/chat/ui/chat-composer-field-fallback.tsx",
+  "src/features/chat/ui/chat-composer-field.tsx",
+  "src/features/chat/ui/chat-composer-field.ios.tsx",
+  "src/features/chat/ui/chat-composer-field.android.tsx",
+  "src/features/chat/ui/use-chat-composer.ts",
+  "src/features/chat/ui/chat-composer.ios.tsx",
+  "src/features/chat/ui/chat-composer.android.tsx",
+  "tests/__mocks__/expo-glass-effect.tsx",
+  "tests/features/chat/chat-composer.android.test.tsx",
+  "tests/features/chat/chat-composer-field-rn-fallback.test.tsx",
+  "tests/features/media/ui/attachment-queue-list.test.tsx",
+  // task-app-account (A1-A4): native account settings list (A1/A4),
+  // nickname C3 screen (A2), and the __DEV__-only developer section (A3),
+  // replacing the generic account-screen.tsx / nickname-section.tsx /
+  // delete-account-section.tsx / notification-settings-section.tsx (see
+  // AUTHORIZED_DELETE_PATHS).
+  "src/features/account/model/use-account-lifecycle.ts",
+  "src/features/account/model/use-delete-account-flow.ts",
+  "tests/features/account/model/use-delete-account-flow.test.ts",
+  "src/features/account/ui/nickname-edit-screen.shared.ts",
+  "src/features/account/ui/nickname-edit-screen.ios.tsx",
+  "src/features/account/ui/nickname-edit-screen.android.tsx",
+  "tests/features/account/ui/nickname-edit-screen.test.tsx",
+  "tests/features/account/ui/nickname-edit-screen.android.test.tsx",
+  "src/app/account/nickname.tsx",
+  "src/features/notifications/ui/notification-settings-section.shared.ts",
+  "src/features/notifications/ui/notification-settings-section.ios.tsx",
+  "src/features/notifications/ui/notification-settings-section.android.tsx",
+  "tests/features/notifications/ui/notification-settings-section.android.test.tsx",
+  "src/features/account/ui/developer-section.ios.tsx",
+  "src/features/account/ui/developer-section.android.tsx",
+  "tests/features/account/ui/developer-section.test.tsx",
+  "tests/features/account/ui/developer-section.android.test.tsx",
+  "src/features/home/ui/account-screen.ios.tsx",
+  "src/features/home/ui/account-screen.android.tsx",
+  "tests/features/home/account-screen.android.test.tsx",
+  // task-app-account: generic (web) fallbacks for the four screens above,
+  // needed because tsconfig has no `moduleSuffixes` -- a bare
+  // "@/features/.../x" import (route files, and each platform file's own
+  // cross-imports of the others) only resolves through `tsc` if a
+  // non-platform-suffixed `x.tsx` exists alongside `x.ios.tsx`/`x.android.tsx`.
+  "src/features/account/ui/nickname-edit-screen.tsx",
+  "src/features/account/ui/developer-section.tsx",
+  "src/features/notifications/ui/notification-settings-section.tsx",
+  "src/features/home/ui/account-screen.tsx",
+  // task-app-notifications (N1-N4/C1/discovery §3): platform-split inbox
+  // screen (`notifications-inbox-screen.tsx` keeps its pre-existing path as
+  // the web/tsc-resolution fallback -- same pattern as native-list.tsx /
+  // action-list-item.tsx / system-feedback.tsx) and its new Android test file.
+  "src/features/notifications/ui/notifications-inbox-screen.ios.tsx",
+  "src/features/notifications/ui/notifications-inbox-screen.android.tsx",
+  "tests/features/notifications/ui/notifications-inbox-screen.android.test.tsx",
+  // task-app-auth (L1-L3/E12/E13): brand login button (platform-split +
+  // shared types/constants) and its official logo assets. auth-screen.tsx /
+  // oauth-callback-screen.tsx / session-provider.tsx / app/index.tsx are
+  // modified, not new, so they are not listed here.
+  "src/features/auth/ui/brand-login-button.types.ts",
+  "src/features/auth/ui/brand-login-button.constants.ts",
+  "src/features/auth/ui/brand-login-button.tsx",
+  "src/features/auth/ui/brand-login-button.ios.tsx",
+  "src/features/auth/ui/brand-login-button.android.tsx",
+  "tests/features/auth/brand-login-button.ios.test.tsx",
+  "tests/features/auth/brand-login-button.android.test.tsx",
+  "tests/features/auth/session-splash.test.tsx",
+  "assets/brand/kakao/kakao-symbol.png",
+  "assets/brand/kakao/kakao-symbol@2x.png",
+  "assets/brand/kakao/kakao-symbol@3x.png",
+  "assets/brand/google/google-logo.png",
+  "assets/brand/google/google-logo@2x.png",
+  "assets/brand/google/google-logo@3x.png",
+  // task-app-chat-list (R1/R2/R4/E7/E11/E14): message grouping/date-time
+  // model, R4 near-bottom/new-message-pill decision model, R2 message menu
+  // (iOS ContextMenu / Android DropdownMenu) shell + its shared action
+  // types, the date separator, the new-message pill, and the R2 clipboard
+  // wrapper (sanctioned `expo-clipboard`/`expo-haptics` import point under
+  // `src/features/chat/platform/**`). chat-screen.tsx / chat-message-list.tsx
+  // / chat-message-row.tsx / connected-chat-screen.tsx /
+  // connected-chat-store.ts / chat-message-window.ts /
+  // connected-chat-presentation.ts are modified, not new, so they are not
+  // listed here.
+  "src/features/chat/model/chat-message-grouping.ts",
+  "src/features/chat/model/chat-new-message-scroll.ts",
+  "src/features/chat/platform/clipboard.ts",
+  "src/features/chat/ui/chat-date-separator.tsx",
+  "src/features/chat/ui/chat-message-menu.types.ts",
+  "src/features/chat/ui/chat-message-menu.ios.tsx",
+  "src/features/chat/ui/chat-message-menu.android.tsx",
+  "src/features/chat/ui/chat-new-message-pill.tsx",
+  "tests/features/chat/model/chat-message-grouping.test.ts",
+  "tests/features/chat/model/chat-new-message-scroll.test.ts",
+  "tests/features/chat/platform/clipboard.test.ts",
+  "tests/features/chat/ui/chat-new-message-pill.test.tsx",
+  "tests/features/chat/ui/chat-message-menu.ios.test.tsx",
+  "tests/features/chat/ui/chat-message-menu.android.test.tsx",
+  // task-app-device: the bare web/tsc fallback for the platform message
+  // menus, and the R1 row layout regressions found on device.
+  "src/features/chat/ui/chat-message-menu.tsx",
+  "tests/features/chat/ui/chat-message-row.test.tsx",
+  "tests/features/chat/ui/chat-message-list-pin.test.tsx",
+  // task-app-device: voice upload staging, thumbnail queue release, and the
+  // dark-theme video tile glyphs found on device.
+  "tests/features/chat/ui/chat-composer-voice-upload.test.tsx",
+  "tests/features/media/model/video-thumbnail-queue.test.ts",
+  "tests/features/media/ui/media-video-card-overlay.test.tsx",
+  // task-app-device: a new/joined group's home opened without the group
+  // list beneath it (no back button), found scanning for the iOS chat
+  // back-button report.
+  "tests/features/groups/ui/show-group-home.test.tsx",
+  // task-app-device: the login brand marks lost their white/grey backing
+  // squares (device).
+  "tests/features/auth/brand-logo-assets.test.ts",
+  // task-app-media (R2 save/share, R3 attachment grid + full-screen viewer,
+  // V2 voice bubble): the new attachment grid/voice bubble/viewer UI, the
+  // R2 save-share model, the one-at-a-time playback coordinator, and the V2
+  // playback-session platform wrapper (shared file with task-app-composer's
+  // recorder preview player -- see player.ios.ts's docstring).
+  "src/features/media/model/audio-playback-coordinator.ts",
+  "src/features/media/model/media-sharing.ts",
+  "src/features/media/ui/message-attachments-view.tsx",
+  "src/features/media/ui/voice-message-bubble.tsx",
+  "src/features/media/ui/media-viewer-store.ts",
+  "src/features/media/ui/media-viewer-screen.tsx",
+  "src/app/media-viewer.tsx",
+  // Coordinator integration (after tier 4): files that existed on disk but
+  // were only in M14_ROUND2_TEST_PATHS (not in the working-tree allowlist),
+  // plus the bare player.ts fallback needed because tsconfig has no
+  // `moduleSuffixes`.
+  "src/features/media/platform/player.ts",
+  "tests/features/media/ui/message-attachments-view.test.tsx",
+  "tests/features/media/ui/voice-message-bubble.test.tsx",
+  "tests/features/media/ui/media-viewer-screen.test.tsx",
+  "tests/features/media/model/media-sharing.test.ts",
+  "tests/features/media/model/audio-playback-coordinator.test.ts",
+  "tests/features/media/platform/player.test.ts",
+  "tests/features/chat/platform/haptics.test.ts",
+  "tests/features/media/platform/recorder.test.ts",
+  // task-app-device: the server records no chat media size, so a lone
+  // photo/video learns its original ratio from the loaded pixels.
+  "src/features/media/ui/media-pixel-size.ts",
+  // task-app-device: create/join lands on the group home above the list.
+  "src/features/groups/ui/show-group-home.ts",
+  // task-docs-app: voice messages and the microphone permission (V1-V4).
+  "docs/adr/0014-voice-messages-and-microphone-permission.md",
+]);
+
 const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "app.config.ts",
   ".env.example",
@@ -1537,7 +1844,6 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "tests/features/notifications/ui/notifications-inbox-screen.test.tsx",
   "tests/features/notifications/ui/push-tap-handoff-listener.test.tsx",
   "src/features/notifications/model/push-lifecycle-provider.tsx",
-  "src/features/notifications/ui/notification-settings-section.tsx",
   "tests/features/notifications/model/push-lifecycle-provider.test.tsx",
   "tests/features/notifications/ui/notification-settings-section.test.tsx",
   "docs/evidence/M12.md",
@@ -1551,13 +1857,9 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "src/core/http/http-requester.ts",
   "src/features/account/data/account-api.ts",
   "src/features/account/model/account-lifecycle.ts",
-  "src/features/account/ui/delete-account-section.tsx",
-  "src/features/account/ui/nickname-section.tsx",
   "tests/core/contracts/server/users.test.ts",
   "tests/features/account/data/account-api.test.ts",
   "tests/features/account/model/account-lifecycle.test.ts",
-  "tests/features/account/ui/delete-account-section.test.tsx",
-  "tests/features/account/ui/nickname-section.test.tsx",
   "tests/core/http/http-requester.test.ts",
   "src/features/notifications/data/push-installations-api.ts",
   "src/features/notifications/data/notification-destination-resolver.ts",
@@ -1581,7 +1883,6 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "docs/adr/0006-media-video-posters.md",
   "tests/features/auth/oauth-callback-screen.test.tsx",
   "src/app/account.tsx",
-  "src/features/home/ui/account-screen.tsx",
   "tests/features/home/account-screen.test.tsx",
   "tests/app/account-route.test.tsx",
   "tests/features/groups/ui/group-form-screen.test.tsx",
@@ -1611,6 +1912,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M10_AUTHORED_FILES,
   ...M11_AUTHORED_FILES,
   ...M14_ROUND1_AUTHORED_FILES,
+  ...M14_ROUND2_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -1678,6 +1980,21 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
   // share-sheet flow (7-day unlimited invite -> system share).
   "src/features/groups/ui/group-owner-panel.tsx",
   "tests/features/groups/ui/group-owner-panel.test.tsx",
+  // task-app-composer (E9/W3): file-based voice attachment removed -- voice
+  // is now microphone-recorded (V1) instead of picked via expo-document-picker.
+  "src/features/media/platform/audio-file-picker.ts",
+  "tests/features/media/platform/audio-file-picker.test.ts",
+  // task-app-account (A1-A4): the old inline nickname-editing row and
+  // Alert.alert-based delete-account component, replaced by the C3 nickname
+  // screen (native-input-sheet/dialog) and a ConfirmAlert-driven flow
+  // rendered directly in account-screen.*.tsx (see M14_ROUND2_AUTHORED_FILES
+  // for the replacements; account-screen.tsx and
+  // notification-settings-section.tsx keep their paths -- content rewritten,
+  // not deleted -- with new .ios.tsx/.android.tsx siblings alongside them).
+  "src/features/account/ui/nickname-section.tsx",
+  "tests/features/account/ui/nickname-section.test.tsx",
+  "src/features/account/ui/delete-account-section.tsx",
+  "tests/features/account/ui/delete-account-section.test.tsx",
 ]);
 
 const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
@@ -2587,13 +2904,14 @@ function checkExpoBasePreservation(snapshot, violations) {
     APPROVED_DEV_CLIENT_PLUGIN,
     ...APPROVED_OAUTH_NATIVE_PLUGINS,
     APPROVED_MEDIA_PICKER_PLUGIN,
+    APPROVED_AUDIO_PLUGIN,
     APPROVED_PUSH_NOTIFICATIONS_PLUGIN,
   ];
   if (!deepEqual(plugins, expectedPlugins)) {
     pushViolation(
       violations,
       "expo-base-preservation",
-      "Development config plugins must equal the preserved base plugins followed by the fixed dev client, OAuth, selection-only media and push notification plugins.",
+      "Development config plugins must equal the preserved base plugins followed by the fixed dev client, OAuth, selection-only media, voice-recording microphone, and push notification plugins.",
     );
   }
 
@@ -2876,7 +3194,8 @@ function discoverM5AuthoredInventory(root, { fs, path }) {
       (file) =>
         !M8_AUTHORED_FILES.includes(file) &&
         !M9_AUTHORED_FILES.includes(file) &&
-        !M14_ROUND1_AUTHORED_FILES.includes(file),
+        !M14_ROUND1_AUTHORED_FILES.includes(file) &&
+        !M14_ROUND2_AUTHORED_FILES.includes(file),
     ),
   ].sort();
 }
@@ -2897,7 +3216,9 @@ function discoverM5TestInventory(root, { fs, path }) {
         !M8_AUTHORED_FILES.includes(file) &&
         !M9_AUTHORED_FILES.includes(file) &&
         !M14_ROUND1_AUTHORED_FILES.includes(file) &&
-        !M14_ROUND1_TEST_PATHS.includes(file),
+        !M14_ROUND1_TEST_PATHS.includes(file) &&
+        !M14_ROUND2_AUTHORED_FILES.includes(file) &&
+        !M14_ROUND2_TEST_PATHS.includes(file),
     ),
   ].sort();
 }

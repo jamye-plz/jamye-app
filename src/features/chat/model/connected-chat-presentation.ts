@@ -40,6 +40,7 @@ export function toChatMessage(
     media: row.media,
     pendingMedia: row.pendingMedia,
     senderId: row.senderId,
+    senderAvatarUrl: row.senderAvatarUrl,
     senderLabel:
       row.kind === "system"
         ? "시스템"

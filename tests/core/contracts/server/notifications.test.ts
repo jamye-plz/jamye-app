@@ -1,6 +1,7 @@
 import {
   mapNotification,
   mapNotificationPage,
+  readNotificationContextString,
   validateNotification,
   validateNotificationPage,
 } from "@/core/contracts/server";
@@ -89,5 +90,43 @@ describe("M12 Notification/NotificationPage wire contract", () => {
         unread_count: -1,
       }),
     ).toBe(false);
+  });
+
+  test("S1 validateNotification accepts args carrying both the legacy type-keyed field and the new group_name/topic_title context", () => {
+    expect(
+      validateNotification({
+        ...notificationWire,
+        args: {
+          author_display_name: "수아",
+          group_name: "우리 동네",
+          topic_title: "이번 주 산책",
+        },
+        conversation_id: null,
+        topic_id: topicId,
+        type: "new_topic",
+      }),
+    ).toBe(true);
+  });
+
+  test("E5 readNotificationContextString reads group_name/topic_title only when present and a string", () => {
+    expect(
+      readNotificationContextString(
+        { group_name: "우리 동네", topic_title: "이번 주 산책" },
+        "group_name",
+      ),
+    ).toBe("우리 동네");
+    expect(
+      readNotificationContextString(
+        { group_name: "우리 동네", topic_title: "이번 주 산책" },
+        "topic_title",
+      ),
+    ).toBe("이번 주 산책");
+    expect(readNotificationContextString({}, "group_name")).toBeNull();
+    expect(
+      readNotificationContextString({ group_name: 42 }, "group_name"),
+    ).toBeNull();
+    expect(
+      readNotificationContextString({ topic_title: null }, "topic_title"),
+    ).toBeNull();
   });
 });

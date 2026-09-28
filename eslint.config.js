@@ -136,6 +136,14 @@ const FORBIDDEN_PERSISTENCE_MODULES = [
   "expo-secure-store",
   "expo-auth-session",
   "expo-notifications",
+  // V3/E1: screens/models/routes must not import these directly. Sanctioned
+  // import points: expo-audio -> src/features/media/platform/** (same rule
+  // as the other media native modules above); expo-haptics and
+  // expo-clipboard -> src/features/chat/platform/** (voice record bar
+  // haptics and R2 message-copy).
+  "expo-audio",
+  "expo-haptics",
+  "expo-clipboard",
 ];
 
 const RESERVED_CORE_HTTP_NETWORK_PATTERNS = [
@@ -550,6 +558,27 @@ module.exports = defineConfig([
             "Routes must not require/dynamically import DB/realtime/auth/storage/logger/persistence clients or implementation modules.",
         },
       ],
+    },
+  },
+  {
+    // R3/V2 (task-app-media): `react-native-gesture-handler`'s
+    // `Gesture.Pinch()/.Pan()/.Tap()` builder methods (`.onStart`,
+    // `.onUpdate`, `.onEnd`) only ever invoke their callback later, from an
+    // async native gesture event -- never synchronously while the owning
+    // component is rendering. `react-hooks/refs`/`react-hooks/immutability`
+    // (React Compiler-oriented rules) cannot verify that for an arbitrary,
+    // non-React callback API and flag any `useRef`/hook-derived value
+    // reachable from one as if it were an unsafe render-time read/write.
+    // Scoped to exactly the two files with this genuine, confirmed-safe
+    // pattern (see each file's own comment at the `useRef` in question) --
+    // not a blanket disable.
+    files: [
+      "src/features/media/ui/media-viewer-screen.tsx",
+      "src/features/media/ui/voice-message-bubble.tsx",
+    ],
+    rules: {
+      "react-hooks/refs": "off",
+      "react-hooks/immutability": "off",
     },
   },
 ]);

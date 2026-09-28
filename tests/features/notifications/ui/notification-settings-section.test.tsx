@@ -1,7 +1,8 @@
 import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
+import type { ReactNode } from "react";
+import { Linking } from "react-native";
 
-import { AppThemeProvider } from "@/core/theme/theme-provider";
 import type { PushLifecycleContextValue } from "@/features/notifications/model/push-lifecycle-provider";
 import { usePushLifecycle } from "@/features/notifications/model/push-lifecycle-provider";
 import type { PushInstallation } from "@/features/notifications/model/push-lifecycle";
@@ -10,10 +11,28 @@ import { NotificationSettingsSection } from "@/features/notifications/ui/notific
 jest.mock("@/features/notifications/model/push-lifecycle-provider", () => ({
   usePushLifecycle: jest.fn(),
 }));
-jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
-  __esModule: true,
-  default: jest.fn(() => "light"),
-}));
+jest.mock("@expo/ui/swift-ui", () => {
+  const { Text: RNText, View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  type MockChildren = Readonly<{ children?: ReactNode }>;
+  function Section({
+    children,
+    footer,
+    title,
+  }: MockChildren & { footer?: ReactNode; title?: string }) {
+    return (
+      <View testID="section">
+        {title ? <RNText>{title}</RNText> : null}
+        {children}
+        {footer}
+      </View>
+    );
+  }
+  function Text({ children, testID }: MockChildren & { testID?: string }) {
+    return <RNText testID={testID}>{children}</RNText>;
+  }
+  return { Section, Text };
+});
 
 const mockUsePushLifecycle = usePushLifecycle as jest.MockedFunction<
   typeof usePushLifecycle
@@ -50,73 +69,24 @@ function setLifecycleValue(overrides: Partial<PushLifecycleContextValue> = {}) {
 }
 
 async function renderSection() {
-  return render(
-    <AppThemeProvider>
-      <NotificationSettingsSection />
-    </AppThemeProvider>,
-  );
+  return render(<NotificationSettingsSection />);
 }
 
-describe("notification settings section", () => {
+describe("notification settings section (ios)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     setLifecycleValue();
   });
 
-  test("shows the registered diagnostic and an enabled push switch", async () => {
+  test("shows only the toggle state for a registered installation -- no raw diagnostic text (A1: '토글 상태만')", async () => {
     setLifecycleValue({
       state: { installation: fakeInstallation(), status: "registered" },
     });
     const screen = await renderSection();
-    expect(screen.getByText("등록됨")).toBeTruthy();
     expect(screen.getByTestId("push-notifications-switch").props.value).toBe(
       true,
     );
-  });
-
-  test("shows Korean permission-denied guidance instead of a silent no-op", async () => {
-    setLifecycleValue({
-      state: {
-        message: "denied",
-        reason: "permission_denied",
-        status: "disabled",
-      },
-    });
-    const screen = await renderSection();
-    expect(screen.getByText(/권한 거부됨/)).toBeTruthy();
-    expect(screen.getByText(/설정 앱/)).toBeTruthy();
-  });
-
-  test("shows a missing project id diagnostic", async () => {
-    setLifecycleValue({
-      state: {
-        message: "x",
-        reason: "missing_project_id",
-        status: "disabled",
-      },
-    });
-    const screen = await renderSection();
-    expect(screen.getByText(/프로젝트 ID 없음/)).toBeTruthy();
-  });
-
-  test("shows a non-physical-device (simulator) diagnostic", async () => {
-    setLifecycleValue({
-      state: {
-        message: "x",
-        reason: "not_physical_device",
-        status: "disabled",
-      },
-    });
-    const screen = await renderSection();
-    expect(screen.getByText(/시뮬레이터/)).toBeTruthy();
-  });
-
-  test("shows a stale re-sync diagnostic", async () => {
-    setLifecycleValue({
-      state: { installation: fakeInstallation(), status: "stale" },
-    });
-    const screen = await renderSection();
-    expect(screen.getByText(/재동기화/)).toBeTruthy();
+    expect(screen.queryByText("등록됨")).toBeNull();
   });
 
   test("calls enable when the push switch is turned on", async () => {
@@ -172,52 +142,32 @@ describe("notification settings section", () => {
     expect(mockSetMessagePreview).toHaveBeenCalledWith(true);
   });
 
-  test("masks the current expo token for support instead of showing it raw", async () => {
-    setLifecycleValue({ expoToken: "ExponentPushToken[abcdefgh12345]" });
+  test("shows the footer help text", async () => {
     const screen = await renderSection();
-    expect(screen.queryByText("ExponentPushToken[abcdefgh12345]")).toBeNull();
-    expect(screen.getByText(/…/)).toBeTruthy();
+    expect(screen.getByText("알림에 메시지 내용을 보여 줍니다.")).toBeTruthy();
   });
 
-  test.each([
-    [{ status: "idle" } as const, /알림 상태 확인 중/],
-    [{ status: "checking" } as const, /알림 상태 확인 중/],
-    [{ status: "registering" } as const, /푸시 알림 등록 중/],
-    [
-      { installation: fakeInstallation(), status: "rotating" } as const,
-      /토큰 갱신 중/,
-    ],
-    [
-      {
-        installation: fakeInstallation(),
-        message: "동기화 실패",
-        status: "stale_unrecoverable",
-      } as const,
-      /동기화 실패/,
-    ],
-    [
-      { installation: fakeInstallation(), status: "deleting" } as const,
-      /알림 해제 중/,
-    ],
-    [{ status: "deleted" } as const, /사용 안 함/],
-    [{ message: "boom", status: "error" } as const, /오류가 발생했습니다/],
-  ])(
-    "renders Korean diagnostic copy for lifecycle state %o",
-    async (state, expected) => {
-      setLifecycleValue({ state });
-      const screen = await renderSection();
-      expect(screen.getByText(expected)).toBeTruthy();
-    },
-  );
-
-  test("fully masks a short token instead of leaking most of it", async () => {
-    setLifecycleValue({ expoToken: "short" });
+  test("shows the permission-denied guidance and opens system settings (A3)", async () => {
+    const openSettingsSpy = jest
+      .spyOn(Linking, "openSettings")
+      .mockResolvedValue();
+    setLifecycleValue({
+      state: {
+        message: "denied",
+        reason: "permission_denied",
+        status: "disabled",
+      },
+    });
     const screen = await renderSection();
-    expect(screen.getByText("••••")).toBeTruthy();
+    expect(screen.getByText("설정에서 알림을 허용해 주세요.")).toBeTruthy();
+    await fireEvent.press(screen.getByText("설정 열기"));
+    expect(openSettingsSpy).toHaveBeenCalledTimes(1);
+    openSettingsSpy.mockRestore();
   });
 
-  test("shows 없음 when there is no token yet", async () => {
+  test("hides the permission-denied guidance otherwise", async () => {
     const screen = await renderSection();
-    expect(screen.getByText("없음")).toBeTruthy();
+    expect(screen.queryByText("설정에서 알림을 허용해 주세요.")).toBeNull();
+    expect(screen.queryByText("설정 열기")).toBeNull();
   });
 });

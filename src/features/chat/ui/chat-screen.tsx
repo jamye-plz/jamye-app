@@ -21,6 +21,7 @@ import {
 } from "@/features/chat/model/chat-fixture";
 import { createChatSendController } from "@/features/chat/model/chat-send";
 import type { ChatSendController } from "@/features/chat/model/chat-send";
+import { useMediaSharing } from "@/features/media/model/media-sharing";
 import { HeaderActions } from "@/shared/ui/header-actions";
 import type { HeaderAction } from "@/shared/ui/header-actions";
 import { HeaderTitleButton } from "@/shared/ui/header-title-button";
@@ -34,9 +35,17 @@ import { ChatComposer } from "./chat-composer";
 import { ChatKeyboardFrame as AndroidChatKeyboardFrame } from "./chat-keyboard-frame.android";
 import { ChatKeyboardFrame as IosChatKeyboardFrame } from "./chat-keyboard-frame.ios";
 import { ChatMessageList } from "./chat-message-list";
+import { SystemFeedbackHost } from "@/shared/ui/system-feedback";
 
 const ChatKeyboardFrame =
   Platform.OS === "ios" ? IosChatKeyboardFrame : AndroidChatKeyboardFrame;
+
+/** R4 layoutContract: on iOS the composer's material floats over the list,
+ * so the list's bottom content inset must grow by the composer's own
+ * measured height (reported through `onHeightChange`); on Android the
+ * composer sits in normal flow below the list, which already reserves its
+ * own space, so no extra inset is added there. */
+const FLOATING_COMPOSER_INSET_PLATFORM = process.env.EXPO_OS === "ios";
 
 type MainHeadingTarget = Readonly<{
   nativeRef: RefObject<Text | null>;
@@ -130,6 +139,8 @@ export function ChatConversationScreen({
   const [latestMessageRevealTarget, setLatestMessageRevealTarget] = useState<
     string | null
   >(null);
+  const [composerHeight, setComposerHeight] = useState(0);
+  const { shareAttachment } = useMediaSharing();
   const headingTarget = useMemo<MainHeadingTarget>(
     () => ({
       nativeRef: headingRef,
@@ -178,45 +189,71 @@ export function ChatConversationScreen({
       <StatusBar
         barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
       />
-      <SafeAreaView
-        edges={["bottom"]}
-        style={{ backgroundColor: colors.background, flex: 1 }}
-      >
-        <ChatKeyboardFrame>
-          {({ keyboardOverlap, keyboardState }) => (
-            <View
-              style={{
-                alignSelf: "center",
-                flex: 1,
-                maxWidth: appChatLayout.conversationMaxWidth,
-                paddingHorizontal:
-                  width >= appChatLayout.conversationMaxWidth + appSpacing.huge
-                    ? appSpacing.xl
-                    : appSpacing.md,
-                width: "100%",
-              }}
-            >
-              {toolbar}
-              {notice ? <InlineMessage kind="notice" message={notice} /> : null}
-              <ChatMessageList
-                conversation={conversation}
-                keyboardOverlap={keyboardOverlap}
-                keyboardState={keyboardState}
-                latestMessageRevealTarget={latestMessageRevealTarget}
-                onRetryFailedMessage={onRetryFailedMessage}
-                onVisibleCanonicalMessages={onVisibleCanonicalMessages}
-              />
-              {footer}
-              <ChatComposer
-                controller={controller}
-                blocked={blocked}
-                onMessageCommitted={setLatestMessageRevealTarget}
-                attachmentController={attachmentController}
-              />
-            </View>
-          )}
-        </ChatKeyboardFrame>
-      </SafeAreaView>
+      <SystemFeedbackHost>
+        <SafeAreaView
+          edges={["bottom"]}
+          style={{ backgroundColor: colors.background, flex: 1 }}
+        >
+          <ChatKeyboardFrame>
+            {({ keyboardOverlap, keyboardState }) => (
+              <View
+                style={{
+                  alignSelf: "center",
+                  flex: 1,
+                  maxWidth: appChatLayout.conversationMaxWidth,
+                  paddingHorizontal:
+                    width >=
+                    appChatLayout.conversationMaxWidth + appSpacing.huge
+                      ? appSpacing.xl
+                      : appSpacing.md,
+                  width: "100%",
+                }}
+              >
+                {toolbar}
+                {notice ? (
+                  <InlineMessage kind="notice" message={notice} />
+                ) : null}
+                <ChatMessageList
+                  bottomInsetExtra={
+                    FLOATING_COMPOSER_INSET_PLATFORM ? composerHeight : 0
+                  }
+                  conversation={conversation}
+                  keyboardOverlap={keyboardOverlap}
+                  keyboardState={keyboardState}
+                  latestMessageRevealTarget={latestMessageRevealTarget}
+                  onRetryFailedMessage={onRetryFailedMessage}
+                  onShareAttachment={shareAttachment}
+                  onVisibleCanonicalMessages={onVisibleCanonicalMessages}
+                />
+                {footer}
+                {/* iOS: the composer floats over the list (W1 Liquid Glass
+                    overlay) instead of taking flex space below it -- taking
+                    both would double the bottom inset, since the list already
+                    reserves `composerHeight` via `bottomInsetExtra` above.
+                    Android keeps the composer in normal flow (M3, no
+                    overlay), matching `FLOATING_COMPOSER_INSET_PLATFORM`'s
+                    existing iOS-only `bottomInsetExtra` gate. */}
+                <View
+                  pointerEvents="box-none"
+                  style={
+                    FLOATING_COMPOSER_INSET_PLATFORM
+                      ? { bottom: 0, left: 0, position: "absolute", right: 0 }
+                      : undefined
+                  }
+                >
+                  <ChatComposer
+                    controller={controller}
+                    blocked={blocked}
+                    onMessageCommitted={setLatestMessageRevealTarget}
+                    attachmentController={attachmentController}
+                    onHeightChange={setComposerHeight}
+                  />
+                </View>
+              </View>
+            )}
+          </ChatKeyboardFrame>
+        </SafeAreaView>
+      </SystemFeedbackHost>
     </>
   );
 }

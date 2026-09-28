@@ -19,6 +19,9 @@ export type ChatMessage = Pick<
     senderId: string | null;
     isOutgoing?: boolean;
     senderLabel?: string;
+    /** R1/E7: incoming-group avatar source. Undefined on the M5 fixture path
+     * (never set there), which falls back to the monogram via `Avatar`. */
+    senderAvatarUrl?: string | null;
     serverMessageId?: string | null;
     media?: readonly ConnectedChatMedia[];
     pendingMedia?: readonly ConnectedPendingAttachment[];

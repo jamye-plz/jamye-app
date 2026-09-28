@@ -11,6 +11,7 @@ function item(
   return {
     localId: "local-1",
     kind: "image",
+    uri: "file:///staged/a.jpg",
     filename: "a.jpg",
     byteSize: 10,
     width: null,

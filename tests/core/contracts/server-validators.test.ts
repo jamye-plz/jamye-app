@@ -231,6 +231,34 @@ describe("M6-01 server contract runtime validators", () => {
     expect(validateUser(missingAvatar)).toBe(false);
   });
 
+  test("S3 User.avatar_url accepts null, empty string, or an https URL up to 512 chars, and rejects http/non-URL values", () => {
+    const valid = {
+      avatar_url: null,
+      created_at: VALID_DATE_TIME,
+      id: VALID_UUID,
+      nickname: "n",
+      provider: "kakao",
+    };
+    expect(validateUser({ ...valid, avatar_url: null })).toBe(true);
+    expect(validateUser({ ...valid, avatar_url: "" })).toBe(true);
+    expect(
+      validateUser({
+        ...valid,
+        avatar_url: "https://cdn.example.com/avatar.png",
+      }),
+    ).toBe(true);
+    expect(
+      validateUser({ ...valid, avatar_url: `https://${"a".repeat(504)}` }),
+    ).toBe(true);
+    expect(
+      validateUser({ ...valid, avatar_url: `https://${"a".repeat(505)}` }),
+    ).toBe(false);
+    expect(
+      validateUser({ ...valid, avatar_url: "http://cdn.example.com/a.png" }),
+    ).toBe(false);
+    expect(validateUser({ ...valid, avatar_url: "not-a-url" })).toBe(false);
+  });
+
   test("shared ErrorEnvelope requires a null details field and a request_id UUID", () => {
     const valid = {
       error: {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AppState, View } from "react-native";
+import type { ColorValue } from "react-native";
 import { requireOptionalNativeModule } from "expo";
 import type { VideoPlayer } from "expo-video";
 import { useAppTheme } from "@/core/theme/theme-provider";
@@ -20,10 +21,13 @@ export function NativeVideoPlayer({
   uri,
   onError,
   onClose,
+  statusColor,
 }: Readonly<{
   uri: string;
   onError: (reason: "unavailable" | "playback") => void;
   onClose: () => void;
+  /** Loading text color; the full-screen viewer's black page passes white. */
+  statusColor?: ColorValue;
 }>) {
   const { colors } = useAppTheme();
   const [session, setSession] = useState<Session | null>(null);
@@ -83,7 +87,11 @@ export function NativeVideoPlayer({
         ({ status }) => {
           if (!alive) return;
           if (status === "error") fail();
-          else setLoading(status !== "readyToPlay");
+          // Only an actual load shows the status text: a clip that played to
+          // its end leaves `readyToPlay` too, and on device the text came
+          // back over the finished video.
+          else if (status === "loading") setLoading(true);
+          else if (status === "readyToPlay") setLoading(false);
         },
       );
       appSubscription = AppState.addEventListener("change", (state) => {
@@ -114,7 +122,10 @@ export function NativeVideoPlayer({
   return (
     <View style={{ flex: 1 }}>
       {loading ? (
-        <AppText accessibilityLiveRegion="polite" color={colors.text}>
+        <AppText
+          accessibilityLiveRegion="polite"
+          color={statusColor ?? colors.text}
+        >
           동영상 준비 중…
         </AppText>
       ) : null}

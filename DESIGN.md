@@ -97,6 +97,44 @@ Interop rules found during M14 device verification are now part of the design co
   top bar. Link-opened C3 routes declare their modal options on the root `Stack`, not only inside
   the screen component.
 
+M14 round 2 device verification (login, account, notifications, chat, composer, media, voice) added
+the following interop rules:
+
+- Every SwiftUI or Compose view — including a SwiftUI `Alert`, `ConfirmAlert`, or `Button` — renders
+  inside its own `Host`; a view mounted outside a `Host` fails at the native boundary instead of
+  degrading, which showed as a red error box on iOS device builds.
+- Every Android `Host` receives the Berry `seedColor`, including a `Host` added for a single control;
+  without it, the Material palette falls back to the wallpaper-driven Material You colors instead of
+  the app's fixed Berry-seed palette.
+- React Native content placed inside a Compose `LazyColumn` needs `RNHostView matchContents` together
+  with an explicit width; missing either one leaves Compose re-measuring the RN subtree in a loop
+  that pins the main thread and hangs the app.
+- A Compose slot (a `ListItem` headline, a `TextField` placeholder, a menu item) accepts Compose
+  content only, never a bare string or an embedded React Native view; and a React Native touchable
+  nested inside a Compose tree (for example under a `DropdownMenu` trigger) receives no touches on
+  device — give the control to Compose (`clickable`, `Icon`) or keep it in plain React Native outside
+  the Compose trigger.
+- An always-mounted full-screen Compose host blocks React Native hit-testing underneath it even when
+  its RN wrapper sets `pointerEvents="box-none"`; mount such a host only while it is actually showing
+  content, and size it to the band it needs (for example a bottom snackbar band), not the full
+  screen.
+- A `BadgedBox` with no `BadgedBox.Badge` child still draws a default badge, so render `BadgedBox`
+  only when there is a badge to show; and a `Host`'s `onLayoutContent` fires only after the first
+  Compose layout, so an imperative Compose host (for example `SnackbarHost`) rejects calls made
+  before that first layout and callers must wait for it.
+- `NativeButton`'s `Host` stretches to fill its parent even when the `Button` itself stays
+  content-sized; to change a button's screen position or width, adjust the parent's alignment or
+  size, not the button.
+- The one-line input shells (`NativeInputSheet`, `NativeInputDialog`) seed the native field from
+  `initialValue` only, read once on mount; a caller that instead threads the current text through
+  `value` on every render leaves the native field empty, since re-renders never re-seed it.
+- `expo-video`'s iOS `replaceAsync` resolves before the player item is actually attached; call
+  `generateThumbnailsAsync` (or anything else that reads frames) only after the player reports
+  `readyToPlay`, or it silently returns zero frames.
+- The server stores no width or height for chat media; a message with a single photo or video
+  therefore learns its aspect ratio from the loaded pixels once they decode, and a grid of more than
+  one attachment stays square, since a mixed-ratio grid has no single ratio to prefer.
+
 ### Screen and Main Heading
 
 - The screen uses the semantic canvas color and platform safe-area insets.
@@ -133,6 +171,72 @@ Interop rules found during M14 device verification are now part of the design co
 - `NativeButton` wraps `@expo/ui`'s `Button` inside a `Host` and offers `filled`, `outlined`, and `text` variants, plus `busy`, `retryAt`, and `destructive` states.
 - In-content action sheets and pickers use `@expo/ui`'s `BottomSheet` together with `List`/`ListItem`; option labels are wrapped in `@expo/ui`'s `Text`. Header-anchored choices use the native menu above instead.
 - `GroupedSection`/`GroupedRow` render inset-grouped rows; the trailing chevron is iOS only.
+
+### Login Screen
+
+- The app name `잼얘좀` sits at the exact center of the screen (the whole window, not the space
+  above the buttons), with the one-line subtitle `카카오 또는 Google 계정으로 로그인합니다.`
+  hanging below it without moving it. Two full-width brand buttons (48pt tall, at most 440pt wide)
+  are pinned just above the thumb-reachable bottom safe area: `카카오로 계속하기` (Kakao official
+  style, `#FEE500` fill, the Kakao speech-bubble symbol, black label) and `Google로 계속하기`
+  (Google official style, white fill, `#747775` outline, the Google "G" mark). iOS renders each as
+  a capsule SwiftUI `Button` (size the frame before painting the capsule; the Google outline is a
+  `strokeBorder` along the capsule); Android renders each as a rounded M3 `Button` (the Google
+  outline is a 1dp ring around it — Compose's `border` modifier has no shape). Both use the
+  vendors' official logo assets on a transparent background, centered together with the label like
+  the official artwork: an 18pt "G" and a ~14pt Kakao symbol (asset sources in the M14 evidence).
+- The pressed button shows an in-button spinner in the logo's slot, so the label does not shift
+  (iOS `ProgressView`, Android `CircularProgressIndicator`), and both buttons disable while a
+  sign-in is in flight. A
+  user-initiated cancel (cancel, dismiss, `access_denied`) returns to the login screen with no
+  notice. Any other failure — including session-restore, profile-retry, and logout-retry failures
+  reusing the existing copy — shows through the shared system-feedback API (iOS centered `Alert`,
+  Android `Snackbar`) with a `다시 시도` action.
+- The native splash screen (`expo-splash-screen`) stays up while a saved session is restoring, so the
+  login screen never flashes before an authenticated redirect. Once restore settles — signed in,
+  signed out, or errored — the app hides the splash and shows the group list, a pending-invite join
+  screen, or the login screen; fixture mode hides it immediately.
+
+### Account Screen
+
+- The screen opens on a centered profile header: a 72pt avatar (the existing `Avatar` component —
+  the Kakao/Google photo, or a first-letter monogram), the nickname, and `카카오 계정으로 로그인됨`
+  or `Google 계정으로 로그인됨` (the provider ID rendered as its Korean display name). Avatar upload
+  stays out of scope (ADR 0008 §5).
+- Below the header, a settings list follows this order: a `프로필` section with a `닉네임` row
+  (current nickname as the trailing value; tapping it opens the C3 nickname editor,
+  `닉네임 변경`, helper text `그룹에서 보이는 이름입니다.`); an `알림` section with `푸시 알림` and
+  `메시지 미리보기` toggles (the latter captioned `알림에 메시지 내용을 보여 줍니다.`); then
+  destructive `로그아웃` and `계정 삭제` rows. iOS renders the list as an inset-grouped SwiftUI
+  `Form` with `Toggle`s; Android renders M3 `ListItem`s with section subheaders and `Switch`es.
+- A `__DEV__`-only `개발자` section at the bottom (account storage readiness, server-connection
+  diagnostics, the push token, and raw push diagnostics) is hidden from release builds. The
+  user-facing push permission copy stays simple: a denial shows `설정에서 알림을 허용해 주세요.`
+  with a `설정 열기` button that opens system settings. An account-storage error row (with
+  `계정 저장소 다시 시도`) shows to every build, but only when storage actually fails to open.
+- Logout and account deletion both confirm through the shared centered `ConfirmAlert` (iOS SwiftUI
+  `Alert`, Android `AlertDialog`) — logout asks `로그아웃할까요?` with `취소`/`로그아웃`; deletion
+  reuses the existing destructive copy. Neither uses React Native's `Alert.alert`.
+
+### Notifications Inbox
+
+- iOS renders a screen-width plain `List` (Mail-style, hairline dividers, not inset-grouped — N1
+  overrides the shared C4 list style for this screen); Android renders flat M3 `ListItem`s. Each row
+  shows a kind icon (new topic / new message / other), title, body, and a trailing relative time
+  (`formatJamyeTimeLabel`: today `오후 3:12`, yesterday `어제`, otherwise `9월 8일`). An unread row
+  adds a Berry dot (leading on iOS) and a bold title. The large title `알림함` is the one inbox that
+  keeps a large title.
+- When the server supplies a group name, and for topic-related notifications a topic title, the row
+  shows one extra line, `그룹 이름 · 주제 제목` (or just the group name without a topic); older rows
+  without that data show no extra line.
+- Tapping a row marks it read and navigates to its destination. An unread row also exposes a
+  mark-read-only action without navigating: iOS adds a leading swipe action and a long-press menu
+  item, both labeled `읽음으로 표시`; Android exposes the same action through long-press or the
+  trailing overflow menu.
+- A destination that can no longer be opened shows through the shared system-feedback API:
+  `더 이상 접근할 수 없는 알림입니다.` for an authorization loss, or `알림을 열 수 없습니다.` with a
+  `다시 시도` action for a network or other failure. The same copy covers a push tap that cannot
+  open. An `other`-kind notification only marks itself read; it never navigates.
 
 ### Local Fixture Notice
 
@@ -174,6 +278,24 @@ Interop rules found during M14 device verification are now part of the design co
 - Message text is 16px equivalent at 1.55 line height.
 - Timestamp and state text are 13px equivalent.
 
+### Message Grouping, Dates, and Actions
+
+- A run of consecutive messages groups by same sender, same calendar day, and within 5 minutes of
+  the previous message. For another person's run, their name sits above the run's first bubble and a
+  small avatar sits beside the run's last bubble; my own runs show neither name nor avatar.
+- A centered date separator (`9월 27일 토요일`, with the year prefixed outside the current year)
+  marks the first message after the calendar day changes.
+- A system message renders with no bubble at all: small centered gray text.
+- A long press on a bubble opens the platform message menu: iOS lifts the bubble into a system
+  `ContextMenu` (an `@expo/ui` `Host` + swift-ui `ContextMenu` whose trigger wraps the bubble in
+  `RNHostView matchContents`); Android anchors a Compose M3 `DropdownMenu` to the bubble, opened by a
+  plain React Native long press on the bubble itself (a bubble hosted inside the Compose trigger
+  received no touches on device). Items are conditional on the message: `복사` for text,
+  `저장·공유` for a photo/video/voice attachment (the system share sheet), and `다시 보내기` for a
+  failed message. The per-attachment share icon this replaced no longer renders next to attachments;
+  the failed-message `메시지 다시 보내기` control below the bubble (Send State and Retry, below)
+  stays in addition to the menu item.
+
 ### Send State and Retry
 
 - Pending is `전송 중`.
@@ -181,25 +303,85 @@ Interop rules found during M14 device verification are now part of the design co
 - Sent is `전송됨`.
 - The retry control uses the existing message identity. It must not look like a new send action.
 - A repository notification that leaves state unchanged does not repeat a live announcement.
+- The send-state text for my last bubble in a run renders directly under that bubble, paired with
+  the run's trailing time, for example `오후 12:03 · 전송됨`.
+
+### Media Attachments
+
+- A photo or video attachment renders without a colored bubble, at its original aspect ratio (about
+  240pt max width) with rounded corners. More than one attachment in a message lays out as a
+  2-column grid, up to 4 total. A video shows its thumbnail with a play-icon overlay. Caption text,
+  if present, renders as a bubble below the attachment(s), never beside them.
+- The server stores no width or height for chat media, so a single attachment learns its displayed
+  ratio from the decoded pixel size once it loads; a multi-attachment grid always stays square per
+  cell, since a mixed-ratio grid has no single ratio to prefer.
+- Tapping an attachment opens a full-screen viewer on the root Stack (`fullScreenModal`
+  presentation): swiping left or right pages through that message's attachments, swiping down
+  dismisses, and share/save buttons reuse the existing MD5-download-then-system-share-sheet path.
+
+### Voice Messages
+
+- Tapping the composer's microphone starts recording; the OS microphone permission prompt appears on
+  this first tap, not at app launch (ADR 0014). Recording replaces the composer with a recording
+  bar: a red dot, an elapsed clock, a live metering level bar, `삭제`, and `정지`. Recording
+  auto-stops at 3:00, an app-side cap distinct from the server's 330-second limit.
+- Stopping shows a preview bar (play/pause, progress, elapsed/duration, `삭제`, and a send control)
+  and starts the upload immediately; send enables once the upload completes. A take under 1 second
+  is discarded rather than sent.
+- If the app backgrounds or a call interrupts while recording, recording stops and the take is kept
+  as a preview instead of being discarded; leaving the chat room (back navigation) deletes an
+  in-progress recording or an unsent preview.
+- A voice message renders as its own bubble: play/pause, a draggable seek bar, and a duration label
+  (the server-reported duration, or elapsed time while playing). Only one voice message or video
+  plays at a time app-wide, and playback continues in iOS silent mode.
+- `expo-audio` provides recording and playback; `expo-haptics` adds iOS-only haptics on record
+  start/stop/send (Android does not use haptics here).
 
 ### Composer
 
-- Use a multiline native text input with accessibility name `메시지 입력`.
-- Minimum height is 48px. Growth cap is 120px equivalent, adjusted safely for font scaling.
-- Radius is full/capsule (rounded to the control height). Use the raised surface and semantic structural border.
-- Focus changes the existing border to the primary role and adds a stable inset emphasis. It does not move layout.
-- Enter or Return inserts a newline. `onSubmitEditing`, key press, and composition events never send.
-- Draft text remains intact during Korean IME composition and after a failed database write.
-- A successful explicit send clears the committed draft but preserves input focus and keeps the keyboard open.
-- The platform keyboard frame owns keyboard overlap and bottom-safe-area normalization; the composer stays immediately above that frame.
+- The composer is a `+` circular attachment button, a capsule text field (accessibility name
+  `메시지 입력`), and a trailing microphone-or-send control. The field empty and no attachment
+  queued shows the microphone; text present, or an attachment queued to send, swaps it to the Berry
+  send arrow.
+- iOS renders the three controls in Liquid Glass chrome (`GlassContainer`/`GlassView`, grouped so
+  nearby glass shapes blend), floating over the message list with the list showing through, and
+  falls back to a flat surface with a hairline border on iOS < 26 or when Liquid Glass is
+  unavailable. Android renders a Material 3 rounded `TextField` with a plain `IconButton` `+` and a
+  mic `IconButton` that swaps for a Berry `FilledIconButton` send, sitting in normal flow below the
+  list (no floating/overlay treatment on Android).
+- The text field defaults to the platform-native control — SwiftUI `TextField(axis: "vertical")` on
+  iOS, Jetpack Compose `TextField` on Android — verified on device for Korean IME composition,
+  keyboard tracking, multi-line growth, and clearing after send while keeping the keyboard open. A
+  single switchable constant (`COMPOSER_TEXT_FIELD_IMPL`) can fall back to the React Native
+  `TextInput` shell used before M14 round 2 if on-device verification ever finds a native-field
+  regression a mocked test cannot catch.
+- Minimum height is 48px. Growth cap is roughly 5 lines (about 120px equivalent), adjusted safely
+  for font scaling.
+- Enter or Return inserts a newline. `onSubmitEditing`, key press, and composition events never
+  send; only the trailing send control does.
+- Draft text remains intact during Korean IME composition and after a failed database write. A
+  successful explicit send clears the committed draft but preserves input focus and keeps the
+  keyboard open.
+- The platform keyboard frame and the message list's bottom inset are owned together
+  (drag-to-dismiss included); the composer only reports its own measured height and never computes
+  keyboard overlap or the list inset directly.
+- Tapping `+` opens the system photo/video picker directly (iOS `PHPicker`, Android Photo Picker) —
+  there is no intermediate attachment-type sheet. Up to 4 items total (server limit, minus any
+  already attached) can be selected at once; each starts uploading immediately and shows as a
+  removable (`✕`) thumbnail in a draft tray above the field, alongside optional caption text.
 
 ### Send Control
 
-- The control is a circular icon button with a minimum target of 44x44 points and full radius.
-- It has no visible text label; the accessibility name is `메시지 보내기`.
-- It is disabled for empty, whitespace-only, or in-flight input.
-- Only this explicit control sends.
-- Press feedback completes within 150ms using opacity or transform without changing layout. Reduced-motion mode keeps immediate non-spatial feedback.
+- The trailing composer control is a circular icon button with a minimum target of 44x44 points and
+  full radius, in Berry when it can send.
+- Whenever the field is empty and no attachment is queued, it shows the microphone glyph
+  (accessibility name `음성 메시지 녹음`) and starts a voice recording instead of sending; as soon
+  as there is text or a queued attachment, it swaps to the send glyph (accessibility name
+  `메시지 보내기`) and only that explicit control sends.
+- The send state disables for empty, whitespace-only, or in-flight input; the microphone state
+  requests the OS microphone permission on its first tap rather than at app launch.
+- Press feedback completes within 150ms using opacity or transform without changing layout.
+  Reduced-motion mode keeps immediate non-spatial feedback.
 
 ## 5. Layout Principles
 
@@ -258,8 +440,8 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 - DON'T: add independent decorative animation to composer height, safe area, or message placement; keyboard-driven movement must remain locked to the system transition.
 - DO: Use plain functional Korean copy.
 - DON'T: reuse M6 connection retry copy `다시 시도` for message or pagination recovery.
-- DO: Keep the M5 screen focused on text chat.
-- DON'T: reserve empty space for media, microphone, connection, auth, or server features.
+- DO: Keep the message screen focused on chat, its attachments, and voice messages — the features it now ships (M14 round 2).
+- DON'T: reserve empty space for connection, auth, or server-diagnostic features; those belong on other screens.
 - DO: Let the platform draw the tab bar, header, and bar buttons: Liquid Glass on iOS 26, Material 3 on Android.
 - DON'T: rebuild navigation chrome in JavaScript, force a header background or blur on iOS, or put glass on the content layer.
 
@@ -335,4 +517,4 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 5. Treat newline behavior, IME composition, draft persistence, and scroll anchoring as correctness, not visual polish.
 6. Use exact state and retry copy. Do not merge message, pagination, and connection recovery intents.
 7. Do not approximate keyboard correction with JavaScript layout steps, delays, or guessed durations. Keep the latest-message anchor synchronized to native keyboard progress and reserve post-layout animated reveal for a locally committed row.
-8. Keep M5 free of media, microphone, connection, auth, server, and decorative asset placeholders.
+8. Keep the message screen limited to chat, its media and voice attachments — the features it now ships — and free of connection, auth, server-diagnostic, and decorative asset placeholders that belong on other screens.

@@ -1,8 +1,11 @@
+import { Image } from "expo-image";
 import { AccessibilityInfo, Pressable, ScrollView, View } from "react-native";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAppTheme } from "@/core/theme/theme-provider";
-import { appChatComposer, appRadii, appSpacing } from "@/core/theme/tokens";
+import { appRadii, appSpacing } from "@/core/theme/tokens";
+import { createNativeVideoThumbnail } from "@/features/media/platform/native-video-thumbnail";
+import { removeStagedFile } from "@/features/media/platform/media-staging";
 import { AppSymbol } from "@/shared/ui/app-symbol";
 import { AppText } from "@/shared/ui/app-text";
 import type { MediaAttachmentQueueItem } from "./media-attachment-types";
@@ -16,7 +19,131 @@ const STATUS_LABELS: Record<MediaAttachmentQueueItem["status"], string> = {
   cancelled: "취소됨",
 };
 
-function AttachmentCard({
+const THUMBNAIL_SIZE = 64;
+
+/** W4: local file thumbnail for images. Videos generate a real first-frame
+ * thumbnail (reusing `native-video-thumbnail.ts`, the same pipeline the
+ * server-confirmed poster path uses) into a staging-scoped file, with a play
+ * badge over it; while pending or on failure it falls back to the play-badge
+ * placeholder alone. Audio never reaches this row in practice (the recorder
+ * adds it directly while the composer shows the record/preview bar
+ * instead), but a fallback glyph is rendered defensively. */
+function useVideoDraftThumbnail(
+  kind: MediaAttachmentQueueItem["kind"],
+  uri: string,
+): string | null {
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
+  useEffect(() => {
+    if (kind !== "video") return;
+    // No synchronous reset here (react-hooks/set-state-in-effect): each
+    // draft item is a stably-keyed `DraftCard` (`key={item.localId}`) whose
+    // `uri` never actually changes for a given mounted instance, so the
+    // initial `useState(null)` above already covers the "nothing generated
+    // yet" state without an extra render.
+    const controller = new AbortController();
+    let cancelled = false;
+    let generatedUri: string | null = null;
+    void createNativeVideoThumbnail(uri, controller.signal, {
+      destination: "staging",
+    })
+      .then((generated) => {
+        generatedUri = generated;
+        if (cancelled) {
+          // Cleanup already ran (unmount, or the item changed) before this
+          // resolved -- nothing will ever display it, so release the file
+          // right here instead of routing it through the cleanup closure
+          // below (which already ran and cannot see this late value).
+          removeStagedFile(generated);
+          return;
+        }
+        setThumbnailUri(generated);
+      })
+      .catch(() => {
+        // Falls back to the play-badge placeholder below; a per-item retry
+        // is not worth the complexity for a draft-row preview.
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+      // Covers the opposite ordering: generation already resolved (and is
+      // currently displayed) by the time cleanup runs.
+      if (generatedUri) removeStagedFile(generatedUri);
+    };
+  }, [kind, uri]);
+  return thumbnailUri;
+}
+
+function DraftThumbnail({
+  item,
+}: Readonly<{ item: MediaAttachmentQueueItem }>) {
+  const { colors } = useAppTheme();
+  const videoThumbnailUri = useVideoDraftThumbnail(item.kind, item.uri);
+  if (item.kind === "image") {
+    return (
+      <Image
+        accessibilityIgnoresInvertColors
+        contentFit="cover"
+        source={{ uri: item.uri }}
+        style={{ flex: 1 }}
+      />
+    );
+  }
+  if (item.kind === "video") {
+    return (
+      <View style={{ flex: 1 }}>
+        {videoThumbnailUri ? (
+          <Image
+            accessibilityIgnoresInvertColors
+            contentFit="cover"
+            source={{ uri: videoThumbnailUri }}
+            style={{ flex: 1 }}
+            testID="draft-video-thumbnail-image"
+          />
+        ) : (
+          <View
+            style={{
+              alignItems: "center",
+              backgroundColor: colors.fill,
+              flex: 1,
+              justifyContent: "center",
+            }}
+          />
+        )}
+        <View
+          style={{
+            alignItems: "center",
+            bottom: 0,
+            justifyContent: "center",
+            left: 0,
+            position: "absolute",
+            right: 0,
+            top: 0,
+          }}
+        >
+          <AppSymbol
+            name="videoPlay"
+            size={22}
+            tintColor={videoThumbnailUri ? "#FFFFFF" : colors.text}
+          />
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View
+      style={{
+        alignItems: "center",
+        backgroundColor: colors.fill,
+        flex: 1,
+        justifyContent: "center",
+      }}
+    >
+      <AppSymbol name="audio" size={22} tintColor={colors.text} />
+    </View>
+  );
+}
+
+function DraftCard({
   item,
   onCancel,
   onRetry,
@@ -38,88 +165,105 @@ function AttachmentCard({
     previousStatusRef.current = item.status;
   }, [item.filename, item.status]);
 
-  const filename = item.filename ?? "첨부 파일";
+  const name = item.filename ?? "첨부 파일";
   const failed = item.status === "failed";
-  const canCancel = item.status === "staged" || item.status === "uploading";
-  const canRetry = failed;
+  const uploading = item.status === "uploading" || item.status === "finalizing";
+  const cancellable =
+    item.status === "staged" ||
+    item.status === "uploading" ||
+    item.status === "finalizing";
+  const progressLabel =
+    item.status === "uploading" && item.progress > 0
+      ? ` ${Math.round(item.progress * 100)}%`
+      : "";
 
   return (
     <View
-      style={{
-        backgroundColor: colors.surface,
-        borderCurve: "continuous",
-        borderRadius: appRadii.medium,
-        gap: appSpacing.xxs,
-        padding: appSpacing.xs,
-        width: 140,
-      }}
+      accessibilityLabel={`${name} ${STATUS_LABELS[item.status]}${progressLabel}`}
+      style={{ gap: appSpacing.xxs, width: THUMBNAIL_SIZE }}
     >
-      <AppText numberOfLines={1} variant="footnote">
-        {filename}
-      </AppText>
-      <AppText
-        color={failed ? colors.error : colors.textMuted}
-        variant="caption"
+      <View
+        style={{
+          borderCurve: "continuous",
+          borderRadius: appRadii.medium,
+          height: THUMBNAIL_SIZE,
+          overflow: "hidden",
+          width: THUMBNAIL_SIZE,
+        }}
       >
-        {STATUS_LABELS[item.status]}
-        {item.status === "uploading" && item.progress > 0
-          ? ` ${Math.round(item.progress * 100)}%`
-          : ""}
-      </AppText>
-      {failed && item.errorMessage ? (
-        <AppText color={colors.error} variant="caption">
-          {item.errorMessage}
-        </AppText>
-      ) : null}
-      <View style={{ flexDirection: "row", gap: appSpacing.xxs }}>
-        {canCancel ? (
-          <Pressable
-            accessibilityLabel={`${filename} 취소`}
-            accessibilityRole="button"
-            onPress={() => onCancel(item.localId)}
+        <DraftThumbnail item={item} />
+        {uploading ? (
+          <View
             style={{
               alignItems: "center",
-              height: appChatComposer.controlSize,
+              backgroundColor: "rgba(0,0,0,0.35)",
+              bottom: 0,
               justifyContent: "center",
-              width: appChatComposer.controlSize,
+              left: 0,
+              position: "absolute",
+              right: 0,
+              top: 0,
             }}
           >
-            <AppSymbol name="close" size={20} tintColor={colors.textMuted} />
-          </Pressable>
+            <AppText color="#FFFFFF" variant="caption">
+              {item.progress > 0 ? `${Math.round(item.progress * 100)}%` : "…"}
+            </AppText>
+          </View>
         ) : null}
-        {canRetry ? (
+        {failed ? (
           <Pressable
-            accessibilityLabel={`${filename} 다시 시도`}
+            accessibilityLabel={`${name} 다시 시도`}
             accessibilityRole="button"
             onPress={() => onRetry(item.localId)}
             style={{
               alignItems: "center",
-              height: appChatComposer.controlSize,
+              backgroundColor: "rgba(0,0,0,0.45)",
+              bottom: 0,
               justifyContent: "center",
-              width: appChatComposer.controlSize,
+              left: 0,
+              position: "absolute",
+              right: 0,
+              top: 0,
             }}
           >
-            <AppSymbol name="refresh" size={20} tintColor={colors.text} />
+            <AppSymbol name="refresh" size={20} tintColor="#FFFFFF" />
           </Pressable>
         ) : null}
         <Pressable
-          accessibilityLabel={`${filename} 제거`}
+          accessibilityLabel={`${name} 빼기`}
           accessibilityRole="button"
-          onPress={() => onRemove(item.localId)}
+          hitSlop={8}
+          onPress={() =>
+            cancellable ? onCancel(item.localId) : onRemove(item.localId)
+          }
           style={{
             alignItems: "center",
-            height: appChatComposer.controlSize,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            borderRadius: appRadii.full,
+            height: 20,
             justifyContent: "center",
-            width: appChatComposer.controlSize,
+            position: "absolute",
+            right: 2,
+            top: 2,
+            width: 20,
           }}
         >
-          <AppSymbol name="delete" size={20} tintColor={colors.textMuted} />
+          <AppSymbol name="close" size={12} tintColor="#FFFFFF" />
         </Pressable>
       </View>
+      {failed && item.errorMessage ? (
+        <AppText color={colors.error} numberOfLines={2} variant="caption">
+          {item.errorMessage}
+        </AppText>
+      ) : null}
     </View>
   );
 }
 
+/** W4 draft row: horizontal thumbnails above the input, replacing the old
+ * filename-card list (M11). One `close` badge per card is the single "빼기"
+ * affordance the requirement calls for; it cancels an in-flight upload or
+ * removes an already-settled item, whichever applies. */
 export function AttachmentQueueList({
   items,
   onCancel,
@@ -131,20 +275,21 @@ export function AttachmentQueueList({
   onRetry: (localId: string) => void;
   onRemove: (localId: string) => void;
 }>) {
-  if (items.length === 0) return null;
+  const visible = items.filter((item) => item.status !== "cancelled");
+  if (visible.length === 0) return null;
   return (
     <ScrollView
       contentContainerStyle={{ gap: appSpacing.xs }}
       horizontal
       showsHorizontalScrollIndicator={false}
     >
-      {items.map((item) => (
-        <AttachmentCard
+      {visible.map((item) => (
+        <DraftCard
           key={item.localId}
           item={item}
           onCancel={onCancel}
-          onRetry={onRetry}
           onRemove={onRemove}
+          onRetry={onRetry}
         />
       ))}
     </ScrollView>

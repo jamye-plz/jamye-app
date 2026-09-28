@@ -205,6 +205,7 @@ export {
 export {
   mapNotification,
   mapNotificationPage,
+  readNotificationContextString,
   type Notification,
   type NotificationArgs,
   type NotificationType,

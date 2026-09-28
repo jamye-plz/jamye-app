@@ -136,8 +136,17 @@ test("confirms ordered references for the existing outbox without retaining URI 
     status: "confirmed",
     confirmed: { mediaUploadId: finalized.upload.id, type: "image/jpeg" },
   });
-  expect(JSON.stringify(queue.getSnapshot())).not.toContain("file://");
-  expect(JSON.stringify(queue.getSnapshot())).not.toContain("https://");
+  // M14 round 2 (W4): `getSnapshot()` items now also carry the staged local
+  // `uri` for the composer's draft-row thumbnail, so the URI-free invariant
+  // is checked against `confirmed` specifically -- the actual payload that
+  // reaches the outbox command (`PendingAttachmentDraft`, which has no `uri`
+  // field at all; see `media-attachment.ts`), not the UI-facing snapshot.
+  expect(JSON.stringify(queue.getSnapshot()[0]?.confirmed)).not.toContain(
+    "file://",
+  );
+  expect(JSON.stringify(queue.getSnapshot()[0]?.confirmed)).not.toContain(
+    "https://",
+  );
   queue.clear();
   expect(queue.getSnapshot()).toEqual([]);
 });

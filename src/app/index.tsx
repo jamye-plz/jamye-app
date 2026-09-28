@@ -1,4 +1,6 @@
 import { Redirect } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect } from "react";
 
 import { getPublicEnv } from "@/core/config/public-env";
 import { useSession } from "@/core/providers/session-provider";
@@ -7,11 +9,15 @@ import { ChatScreen } from "@/features/chat/ui/chat-screen";
 import { pendingInviteStore } from "@/features/groups/model/pending-invite-store";
 
 export default function IndexRoute() {
-  return getPublicEnv().appMode === "connected-auth" ? (
-    <ConnectedIndexRoute />
-  ) : (
-    <ChatScreen />
-  );
+  const mode = getPublicEnv().appMode;
+  // L3/E12: `local-fixture` mode never mounts `SessionProvider` (see
+  // `app-providers.tsx`), so nothing else ever calls `hideAsync` for it --
+  // hide immediately here instead. `connected-auth` mode's hide (restore
+  // complete, or a 3s safety timeout) lives in `session-provider.tsx`.
+  useEffect(() => {
+    if (mode !== "connected-auth") void SplashScreen.hideAsync();
+  }, [mode]);
+  return mode === "connected-auth" ? <ConnectedIndexRoute /> : <ChatScreen />;
 }
 
 /**

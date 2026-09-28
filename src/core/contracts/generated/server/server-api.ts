@@ -1090,7 +1090,7 @@ export interface components {
             upload: components["schemas"]["UploadIntent"];
         };
         User: {
-            avatar_url: string | null;
+            avatar_url: null | "" | string;
             /** Format: date-time */
             created_at: string;
             /** Format: uuid */

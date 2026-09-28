@@ -44,9 +44,19 @@ jest.mock("@expo/ui/swift-ui", () => {
       return <View testID={testID}>{children}</View>;
     };
   const SwipeActions = box("swipe-actions") as ReturnType<typeof box> & {
-    Actions: ReturnType<typeof box>;
+    Actions: (
+      props: MockChildren & { edge?: "leading" | "trailing" },
+    ) => React.JSX.Element;
   };
-  SwipeActions.Actions = box("swipe-actions-trailing");
+  // `edge` decides the group's testID so a test can tell the leading (N2
+  // "읽음") group apart from the trailing one, mirroring how the real
+  // `SwipeActions.Actions` puts each group on its own screen edge.
+  SwipeActions.Actions = function MockSwipeActionsGroup({
+    children,
+    edge = "trailing",
+  }) {
+    return <View testID={`swipe-actions-${edge}`}>{children}</View>;
+  };
   const ContextMenu = box("context-menu") as ReturnType<typeof box> & {
     Items: ReturnType<typeof box>;
     Trigger: ReturnType<typeof box>;
@@ -138,5 +148,77 @@ describe("ActionListItem (iOS)", () => {
     );
     for (const button of screen.getAllByRole("button", { name: "상세" }))
       expect(button.props.accessibilityState).toEqual({ disabled: true });
+  });
+
+  test("N2: a leading action gets its own leading swipe group with a distinct swipeLabel, and still lists its title in the menu", async () => {
+    const onMarkRead = jest.fn();
+    const markRead: RowAction = {
+      edge: "leading",
+      key: "markRead",
+      onPress: onMarkRead,
+      swipeLabel: "읽음",
+      symbol: "markRead",
+      title: "읽음으로 표시",
+    };
+    const screen = await render(
+      <ActionListItem
+        actions={[markRead, actions[0]!]}
+        onPress={jest.fn()}
+        title="공지"
+      />,
+    );
+    const leadingSwipe = within(screen.getByTestId("swipe-actions-leading"));
+    expect(leadingSwipe.getByRole("button", { name: "읽음" })).toBeTruthy();
+    expect(leadingSwipe.queryByText("읽음으로 표시")).toBeNull();
+    const trailingSwipe = within(screen.getByTestId("swipe-actions-trailing"));
+    expect(trailingSwipe.queryByRole("button", { name: "읽음" })).toBeNull();
+    expect(trailingSwipe.getByRole("button", { name: "상세" })).toBeTruthy();
+    const menu = within(screen.getByTestId("context-menu-items"));
+    expect(
+      menu.getAllByRole("button").map((b) => b.props.accessibilityLabel),
+    ).toEqual(["읽음으로 표시", "상세"]);
+    await fireEvent.press(leadingSwipe.getByRole("button", { name: "읽음" }));
+    expect(onMarkRead).toHaveBeenCalledTimes(1);
+  });
+
+  test("a leading action without a separate swipeLabel falls back to title on the swipe button", async () => {
+    const screen = await render(
+      <ActionListItem
+        actions={[
+          {
+            edge: "leading",
+            key: "markRead",
+            onPress: jest.fn(),
+            symbol: "markRead",
+            title: "읽음으로 표시",
+          },
+        ]}
+        onPress={jest.fn()}
+        title="공지"
+      />,
+    );
+    const leadingSwipe = within(screen.getByTestId("swipe-actions-leading"));
+    expect(
+      leadingSwipe.getByRole("button", { name: "읽음으로 표시" }),
+    ).toBeTruthy();
+  });
+
+  test("when every action is leading, no trailing swipe group renders", async () => {
+    const screen = await render(
+      <ActionListItem
+        actions={[
+          {
+            edge: "leading",
+            key: "markRead",
+            onPress: jest.fn(),
+            symbol: "markRead",
+            title: "읽음으로 표시",
+          },
+        ]}
+        onPress={jest.fn()}
+        title="공지"
+      />,
+    );
+    expect(screen.queryByTestId("swipe-actions-trailing")).toBeNull();
   });
 });

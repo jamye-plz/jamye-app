@@ -28,6 +28,8 @@ const MATERIAL_ICONS: Record<RowActionSymbol | "more", ImageSourcePropType> = {
     require("../../../assets/icons/material/confirmation_number.xml") as ImageSourcePropType,
   leave:
     require("../../../assets/icons/material/logout.xml") as ImageSourcePropType,
+  markRead:
+    require("../../../assets/icons/material/mark_email_read.xml") as ImageSourcePropType,
   more: require("../../../assets/icons/material/more_vert.xml") as ImageSourcePropType,
   removeMember:
     require("../../../assets/icons/material/person_remove.xml") as ImageSourcePropType,

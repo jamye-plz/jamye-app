@@ -1,12 +1,17 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14-M18(UI/UX 다듬기·소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15-M18(소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M13 프로필 수정과 계정 삭제 `COMPLETED / USER_ACCEPTED` (2026-09-22 사용자 디바이스 검증 완료 보고 및 종료 승인). M14 UI/UX 다듬기는 `in_progress`이며, 라운드 1(그룹 목록·그룹 상세·주제 목록·주제 상세)은 2026-09-27 사용자가 종료했다. 라운드 2 후보는 M14 절에 있다. M15-M17은 M14 라운드 사이에 병행할 수 있고, M18 스토어 배포는 M14 만족 선언 이후에만 시작한다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
+- 현재 frontier: M14 UI/UX 다듬기 `COMPLETED / USER_ACCEPTED` (2026-09-28 사용자 종료 승인).
+  라운드 1(그룹 목록·그룹 상세·주제 목록·주제 상세)은 2026-09-27, 라운드 2(로그인·계정·알림·대화방
+  네이티브 UI, 사진·동영상·음성 첨부, 세션 20260927-120934)는 2026-09-28 사용자 확인으로 마쳤다(§M14
+  참고). 다음 milestone은 미정이며 사용자 결정으로 시작한다(선행 조건은 §12). M18 스토어 배포는
+  M14 만족 선언 조건을 충족했고 M16(서버 task-14·15 선행)·M17(A)·release 범위 확정과 별도 승인이
+  남아 있다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-09-27
+- 최종 수정일: 2026-09-28
 
 ## 1. 이 문서가 답하는 것
 
@@ -29,8 +34,8 @@
 - **역사적 실행 증거**: M1-M5 당시 실행·실패·복구·수용 기록
 - **사용자 확인**: 사용자가 실제 simulator/emulator나 provider 계정에서 확인했다고 공유한 결과
 - **미검증**: 코드나 문서가 있어도 이번에 다시 실행하지 않은 검사, 배포 또는 runtime 결과
-- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11은 2026-09-15 expo-image·expo-video 포함 양 플랫폼 clean prebuild·재빌드·설치, 포스터 송수신·realtime 반영 검증(전체 129 suites / 1,370 tests PASS)을 거쳐 2026-09-16 사용자 종료 승인. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존. M12는 2026-09-16 전체 자동 검사(145 suites / 1,573 tests PASS, coverage 87.37%/82.48%/88.31%/90.22%)와 독립 리뷰 3건(Alignment/Safety/Regression) PASS를 거쳤고, 2026-09-20~21 재빌드(Android 에뮬레이터·iOS 시뮬레이터·iPhone 15 Pro 실기기)와 실기기 푸시 수신·탭 handoff·미리보기 off·기본 대화방 알림 검증(서버 PR #6·#7 배포 포함)을 거쳐 2026-09-21 사용자 종료 승인([M12 evidence](evidence/M12.md))
-- **미래 계획**: M14 이후 항목은 `planned_unapproved`; 2026-09-22 로드맵 등록은 구현 승인이 아니며, M13 종료 승인도 후속 범위 승인은 아님
+- **현재 구현 증거**: M10 전체 자동 검사·독립 리뷰 PASS, 양 플랫폼 사용자 수용 4/4 및 종료 승인. M11은 2026-09-15 expo-image·expo-video 포함 양 플랫폼 clean prebuild·재빌드·설치, 포스터 송수신·realtime 반영 검증(전체 129 suites / 1,370 tests PASS)을 거쳐 2026-09-16 사용자 종료 승인. 기존 PUT-only native·picker 생명주기 리뷰 이력은 보존. M12는 2026-09-16 전체 자동 검사(145 suites / 1,573 tests PASS, coverage 87.37%/82.48%/88.31%/90.22%)와 독립 리뷰 3건(Alignment/Safety/Regression) PASS를 거쳤고, 2026-09-20~21 재빌드(Android 에뮬레이터·iOS 시뮬레이터·iPhone 15 Pro 실기기)와 실기기 푸시 수신·탭 handoff·미리보기 off·기본 대화방 알림 검증(서버 PR #6·#7 배포 포함)을 거쳐 2026-09-21 사용자 종료 승인([M12 evidence](evidence/M12.md)). M13은 2026-09-22 사용자 디바이스 확인과 종료 승인([M13 evidence](evidence/M13.md)), M14는 라운드 1·2의 양 플랫폼 기기 검증을 거쳐 2026-09-28 사용자 종료 승인([M14 evidence](evidence/M14.md))
+- **미래 계획**: M15-M18은 `planned_unapproved`; 2026-09-22 로드맵 등록은 구현 승인이 아니며, M13·M14 종료 승인도 후속 범위 승인은 아님
 
 기능 완료율 하나로 이 분류를 합치지 않는다. 과거 milestone PASS를 현재 dependency, 배포나
 production readiness의 증거로 재사용하지 않는다.
@@ -90,9 +95,11 @@ M6 종료 당시 아래 항목은 전체 PASS가 아니었다. 이후 그룹 nav
 현재 app mode는 둘이다.
 
 - `local-fixture`: M5의 SQLite local chat을 표시한다. Network 전송이나 로그인은 없다.
-- `connected-auth`: 로그인 선택 또는 profile/logout 화면에서 그룹으로 이동하고, 주제 목록·메시지
-  조회·텍스트 전송·수동 재시도·내 읽음 위치 저장을 사용한다. M9의 실시간·delta 복구를 재사용하며
-  M10은 날짜별 주제 생성·상세·제목/본문·태그 관리와 해당 주제 대화 진입을 추가했고 양 플랫폼 사용자 수용을 마쳤다.
+- `connected-auth`: 로그인 뒤 그룹·알림·계정 탭([ADR 0009](adr/0009-tab-bar-navigation.md))으로
+  들어간다. 그룹 목록 → 그룹 홈(날짜별 주제 목록)에서 주제 대화방·주제 상세나 그룹 기본 대화방에
+  들어가 메시지 조회, 텍스트·사진·동영상·음성 전송, 수동 재시도와 내 읽음 위치 저장을 사용하며 M9의
+  실시간·delta 복구를 재사용한다. 알림 탭은 알림함(M12), 계정 탭은 닉네임 변경·로그아웃·계정
+  삭제(M13)를 제공하고, 푸시나 알림 항목을 누르면 해당 대화방이나 주제로 이동한다.
 
 `local-fixture`만 기존 `jamye.db`와 fixture conversation을 사용한다. `connected-auth`는
 fixture database/seed를 열지 않고 shared session과 account scope를 사용한다. 계정 namespace는
@@ -192,11 +199,11 @@ M6 ─→ M13 account profile update + deletion lifecycle
   ↓
 M13 completed (2026-09-22)
   ↓
-M14 UI/UX 다듬기 — round 1..n, 사용자 만족 선언까지 반복
-  ├─(라운드 사이 병행)─→ M15 소프트 삭제 수용 ← server task-14
-  ├─(라운드 사이 병행)─→ M16 Sign in with Apple ← server task-15
-  └─(라운드 사이 병행)─→ M17 잔여 백로그 ← server task-16 (일부)
-M14 만족 선언 + release 범위 확정 ─→ M18 스토어 배포
+M14 UI/UX 다듬기 completed (2026-09-28, round 1·2)
+  ├─→ M15 소프트 삭제 수용 ← server task-14
+  ├─→ M16 Sign in with Apple ← server task-15 (task-14 선행)
+  └─→ M17 잔여 백로그 ← server task-16 (일부)
+M14 만족 선언 (충족) + release 범위 확정 ─→ M18 스토어 배포
 
 selected completed scopes ─→ common release acceptance
 ```
@@ -206,10 +213,10 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 않는다. Release acceptance는 번호가 붙은 catch-all milestone이 아니라, 실제 선택·구현한 범위에만
 적용하는 공통 gate다.
 
-M14-M18은 2026-09-22 사용자 결정으로 등록한 `planned_unapproved` 항목이다. M14는 사용자가 만족을
-선언할 때까지 라운드를 반복하고, M15-M17은 라운드 사이의 사용자 리뷰 대기 시간에 병행할 수 있다.
-M18은 M14 만족 선언과 release 범위 확정 뒤에만 시작하며, 10.2절의 공통 release acceptance를 실제
-선택한 범위에 적용한다. 서버 측 작업(task-14-16)은 jamye-server 저장소의 로드맵 문서가 소유한다.
+M14-M18은 2026-09-22 사용자 결정으로 등록했다. M14는 라운드 1·2를 거쳐 2026-09-28 사용자 만족
+선언과 종료 승인으로 완료했고, M15-M18은 `planned_unapproved`로 남아 각각 별도 승인으로 착수한다.
+M18은 M14 만족 선언(충족)과 release 범위 확정 뒤에만 시작하며, 10.2절의 공통 release acceptance를
+실제 선택한 범위에 적용한다. 서버 측 작업(task-14-16)은 jamye-server 저장소의 로드맵 문서가 소유한다.
 
 ## 7. 서버 계약 기반 milestone
 
@@ -686,15 +693,16 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 미검증 / 별도 승인 필요:
 
 - 실제 account 삭제 E2E와 destructive local cleanup은 각각 별도 명시 승인 필요(둘 다 미실행)
-- iOS/Android 디바이스 실행 검증과 사용자 종료 승인 대기(표는 [M13 evidence](evidence/M13.md) 참고)
+- iOS/Android 디바이스 실행 검증과 사용자 종료 승인: 2026-09-22 충족(표는 [M13 evidence](evidence/M13.md) 참고)
 
 ### M14. UI/UX 다듬기 (반복 라운드)
 
-- 상태: `in_progress` — 2026-09-22 사용자가 계획을 승인하고 라운드 1 착수를 지시; 2026-09-26 세션
+- 상태: `COMPLETED / USER_ACCEPTED` — 2026-09-28 사용자가 라운드 2의 마지막 수정(R4)을 확인하고
+  M14 종료를 승인했다. 경과: 2026-09-22 사용자가 계획을 승인하고 라운드 1 착수를 지시; 2026-09-26 세션
   `20260926-181036`에서 그룹 목록·그룹 상세·주제 목록·주제 상세를 native-first 범위로 확장하고,
   서버 배포 뒤 양 플랫폼 기기 검증과 결함 수정을 기록했다([M14 evidence](evidence/M14.md)).
   2026-09-27 사용자가 라운드 1 범위 종료를 선언했다("그룹 목록, 그룹 상세, 주제 목록, 주제 상세까지
-  전부 잘 마무리"). M14 전체 종료는 아니며 다음 라운드는 아래 후보에서 고른다.
+  전부 잘 마무리"). 2026-09-27 라운드 2(세션 `20260927-120934`)를 시작해 2026-09-28 마쳤다.
 - 선행: M13(모든 제품 화면이 존재하는 상태)
 - 결정(2026-09-22): [ADR 0005](adr/0005-native-ui-toolkit-adoption.md)의 native-first 방향(`@expo/ui`, `expo-symbols`, `PlatformColor`, native Stack header)을 유지하되, D3(tab bar 없음)는 라운드 1에서 [ADR 0009](adr/0009-tab-bar-navigation.md)로 대체한다.
   종료 기준은 사용자의 만족 선언이며 라운드 수를 미리 정하지 않는다. 라운드 사이의 사용자 리뷰
@@ -741,13 +749,13 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 미검증 / 별도 승인 필요:
 
-- M14 종료는 사용자의 만족 선언이 필요하다.
+- M14 종료 조건인 사용자 만족 선언: 2026-09-28 충족(아래 라운드 2의 종료 항목).
 - release variant, App Store / Play Store 등록, Play signing key 추가와 store URL 채우기는 M18 범위다.
 
 #### 라운드 1 범위 (2026-09-22 고정)
 
 - 결정(2026-09-22): 영역은 네비게이션 구조와 라우팅·화면 계층 정리로 한정하고, 스타일과 상태 화면은 이번 라운드에서 제외한다. tab bar를 도입한다([ADR 0009](adr/0009-tab-bar-navigation.md), ADR 0005 D3 대체). 크기는 작게(화면 3개)다. 범위 근거는 정적 코드 감사 기반 제안이며 사용자가 항목 A·B·C를 선택했다.
-- 상태: 범위 고정 후 2026-09-22 착수 승인. 구현은 `implemented`(자동 검사 PASS), 사용자 리뷰 대기. 실행 tracker는 로컬 전용 파일(gitignore 대상인 docs/plans 아래 004-m14-ui-ux-round-1)이다.
+- 상태: 종료 — 범위 고정 후 2026-09-22 착수 승인, 2026-09-26 네 화면으로 확장(아래 "라운드 1 확장 기록"), 2026-09-27 사용자가 라운드 1 범위 종료를 선언했다. 실행 tracker는 로컬 전용 파일(gitignore 대상인 docs/plans 아래 004-m14-ui-ux-round-1)이다.
 - 선행: [ADR 0009](adr/0009-tab-bar-navigation.md)(Accepted, ADR 0005 D3 대체) 반영. 이 ADR 없이는 라운드 1 구현에 착수할 수 없다.
 - 사용자 리뷰 1(2026-09-22) 반영: tab bar는 expo-router `NativeTabs`, 헤더 버튼은 iOS native toolbar(`Stack.Toolbar`)·Android Material icon button으로 바꿨다. 상시 규칙은 [ADR 0010](adr/0010-platform-native-visual-language.md).
 - 사용자 리뷰 2·3(2026-09-22) 반영: `+`는 버튼 아래 native 메뉴(bottom sheet 제거). 색은 플랫폼 중립색 위에 Berry를 highlight로만 쓰고 Android는 Berry 시드 Material 3 팔레트로 고정한다([ADR 0011](adr/0011-color-system-platform-neutral-berry-highlight.md)).
@@ -820,7 +828,9 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - 그룹 기본 대화방 갤러리.
 - 알림 목적지(E5): `new_topic` push·알림함 목적지는 현재 주제 상세 URL 그대로다. 목록 → 대화방 → 주제
   상세 흐름과 맞출지 라운드 2에서 재검토한다.
-- 알림·계정 화면, 채팅 본문 UI, 로그인 화면 재설계.
+- 알림·계정 화면, 채팅 본문 UI, 로그인 화면 재설계 — 라운드 2(세션 20260927-120934)에서 로그인·
+  계정·알림함·대화방(그룹·주제) 전체를 네이티브 UI로 구현하고 기기 검증했다(아래 "라운드 2" 절,
+  [M14 evidence](evidence/M14.md)).
 - Android carousel `maskClip` 미노출로 중·소 항목이 사각으로 잘리는 문제.
 - 3열 grid 타일 모양(사진 앱 관례의 사각)과 서버 썸네일 도입.
 - iOS 그룹 정보의 `멤버`·`관리` 섹션 헤더.
@@ -832,9 +842,13 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
   절대 웹 URL만 불러오고 `http:`는 `https:`로 올리지만(`src/shared/ui/avatar.shared.ts`), 다른 멤버가 넣은
   URL을 불러오면 보는 사람의 IP와 조회 시점이 그 host에 드러난다. 아바타 변경(업로드 + 공개 URL)과 함께
   서버 검증이나 업로드 기반 URL로 바꾼다. 같은 작업에서 Kakao 로그인 profile 요청에 `secure_resource=true`를
-  넣고 이미 저장된 `http://` Kakao URL을 정리한다(서버 변경·재배포 필요).
+  넣고 이미 저장된 `http://` Kakao URL을 정리한다(서버 변경·재배포 필요). 라운드 2 서버 배포로
+  해결: S3(https 절대 URL만 허용, `secure_resource=true`)·S4(migration 0013으로 저장된 `http://`
+  값을 `https://`로 일괄 변환), PR #9 → `a77cac5`(2026-09-27).
 - 주제 태그 권한 맞추기: 앱은 2026-09-27 사용자 결정으로 주제 편집(제목·본문·태그)을 작성자만 한다. 서버 T6
   태그 교체 API는 아직 작성자 또는 그룹 소유자를 허용하므로, 서버 권한도 작성자만으로 맞출지 정한다(서버 변경·재배포 필요).
+  라운드 2 서버 배포로 해결: S2(작성자만 허용, 비작성자는 403 `topic_author_required`), PR #9 →
+  `a77cac5`(2026-09-27).
 - 의존성 정리: `bun audit`가 Metro 경유 transitive `image-size`(>=1.2.0 <=2.0.2)의 high advisory 2건
   (GHSA-5p2g-fcmc-qvqq, GHSA-w3rx-r6r6-pgpr, 무한 루프 DoS)을 보고한다. 빌드 도구 경로에만 있고 앱
   번들에는 없다. upstream 갱신이나 `overrides`로 정리한다.
@@ -845,6 +859,71 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
   개발자 전용으로 정리; 이번 네 화면 밖의 스타일·컴포넌트와 상태 화면(loading/empty/error); 미디어 뷰어
   오버레이·채팅 composer의 Liquid Glass 적용 여부(ADR 0010 D2). 채팅 화면 제목(D7·E11), 날짜 다이얼
   haptic(위 haptics), Android 주제 행 스와이프(위 M15)는 이번 세션에서 처리했거나 위 항목으로 옮겼다.
+  위 항목 중 개발자 전용 계정 섹션 정리(A3)와 composer/미디어 뷰어의 Liquid Glass 적용(W1, R3)은
+  라운드 2(세션 20260927-120934)에서 구현했다. 인증 게이트 라우팅 분리(`(auth)/sign-in`)는 이번에도
+  범위 밖으로 유지했다.
+
+#### 라운드 2 (세션 20260927-120934) — 로그인·계정·알림·대화방 네이티브 UI, 사진·동영상·음성
+
+- SSOT: jamye-server `.agents/results/requirements-20260927-120934.md`(L1-L3, A1-A4, N1-N4, R1-R4,
+  W1-W4, V1-V4, S1-S5, E1-E15), 계획 `.agents/results/plan-20260927-120934.json`.
+- 범위: 로그인, 계정, 알림함, 대화방(그룹 기본 대화방과 주제 대화방 모두) — 메시지 목록·말풍선
+  무리·길게 눌러 메시지 메뉴·전체 화면 미디어 뷰어, 입력창(`+`·텍스트 필드·마이크/보내기), 사진·
+  동영상 다중 첨부, 대화방 안 음성 녹음·전송·재생. iOS는 Liquid Glass·HIG, Android는 Material
+  3(Berry seed)를 우선했다(ADR 0010, ADR 0011).
+- 새 native 의존성(재빌드 승인): `expo-audio`(녹음·재생), `expo-haptics`(iOS 녹음 시작·정지·전송
+  햅틱), `expo-clipboard`(메시지 메뉴 `복사`). 마이크 권한 문구는
+  `대화방에서 음성 메시지를 녹음하기 위해 마이크를 사용합니다.`다
+  ([ADR 0014](adr/0014-voice-messages-and-microphone-permission.md)). 기존 파일 기반 음성 첨부
+  (`음성 파일 첨부`, `audio-file-picker.ts`)와 `expo-document-picker` 의존성은 제거했다(의존성은
+  2026-09-28 제거, 이미 설치된 dev client의 native 모듈은 다음 재빌드 때 빠진다).
+- 서버 선행·동반 변경(jamye-server, 이번 세션 배포): S1 알림 args에 그룹 이름·주제 제목 보강(계약
+  변경 없음), S2 주제 태그 교체(T6) 권한을 작성자만으로 축소, S3 프로필 사진 URL을 절대 https만
+  허용하고 카카오 조회에 `secure_resource=true`를 추가, S4 migration
+  `0013_https_avatar_urls.sql`로 저장된 `http://` 프로필 사진 URL을 `https://`로 일괄 변환. 커밋
+  `d5167c3` → PR #9 → merge `a77cac5` → homelab 배포(2026-09-27 06:42:46Z).
+- 서버 후속 배포(2026-09-28): 기기 검증 중 발견한 HTTP 전송 첨부 1개 제한(첨부 2개 이상이 422
+  `media_not_available`로 거부됨)을 해제해, 계약이 이미 지원하던 최대 4개까지 받도록 수정. 커밋
+  `9a6cba1`+`fd07187` → PR #10 → merge `c7f71a8` → homelab 배포. 상세는 jamye-server
+  `.agents/results/deploy-20260927-120934.md` §10.
+- 기기 검증과 결함 수정: iOS 시뮬레이터(`13042A23-6898-4477-B2DF-76803E4616F9`)와 Android
+  에뮬레이터(`jamye_pixel_9_api_36`)에서 배포된 운영 서버 기준으로 검증했다. 발견한 결함 24건(Host
+  밖 렌더, Compose `LazyColumn` 안 RN 콘텐츠 측정 무한 루프, Compose 슬롯의 bare 문자열/RN 뷰,
+  상시 마운트된 전체 화면 Compose host의 RN hit-test 차단, `BadgedBox`·`onLayoutContent` 오사용,
+  `NativeButton` Host stretch, 입력 shell `initialValue`/`value` 혼동, `expo-video`
+  `replaceAsync`/`readyToPlay` 순서, 서버에 없는 미디어 크기로 인한 정사각형 강제, 앱 소유 staging을
+  거치지 않은 음성 업로드, 뷰어 focus 전 재생 준비, 해제된 player 호출, 썸네일 큐 정체, back stack
+  없이 열린 그룹 홈, 로그인 버튼의 SwiftUI modifier 순서와 로고 배경 등)와 회귀 테스트는
+  [M14 evidence](evidence/M14.md)의 "라운드 2" 절에 기록한다.
+- 사용자 확인(2026-09-28, iOS·Android): L1-L3, A1-A4, N1-N4, R1-R4, W1-W4, V1-V4. R4의 iOS 목록
+  끌어서 키보드 닫기는 구현 누락을 고친 뒤(결함 24) 사용자가 확인했다. V2 iPhone 무음 모드 재생,
+  V3 햅틱, iOS 전화 수신 중단은 시뮬레이터로 확인할 수 없어 실기기 검증(M18 출시 준비)으로 넘긴다.
+- 종료(2026-09-28): 사용자가 R4 수정을 확인하고 M14 종료를 승인했다. 종료 시점 `bun run check:code`
+  exit 0(224 suites / 2,094 tests, coverage statements/branches/functions/lines 87.9% / 82.24% /
+  87.55% / 90.61%, `check-architecture` PASS). ultrawork의 VERIFY·REFINE·SHIP 격리 리뷰는 사용자의
+  종료 결정으로 실행하지 않았다(아래 후속 후보의 품질 정리 항목 참고).
+
+M14 종료 후 후속 후보(각각 별도 결정):
+
+- 주제 공지(announcement) 메시지가 markdown 링크를 원문 그대로 렌더한다(raw markdown link).
+- 업로드가 만료된(1시간 초과) 실패 메시지는 다시 보내기도, 버리기도 할 수 없다. 재시도 시 만료된
+  첨부 재업로드 또는 실패 메시지 버리기 기능이 필요하다.
+- 공용 입력 shell 테스트 mock(`NativeInputSheet`/`NativeInputDialog`의 테스트 대역)이 `value`를
+  렌더해 실제 shell의 `initialValue` 기반 동작과 어긋난다. mock을 실제 동작에 맞게 고친다.
+- 서버 미디어 어댑터 테스트 fixture가 호스트 `now`와 DB `clock_timestamp()`를 섞어 써서 시계
+  오차가 있으면 간헐적으로 실패한다(`media_uploads_timestamp_check`).
+- dev build 콜드 스타트가 에뮬레이터에서 긴 빈 화면을 보인다. release build 기준으로 다시 측정한다.
+- 실기기 검증: V2 iPhone 무음 모드 재생, V3 iOS 햅틱, iOS 전화 수신 중단 뒤 미리듣기 유지.
+- 관찰: 기기 검증 중 새 메시지가 도착하던 시점에 Android 뷰어가 한 번 닫혔고 원인은 확인하지 못했다.
+- 품질 정리(라운드 2 REFINE 후보): lint 경고 15건, media 화면의 eslint 예외 설정
+  (`react-hooks/refs`·immutability), 동영상 플레이어와 음성 재생 조정기 미연결(음성을 틀어도 동영상이
+  멈추지 않음), 중복된 player hook, 두 개의 알림 snackbar host.
+- 라운드 1에서 넘어왔지만 라운드 2 범위(로그인·계정·알림·대화방) 밖이라 다루지 않은 후보: 인증 게이트
+  라우팅 분리(`(auth)/sign-in`), 그룹 목록을 거치지 않고 연 그룹 홈의 `그룹` 제목, 날짜 선택 haptics,
+  그룹 기본 대화방 갤러리, Android carousel `maskClip`, 3열 grid 타일 모양과 서버 썸네일, iOS 그룹 정보
+  섹션 헤더, iOS toolbar 강조 버튼 tint, 로컬 모드 DB 쓰기 직렬화. 상세는 위 "라운드 2 또는 이후
+  후보"에 있다. 알림 목적지(E5)는 라운드 2 N2가 현행 경로(대화방·주제)를 유지했고, 아바타 변경은
+  M17(B), image-size 의존성 정리는 M17(A)가 맡는다.
 
 ### M15. 소프트 삭제 수용 (서버 task-14 연동)
 
@@ -858,7 +937,8 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
   계약만 수용한다.
 - 사용자 결과: 내 메시지나 주제를 삭제하면 상대방 화면에서도 '삭제된 메시지/주제'로 바뀐다. 삭제된
   그룹·주제·메시지는 목록과 알림함에서 사라지거나 placeholder로 남는다. 계정 삭제 후 30일 유예 기간 안에 같은 provider로 다시 로그인하면 계정이 부활한다.
-- 계약 범위(예정, 가칭): 메시지 삭제 `DELETE /api/v1/chatrooms/{chatroom_id}/messages/{message_id}`(C5),
+- 계약 범위(예정, 가칭): 메시지 삭제 `DELETE /api/v1/chatrooms/{chatroom_id}/messages/{message_id}`(C6;
+  `C5`는 2026-09-26 대화방 미디어 목록이 사용),
   주제 삭제 `DELETE /api/v1/groups/{group_id}/topics/{topic_id}`(T8), realtime/delta 이벤트
   `message.deleted`·`topic.deleted`, `CanonicalMessage`와 `CanonicalTopic`의 `deleted_at`(및 `updated_at`) 필드,
   계정 삭제 유예·복구 응답/endpoint. 정확한 ID·shape·권한(권고: 작성자 또는 group owner)은 서버
@@ -945,9 +1025,9 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 ### M18. 스토어 배포 (iOS App Store + Google Play)
 
-- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 M14 만족 선언 이후 별도
-  승인
-- 선행: M14 만족 선언; M16(Guideline 4.8); M17(A) blocker 해소; release에 포함할 M15/M17 범위 확정
+- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 M14 만족 선언(2026-09-28
+  충족) 이후 별도 승인
+- 선행: M14 만족 선언(2026-09-28 충족); M16(Guideline 4.8); M17(A) blocker 해소; release에 포함할 M15/M17 범위 확정
 - 결정(2026-09-22): iOS App Store와 Google Play 양 스토어에 출시한다. legacy jamye-plz 데이터는
   이관하지 않고 새 서버에서 신규 출발한다. 서버는 이미 homelab(midgard)에 배포되어 있으므로 release 시
   배포 revision과 contract binding을 고정한다.
@@ -977,31 +1057,35 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 이 표는 contract inventory의 누락을 막기 위한 배정표다. 현재 구현이나 배포 검증 표가 아니다.
 
-| Family                  | Operation IDs                  | 현재 app                             | Roadmap assignment                         |
-| ----------------------- | ------------------------------ | ------------------------------------ | ------------------------------------------ |
-| Health                  | H1, H2                         | 진단 UI 구현                         | M6 진단, 공통 release acceptance           |
-| OAuth/session           | A1, A2, A3, A4, A5             | M6 범위 구현·세션 수용 완료          | M6 shared session, 공통 release acceptance |
-| Profile/account         | U1, U2, U3                     | U1 표시만                            | M6 U1, M13 U2/U3                           |
-| Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | M7 완료 — 수용 범위는 evidence 참조  | M7                                         |
-| Invitations             | I1, I2                         | M7 완료 — 양 플랫폼 사용자 수용      | M7                                         |
-| Chatrooms/messages/read | C1, C2, C3, C4                 | M8 완료 — 양 플랫폼 사용자 수용      | M8                                         |
-| Delta/realtime          | S1, R1 + WebSocket             | M9 완료 — 사용자 수용 4/4 확인       | M9                                         |
-| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 완료, 양 플랫폼 사용자 수용 PASS     | M10                                        |
-| Media                   | MD1, MD2, MD3, MD4, MD5        | 자동 검사 PASS, native 업로드 보류   | M11                                        |
-| Notification history    | N1, N2                         | 완료, iPhone 실기기 사용자 수용 PASS | M12                                        |
-| Push installation       | P2, P3, P4                     | 완료, iPhone 실기기 사용자 수용 PASS | M12                                        |
+| Family                  | Operation IDs                  | 현재 app                                                                    | Roadmap assignment                         |
+| ----------------------- | ------------------------------ | --------------------------------------------------------------------------- | ------------------------------------------ |
+| Health                  | H1, H2                         | 진단 UI 구현                                                                | M6 진단, 공통 release acceptance           |
+| OAuth/session           | A1, A2, A3, A4, A5             | M6 범위 구현·세션 수용 완료                                                 | M6 shared session, 공통 release acceptance |
+| Profile/account         | U1, U2, U3                     | M13 완료 — U2 닉네임 변경·U3 계정 삭제                                      | M6 U1, M13 U2/U3                           |
+| Groups/members          | G1, G2, G3, G4, G5, G6, G7, G8 | M7 완료 — 수용 범위는 evidence 참조                                         | M7                                         |
+| Invitations             | I1, I2                         | M7 완료 — 양 플랫폼 사용자 수용                                             | M7                                         |
+| Chatrooms/messages/read | C1, C2, C3, C4, C5             | C1-C4 M8 완료 — 양 플랫폼 사용자 수용; C5 대화방 미디어 목록은 M14 라운드 1 | M8, C5는 M14                               |
+| Delta/realtime          | S1, R1 + WebSocket             | M9 완료 — 사용자 수용 4/4 확인                                              | M9                                         |
+| Topics/tags             | T1, T2, T3, T4, T5, T6, T7     | 완료, 양 플랫폼 사용자 수용 PASS                                            | M10                                        |
+| Media                   | MD1, MD2, MD4, MD5             | M11 완료 — 양 플랫폼 사용자 수용                                            | M11                                        |
+| Notification history    | N1, N2                         | 완료, iPhone 실기기 사용자 수용 PASS                                        | M12                                        |
+| Push installation       | P2, P3, P4                     | 완료, iPhone 실기기 사용자 수용 PASS                                        | M12                                        |
 
-모든 43개 HTTP operation은 위 표에 포함된다. WebSocket은 M9에 배정한다.
+모든 43개 HTTP operation은 위 표에 포함된다. WebSocket은 M9에 배정한다. 2026-09-26 서버
+`5b987a2`가 MD3(주제 미디어 목록)를 제거하고 C5(대화방 미디어 목록)를 추가해 operation 수는 43개로
+같다. 현재 intake 기준은 서버 `a77cac5`다(`contracts/server/intake.json`).
 
 다음 operation은 2026-09-22 로드맵 등록 시점에 계약에 없는 **예정 항목(가칭, 계약 미publish)**이다.
 이름과 shape는 서버 task-14/task-15가 확정하며, 앱은 publish된 계약을 intake한 뒤에만 구현한다.
 
 | 가칭 ID | 예정 operation                                                             | 확정 주체    | Roadmap assignment |
 | ------- | -------------------------------------------------------------------------- | ------------ | ------------------ |
-| C5      | `DELETE /api/v1/chatrooms/{chatroom_id}/messages/{message_id}` 메시지 삭제 | 서버 task-14 | M15                |
+| C6      | `DELETE /api/v1/chatrooms/{chatroom_id}/messages/{message_id}` 메시지 삭제 | 서버 task-14 | M15                |
 | T8      | `DELETE /api/v1/groups/{group_id}/topics/{topic_id}` 주제 삭제             | 서버 task-14 | M15                |
 | —       | realtime/delta `message.deleted`, `topic.deleted`                          | 서버 task-14 | M15                |
 | A6      | `POST /api/v1/auth/apple/exchange` Apple identity token exchange           | 서버 task-15 | M16                |
+
+메시지 삭제의 가칭은 처음 C5였지만 2026-09-26 대화방 미디어 목록이 C5를 쓰게 되어 C6으로 바꿨다.
 
 ## 9. 현재 server contract 밖의 backlog
 
@@ -1089,13 +1173,13 @@ M8을 `COMPLETED / USER_ACCEPTED`로 정식 종료했다. 상세 결과는 [M8 e
 양 플랫폼 실행을 진행했고 사용자가 네 수용 항목의 정상 동작 및 종료·로컬 커밋을 승인했다.
 M10은 `COMPLETED / USER_ACCEPTED`이며 [M10 evidence](evidence/M10.md)에 출처와 한계를 기록한다.
 이후 M11 미디어 계획 검토·구현·검증 및 PUT-only native 수정 승인을 받아 전체 coverage·독립 리뷰와 양 플랫폼 재빌드·전송 재검증을 마쳤다.
-실제 사용자 미디어 수용과 M11 종료는 남아 있다. [M11 evidence](evidence/M11.md)에 구분해 기록한다.
+2026-09-16 사용자 수용과 종료 승인으로 M11을 `COMPLETED / USER_ACCEPTED` 종료했다([M11 evidence](evidence/M11.md)).
 
-이번 종료 승인은 M11 구현, 기존 후속 마일스톤 변경, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.
+각 종료 승인은 후속 milestone 착수, 앱 전체 출시, push 또는 새 배포를 뜻하지 않는다.
 이후 M12 알림함·Expo 푸시는 2026-09-21 iPhone 실기기 검증과 사용자 종료 승인으로, M13 프로필 수정과
 계정 삭제는 2026-09-22 사용자 디바이스 확인 완료 보고와 종료 승인으로 각각 `COMPLETED / USER_ACCEPTED`
-종료했다([M12 evidence](evidence/M12.md), [M13 evidence](evidence/M13.md)). 다음 milestone은 M14 UI/UX
-다듬기 라운드 1이며 사용자 승인으로 시작한다. 파괴적 로컬 정리는 M17(B)로 옮겼다.
+종료했다([M12 evidence](evidence/M12.md), [M13 evidence](evidence/M13.md)). 파괴적 로컬 정리는
+M17(B)로 옮겼다.
 
 2026-09-22 사용자는 M13 종료 뒤의 다음 과제 5개를 로드맵에 등록하기로 결정했다: M14 UI/UX
 다듬기(native-first 유지, 만족 선언까지 라운드 반복), M15 소프트 삭제 수용(서버 task-14), M16 Sign in
@@ -1103,4 +1187,23 @@ with Apple(iOS native, 서버 task-15), M17 잔여 백로그(네 묶음), M18 �
 없음). M15-M17은 M14 라운드 사이에 병행하고 M18은 M14 만족 선언 이후에만 시작한다. 서버 측 상세는
 jamye-server 저장소 로드맵 문서의 task-14-16을 따른다. 이 등록은 구현 승인이 아니다. 라운드 1 범위는 같은 날 고정했다.
 
-2026-09-22 M14 라운드 1 범위 고정: 항목 A(3탭 tab bar)·B(그룹 홈 재구성)·C(라우트 경로 정리), 화면 3개(그룹 목록·그룹 홈·그룹 정보), [ADR 0009](adr/0009-tab-bar-navigation.md)로 ADR 0005 D3 대체, 실행 tracker는 로컬 전용 파일(gitignore 대상인 docs/plans 아래 004-m14-ui-ux-round-1)이다. 이 고정은 구현 승인이 아니다. 다음 액션은 라운드 1 착수 승인이다.
+2026-09-22 M14 라운드 1 범위 고정: 항목 A(3탭 tab bar)·B(그룹 홈 재구성)·C(라우트 경로 정리), 화면 3개(그룹 목록·그룹 홈·그룹 정보), [ADR 0009](adr/0009-tab-bar-navigation.md)로 ADR 0005 D3 대체, 실행 tracker는 로컬 전용 파일(gitignore 대상인 docs/plans 아래 004-m14-ui-ux-round-1)이다. 이 고정은 구현 승인이 아니다. 착수는 같은 날 사용자가 승인했다.
+
+2026-09-26 M14 라운드 1을 그룹 목록·그룹 상세·주제 목록·주제 상세의 native-first 범위로 확장했고, 서버
+task-17 배포(`5b987a2`) 뒤 양 플랫폼 기기 검증을 거쳐 2026-09-27 사용자 종료 선언으로 마쳤다. 같은 날
+시작한 라운드 2(로그인·계정·알림·대화방 네이티브 UI, 사진·동영상·음성)는 서버 task-18 배포(`a77cac5`)와
+첨부 최대 4개 후속 배포(`c7f71a8`), 양 플랫폼 기기 검증과 결함 24건 수정을 거쳤다. 2026-09-28 사용자가
+R4 수정을 확인하고 M14 종료를 승인해 M14는 `COMPLETED / USER_ACCEPTED`다([M14 evidence](evidence/M14.md)).
+이 종료 승인도 M15-M18 착수, 앱 출시, push나 새 배포를 뜻하지 않는다.
+
+다음 milestone은 미정이며 사용자 결정으로 시작한다. 후보별 선행 조건은 다음과 같다.
+
+- M15 소프트 삭제 수용: 서버 task-14의 계약 publish·배포와 앱 contract intake.
+- M16 Sign in with Apple: 서버 task-15. 서버 로드맵은 계정 삭제 흐름 결합(D17) 때문에 task-14를
+  task-15의 선행으로 둔다. Apple Developer 설정과 production bundle identifier 결정도 필요하다.
+- M17 잔여 백로그: 항목별 개별 승인. 서버 계약 변경이 필요한 것은 (C) 묶음뿐이고, (B)의 파괴적 로컬
+  정리는 별도 명시 승인 뒤에만 한다.
+- M18 스토어 배포: M14 만족 선언은 충족했다. M16(Guideline 4.8), M17(A) blocker 해소, release에 포함할
+  범위 확정이 남아 있다.
+
+M14 종료 뒤 남은 개선 후보는 M14 절의 "M14 종료 후 후속 후보"에 모았다.

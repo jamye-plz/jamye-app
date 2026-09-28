@@ -37,6 +37,24 @@ describe("U2 UserPatch wire contract", () => {
     expect(validateUserPatch({ avatar_url: "x".repeat(513) })).toBe(false);
   });
 
+  /**
+   * S3 tightened the `User` response schema's avatar_url to null/""/an
+   * https URL (see server-validators.test.ts's "S3 User.avatar_url..."
+   * test), but left `UserPatch`'s request schema unchanged: length + type
+   * only, no scheme pattern. The https-only rule (and its 422
+   * request_validation_failed rejection) is enforced by server application
+   * code, not the wire schema, so validateUserPatch intentionally still
+   * accepts a non-https value here; the app does not send avatar_url via U2
+   * today, but this documents the confirmed (non-)change for whenever it does.
+   */
+  test("S3 validateUserPatch still accepts a non-https avatar_url (https-only is server-runtime validation, not a wire schema change)", () => {
+    expect(
+      validateUserPatch({ avatar_url: "http://cdn.example.com/a.png" }),
+    ).toBe(true);
+    expect(validateUserPatch({ avatar_url: "not-a-url" })).toBe(true);
+    expect(validateUserPatch({ avatar_url: "" })).toBe(true);
+  });
+
   test("validateUserPatch rejects an unrecognized property (additionalProperties:false)", () => {
     expect(validateUserPatch({ unexpected: "value" })).toBe(false);
   });

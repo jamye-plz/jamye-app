@@ -14,7 +14,6 @@ const mockAuthorize = jest.fn((execute) =>
   execute("test-token", new AbortController().signal),
 );
 const mockPickImage = jest.fn();
-const mockPickAudio = jest.fn();
 const mockSweep = jest.fn();
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: () => ({
@@ -52,9 +51,6 @@ jest.mock("@/features/media/platform/media-downloads", () => ({
 jest.mock("@/features/media/platform/image-video-picker", () => ({
   pickImageOrVideo: (...args: unknown[]) => mockPickImage(...args),
 }));
-jest.mock("@/features/media/platform/audio-file-picker", () => ({
-  pickAudioFile: () => mockPickAudio(),
-}));
 jest.mock("@/features/media/platform/media-file-stat", () => ({
   statMediaFile: jest.fn(),
 }));
@@ -89,19 +85,18 @@ beforeEach(() => {
       return { remove: () => stateListeners.delete(listener) };
     });
   mockPickImage.mockResolvedValue({ status: "cancelled" });
-  mockPickAudio.mockResolvedValue({ status: "cancelled" });
 });
 
 afterEach(() => jest.restoreAllMocks());
 
+/** W3/E9: picking is image/video-only, multi-select (`pickImageOrVideoAssets`)
+ * -- audio no longer has a picker path (voice is recorded, not picked). */
 async function openEveryPicker() {
   await act(async () => {
-    await topicPicker.pickImageOrVideoAsset();
-    await chatPicker.pickImageOrVideoAsset();
-    await chatPicker.pickAudioAsset();
+    await topicPicker.pickImageOrVideoAssets(4);
+    await chatPicker.pickImageOrVideoAssets(4);
   });
-  expect(mockPickImage.mock.calls).toEqual([[], []]);
-  expect(mockPickAudio).toHaveBeenCalledTimes(1);
+  expect(mockPickImage.mock.calls).toEqual([[4], [4]]);
 }
 
 test("all three pickers remain usable after StrictMode effect cleanup and setup", async () => {

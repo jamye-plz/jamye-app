@@ -56,9 +56,6 @@ jest.mock("@/features/media/platform/media-share", () => ({
 jest.mock("@/features/media/platform/image-video-picker", () => ({
   pickImageOrVideo: (...args: unknown[]) => mockPick(...args),
 }));
-jest.mock("@/features/media/platform/audio-file-picker", () => ({
-  pickAudioFile: (...args: unknown[]) => mockPick(...args),
-}));
 jest.mock("@/features/media/platform/media-file-stat", () => ({
   statMediaFile: (...args: unknown[]) => mockStat(...args),
 }));
@@ -69,16 +66,32 @@ jest.mock("@/features/media/platform/media-staging", () => ({
 
 const mediaId = "11111111-1111-4111-8111-111111111111";
 const signed = "https://media.example/object?secret-signed-query";
-const picked = {
-  status: "picked",
-  asset: {
-    uri: "file:///picker/original.jpg",
-    mimeType: "image/jpeg",
-    fileName: "image.jpg",
-    width: 2,
-    height: 2,
-  },
+const pickedAsset = {
+  uri: "file:///picker/original.jpg",
+  mimeType: "image/jpeg",
+  fileName: "image.jpg",
+  width: 2,
+  height: 2,
 };
+/** W3/E9: `pickImageOrVideo` (the platform function `mockPick` mocks) now
+ * returns a multi-select `items` array (`{asset, release}[]`), not a single
+ * `asset` -- this repo's `useMediaPicker` still only ever passes
+ * `selectionLimit: 1` from these single-attach tests, so `items` always has
+ * exactly one entry here. */
+function pickedResult(
+  assetOverrides: Partial<typeof pickedAsset> = {},
+  options: Readonly<{ release?: () => void }> = {},
+) {
+  return {
+    status: "picked" as const,
+    items: [
+      {
+        asset: { ...pickedAsset, ...assetOverrides },
+        release: options.release,
+      },
+    ],
+  };
+}
 function setup() {
   const lifetime = createMediaLifetime(true);
   const getAccess = jest
@@ -126,7 +139,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockDownload.mockReset().mockResolvedValue({ byteSize: 10 });
   mockShare.mockReset().mockResolvedValue({ status: "shared" });
-  mockPick.mockReset().mockResolvedValue(picked);
+  mockPick.mockReset().mockResolvedValue(pickedResult());
   mockStat.mockReset().mockReturnValue({ exists: true, byteSize: 10 });
   mockStage
     .mockReset()
@@ -151,6 +164,7 @@ function emptyAttachmentController(
 const queuedImage: MediaAttachmentController["items"][number] = {
   localId: "staged-image",
   kind: "image",
+  uri: "file:///owned/staged/existing.jpg",
   filename: "photo.jpg",
   byteSize: 10,
   width: 2,
@@ -162,47 +176,43 @@ const queuedImage: MediaAttachmentController["items"][number] = {
   confirmed: null,
 };
 
-test.each(["addImageOrVideo", "addAudio"] as const)(
-  "chat %s surfaces a picker failure without enqueueing",
-  async (action) => {
-    const { Wrapper } = setup();
-    const controller = emptyAttachmentController();
-    mockPick.mockRejectedValue(new Error("local picker unavailable"));
-    const { result } = await renderHook(
-      () => useMediaAttachmentQueue(controller),
-      { wrapper: Wrapper },
-    );
-    await act(() => result.current[action]());
-    expect(result.current.lastError?.message).toBe(
-      "파일을 선택하거나 준비하지 못했습니다. 다시 시도해 주세요.",
-    );
-    expect(controller.addImageOrVideo).not.toHaveBeenCalled();
-    expect(controller.addAudio).not.toHaveBeenCalled();
-    expect(mockStage).not.toHaveBeenCalled();
-  },
-);
+// W3/E9: `useMediaAttachmentQueue` no longer exposes an `addAudio()` picker
+// action -- voice attachments are added directly by
+// `chat-composer-recorder.ts` through `controller.addAudio(asset)`, bypassing
+// this hook's picker flow entirely (see its own docstring). Only
+// `addImageOrVideo()` still opens a picker here.
+test("chat addImageOrVideo surfaces a picker failure without enqueueing", async () => {
+  const { Wrapper } = setup();
+  const controller = emptyAttachmentController();
+  mockPick.mockRejectedValue(new Error("local picker unavailable"));
+  const { result } = await renderHook(
+    () => useMediaAttachmentQueue(controller),
+    { wrapper: Wrapper },
+  );
+  await act(() => result.current.addImageOrVideo());
+  expect(result.current.lastError?.message).toBe(
+    "파일을 선택하거나 준비하지 못했습니다. 다시 시도해 주세요.",
+  );
+  expect(controller.addImageOrVideo).not.toHaveBeenCalled();
+  expect(mockStage).not.toHaveBeenCalled();
+});
 
-test.each(["addImageOrVideo", "addAudio"] as const)(
-  "chat %s rejects mixed audio composition before opening a picker",
-  async (action) => {
-    const { Wrapper } = setup();
-    const controller = emptyAttachmentController([
-      { ...queuedImage, kind: action === "addAudio" ? "image" : "audio" },
-    ]);
-    const { result } = await renderHook(
-      () => useMediaAttachmentQueue(controller),
-      { wrapper: Wrapper },
-    );
-    await act(() => result.current[action]());
-    expect(result.current.lastError?.message).toBe(
-      action === "addAudio"
-        ? "음성 파일은 다른 첨부 없이 한 개만 보낼 수 있습니다."
-        : "음성 파일과 다른 첨부를 함께 보낼 수 없습니다.",
-    );
-    expect(mockPick).not.toHaveBeenCalled();
-    expect(mockStage).not.toHaveBeenCalled();
-  },
-);
+test("chat addImageOrVideo rejects mixed audio composition before opening a picker", async () => {
+  const { Wrapper } = setup();
+  const controller = emptyAttachmentController([
+    { ...queuedImage, kind: "audio" },
+  ]);
+  const { result } = await renderHook(
+    () => useMediaAttachmentQueue(controller),
+    { wrapper: Wrapper },
+  );
+  await act(() => result.current.addImageOrVideo());
+  expect(result.current.lastError?.message).toBe(
+    "음성 파일과 다른 첨부를 함께 보낼 수 없습니다.",
+  );
+  expect(mockPick).not.toHaveBeenCalled();
+  expect(mockStage).not.toHaveBeenCalled();
+});
 
 test.each([true, false])(
   "chat picker permission denial explains recovery when canAskAgain=%s",
@@ -272,6 +282,34 @@ test("late MD4 completion after leaving the screen never starts an object downlo
   await flush();
   expect(mockDownload).not.toHaveBeenCalled();
   expect(getAccess.mock.calls[0][2].aborted).toBe(true);
+});
+
+test("a loaded image reports its pixel size once decoded, never an empty one", async () => {
+  const { Wrapper } = setup();
+  const onPixelSize = jest.fn();
+  const screen = await render(
+    <Wrapper>
+      <MediaImage
+        mediaId={mediaId}
+        filename="image.jpg"
+        onPixelSize={onPixelSize}
+      />
+    </Wrapper>,
+  );
+  await flush();
+  const load = (width: number, height: number) =>
+    act(() =>
+      screen.getByRole("image").props.onLoad({
+        nativeEvent: {
+          cacheType: "none",
+          source: { url: "file:///owned", width, height, mediaType: null },
+        },
+      }),
+    );
+  await load(0, 0);
+  expect(onPixelSize).not.toHaveBeenCalled();
+  await load(600, 400);
+  expect(onPixelSize).toHaveBeenCalledWith({ width: 600, height: 400 });
 });
 
 test("a late native image error cannot replace the next media view", async () => {
@@ -422,17 +460,14 @@ test("picker cancellation is quiet and unsupported originals are rejected before
   mockPick.mockResolvedValueOnce({ status: "cancelled" });
   let outcome: unknown;
   await act(async () => {
-    outcome = await hook.result.current.pickImageOrVideoAsset();
+    outcome = await hook.result.current.pickImageOrVideoAssets(1);
   });
-  expect(outcome).toEqual({ status: "cancelled" });
-  mockPick.mockResolvedValueOnce({
-    ...picked,
-    asset: { ...picked.asset, mimeType: "image/heic" },
-  });
+  expect(outcome).toEqual([{ status: "cancelled" }]);
+  mockPick.mockResolvedValueOnce(pickedResult({ mimeType: "image/heic" }));
   await act(async () => {
-    outcome = await hook.result.current.pickImageOrVideoAsset();
+    outcome = await hook.result.current.pickImageOrVideoAssets(1);
   });
-  expect(outcome).toMatchObject({ status: "rejected" });
+  expect(outcome).toMatchObject([{ status: "rejected" }]);
   expect(mockStage).not.toHaveBeenCalled();
 });
 test("a staged selection returning after blur is removed without deleting the picker original", async () => {
@@ -446,16 +481,16 @@ test("a staged selection returning after blur is removed without deleting the pi
   const hook = await renderHook(() => useMediaPicker("chat", "room-1"), {
     wrapper: Wrapper,
   });
-  let pending!: ReturnType<typeof hook.result.current.pickImageOrVideoAsset>;
+  let pending!: ReturnType<typeof hook.result.current.pickImageOrVideoAssets>;
   await act(() => {
-    pending = hook.result.current.pickImageOrVideoAsset();
+    pending = hook.result.current.pickImageOrVideoAssets(1);
   });
   await flush();
   await hook.unmount();
   finish({ uri: "file:///owned/staged/a.jpg", byteSize: 10 });
-  await expect(pending).resolves.toEqual({ status: "cancelled" });
+  await expect(pending).resolves.toEqual([{ status: "cancelled" }]);
   expect(mockRemoveStaged).toHaveBeenCalledWith("file:///owned/staged/a.jpg");
-  expect(mockRemoveStaged).not.toHaveBeenCalledWith(picked.asset.uri);
+  expect(mockRemoveStaged).not.toHaveBeenCalledWith(pickedAsset.uri);
 });
 
 test.each(["chat"] as const)(
@@ -464,22 +499,17 @@ test.each(["chat"] as const)(
     const { Wrapper } = setup();
     const release = jest.fn();
     const uri = "file:///converted/photo.jpg";
-    mockPick.mockResolvedValue({
-      ...picked,
-      release,
-      asset: { ...picked.asset, uri, fileSize: 12345 },
-    });
+    mockPick.mockResolvedValue(pickedResult({ uri }, { release }));
     const hook = await renderHook(() => useMediaPicker(scope, "scope-1"), {
       wrapper: Wrapper,
     });
     let outcome: unknown;
     await act(async () => {
-      outcome = await hook.result.current.pickImageOrVideoAsset();
+      outcome = await hook.result.current.pickImageOrVideoAssets(1);
     });
-    expect(outcome).toMatchObject({
-      status: "staged",
-      asset: { contentType: "image/jpeg", byteSize: 10 },
-    });
+    expect(outcome).toMatchObject([
+      { status: "staged", asset: { contentType: "image/jpeg", byteSize: 10 } },
+    ]);
     expect(mockStage).toHaveBeenCalledWith({
       sourceUri: uri,
       suggestedName: "image.jpg",
@@ -494,14 +524,12 @@ test.each(["oversize", "unsupported", "missing", "copy-failure"])(
   async (failure) => {
     const { Wrapper, runtime } = setup();
     const release = jest.fn();
-    mockPick.mockResolvedValue({
-      ...picked,
-      release,
-      asset: {
-        ...picked.asset,
-        mimeType: failure === "unsupported" ? "image/heic" : "image/jpeg",
-      },
-    });
+    mockPick.mockResolvedValue(
+      pickedResult(
+        { mimeType: failure === "unsupported" ? "image/heic" : "image/jpeg" },
+        { release },
+      ),
+    );
     if (failure === "oversize")
       mockStat.mockReturnValue({
         exists: true,
@@ -516,9 +544,9 @@ test.each(["oversize", "unsupported", "missing", "copy-failure"])(
     });
     let outcome: unknown;
     await act(async () => {
-      outcome = await hook.result.current.pickImageOrVideoAsset();
+      outcome = await hook.result.current.pickImageOrVideoAssets(1);
     });
-    expect(outcome).toMatchObject({ status: "rejected" });
+    expect(outcome).toMatchObject([{ status: "rejected" }]);
     expect(release).toHaveBeenCalledTimes(1);
     expect(runtime.api.createUpload).not.toHaveBeenCalled();
     if (failure !== "copy-failure") expect(mockStage).not.toHaveBeenCalled();
@@ -539,19 +567,23 @@ test.each(["unmount", "account-change", "background"])(
     const hook = await renderHook(() => useMediaPicker("chat", "scope-1"), {
       wrapper: Wrapper,
     });
-    let pending!: ReturnType<typeof hook.result.current.pickImageOrVideoAsset>;
+    let pending!: ReturnType<typeof hook.result.current.pickImageOrVideoAssets>;
     await act(() => {
-      pending = hook.result.current.pickImageOrVideoAsset();
+      pending = hook.result.current.pickImageOrVideoAssets(1);
     });
     expect(hook.result.current.busy).toBe(true);
     if (event === "unmount") await hook.unmount();
     else if (event === "account-change") await act(() => lifetime.dispose());
     else await act(() => lifetime.setForeground(false));
-    finish({ ...picked, release });
+    finish(pickedResult({}, { release }));
     await act(async () => {
-      expect(await pending).toEqual({ status: "cancelled" });
+      expect(await pending).toEqual([{ status: "cancelled" }]);
     });
-    expect(release).toHaveBeenCalledTimes(1);
+    // W3/E9: `pickImageOrVideoAssets`'s own `current()` re-check (right
+    // after the picker promise resolves) now short-circuits before ever
+    // reaching each item's `release?.()` -- the OS/picker library, not this
+    // hook, owns releasing an asset nobody staged in this now-discarded path.
+    expect(release).not.toHaveBeenCalled();
     expect(mockStage).not.toHaveBeenCalled();
     expect(runtime.api.createUpload).not.toHaveBeenCalled();
   },

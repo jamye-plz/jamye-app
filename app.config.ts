@@ -20,7 +20,22 @@ const MEDIA_PICKER_PLUGIN = [
   {
     photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
     cameraPermission: false,
-    microphonePermission: false,
+    // E4: microphonePermission is intentionally omitted here (not `false`).
+    // `false` makes this plugin strip RECORD_AUDIO / NSMicrophoneUsageDescription
+    // (tools:node="remove" on Android), which conflicts with AUDIO_PLUGIN below
+    // owning the microphone permission for voice messages (V3).
+  },
+] as const;
+// V3/E4: expo-audio owns the microphone permission text for voice message
+// recording. Recording-only: no background recording or playback modes
+// (E8 — UIBackgroundModes "audio" must not be added).
+const AUDIO_PLUGIN = [
+  "expo-audio",
+  {
+    microphonePermission:
+      "대화방에서 음성 메시지를 녹음하기 위해 마이크를 사용합니다.",
+    enableBackgroundRecording: false,
+    enableBackgroundPlayback: false,
   },
 ] as const;
 
@@ -116,6 +131,7 @@ export default function resolveExpoConfig() {
       DEV_CLIENT_PLUGIN,
       ...OAUTH_NATIVE_PLUGINS,
       MEDIA_PICKER_PLUGIN,
+      AUDIO_PLUGIN,
       PUSH_NOTIFICATIONS_PLUGIN,
     ],
   };

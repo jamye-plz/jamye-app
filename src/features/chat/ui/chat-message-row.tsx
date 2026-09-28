@@ -9,12 +9,24 @@ import { useEffect, useRef } from "react";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appChatLayout, appChatMessage, appSpacing } from "@/core/theme/tokens";
 import { AppText } from "@/shared/ui/app-text";
+import { Avatar } from "@/shared/ui/avatar";
 import { NativeButton } from "@/shared/ui/native-button";
-import type { ConnectedChatMedia } from "@/features/chat/model/connected-chat-presentation";
-import { MediaImage } from "@/features/media/ui/media-image";
-import { MediaOpenSaveButton } from "@/features/media/ui/media-open-save-button";
-import { MediaVideoCard } from "@/features/media/ui/media-video-card";
+import { copyMessageBodyToClipboard } from "@/features/chat/platform/clipboard";
+import { MessageAttachmentsView } from "@/features/media/ui/message-attachments-view";
+import type { MessageAttachmentMedia } from "@/features/media/ui/message-attachments-view";
+import { openMediaViewer } from "@/features/media/ui/media-viewer-store";
+
 import type { ChatMessage } from "../model/chat-message-window";
+import type { ChatMessageRowMeta } from "../model/chat-message-grouping";
+import { ChatDateSeparator } from "./chat-date-separator";
+import { ChatMessageMenu } from "./chat-message-menu";
+import type { ChatMessageMenuAction } from "./chat-message-menu.types";
+
+/** R1/E7: "약 28" incoming-group avatar diameter -- intentionally not a
+ * shared token (would add a key to the `appChatMessage`/`appChatLayout`
+ * pinned-token contract in `chat-accessibility.test.tsx`, which asserts
+ * `toEqual` on their exact current shape). */
+const AVATAR_SIZE = 28;
 
 const statusLabels = {
   failed: "전송 실패",
@@ -22,70 +34,26 @@ const statusLabels = {
   sent: "전송됨",
 } as const;
 
-/** `item.type` is the wire MIME `content_type` string (e.g. `"image/jpeg"`), never
- * the coarse image/video/audio kind — see media-attachment.ts's mapping note. */
-function isImageMime(contentType: string): boolean {
-  return contentType.startsWith("image/");
-}
-
-function MessageAttachments({
-  media,
-  isOutgoing,
-  previewEnabled,
-}: Readonly<{
-  media: readonly ConnectedChatMedia[];
-  isOutgoing: boolean;
-  previewEnabled: boolean;
-}>) {
-  if (media.length === 0) return null;
-  const ordered = [...media].sort(
-    (left, right) => left.position - right.position,
-  );
-  return (
-    <View style={{ gap: appSpacing.xxs, marginTop: appSpacing.xxs }}>
-      {ordered.map((item) => (
-        <View key={item.id}>
-          {isImageMime(item.type) ? (
-            <MediaImage filename={item.filename} mediaId={item.id} />
-          ) : null}
-          {item.type === "video/mp4" ? (
-            <MediaVideoCard
-              mediaId={item.id}
-              filename={item.filename}
-              onPrimary={isOutgoing}
-              thumbnailEnabled={previewEnabled}
-              posterMediaId={item.posterMediaId}
-            />
-          ) : null}
-          <MediaOpenSaveButton
-            contentType={item.type}
-            filename={item.filename}
-            mediaId={item.id}
-            onPrimary={isOutgoing}
-          />
-        </View>
-      ))}
-    </View>
-  );
-}
-
 export function ChatMessageRow({
-  isGroupedWithPrevious = false,
-  mediaPreviewEnabled = false,
+  rowMeta,
   message,
+  mediaPreviewEnabled = false,
   onRetryFailedMessage,
-  showSentStatus = false,
+  onShareAttachment,
 }: Readonly<{
-  isGroupedWithPrevious?: boolean;
-  mediaPreviewEnabled?: boolean;
+  rowMeta: ChatMessageRowMeta;
   message: ChatMessage;
+  mediaPreviewEnabled?: boolean;
   onRetryFailedMessage: (
     input: Readonly<{
       clientMsgId: string;
       conversationId: string;
     }>,
   ) => void;
-  showSentStatus?: boolean;
+  /** R2 저장·공유 / R3 per-attachment long-press: forwarded down from a
+   * single screen-level `useMediaSharing()` call (its own `useFocusEffect`
+   * must not be re-subscribed once per row). */
+  onShareAttachment: (attachment: MessageAttachmentMedia) => void;
 }>) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
@@ -100,34 +68,107 @@ export function ChatMessageRow({
     }
   }, [message.status]);
 
-  const isOutgoing = message.isOutgoing ?? message.clientMsgId !== null;
-  const bubbleMaxWidth =
+  const {
+    isOutgoing,
+    isSystem,
+    isGroupedWithPrevious,
+    isLastInGroup,
+    showDateSeparator,
+    dateSeparatorLabel,
+    timeLabel,
+    showSentStatus,
+  } = rowMeta;
+
+  const retry = () => {
+    if (!message.clientMsgId) return;
+    onRetryFailedMessage({
+      clientMsgId: message.clientMsgId,
+      conversationId: message.conversationId,
+    });
+  };
+
+  if (isSystem) {
+    return (
+      <View>
+        {showDateSeparator ? (
+          <ChatDateSeparator label={dateSeparatorLabel} />
+        ) : null}
+        <View
+          style={{
+            alignItems: "center",
+            marginTop: isGroupedWithPrevious
+              ? appChatMessage.sameSenderGap
+              : appChatMessage.groupGap,
+          }}
+        >
+          <AppText color={colors.textMuted} variant="caption">
+            {message.body || "표시할 수 없는 메시지입니다."}
+          </AppText>
+        </View>
+      </View>
+    );
+  }
+
+  const bubbleMaxWidthRatio =
     width >= appChatLayout.conversationMaxWidth + appSpacing.huge
       ? appChatLayout.wideBubbleMaxWidth
       : appChatLayout.compactBubbleMaxWidth;
+  // A number, not a percentage: the platform menu wrappers host the bubble
+  // in a content-sized native view, where a percentage has no width to
+  // resolve against and long unbroken text (URLs) would not wrap.
+  const bubbleMaxWidth = Math.round(
+    Math.min(width, appChatLayout.conversationMaxWidth) * bubbleMaxWidthRatio,
+  );
   const backgroundColor = isOutgoing ? colors.primary : colors.surface;
   const color = isOutgoing ? colors.onPrimary : colors.text;
-  // "전송됨" is only ever shown visibly on the last outgoing bubble (passed in
-  // by ChatMessageList via `showSentStatus`); pending/failed always render.
+  const media = message.media ?? [];
+  const hasAttachments = media.length > 0;
+  // "전송됨" is only ever shown visibly on the single last outgoing bubble
+  // (`rowMeta.showSentStatus`, computed once linearly for the whole list);
+  // pending/failed always render on their own row.
   const statusCaptionVisible = message.status !== "sent" || showSentStatus;
+  const statusCaptionText =
+    message.status === "sent"
+      ? `${timeLabel} · ${statusLabels.sent}`
+      : statusLabels[message.status];
   const bubbleAccessibilityLabel = message.body
-    ? `${message.body}, ${statusLabels[message.status]}`
-    : statusLabels[message.status];
+    ? `${message.body}, ${statusCaptionVisible ? statusCaptionText : statusLabels[message.status]}`
+    : statusCaptionVisible
+      ? statusCaptionText
+      : statusLabels[message.status];
 
-  return (
-    <View
-      style={{
-        alignItems: isOutgoing ? "flex-end" : "flex-start",
-        marginTop: isGroupedWithPrevious
-          ? appChatMessage.sameSenderGap
-          : appChatMessage.groupGap,
-      }}
-    >
-      {!isGroupedWithPrevious && !isOutgoing && message.senderLabel ? (
-        <AppText color={colors.textMuted} variant="caption">
-          {message.senderLabel}
-        </AppText>
-      ) : null}
+  const menuActions: ChatMessageMenuAction[] = [];
+  if (message.body) {
+    menuActions.push({
+      key: "copy",
+      label: "복사",
+      systemImage: "doc.on.doc",
+      onPress: () => void copyMessageBodyToClipboard(message.body),
+    });
+  }
+  if (hasAttachments) {
+    menuActions.push({
+      key: "save-share",
+      label: "저장·공유",
+      systemImage: "square.and.arrow.up",
+      onPress: () => {
+        const first = [...media].sort((a, b) => a.position - b.position)[0];
+        if (first) onShareAttachment(first);
+      },
+    });
+  }
+  if (isOutgoing && message.status === "failed" && message.clientMsgId) {
+    menuActions.push({
+      key: "retry",
+      label: "다시 보내기",
+      systemImage: "arrow.clockwise",
+      onPress: retry,
+    });
+  }
+
+  const pendingCaptions = hasAttachments ? [] : (message.pendingMedia ?? []);
+  const textBubble =
+    message.body || pendingCaptions.length > 0 ? (
       <View
         accessible
         accessibilityLabel={bubbleAccessibilityLabel}
@@ -141,7 +182,7 @@ export function ChatMessageRow({
             : appChatMessage.bubbleRadius,
           borderCurve: "continuous",
           borderRadius: appChatMessage.bubbleRadius,
-          maxWidth: `${bubbleMaxWidth * 100}%`,
+          maxWidth: bubbleMaxWidth,
           paddingHorizontal: 14,
           paddingVertical: 10,
         }}
@@ -157,39 +198,133 @@ export function ChatMessageRow({
             {message.body}
           </Text>
         ) : null}
-        <MessageAttachments
-          previewEnabled={mediaPreviewEnabled}
-          media={message.media ?? []}
-          isOutgoing={isOutgoing}
-        />
-        {(message.media?.length ?? 0) === 0 &&
-          message.pendingMedia?.map((item, index) => (
-            <AppText color={color} key={item.mediaUploadId} variant="caption">
-              첨부 {index + 1}: {item.filename ?? "첨부 파일"} · 서버 전송 대기
-            </AppText>
-          ))}
-        {statusCaptionVisible ? (
-          <Text
-            style={{
-              color: message.status === "failed" ? colors.error : color,
-              fontSize: appChatMessage.timestampFontSize,
-            }}
-          >
-            {statusLabels[message.status]}
-          </Text>
-        ) : null}
+        {pendingCaptions.map((item, index) => (
+          <AppText color={color} key={item.mediaUploadId} variant="caption">
+            첨부 {index + 1}: {item.filename ?? "첨부 파일"} · 서버 전송 대기
+          </AppText>
+        ))}
       </View>
-      {isOutgoing && message.status === "failed" && message.clientMsgId ? (
-        <NativeButton
-          label="메시지 다시 보내기"
-          onPress={() =>
-            onRetryFailedMessage({
-              clientMsgId: message.clientMsgId!,
-              conversationId: message.conversationId,
+    ) : null;
+
+  // R3: photos/videos sit bare (rounded, no colored bubble) with the text
+  // bubble, if any, below them; a voice attachment brings its own bubble.
+  const bubble = (
+    <View
+      style={{
+        alignItems: isOutgoing ? "flex-end" : "flex-start",
+        gap: appSpacing.xxs,
+      }}
+    >
+      {hasAttachments ? (
+        <MessageAttachmentsView
+          attachments={media}
+          mine={isOutgoing}
+          onLongPressAttachment={onShareAttachment}
+          onOpenViewer={(startIndex) =>
+            openMediaViewer({
+              attachments: media,
+              messageId: message.localId,
+              startIndex,
             })
           }
-          variant="text"
+          onShareAttachment={onShareAttachment}
+          previewEnabled={mediaPreviewEnabled}
         />
+      ) : null}
+      {textBubble}
+    </View>
+  );
+
+  const menuWrapped = (
+    <ChatMessageMenu actions={menuActions} alignEnd={isOutgoing}>
+      {bubble}
+    </ChatMessageMenu>
+  );
+
+  if (isOutgoing) {
+    return (
+      <View>
+        {showDateSeparator ? (
+          <ChatDateSeparator label={dateSeparatorLabel} />
+        ) : null}
+        <View
+          style={{
+            alignItems: "flex-end",
+            marginTop: isGroupedWithPrevious
+              ? appChatMessage.sameSenderGap
+              : appChatMessage.groupGap,
+          }}
+        >
+          {menuWrapped}
+          {/* R1: the send status sits under my last bubble (and pending/
+              failed under their own row); other groups end in their time. */}
+          {statusCaptionVisible || isLastInGroup ? (
+            <AppText
+              color={
+                message.status === "failed" ? colors.error : colors.textMuted
+              }
+              variant="caption"
+            >
+              {statusCaptionVisible ? statusCaptionText : timeLabel}
+            </AppText>
+          ) : null}
+        </View>
+        {message.status === "failed" && message.clientMsgId ? (
+          // `NativeButton` stretches its host across its parent, so the
+          // parent itself shrinks to the button and moves to my side.
+          <View style={{ alignSelf: "flex-end" }}>
+            <NativeButton
+              label="메시지 다시 보내기"
+              onPress={retry}
+              variant="text"
+            />
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      {showDateSeparator ? (
+        <ChatDateSeparator label={dateSeparatorLabel} />
+      ) : null}
+      <View
+        style={{
+          alignItems: "flex-end",
+          flexDirection: "row",
+          marginTop: isGroupedWithPrevious
+            ? appChatMessage.sameSenderGap
+            : appChatMessage.groupGap,
+        }}
+      >
+        <View style={{ marginRight: appSpacing.xxs, width: AVATAR_SIZE }}>
+          {isLastInGroup ? (
+            <Avatar
+              name={message.senderLabel ?? "?"}
+              size={AVATAR_SIZE}
+              testID="chat-row-avatar"
+              uri={message.senderAvatarUrl}
+            />
+          ) : null}
+        </View>
+        <View style={{ alignItems: "flex-start", flex: 1 }}>
+          {!isGroupedWithPrevious && message.senderLabel ? (
+            <AppText color={colors.textMuted} variant="caption">
+              {message.senderLabel}
+            </AppText>
+          ) : null}
+          {menuWrapped}
+        </View>
+      </View>
+      {/* R1: the avatar sits beside the group's last bubble, so the time
+          goes on its own line under the bubble column, not beside it. */}
+      {isLastInGroup ? (
+        <View style={{ paddingLeft: AVATAR_SIZE + appSpacing.xxs }}>
+          <AppText color={colors.textMuted} variant="caption">
+            {timeLabel}
+          </AppText>
+        </View>
       ) : null}
     </View>
   );

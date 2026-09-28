@@ -25,6 +25,9 @@ export type MediaAttachmentQueueItemStatus =
 export type MediaAttachmentQueueItem = Readonly<{
   localId: string;
   kind: MediaKind;
+  /** Local (staged) file URI -- draft-row thumbnail source (W4). Never the
+   * server-confirmed media URL. */
+  uri: string;
   filename: string | null;
   byteSize: number;
   width: number | null;

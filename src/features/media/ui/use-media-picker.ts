@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { useMediaRuntime } from "../model/media-runtime";
 
-import { pickAudioFile } from "@/features/media/platform/audio-file-picker";
 import { pickImageOrVideo } from "@/features/media/platform/image-video-picker";
 import { statMediaFile } from "@/features/media/platform/media-file-stat";
 import {
@@ -28,7 +27,6 @@ type CandidateFile = Readonly<{
   width: number | null;
   height: number | null;
   durationSeconds: number | null;
-  release?: () => void;
 }>;
 
 async function stageAndValidate(
@@ -71,8 +69,12 @@ async function stageAndValidate(
   };
 }
 
-/** Picker + local-policy-validation + app-owned staging, independent of any upload
- * controller. Reused by the chat attachment queue and the topic image action. */
+/**
+ * Picker + local-policy-validation + app-owned staging, independent of any
+ * upload controller. Reused by the chat attachment queue and the topic image
+ * action. W3/E9: image/video only -- audio no longer has a picker path here;
+ * voice is captured by the recorder (`chat-composer-recorder.ts`) instead.
+ */
 export function useMediaPicker(scope: MediaScope, scopeKey?: string) {
   const runtime = useMediaRuntime();
   const selectionRef = useRef({
@@ -95,50 +97,69 @@ export function useMediaPicker(scope: MediaScope, scopeKey?: string) {
     }, [runtime, scopeKey]),
   );
 
-  const choose = useCallback(
-    async (
-      pick: () => Promise<CandidateFile | MediaPickOutcome>,
-    ): Promise<MediaPickOutcome> => {
+  const pickImageOrVideoAssets = useCallback(
+    async (selectionLimit: number): Promise<readonly MediaPickOutcome[]> => {
       const selection = selectionRef.current;
       if (
         !runtime ||
         !selection.active ||
         selection.busy ||
+        selectionLimit <= 0 ||
         !runtime.isCurrent(runtime.captureGeneration())
       )
-        return { status: "cancelled" };
+        return [{ status: "cancelled" }];
       selection.busy = true;
       const revision = selection.revision;
       // Picker dialogs may background the app. Accept only a return to the SAME
-      // account/target in the foreground; never resume an in-flight upload.
+      // account/target in the foreground; never resume a stale selection.
       const current = () =>
         selection.active &&
         selection.revision === revision &&
         runtime.isCurrent(runtime.captureGeneration());
       setBusy(true);
-      let candidate: CandidateFile | MediaPickOutcome | undefined;
       try {
-        candidate = await pick();
-        if (!current()) return { status: "cancelled" };
-        if ("status" in candidate) return candidate;
-        const outcome = await stageAndValidate(scope, candidate);
-        if (!current()) {
-          if (outcome.status === "staged") removeStagedFile(outcome.asset.uri);
-          return { status: "cancelled" };
-        }
-        return outcome;
+        const picked = await pickImageOrVideo(selectionLimit);
+        if (!current()) return [{ status: "cancelled" }];
+        if (picked.status === "cancelled") return [{ status: "cancelled" }];
+        if (picked.status === "permission_denied")
+          return [
+            { status: "permission_denied", canAskAgain: picked.canAskAgain },
+          ];
+        const outcomes = await Promise.all(
+          picked.items.map(async ({ asset, release }) => {
+            try {
+              const outcome = await stageAndValidate(scope, {
+                sourceUri: asset.uri,
+                contentType: asset.mimeType,
+                filename: asset.fileName,
+                width: asset.width || null,
+                height: asset.height || null,
+                durationSeconds:
+                  asset.durationMs != null ? asset.durationMs / 1000 : null,
+              });
+              if (!current()) {
+                if (outcome.status === "staged")
+                  removeStagedFile(outcome.asset.uri);
+                return { status: "cancelled" } as const;
+              }
+              return outcome;
+            } finally {
+              release?.();
+            }
+          }),
+        );
+        return outcomes;
       } catch {
         return current()
-          ? {
-              status: "rejected",
-              message:
-                "파일을 선택하거나 준비하지 못했습니다. 다시 시도해 주세요.",
-            }
-          : { status: "cancelled" };
+          ? [
+              {
+                status: "rejected",
+                message:
+                  "파일을 선택하거나 준비하지 못했습니다. 다시 시도해 주세요.",
+              },
+            ]
+          : [{ status: "cancelled" }];
       } finally {
-        // Only the converter's newly encoded copy is disposable, never the
-        // user's/picker's original. Also release results returned after blur.
-        if (candidate && !("status" in candidate)) candidate.release?.();
         selection.busy = false;
         if (selection.active) setBusy(false);
       }
@@ -146,43 +167,5 @@ export function useMediaPicker(scope: MediaScope, scopeKey?: string) {
     [scope, runtime],
   );
 
-  const pickImageOrVideoAsset = useCallback(
-    () =>
-      choose(async () => {
-        const picked = await pickImageOrVideo();
-        if (picked.status !== "picked") return picked;
-        return {
-          sourceUri: picked.asset.uri,
-          release: picked.release,
-          contentType: picked.asset.mimeType,
-          filename: picked.asset.fileName,
-          width: picked.asset.width || null,
-          height: picked.asset.height || null,
-          durationSeconds:
-            picked.asset.durationMs != null
-              ? picked.asset.durationMs / 1000
-              : null,
-        };
-      }),
-    [choose],
-  );
-
-  const pickAudioAsset = useCallback(
-    () =>
-      choose(async () => {
-        const picked = await pickAudioFile();
-        if (picked.status !== "picked") return picked;
-        return {
-          sourceUri: picked.asset.uri,
-          contentType: picked.asset.mimeType,
-          filename: picked.asset.fileName,
-          width: null,
-          height: null,
-          durationSeconds: null,
-        };
-      }),
-    [choose],
-  );
-
-  return { busy, pickImageOrVideoAsset, pickAudioAsset };
+  return { busy, pickImageOrVideoAssets };
 }

@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   renderHook,
+  within,
 } from "@testing-library/react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import {
@@ -291,6 +292,22 @@ test("thumbnail failure is retryable up to 3 times and never disables explicit p
   expect(screen.getByRole("button", { name: "동영상 닫기" })).toBeTruthy();
 });
 
+test("grid cells keep one size: no filename caption, and the preview retry sits inside the tile", async () => {
+  const { Wrapper } = setup();
+  mockThumbnail.mockRejectedValue(new Error("decode"));
+  const screen = await render(
+    <Wrapper>
+      <MediaVideoCard mediaId={id} filename="video.mp4" thumbnailEnabled />
+    </Wrapper>,
+  );
+  await flush();
+  expect(screen.queryByText("video.mp4")).toBeNull();
+  const tile = screen.getByRole("button", { name: "video.mp4 재생" });
+  expect(
+    within(tile).getByRole("button", { name: "video.mp4 미리보기 다시 시도" }),
+  ).toBeTruthy();
+});
+
 test("a visible video card renders its local JPEG and keeps playback available after image failure", async () => {
   const { Wrapper } = setup();
   const screen = await render(
@@ -306,6 +323,34 @@ test("a visible video card renders its local JPEG and keeps playback available a
   expect(screen.queryByLabelText("video.mp4 영상 미리보기")).toBeNull();
   expect(screen.getByRole("button", { name: "video.mp4 재생" })).toBeEnabled();
   expect(mockRemove).toHaveBeenCalledWith("file:///owned/thumbnail.jpg");
+});
+
+test("a loaded thumbnail reports the video frame's pixel size", async () => {
+  const { Wrapper } = setup();
+  const onPixelSize = jest.fn();
+  const screen = await render(
+    <Wrapper>
+      <MediaVideoCard
+        mediaId={id}
+        filename="video.mp4"
+        thumbnailEnabled
+        onPixelSize={onPixelSize}
+      />
+    </Wrapper>,
+  );
+  await flush();
+  await fireEvent(screen.getByLabelText("video.mp4 영상 미리보기"), "load", {
+    nativeEvent: {
+      cacheType: "none",
+      source: {
+        url: "file:///owned",
+        width: 320,
+        height: 180,
+        mediaType: null,
+      },
+    },
+  });
+  expect(onPixelSize).toHaveBeenCalledWith({ width: 320, height: 180 });
 });
 
 test("a timed-out download aborts, reports a retryable error, and never extracts a late file", async () => {

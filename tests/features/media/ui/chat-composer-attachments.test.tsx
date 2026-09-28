@@ -4,12 +4,73 @@ import React from "react";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { ChatComposer } from "@/features/chat/ui/chat-composer";
 import type { MediaAttachmentController } from "@/features/media/ui/media-attachment-types";
+import { SystemFeedbackHost } from "@/shared/ui/system-feedback";
 
 jest.mock("expo-router", () => ({
   useFocusEffect: (callback: () => (() => void) | void) =>
     jest
       .requireActual<typeof import("react")>("react")
       .useEffect(callback, [callback]),
+}));
+// W2: see the matching mock in `chat-composer.test.tsx` for why this is
+// needed (native SwiftUI `TextField` default, opaque `@expo/ui` host node
+// under jest).
+jest.mock("@expo/ui/swift-ui", () => {
+  // Spread the real module (not just `{ TextField }`) so unrelated
+  // `@expo/ui/swift-ui` consumers in the same tree (e.g. `SystemFeedbackHost`
+  // -> `system-feedback.ios.tsx`'s `Alert`) keep their real components.
+  const actual =
+    jest.requireActual<Record<string, unknown>>("@expo/ui/swift-ui");
+  const React = jest.requireActual<typeof import("react")>("react");
+  const { TextInput } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  function extractLabel(modifiers?: readonly unknown[]): string | undefined {
+    const found = modifiers?.find(
+      (modifier): modifier is { $type: string; value: string } =>
+        typeof modifier === "object" &&
+        modifier !== null &&
+        (modifier as { $type?: unknown }).$type === "accessibilityLabel",
+    );
+    return found?.value;
+  }
+  const TextField = React.forwardRef(function MockSwiftUITextField(
+    props: {
+      axis?: string;
+      modifiers?: readonly unknown[];
+      onFocusChange?: (focused: boolean) => void;
+      onTextChange?: (text: string) => void;
+      placeholder?: string;
+    },
+    ref: React.Ref<{ clear: () => void }>,
+  ) {
+    const [text, setText] = React.useState("");
+    React.useImperativeHandle(ref, () => ({
+      clear: () => setText(""),
+      focus: () => undefined,
+    }));
+    return (
+      <TextInput
+        accessibilityLabel={extractLabel(props.modifiers)}
+        multiline={props.axis === "vertical"}
+        onBlur={() => props.onFocusChange?.(false)}
+        onChangeText={(next: string) => {
+          setText(next);
+          props.onTextChange?.(next);
+        }}
+        onFocus={() => props.onFocusChange?.(true)}
+        placeholder={props.placeholder}
+        value={text}
+      />
+    );
+  });
+  return { ...actual, TextField };
+});
+jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  accessibilityLabel: (value: string) => ({
+    $type: "accessibilityLabel",
+    value,
+  }),
+  lineLimit: (range: unknown) => ({ $type: "lineLimit", range }),
 }));
 
 function fakeController(
@@ -29,6 +90,7 @@ describe("M11 ChatComposer attachment integration", () => {
   const confirmedItem: MediaAttachmentController["items"][number] = {
     localId: "confirmed-a",
     kind: "image",
+    uri: "file:///staged/a.jpg",
     filename: "a.jpg",
     byteSize: 10,
     width: null,
@@ -126,12 +188,13 @@ describe("M11 ChatComposer attachment integration", () => {
     expect(screen.queryByLabelText("음성 파일 첨부")).toBeNull();
   });
 
-  test("shows the attach queue and the attach sheet options once a controller is supplied", async () => {
+  test("draft thumbnails expose status and progress through their accessibility label (W4)", async () => {
     const send = jest.fn(async () => ({ outcome: "empty" as const }));
     const controller = fakeController([
       {
         localId: "a",
         kind: "image",
+        uri: "file:///staged/photo.jpg",
         filename: "photo.jpg",
         byteSize: 10,
         width: null,
@@ -148,11 +211,70 @@ describe("M11 ChatComposer attachment integration", () => {
         <ChatComposer controller={{ send }} attachmentController={controller} />
       </AppThemeProvider>,
     );
-    expect(screen.getByText("photo.jpg")).toBeTruthy();
-    expect(screen.getByText(/50%/)).toBeTruthy();
+    expect(screen.getByLabelText("photo.jpg 업로드 중 50%")).toBeTruthy();
+  });
+
+  test("+ opens the system picker directly once available (W3, no attach sheet)", async () => {
+    const send = jest.fn(async () => ({ outcome: "empty" as const }));
+    const controller = fakeController([]);
+    const screen = await render(
+      <AppThemeProvider>
+        <ChatComposer controller={{ send }} attachmentController={controller} />
+      </AppThemeProvider>,
+    );
     await fireEvent.press(screen.getByLabelText("첨부 추가"));
-    expect(screen.getByText("사진·동영상 첨부")).toBeTruthy();
-    expect(screen.getByText("음성 파일 첨부")).toBeTruthy();
+    expect(controller.addImageOrVideo).not.toHaveBeenCalled();
+    // W3: pressing "+" calls the picker directly (no BottomSheet/ListItem UI
+    // survives to remove); the old "사진·동영상 첨부"/"음성 파일 첨부" sheet
+    // text no longer exists anywhere in the tree.
+    expect(screen.queryByText("사진·동영상 첨부")).toBeNull();
+    expect(screen.queryByText("음성 파일 첨부")).toBeNull();
+  });
+
+  test("pressing + shows the unavailable notice instead of opening the picker once the queue is full (W3)", async () => {
+    const send = jest.fn(async () => ({ outcome: "empty" as const }));
+    const fullItems = (["a", "b", "c", "d"] as const).map((id) => ({
+      localId: id,
+      kind: "image" as const,
+      uri: `file:///staged/${id}.jpg`,
+      filename: `${id}.jpg`,
+      byteSize: 10,
+      width: null,
+      height: null,
+      duration: null,
+      status: "confirmed" as const,
+      progress: 0,
+      errorMessage: null,
+      confirmed: {
+        mediaUploadId: id,
+        type: "image/jpeg",
+        filename: `${id}.jpg`,
+        byteSize: 10,
+        width: null,
+        height: null,
+        duration: null,
+        posterMediaId: null,
+      },
+    }));
+    const controller = fakeController(fullItems);
+    // `useSystemFeedback()`'s iOS notice renders through `@expo/ui/swift-ui`'s
+    // Alert, which (per project convention) needs a per-test inline mock to
+    // assert its rendered text -- out of scope here. `<SystemFeedbackHost>`
+    // is still provided so the real (non-throwing) `showNotice` path runs
+    // end to end; what this test pins is the behavioral contract that matters
+    // for W3: the picker is never invoked once the queue is full.
+    const screen = await render(
+      <AppThemeProvider>
+        <SystemFeedbackHost>
+          <ChatComposer
+            controller={{ send }}
+            attachmentController={controller}
+          />
+        </SystemFeedbackHost>
+      </AppThemeProvider>,
+    );
+    await fireEvent.press(screen.getByLabelText("첨부 추가"));
+    expect(controller.addImageOrVideo).not.toHaveBeenCalled();
   });
 
   test("enables a bodyless send once every attachment is confirmed, and forwards confirmed media", async () => {
@@ -171,6 +293,7 @@ describe("M11 ChatComposer attachment integration", () => {
       {
         localId: "a",
         kind: "image",
+        uri: "file:///staged/photo.jpg",
         filename: "photo.jpg",
         byteSize: 10,
         width: 10,
@@ -203,6 +326,7 @@ describe("M11 ChatComposer attachment integration", () => {
       {
         localId: "a",
         kind: "audio",
+        uri: "file:///staged/voice.m4a",
         filename: "voice.ogg",
         byteSize: 10,
         width: null,

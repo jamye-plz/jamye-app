@@ -100,6 +100,7 @@ jest.mock("@expo/ui/swift-ui/modifiers", () => ({
 }));
 
 const mockReplace = jest.fn();
+const mockDismissTo = jest.fn();
 const mockBack = jest.fn();
 const mockStackScreen = jest.fn(
   (
@@ -138,7 +139,11 @@ jest.mock("expo-router", () => {
   }
   Toolbar.Button = ToolbarButton;
   return {
-    useRouter: () => ({ replace: mockReplace, back: mockBack }),
+    useRouter: () => ({
+      back: mockBack,
+      dismissTo: mockDismissTo,
+      replace: mockReplace,
+    }),
     useFocusEffect: (callback: () => () => void) => {
       const React = jest.requireActual<typeof import("react")>("react");
       React.useEffect(callback, [callback]);
@@ -230,10 +235,13 @@ describe("T3/C3 group form screen (kit NativeInputSheet)", () => {
     await act(async () => {
       pending.resolve(group);
     });
-    expect(mockReplace).toHaveBeenCalledWith({
-      pathname: "/groups/[groupId]",
-      params: { groupId },
-    });
+    // Device regression: `replace` stacked a second tab bar whose groups
+    // stack held only the new home (no back button, list unreachable).
+    expect(mockDismissTo).toHaveBeenCalledWith(
+      { params: { groupId }, pathname: "/groups/[groupId]" },
+      { withAnchor: true },
+    );
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   test("primary action disables until the server Retry-After elapses", async () => {

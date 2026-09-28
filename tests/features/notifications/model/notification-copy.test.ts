@@ -2,7 +2,11 @@ import type {
   NotificationArgs,
   NotificationType,
 } from "@/core/contracts/server";
-import { getNotificationCopy } from "@/features/notifications/model/notification-copy";
+import {
+  getNotificationContextLine,
+  getNotificationCopy,
+  getNotificationKind,
+} from "@/features/notifications/model/notification-copy";
 
 describe("getNotificationCopy", () => {
   test("new_topic renders the author display name", () => {
@@ -60,5 +64,50 @@ describe("getNotificationCopy", () => {
     expect(copy).toEqual({ body: "내용을 확인해 보세요.", title: "새 알림" });
     expect(JSON.stringify(copy)).not.toContain("secret");
     expect(JSON.stringify(copy)).not.toContain("undefined");
+  });
+});
+
+describe("getNotificationKind", () => {
+  test.each([
+    ["new_topic", "newTopic"],
+    ["chat_unread", "newMessage"],
+    ["other", "other"],
+    ["unrecognized_future_type", "other"],
+  ] as const)("%s -> %s", (type, expected) => {
+    expect(getNotificationKind(type as NotificationType)).toBe(expected);
+  });
+});
+
+describe("getNotificationContextLine (N3/S1/E5)", () => {
+  test("group name and topic title render as 'group · topic'", () => {
+    expect(
+      getNotificationContextLine({
+        group_name: "우리 그룹",
+        topic_title: "주말 모임",
+      }),
+    ).toBe("우리 그룹 · 주말 모임");
+  });
+
+  test("group name alone renders without the topic separator", () => {
+    expect(getNotificationContextLine({ group_name: "우리 그룹" })).toBe(
+      "우리 그룹",
+    );
+  });
+
+  test.each([
+    ["missing group_name", {}],
+    ["non-string group_name", { group_name: 42 }],
+    ["null group_name", { group_name: null }],
+  ] as const)("no line when %s (E5)", (_label, args) => {
+    expect(getNotificationContextLine(args as NotificationArgs)).toBeNull();
+  });
+
+  test("a non-string topic_title is dropped but the group name still renders (E5)", () => {
+    expect(
+      getNotificationContextLine({
+        group_name: "우리 그룹",
+        topic_title: 42,
+      } as unknown as NotificationArgs),
+    ).toBe("우리 그룹");
   });
 });

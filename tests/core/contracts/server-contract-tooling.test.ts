@@ -184,12 +184,13 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
       expect.objectContaining({
         generator_identity: "openapi-typescript@7.13.0",
         intake_kind: "server-snapshot",
-        // task-app-gallery (E1/AC1): re-intook from jamye-server main
-        // 5b987a28e2488075224f01efddd206218b1ce750 (C5 chatroom media +
-        // S3 topic-media removal).
-        source_git_revision: "5b987a28e2488075224f01efddd206218b1ce750",
+        // M14 round 1 (task-app-gallery) intook 5b987a2 (C5 chatroom media,
+        // topic-media removal). M14 round 2: re-intook at the deployed
+        // jamye-server commit a77cac5 (S1 notification args, S2 T6
+        // author-only tags, S3 avatar_url https validation).
+        source_git_revision: "a77cac524d0ac418cf40a116f090a7190e238cfe",
         upstream_bundle_sha256:
-          "ca275256289955f20a13a5f6d2f51df326c43da79ffd8b526ef867db5faf5a5c",
+          "867a1a86fea84d4cad7e2a5c14600f0aa79c01a723fad077a4f504dea03f4c4a",
         upstream_bundle_verified: true,
         upstream_contract_version: "1",
         upstream_server_commit: "dirty",
@@ -216,7 +217,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         server_commit: "dirty",
         server_tag: null,
         sha256:
-          "ca275256289955f20a13a5f6d2f51df326c43da79ffd8b526ef867db5faf5a5c",
+          "867a1a86fea84d4cad7e2a5c14600f0aa79c01a723fad077a4f504dea03f4c4a",
       }),
     );
   });

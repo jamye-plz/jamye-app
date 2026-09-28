@@ -1,139 +1,133 @@
-import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
-import { useRef, useState } from "react";
-import { BottomSheet, Host, List, ListItem, Text as UIText } from "@expo/ui";
+import { ActivityIndicator, Pressable, View } from "react-native";
+import { useRef } from "react";
 
-import type { ChatSendController } from "@/features/chat/model/chat-send";
-import type { ConnectedPendingAttachment } from "@/features/chat/model/connected-chat-presentation";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appChatComposer, appRadii, appSpacing } from "@/core/theme/tokens";
 import { AppSymbol } from "@/shared/ui/app-symbol";
 import { AppText } from "@/shared/ui/app-text";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import { AttachmentQueueList } from "@/features/media/ui/attachment-queue-list";
-import { isSendableWithoutBody } from "@/features/media/ui/media-composition";
+import {
+  VoicePreviewBar,
+  VoiceRecordingBar,
+} from "@/features/media/ui/voice-recorder-bar";
 import type { MediaAttachmentController } from "@/features/media/ui/media-attachment-types";
-import { useMediaAttachmentQueue } from "@/features/media/ui/use-media-attachment-queue";
+
+import { ChatComposerField } from "./chat-composer-field";
+import type { ChatComposerFieldHandle } from "./chat-composer-field.types";
+import {
+  ATTACHMENT_OPTION_UNAVAILABLE,
+  useChatComposer,
+} from "./use-chat-composer";
+import type { ChatComposerController } from "./use-chat-composer";
 
 // The semantic controlSize token owns the approved 44x44 touch target.
 
-const ATTACHMENT_OPTION_UNAVAILABLE = "지금은 추가할 수 없습니다";
-
-type ChatSendInputWithMedia = Readonly<{
-  body: string;
-  clearDraft: () => void;
-  onCommitted?: (localId: string) => void;
-  media?: readonly ConnectedPendingAttachment[];
-}>;
-
+/**
+ * Generic (non-platform-suffixed) fallback for `tsc`'s bare-import
+ * resolution only -- `tsconfig` has no `moduleSuffixes`, so a bare
+ * `import { ChatComposer } from "./chat-composer"` (chat-screen.tsx) only
+ * typechecks if a non-suffixed `chat-composer.tsx` exists alongside
+ * `chat-composer.ios.tsx` / `chat-composer.android.tsx`. Metro and Jest
+ * always resolve the platform-suffixed file first (jest resolves iOS by
+ * default), so this module never actually renders on-device or under test;
+ * it is a plain, flat-surface RN rendering of the same
+ * `useChatComposer` state machine (same pattern as `nickname-edit-screen.tsx`
+ * / `account-screen.tsx`).
+ */
 export function ChatComposer({
   controller,
   onMessageCommitted,
   blocked = false,
   attachmentController = null,
+  onHeightChange,
 }: Readonly<{
-  controller: Readonly<{
-    send: (
-      input: ChatSendInputWithMedia,
-    ) => ReturnType<ChatSendController["send"]>;
-  }>;
+  controller: ChatComposerController;
   onMessageCommitted?: (localId: string) => void;
   blocked?: boolean;
   attachmentController?: MediaAttachmentController | null;
+  onHeightChange?: (height: number) => void;
 }>) {
   const { colors } = useAppTheme();
-  const [draft, setDraft] = useState("");
-  const [isFocused, setIsFocused] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const sendingRef = useRef(false);
-  const attachments = useMediaAttachmentQueue(attachmentController);
-  const hasBody = draft.trim().length > 0;
-  const hasAudioAttachment = attachments.items.some(
-    (item) => item.kind === "audio" && item.status !== "cancelled",
-  );
-  const sendableWithoutBody = isSendableWithoutBody(attachments.items);
-  const disabled =
-    blocked ||
-    isSending ||
-    attachments.busy ||
-    attachments.items.some(
-      (item) => item.status !== "confirmed" || item.confirmed === null,
-    ) ||
-    (!hasBody && !sendableWithoutBody) ||
-    (hasAudioAttachment && hasBody);
-
-  const send = async () => {
-    if (disabled || sendingRef.current) return;
-    sendingRef.current = true;
-    setIsSending(true);
-    try {
-      const confirmedMedia = attachments.items
-        .filter(
-          (item) => item.status === "confirmed" && item.confirmed !== null,
-        )
-        .map((item) => item.confirmed!);
-      await controller.send({
-        body: hasAudioAttachment ? "" : draft,
-        clearDraft: () => {
-          setDraft((current) => (current === draft ? "" : current));
-          // This callback is invoked only after the existing SQLite outbox commit.
-          // A DB error retains every selected upload for the same retry.
-          for (const item of attachments.items)
-            attachments.remove(item.localId);
-        },
-        onCommitted: onMessageCommitted,
-        ...(confirmedMedia.length ? { media: confirmedMedia } : {}),
-      });
-    } catch {
-      // The controller intentionally retains the draft after a local write failure.
-    } finally {
-      sendingRef.current = false;
-      setIsSending(false);
-    }
+  const fieldRef = useRef<ChatComposerFieldHandle>(null);
+  const composer = useChatComposer({
+    attachmentController,
+    blocked,
+    controller,
+    fieldRef,
+    onMessageCommitted,
+  });
+  const lastReportedHeightRef = useRef(-1);
+  const reportHeight = (event: {
+    nativeEvent: { layout: { height: number } };
+  }) => {
+    const { height } = event.nativeEvent.layout;
+    if (Math.abs(height - lastReportedHeightRef.current) < 0.5) return;
+    lastReportedHeightRef.current = height;
+    onHeightChange?.(height);
   };
 
-  // The session-level gate (blocked/in-flight/converting) applies to both
-  // attachment options in addition to each option's own canAdd rule.
-  const sessionBlocksAttach = blocked || isSending || attachments.busy;
-  const canAddImageOrVideo =
-    !sessionBlocksAttach && attachments.canAddImageOrVideo;
-  const canAddAudio =
-    !sessionBlocksAttach && attachments.canAddAudio && !hasBody;
+  if (composer.recorder.phase === "recording" && composer.recorder.recording) {
+    return (
+      <View
+        onLayout={reportHeight}
+        style={{ gap: appSpacing.xs }}
+        testID="chat-composer-root"
+      >
+        <VoiceRecordingBar
+          elapsedMs={composer.recorder.recording.elapsedMs}
+          metering={composer.recorder.recording.metering}
+          onDelete={composer.recorder.cancelRecording}
+          onStop={() => void composer.recorder.stopRecording()}
+        />
+      </View>
+    );
+  }
 
-  const addImageOrVideo = () => {
-    setSheetOpen(false);
-    void attachments.addImageOrVideo();
-  };
-
-  const addAudio = () => {
-    if (hasBody) return;
-    setSheetOpen(false);
-    void attachments.addAudio();
-  };
+  if (composer.recorder.phase === "preview" && composer.recorder.preview) {
+    return (
+      <View
+        onLayout={reportHeight}
+        style={{ gap: appSpacing.xs }}
+        testID="chat-composer-root"
+      >
+        <VoicePreviewBar
+          durationMillis={composer.recorder.preview.durationMillis}
+          isPlaying={composer.recorder.preview.isPlaying}
+          onDelete={composer.recorder.cancelRecording}
+          onSend={() => {
+            composer.recorder.notifyVoiceMessageSent();
+            void composer.send();
+          }}
+          onTogglePlayback={composer.recorder.preview.togglePlayback}
+          positionMillis={composer.recorder.preview.positionMillis}
+          sendDisabled={composer.disabled}
+        />
+      </View>
+    );
+  }
 
   return (
-    <View style={{ gap: appSpacing.xs }}>
+    <View
+      onLayout={reportHeight}
+      style={{ gap: appSpacing.xs }}
+      testID="chat-composer-root"
+    >
       {attachmentController ? (
         <>
           <AttachmentQueueList
-            items={attachments.items}
-            onCancel={(id) => {
-              if (!sendingRef.current && !blocked) attachments.cancel(id);
-            }}
-            onRetry={(id) => {
-              if (!sendingRef.current && !blocked) attachments.retry(id);
-            }}
-            onRemove={(id) => {
-              if (!sendingRef.current && !blocked) attachments.remove(id);
-            }}
+            items={composer.attachments.items}
+            onCancel={(id) => composer.attachments.cancel(id)}
+            onRemove={(id) => composer.attachments.remove(id)}
+            onRetry={(id) => composer.attachments.retry(id)}
           />
-          {attachments.lastError ? (
+          {composer.attachments.lastError ? (
             <InlineMessage
               kind="error"
-              message={attachments.lastError.message}
+              message={composer.attachments.lastError.message}
             />
           ) : null}
-          {attachments.busy ? (
+          {composer.attachments.busy ? (
             <View
               style={{
                 alignItems: "center",
@@ -161,111 +155,86 @@ export function ChatComposer({
           <Pressable
             accessibilityLabel="첨부 추가"
             accessibilityRole="button"
-            accessibilityState={{ disabled: blocked || isSending }}
-            disabled={blocked || isSending}
-            onPress={() => setSheetOpen(true)}
+            accessibilityState={{ disabled: composer.sessionBlocksAttach }}
+            disabled={composer.sessionBlocksAttach}
+            onPress={() => {
+              if (composer.canAddImageOrVideo) {
+                void composer.attachments.addImageOrVideo();
+              } else {
+                composer.feedback?.showNotice({
+                  message: ATTACHMENT_OPTION_UNAVAILABLE,
+                });
+              }
+            }}
             style={({ pressed }) => ({
               alignItems: "center",
               height: appChatComposer.controlSize,
               justifyContent: "center",
-              opacity: blocked || isSending ? 0.5 : pressed ? 0.72 : 1,
+              opacity: composer.sessionBlocksAttach ? 0.5 : pressed ? 0.72 : 1,
               width: appChatComposer.controlSize,
             })}
           >
             <AppSymbol name="attach" size={28} tintColor={colors.textMuted} />
           </Pressable>
         ) : null}
-        <TextInput
+        <ChatComposerField
           accessibilityLabel="메시지 입력"
-          multiline
-          onBlur={() => setIsFocused(false)}
-          onChangeText={setDraft}
-          onFocus={() => setIsFocused(true)}
-          placeholder="메시지 입력..."
-          placeholderTextColor={colors.placeholder as string}
-          style={{
-            backgroundColor: colors.surface,
-            borderColor: isFocused ? colors.primary : colors.border,
-            borderCurve: "continuous",
-            borderRadius: appRadii.full,
-            borderWidth: 1,
-            color: colors.text,
-            flex: 1,
-            fontSize: 16,
-            lineHeight: 22,
-            maxHeight: appChatComposer.maxHeight,
-            minHeight: appChatComposer.minHeight,
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-          }}
-          value={draft}
+          onBlur={() => composer.setIsFocused(false)}
+          onChangeText={composer.setDraftText}
+          onFocus={() => composer.setIsFocused(true)}
+          placeholder="메시지"
+          ref={fieldRef}
+          value={composer.draftText}
         />
-        <Pressable
-          accessibilityLabel="메시지 보내기"
-          accessibilityRole="button"
-          accessibilityState={{ disabled }}
-          disabled={disabled}
-          onPress={() => void send()}
-          style={({ pressed }) => ({
-            alignItems: "center",
-            backgroundColor: disabled ? colors.fill : colors.primary,
-            borderCurve: "continuous",
-            borderRadius: 22,
-            height: appChatComposer.controlSize,
-            justifyContent: "center",
-            opacity: pressed ? 0.72 : 1,
-            width: appChatComposer.controlSize,
-          })}
-        >
-          <AppSymbol
-            name="send"
-            size={20}
-            tintColor={disabled ? colors.textMuted : colors.onPrimary}
-          />
-        </Pressable>
-      </View>
-      {attachmentController ? (
-        <Host seedColor={colors.primary}>
-          <BottomSheet
-            isPresented={sheetOpen}
-            onDismiss={() => setSheetOpen(false)}
+        {composer.showMic ? (
+          <Pressable
+            accessibilityLabel="음성 메시지 녹음"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: composer.micDisabled }}
+            disabled={composer.micDisabled}
+            onPress={() => void composer.recorder.startRecording()}
+            style={({ pressed }) => ({
+              alignItems: "center",
+              height: appChatComposer.controlSize,
+              justifyContent: "center",
+              opacity: composer.micDisabled ? 0.5 : pressed ? 0.72 : 1,
+              width: appChatComposer.controlSize,
+            })}
           >
-            <List>
-              {/*
-                Workaround for an upstream @expo/ui Android bug: when `onPress`
-                goes from present to absent on an already-mounted ListItem,
-                ListItem.android.tsx computes
-                `modifiers={itemModifiers.length ? itemModifiers : undefined}`
-                and forwards `modifiers=undefined`; expo-modules-core's
-                `ListTypeConverter.convertFromDynamic` cannot cast that prop
-                update and crashes ("Cannot set prop 'modifiers' ...
-                DynamicFromMap"). Keying each item by its own availability
-                forces React to unmount+remount instead of diffing `onPress`
-                away. Drop these keys once upstream @expo/ui passes `[]`
-                instead of `undefined` for a ListItem without `onPress`.
-              */}
-              <ListItem
-                key={canAddImageOrVideo ? "image-on" : "image-off"}
-                testID="attachment-option-image"
-                {...(canAddImageOrVideo
-                  ? { onPress: addImageOrVideo }
-                  : { supportingText: ATTACHMENT_OPTION_UNAVAILABLE })}
-              >
-                <UIText>{"사진·동영상 첨부"}</UIText>
-              </ListItem>
-              <ListItem
-                key={canAddAudio ? "audio-on" : "audio-off"}
-                testID="attachment-option-audio"
-                {...(canAddAudio
-                  ? { onPress: addAudio }
-                  : { supportingText: ATTACHMENT_OPTION_UNAVAILABLE })}
-              >
-                <UIText>{"음성 파일 첨부"}</UIText>
-              </ListItem>
-            </List>
-          </BottomSheet>
-        </Host>
-      ) : null}
+            <AppSymbol
+              name="microphone"
+              size={22}
+              tintColor={colors.textMuted}
+            />
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityLabel="메시지 보내기"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: composer.disabled }}
+            disabled={composer.disabled}
+            onPress={() => void composer.send()}
+            style={({ pressed }) => ({
+              alignItems: "center",
+              backgroundColor: composer.disabled ? colors.fill : colors.primary,
+              borderCurve: "continuous",
+              borderRadius: appRadii.full,
+              height: appChatComposer.controlSize,
+              justifyContent: "center",
+              opacity: pressed ? 0.72 : 1,
+              width: appChatComposer.controlSize,
+            })}
+          >
+            <AppSymbol
+              name="send"
+              size={20}
+              tintColor={
+                composer.disabled ? colors.textMuted : colors.onPrimary
+              }
+            />
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
