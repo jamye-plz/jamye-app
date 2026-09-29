@@ -1,17 +1,16 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15-M18(소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15 소프트 삭제 수용 완료 (2026-09-29 M15 사용자 종료 승인), M16 Sign in with Apple 착수 승인 (2026-09-30, 서버 task-15 선행), M17-M18(잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M14 UI/UX 다듬기 `COMPLETED / USER_ACCEPTED` (2026-09-28 사용자 종료 승인).
-  라운드 1(그룹 목록·그룹 상세·주제 목록·주제 상세)은 2026-09-27, 라운드 2(로그인·계정·알림·대화방
-  네이티브 UI, 사진·동영상·음성 첨부, 세션 20260927-120934)는 2026-09-28 사용자 확인으로 마쳤다(§M14
-  참고). 다음 milestone은 미정이며 사용자 결정으로 시작한다(선행 조건은 §12). M18 스토어 배포는
-  M14 만족 선언 조건을 충족했고 M16(서버 task-14·15 선행)·M17(A)·release 범위 확정과 별도 승인이
-  남아 있다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
+- 현재 frontier: M16 Sign in with Apple — 2026-09-30 사용자 요청("앱 M16, 서버 task-15 진행해")으로
+  착수했고 서버 task-15가 선행한다. 직전 M15 소프트 삭제 수용은 `COMPLETED / USER_ACCEPTED`
+  (2026-09-29 사용자 종료 승인, [M15 evidence](evidence/M15.md))다. M18 스토어 배포는 M14 만족 선언
+  조건을 충족했고 M16·M17(A)·release 범위 확정과 별도 승인이 남아 있다. 파괴적 로컬 정리는 여전히
+  별도 승인 대상(M17-B).
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-09-28
+- 최종 수정일: 2026-09-30
 
 ## 1. 이 문서가 답하는 것
 
@@ -200,8 +199,8 @@ M6 ─→ M13 account profile update + deletion lifecycle
 M13 completed (2026-09-22)
   ↓
 M14 UI/UX 다듬기 completed (2026-09-28, round 1·2)
-  ├─→ M15 소프트 삭제 수용 ← server task-14
-  ├─→ M16 Sign in with Apple ← server task-15 (task-14 선행)
+  ├─→ M15 소프트 삭제 수용 completed (2026-09-29) ← server task-14
+  ├─→ M16 Sign in with Apple (2026-09-30 착수) ← server task-15 (task-14 선행, 충족)
   └─→ M17 잔여 백로그 ← server task-16 (일부)
 M14 만족 선언 (충족) + release 범위 확정 ─→ M18 스토어 배포
 
@@ -214,7 +213,8 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 적용하는 공통 gate다.
 
 M14-M18은 2026-09-22 사용자 결정으로 등록했다. M14는 라운드 1·2를 거쳐 2026-09-28 사용자 만족
-선언과 종료 승인으로 완료했고, M15-M18은 `planned_unapproved`로 남아 각각 별도 승인으로 착수한다.
+선언과 종료 승인으로 완료했고, M15는 2026-09-29 사용자 종료 승인으로 완료했다. M16은 2026-09-30
+착수 승인을 받았고, M17-M18은 `planned_unapproved`로 남아 각각 별도 승인으로 착수한다.
 M18은 M14 만족 선언(충족)과 release 범위 확정 뒤에만 시작하며, 10.2절의 공통 release acceptance를
 실제 선택한 범위에 적용한다. 서버 측 작업(task-14-16)은 jamye-server 저장소의 로드맵 문서가 소유한다.
 
@@ -927,8 +927,9 @@ M14 종료 후 후속 후보(각각 별도 결정):
 
 ### M15. 소프트 삭제 수용 (서버 task-14 연동)
 
-- 상태: 구현·기기 검증 완료(2026-09-29). 커밋·push와 milestone 종료 승인은 구현과 별도 gate로 남아
-  있다(§10.1). 2026-09-22 사용자 결정으로 로드맵에 등록했고, 2026-09-28 사용자 요청("M15 구현
+- 상태: `COMPLETED / USER_ACCEPTED` — 구현·기기 검증 완료(2026-09-29). 2026-09-29 사용자 종료
+  승인("M15 종료할게. 모든 변경 커밋하고 PR 올린 다음에 머지해.")으로 PR #2(merge `260e1c1`)를
+  머지했다. 2026-09-22 사용자 결정으로 로드맵에 등록했고, 2026-09-28 사용자 요청("M15 구현
   시작해. 선행조건인 서버 task-14 먼저 진행하고 배포한 뒤에 시작해.")으로 착수를 승인받았다(근거
   jamye-server `.agents/results/requirements-20260928-171401.md` §1).
 - 선행: 서버 task-14(soft delete 계약)의 배포와 contract intake — 충족(1·2·3차 모두 운영 배포, 앱
@@ -1022,8 +1023,8 @@ M14 종료 후 후속 후보(각각 별도 결정):
 
 ### M16. Sign in with Apple (서버 task-15 연동)
 
-- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 서버 task-15 계약
-  publish와 Apple Developer 설정 이후 별도 승인
+- 상태: 착수 승인(2026-09-30 사용자 요청 "앱 M16, 서버 task-15 진행해") — 2026-09-22 사용자
+  결정으로 로드맵 등록. 서버 task-15 계약 publish와 Apple Developer 설정이 선행한다.
 - 선행: M6(세션 모델); 서버 task-15; Apple Developer 설정(App ID의 Sign in with Apple capability,
   서버용 key(.p8)·Team ID·Key ID); production bundle identifier 결정(M18 선행 항목 — identity token의
   `aud`가 bundle id이므로 서버는 development/production audience allowlist가 필요)
@@ -1251,13 +1252,17 @@ task-17 배포(`5b987a2`) 뒤 양 플랫폼 기기 검증을 거쳐 2026-09-27 �
 R4 수정을 확인하고 M14 종료를 승인해 M14는 `COMPLETED / USER_ACCEPTED`다([M14 evidence](evidence/M14.md)).
 이 종료 승인도 M15-M18 착수, 앱 출시, push나 새 배포를 뜻하지 않는다.
 
-다음 milestone은 미정이며 사용자 결정으로 시작한다. 후보별 선행 조건은 다음과 같다.
+2026-09-29 사용자가 M15 종료를 승인했다. 서버 task-14 1·2·3차 배포, 앱 계약 v2 intake, 구현, 양
+플랫폼 기기 검증(결함 10건 수정)과 격리 리뷰를 마쳤고 PR #2(merge `260e1c1`)로 머지했다. M15는
+`COMPLETED / USER_ACCEPTED`다([M15 evidence](evidence/M15.md)). 남은 한계와 후속은 M15 절 "후속
+후보"에 있다. 이 종료 승인도 앱 출시, 스토어 배포를 뜻하지 않는다.
 
-- M15 소프트 삭제 수용: 서버 task-14 1·2·3차 배포와 앱 contract intake를 모두 마치고 구현·기기
-  검증까지 끝났다(2026-09-29, 위 "M15. 소프트 삭제 수용" 절 참고). 남은 것은 커밋과 milestone 종료
-  승인이다.
-- M16 Sign in with Apple: 서버 task-15. 서버 로드맵은 계정 삭제 흐름 결합(D17) 때문에 task-14를
-  task-15의 선행으로 둔다. Apple Developer 설정과 production bundle identifier 결정도 필요하다.
+2026-09-30 사용자가 M16과 서버 task-15 착수를 요청했다. 진행 중인 milestone은 M16이고, 나머지 후보의
+선행 조건은 다음과 같다.
+
+- M16 Sign in with Apple(진행 중): 서버 task-15가 선행한다. 서버 로드맵이 task-15의 선행으로 둔
+  task-14(계정 삭제 흐름 결합, D17)는 충족했다. Apple Developer 설정과 production bundle identifier
+  결정도 필요하다.
 - M17 잔여 백로그: 항목별 개별 승인. 서버 계약 변경이 필요한 것은 (C) 묶음뿐이고, (B)의 파괴적 로컬
   정리는 별도 명시 승인 뒤에만 한다.
 - M18 스토어 배포: M14 만족 선언은 충족했다. M16(Guideline 4.8), M17(A) blocker 해소, release에 포함할
