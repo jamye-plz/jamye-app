@@ -14,7 +14,8 @@ server-backed group navigation을 제공하고, M8은 실제 주제 목록·메�
 M9는 영속 outbox와 실시간·누락 복구를 연결했다. M10 주제·태그는 전체 자동 검증·독립 리뷰와
 양 플랫폼 사용자 수용 4/4 확인과 종료 승인을 받아 완료했다. 이후 M11 미디어 업로드·첨부, M12
 알림함·Expo 푸시, M13 프로필 수정·계정 삭제, M14 UI/UX 다듬기(탭 구조, 네이티브 화면, 사진·동영상·음성
-첨부)도 각각 사용자 종료 승인으로 마쳤다. 아래 명령은 실행 절차이며
+첨부), M15 소프트 삭제 수용(메시지·주제 삭제, 계정 삭제 30일 유예·복구)도 각각 사용자 종료 승인으로
+마쳤다. 아래 명령은 실행 절차이며
 그 자체로 현재 품질 검사, native build 또는 runtime 성공을 뜻하지 않는다. 실제 관찰 결과는
 각 마일스톤 증거에 기록한다: [M3](docs/evidence/M3.md),
 [M4](docs/evidence/M4.md), [M5](docs/evidence/M5.md),
@@ -22,7 +23,7 @@ M9는 영속 outbox와 실시간·누락 복구를 연결했다. M10 주제·태
 [M8 REST 채팅 검증](docs/evidence/M8.md), [M9 동기화 검증](docs/evidence/M9.md),
 [M10 주제·태그 검증](docs/evidence/M10.md), [M11 미디어 구현·검증 현황](docs/evidence/M11.md),
 [M12 알림·푸시 증거](docs/evidence/M12.md), [M13 계정 수명주기 증거](docs/evidence/M13.md),
-[M14 UI/UX 증거](docs/evidence/M14.md).
+[M14 UI/UX 증거](docs/evidence/M14.md), [M15 소프트 삭제 증거](docs/evidence/M15.md).
 
 ## 현재 범위
 
@@ -54,7 +55,8 @@ M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도�
 - M12: 알림함과 Expo 푸시 — 완료 (2026-09-21 iPhone 실기기 푸시 수신·탭 handoff·미리보기 off·기본 대화방 알림 확인 및 종료 승인). 서버 가시 페이로드(PR #6)와 기본 대화방 알림(PR #7) 배포 포함
 - M13: 프로필 수정과 계정 삭제 — 완료 (2026-09-22 사용자 디바이스 확인 및 종료 승인)
 - M14: UI/UX 다듬기 — 완료 (2026-09-28 사용자 종료 승인). 라운드 1은 탭 구조와 그룹·주제 화면, 라운드 2는 로그인·계정·알림·대화방 네이티브 UI와 사진·동영상·음성 첨부
-- 다음: 미정. M15-M18(소프트 삭제 수용·Sign in with Apple·잔여 백로그·스토어 배포)은 `planned_unapproved`이며 각각 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
+- M15: 소프트 삭제 수용 — 완료 (2026-09-29 사용자 종료 승인). 메시지·주제 삭제와 삭제 표시, 계정 삭제 30일 유예·복구 안내, 서버 계약 v2(서버 task-14 1·2·3차 배포)
+- 다음: M16 Sign in with Apple — 2026-09-30 착수(서버 task-15 선행). M17-M18(잔여 백로그·스토어 배포)은 `planned_unapproved`이며 각각 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
 
 M10의 확정 범위와 순서는 [로드맵의 M10 계획](docs/roadmap.md#m10-주제태그)에 있다.
 계약·데이터 연결 → 주제·태그 화면 → M9 동기화 연결 → 자동 검증·양 플랫폼 수용 순서이며,
@@ -66,10 +68,11 @@ M10 종료·로컬 커밋을 승인했다. 출처별 결과와 한계는 [M10 ev
 [개발 검증 기록](docs/development-workflow.md#m10-구현과-focused-검증--2026-09-10)에 있다. Push·배포는 별도다.
 
 새 OAuth provider(Apple 제외), STT/on-device AI와 새 push backend는 현재 서버 계약 밖의 별도
-backlog다. Apple login(M16), 메시지 삭제(M15), 메시지 편집과 presence/typing/reaction(M17(C))은
-2026-09-22 로드맵에 `planned_unapproved`로 등록됐고 서버 계약이 선행한다. 의존성 보안 수정 후에도
+backlog다. 메시지 삭제(M15)는 서버 task-14와 함께 마쳤고, Apple login(M16)은 2026-09-30 착수했으며
+서버 task-15 계약이 선행한다. 메시지 편집과 presence/typing/reaction(M17(C))은 2026-09-22 로드맵에
+`planned_unapproved`로 등록됐고 서버 계약이 선행한다. 의존성 보안 수정 후에도
 원본 감사의 image-size High 2건과 Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용 및 배포
-revision binding은 남아 있어 production readiness는 `NOT READY`다. M6-M14 종료는 이 출시 항목들의
+revision binding은 남아 있어 production readiness는 `NOT READY`다. M6-M15 종료는 이 출시 항목들의
 완료를 뜻하지 않는다.
 패치 검증과 감사 결과는 [개발 검증 기록](docs/development-workflow.md)에 구분한다. 자세한 경계는
 [`docs/roadmap.md`](docs/roadmap.md)와
