@@ -199,6 +199,52 @@ describe("auth API contract", () => {
       "Bearer access",
     );
   });
+
+  test("M15/task-14 phase 1 (AC4/G2): exchange reads the one-shot account-restored header without touching TokenPair validation", async () => {
+    const exchangeInput = {
+      authorizationCode: "code",
+      state,
+      verifier: "v".repeat(43),
+      redirectUri: "https://api.example/api/v1/auth/oauth/kakao/callback",
+    };
+
+    // Header present with the exact contracted value -> restored.
+    fetchMock.mockResolvedValueOnce(
+      response(token, { "X-Jamye-Account-Restored": "true" }),
+    );
+    await expect(
+      createAuthApi("https://api.example").exchange("kakao", exchangeInput),
+    ).resolves.toMatchObject({
+      accessToken: "access",
+      accountRestored: true,
+    });
+
+    // Header absent (v1-shaped response, the common case) -> not restored.
+    fetchMock.mockResolvedValueOnce(response(token));
+    await expect(
+      createAuthApi("https://api.example").exchange("kakao", exchangeInput),
+    ).resolves.toMatchObject({ accountRestored: false });
+
+    // Header present with an unexpected value -> never trusted as restored.
+    fetchMock.mockResolvedValueOnce(
+      response(token, { "X-Jamye-Account-Restored": "false" }),
+    );
+    await expect(
+      createAuthApi("https://api.example").exchange("kakao", exchangeInput),
+    ).resolves.toMatchObject({ accountRestored: false });
+
+    // TokenPair body schema/validation is unchanged: a malformed body still
+    // rejects with the existing error code regardless of the header.
+    fetchMock.mockResolvedValueOnce(
+      response(
+        { ...token, refresh_token: "too-short" },
+        { "X-Jamye-Account-Restored": "true" },
+      ),
+    );
+    await expect(
+      createAuthApi("https://api.example").exchange("kakao", exchangeInput),
+    ).rejects.toMatchObject({ code: "invalid_token_response" });
+  });
   test("rejects arbitrary authorization URLs and maps timeout or error responses without body leaks", async () => {
     fetchMock.mockResolvedValueOnce(
       response({
@@ -314,9 +360,26 @@ describe("auth API contract", () => {
   });
 });
 
-function response(body: unknown) {
-  return { ok: true, status: 200, json: async () => body } as Response;
+function response(
+  body: unknown,
+  headers: Readonly<Record<string, string>> = {},
+) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => body,
+    // M15/task-14 phase 1 (AC4): a minimal Headers-like stub so exchange()'s
+    // `headers.get("X-Jamye-Account-Restored")` never throws on the
+    // pre-existing calls in this file that never care about it (default: no
+    // headers at all, matching a v1-shaped response).
+    headers: { get: (name: string) => headers[name] ?? null },
+  } as unknown as Response;
 }
 function noContent() {
-  return { ok: true, status: 204, json: async () => null } as Response;
+  return {
+    ok: true,
+    status: 204,
+    json: async () => null,
+    headers: { get: () => null },
+  } as unknown as Response;
 }

@@ -46,6 +46,23 @@ jest.mock("@/features/groups/ui/group-list-screen", () => {
     GroupListScreen: () => <Text testID="group-list">groups</Text>,
   };
 });
+// G2/E13: this file tests thin route structure, not the restore notice
+// itself (see tests/app/groups-account-restore-notice.test.tsx for that) --
+// stub both out so the group-list route test never pulls in a real
+// SystemFeedbackHost (@expo/ui/swift-ui's Alert is unmocked here).
+jest.mock("@/shared/ui/system-feedback", () => {
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    SystemFeedbackHost: ({ children }: { children: React.ReactNode }) => (
+      <View testID="system-feedback-host">{children}</View>
+    ),
+    useSystemFeedback: () => ({ showNotice: jest.fn() }),
+  };
+});
+jest.mock("@/features/auth/ui/account-restore-notice", () => ({
+  AccountRestoreNotice: () => null,
+}));
 jest.mock("@/features/topics/ui/topics-screen", () => {
   const { Text } =
     jest.requireActual<typeof import("react-native")>("react-native");

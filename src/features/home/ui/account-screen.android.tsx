@@ -21,7 +21,7 @@ const STORAGE_ERROR_TEXT =
   "로컬 계정 저장소를 열 수 없습니다. 다시 시도해 주세요.";
 const DELETE_CONFIRM_TITLE = "계정 삭제";
 const DELETE_CONFIRM_MESSAGE =
-  "정말 계정을 삭제할까요? 이 작업은 되돌릴 수 없습니다.";
+  "계정을 삭제할까요? 30일 안에 같은 계정으로 다시 로그인하면 복구할 수 있고, 30일이 지나면 되돌릴 수 없습니다.";
 const LOGOUT_CONFIRM_TITLE = "로그아웃할까요?";
 const PROVIDER_LABELS: Record<string, string> = {
   google: "Google",
@@ -68,6 +68,22 @@ export function AccountScreen() {
       });
   }, [pushLifecycle, session]);
 
+  // `ListItem`'s onPress must stay a defined function at all times: the
+  // Android universal implementation flips its Compose `modifiers` prop
+  // between an array and `undefined` based on onPress' presence, and
+  // `undefined` fails the native prop cast (LogBox `PropSetException`,
+  // r2-18 / 기기 결함 9). Guard the in-flight state inside the handler
+  // instead of conditionally passing `undefined`.
+  const handleLogoutRowPress = useCallback(() => {
+    if (loggingOut) return;
+    setLogoutConfirmVisible(true);
+  }, [loggingOut]);
+
+  const handleDeleteRowPress = useCallback(() => {
+    if (deleteFlow.pending) return;
+    deleteFlow.requestConfirm();
+  }, [deleteFlow]);
+
   if (!session.principal || !profile) return null;
 
   const storageStatus = account.state?.status ?? "opening";
@@ -110,18 +126,10 @@ export function AccountScreen() {
             <Text>닉네임</Text>
           </ListItem>
           <NotificationSettingsSection />
-          <ListItem
-            onPress={
-              loggingOut ? undefined : () => setLogoutConfirmVisible(true)
-            }
-            testID="logout-row"
-          >
+          <ListItem onPress={handleLogoutRowPress} testID="logout-row">
             <Text textStyle={{ color: hex.error }}>로그아웃</Text>
           </ListItem>
-          <ListItem
-            onPress={deleteFlow.pending ? undefined : deleteFlow.requestConfirm}
-            testID="delete-account-row"
-          >
+          <ListItem onPress={handleDeleteRowPress} testID="delete-account-row">
             <Text textStyle={{ color: hex.error }}>계정 삭제</Text>
           </ListItem>
           {deleteFlow.message ? (

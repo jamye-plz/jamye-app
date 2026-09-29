@@ -276,7 +276,7 @@ describe("account screen (ios)", () => {
     const alert = screen.getByTestId("delete-confirm-alert");
     expect(
       within(alert).getByText(
-        "정말 계정을 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
+        "계정을 삭제할까요? 30일 안에 같은 계정으로 다시 로그인하면 복구할 수 있고, 30일이 지나면 되돌릴 수 없습니다.",
       ),
     ).toBeTruthy();
     await act(async () => {
