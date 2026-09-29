@@ -2,6 +2,7 @@ import Ajv2020 from "ajv/dist/2020";
 
 import { registerServerContractFormats } from "@/core/contracts/server/formats";
 import {
+  classifyDeltaItem,
   isValidInviteJoinCode,
   parseOAuthCallbackQuery,
   realtimeProtocol,
@@ -26,6 +27,7 @@ import {
   validateMemberRolePatch,
   validateMessageCreate,
   validateMessageCreatedEvent,
+  validateMessageDeletedEvent,
   validateOAuthAuthorizeIn,
   validateOAuthAuthorizeOut,
   validateOAuthExchangeIn,
@@ -35,12 +37,15 @@ import {
   validateReadMarker,
   validateRealtimeClientFrame,
   validateRealtimeMessageCreatedFrame,
+  validateRealtimeMessageDeletedFrame,
   validateRealtimeServerFrame,
   validateRealtimeTicket,
   validateRealtimeTopicCreatedFrame,
+  validateRealtimeTopicDeletedFrame,
   validateRefreshIn,
   validateTokenPair,
   validateTopicCreatedEvent,
+  validateTopicDeletedEvent,
   validateUnsupportedEventMarker,
   validateUser,
 } from "@/core/contracts/server";
@@ -869,9 +874,118 @@ describe("M6-01 server contract runtime validators", () => {
     expect(realtimeProtocol.denied_subscribe.close_code).toBe(4001);
     expect(realtimeProtocol.selected_D13_A.deadline_close_code).toBe(4401);
     expect(realtimeProtocol.contract_versions.unsupported.status).toBe(426);
+    // M15/task-14 phase 1: contract v2 negotiation and the two new typed
+    // delete discriminants.
+    expect(realtimeProtocol.contract_versions.current).toBe("2");
+    expect(realtimeProtocol.contract_versions.previous).toBe("1");
     expect(realtimeProtocol.known_event_discriminants).toEqual([
       "message.created",
       "topic.created",
+      "message.deleted",
+      "topic.deleted",
     ]);
+  });
+
+  test("M15/task-14 phase 1: message.deleted/topic.deleted REST events validate against the closed schema", () => {
+    const base = {
+      version: 1,
+      event_id: VALID_UUID,
+      conversation_id: VALID_UUID,
+      cursor: "42",
+      occurred_at: VALID_DATE_TIME,
+    };
+    const messageDeleted = {
+      ...base,
+      type: "message.deleted",
+      data: {
+        message_id: VALID_UUID,
+        chatroom_id: VALID_UUID,
+        group_id: VALID_UUID,
+        deleted_at: VALID_DATE_TIME,
+        deleted_by: VALID_UUID,
+        reason: "author_deleted",
+      },
+    };
+    expect(validateMessageDeletedEvent(messageDeleted)).toBe(true);
+    expect(validateDeltaItem(messageDeleted)).toBe(true);
+    expect(validateMessageDeletedEvent({ ...messageDeleted, extra: 1 })).toBe(
+      false,
+    );
+    expect(
+      validateMessageDeletedEvent({ ...messageDeleted, type: "topic.deleted" }),
+    ).toBe(false);
+
+    const topicDeleted = {
+      ...base,
+      type: "topic.deleted",
+      data: {
+        topic_id: VALID_UUID,
+        topic_chatroom_id: VALID_UUID,
+        group_id: VALID_UUID,
+        deleted_at: VALID_DATE_TIME,
+        deleted_by: VALID_UUID,
+        announcement_message_id: null,
+      },
+    };
+    expect(validateTopicDeletedEvent(topicDeleted)).toBe(true);
+    expect(validateDeltaItem(topicDeleted)).toBe(true);
+    expect(
+      validateTopicDeletedEvent({
+        ...topicDeleted,
+        announcement_message_id: 1,
+      }),
+    ).toBe(false);
+
+    expect(validateRealtimeMessageDeletedFrame(messageDeleted)).toBe(true);
+    expect(validateRealtimeServerFrame(messageDeleted)).toBe(true);
+    expect(validateRealtimeTopicDeletedFrame(topicDeleted)).toBe(true);
+    expect(validateRealtimeServerFrame(topicDeleted)).toBe(true);
+  });
+
+  test("M15/task-14 phase 1 (E17): classifyDeltaItem discriminates by `type`, never by `data` shape", () => {
+    const messageCreated = {
+      version: 1,
+      type: "message.created",
+      event_id: VALID_UUID,
+      conversation_id: VALID_UUID,
+      cursor: "1",
+      occurred_at: VALID_DATE_TIME,
+      data: { id: VALID_UUID },
+    };
+    const messageDeleted = {
+      version: 1,
+      type: "message.deleted",
+      event_id: VALID_UUID,
+      conversation_id: VALID_UUID,
+      cursor: "2",
+      occurred_at: VALID_DATE_TIME,
+      data: { message_id: VALID_UUID },
+    };
+    const topicDeleted = {
+      version: 1,
+      type: "topic.deleted",
+      event_id: VALID_UUID,
+      conversation_id: VALID_UUID,
+      cursor: "3",
+      occurred_at: VALID_DATE_TIME,
+      data: { topic_id: VALID_UUID },
+    };
+    const unsupported = {
+      event_id: VALID_UUID,
+      cursor: "4",
+      reconcile_scope: "chat_history",
+    };
+
+    // The pre-fix guard was `"data" in item`, which would have routed both
+    // messageDeleted and topicDeleted into the message.created branch
+    // because they also carry a `data` object (E17).
+    expect(classifyDeltaItem(messageCreated as never).kind).toBe(
+      "message.created",
+    );
+    expect(classifyDeltaItem(messageDeleted as never).kind).toBe(
+      "message.deleted",
+    );
+    expect(classifyDeltaItem(topicDeleted as never).kind).toBe("topic.deleted");
+    expect(classifyDeltaItem(unsupported as never).kind).toBe("unsupported");
   });
 });

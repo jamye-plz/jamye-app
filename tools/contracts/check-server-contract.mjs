@@ -38,10 +38,13 @@ async function readOptionalJson(path) {
  * Self-contained, read-only drift check: never reads the sibling
  * jamye-server checkout and never mutates the checked-in snapshot or
  * generated output. Reports whether the preserved intake snapshot
- * (openapi.json/manifest.json), the selectively vendored M9 realtime
- * protocol/frame schemas and recovery fixtures (verified against the
+ * (openapi.json/manifest.json), the selectively vendored realtime
+ * protocol/frame schemas and recovery fixtures (M9, plus the M15/task-14
+ * message.deleted/topic.deleted schemas -- verified against the
  * intake-recorded selective_vendor_sha256 map), the generated type
- * boundary, and the generation lock are mutually consistent.
+ * boundary, and the generation lock are mutually consistent. This function
+ * is fully generic over SELECTIVE_M9_VENDORED_ARTIFACTS's current contents,
+ * so it needed no behavioral change for the M15 additions.
  */
 export async function checkServerContract({
   contractRoot,

@@ -22,6 +22,12 @@ const GENERATOR_IDENTITY = "openapi-typescript@7.13.0";
 // M10 adds topics/tags; M11 adds MD1-MD5 media operations from the same snapshot.
 // M14 round 1 adds C5 (chatroom media gallery) and drops MD3 with the removed
 // topic media surface (server migration 0012).
+// M15/task-14 phase 1 raises the upstream contract_version to "2" (previous
+// "1") and adds MessageDeletedEvent/TopicDeletedEvent to the DeltaItem oneOf;
+// both are generated automatically from contracts/server/openapi.json like
+// every other schema here, so SCHEMA_CLOSURE_OPERATION_IDS is unchanged by
+// this task (C6/T8 delete operation IDs are added by the tasks that build
+// their REST calls, not this contract-intake task).
 const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "A1",
   "A2",

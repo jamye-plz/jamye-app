@@ -14,21 +14,23 @@
   ],
   "selective_vendor_sha256": {
     "fixtures/mobile-sync-handoff.json": "66cad4b60a718568500b32217cf4f1cbe048687270b657a35c81a43637eba860",
-    "fixtures/realtime-lifecycle.json": "5895c11d7d354a04140ec8286c07aad487e6fb00e9511db1ace5e4ef58e79cbe",
+    "fixtures/realtime-lifecycle.json": "574d8d964c08470f8f346646ff0d8220e71bb4001103d135510063c3335d093f",
     "fixtures/unknown-event-recovery.json": "dc647447de8e2aa03cb245eff29e96dba08e0024dff72c0f648b2bfe24a2c18f",
     "realtime/client-frame.schema.json": "cbb6c9966777ae07cfbb66de39b7a16e79b2dbfb95037ac2688ff5457b72b763",
     "realtime/message.created.schema.json": "001da4ed19649d2cf01dcbf8993fb5745f72e36b9fdc081862a162117fd54e84",
-    "realtime/protocol.json": "00fc9016315cb015e63928fdf0252f834f5118fe5ea480ed3003762d30a67d59",
-    "realtime/server-frame.schema.json": "1671da7f44048e673f9011c2e79a8a9708bfc9cda2c6f0a98f271f9790eb81b2",
-    "realtime/topic.created.schema.json": "1db02f6910b016bd1100e45f2354935ba4e2d7b69a89f1d51e22a67ee10d98c5"
+    "realtime/message.deleted.schema.json": "c5aefda85b0d0839c991b2c9d3043d5d06c1a70ed07c14c332269c7e36c4bffa",
+    "realtime/protocol.json": "1f6603df3919dbd5cf461579c0d9104c43b22985993a72a07f0f064e2f476941",
+    "realtime/server-frame.schema.json": "80c87a6f730a0845f6056485215b3c4f5b5d4a355b25b58ea1ea3e722b30ddc0",
+    "realtime/topic.created.schema.json": "1db02f6910b016bd1100e45f2354935ba4e2d7b69a89f1d51e22a67ee10d98c5",
+    "realtime/topic.deleted.schema.json": "c104da766595c017c9005ac85f66c114b3548ce99436de1815a4cfa1c0e4480b"
   },
-  "source_git_revision": "a77cac524d0ac418cf40a116f090a7190e238cfe",
-  "upstream_artifact_count": 21,
-  "upstream_bundle_sha256": "867a1a86fea84d4cad7e2a5c14600f0aa79c01a723fad077a4f504dea03f4c4a",
+  "source_git_revision": "b20a4d0327203e58734d5cc202deddfc3e562d42",
+  "upstream_artifact_count": 23,
+  "upstream_bundle_sha256": "65da7e8e7b496eafcaf2a8ac8b95337f5941bebb51d299e4b1f994e498b2a23c",
   "upstream_bundle_verified": true,
-  "upstream_contract_version": "1",
-  "upstream_manifest_sha256": "37062a93ce459b6fdabf0307da93b46cba92ab8bd3ab2b63279c59cf1f9b222d",
-  "upstream_openapi_sha256": "f12b212f3339a4800ed97a8013800b6c1975c2e70e847c6913d3728d00c0ba78",
+  "upstream_contract_version": "2",
+  "upstream_manifest_sha256": "8f03614f42ac5378010e17e59196cc6bd8fc3e52d55409224d56d7718a419c9a",
+  "upstream_openapi_sha256": "f7335a42bdbfc4549af9fc897f95c14fdb98c53828fc11472b3d915c253a79d0",
   "upstream_server_commit": "dirty",
   "validator_identity": "ajv@8.20.0"
 }

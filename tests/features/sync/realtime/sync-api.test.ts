@@ -51,7 +51,10 @@ describe("M9 authenticated delta and ticket transport", () => {
       redirect: "error",
       headers: {
         Authorization: "Bearer access",
-        "X-Jamye-Contract-Version": "1",
+        // M15/task-14 phase 1 (AC3): current contract version is now "2"
+        // (previous "1" stays accepted server-side but the app always
+        // negotiates current).
+        "X-Jamye-Contract-Version": "2",
       },
     });
   });
@@ -62,7 +65,10 @@ describe("M9 authenticated delta and ticket transport", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       `${origin}/api/v1/realtime/tickets`,
     );
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST" });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: "POST",
+      headers: { "X-Jamye-Contract-Version": "2" },
+    });
     expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
     const url = new URL(realtimeSocketUrl(origin, "one/use+ticket"));
     expect(url.protocol).toBe("wss:");

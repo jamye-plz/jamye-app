@@ -37,9 +37,11 @@ contracts/server/fixtures/realtime-lifecycle.json
 contracts/server/fixtures/unknown-event-recovery.json
 contracts/server/realtime/client-frame.schema.json
 contracts/server/realtime/message.created.schema.json
+contracts/server/realtime/message.deleted.schema.json
 contracts/server/realtime/protocol.json
 contracts/server/realtime/server-frame.schema.json
 contracts/server/realtime/topic.created.schema.json
+contracts/server/realtime/topic.deleted.schema.json
 src/core/contracts/generated/
 
 # Accepted milestone evidence is immutable
