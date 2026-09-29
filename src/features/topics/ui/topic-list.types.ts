@@ -22,4 +22,14 @@ export type TopicListProps = Readonly<{
   topError?: TopicListTopError | null;
   testID?: string;
   topics: readonly Topic[];
+  /**
+   * M15/AC3/E11: the signed-in user's id, to gate the row delete action to
+   * author rows only (`topic.authorId === currentUserId`); `null` while the
+   * session isn't ready yet renders every row without the action, same as
+   * before M15.
+   */
+  currentUserId: string | null;
+  /** M15/AC1/AC5: called with the row's topic after `ConfirmAlert` confirms
+   * a delete request from that row's swipe/context-menu/long-press action. */
+  onDeleteConfirmed: (topic: Topic) => void;
 }>;

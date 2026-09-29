@@ -456,7 +456,9 @@ describe("M10/M14 topic views with real controller and fake API", () => {
     expect(
       f.screen.queryByRole("button", { name: "이 주제에서 대화하기" }),
     ).toBeNull();
-    await fireEvent.press(f.screen.getByRole("button", { name: "주제 편집" }));
+    // M15/AC4: 편집 is now a HeaderActions menu item (주제 메뉴), not a
+    // standalone button -- opening it is the only thing that changed here.
+    await fireEvent.press(f.screen.getByRole("menuitem", { name: "편집" }));
     expect(f.screen.queryByTestId("topic-article")).toBeNull();
     await fireEvent.changeText(
       f.screen.getByLabelText("주제 본문"),
@@ -476,7 +478,9 @@ describe("M10/M14 topic views with real controller and fake API", () => {
     const f = await setup(
       <TopicDetailScreen groupId={groupId} topicId={topicId} />,
     );
-    await fireEvent.press(f.screen.getByRole("button", { name: "주제 편집" }));
+    // M15/AC4: 편집 is now a HeaderActions menu item (주제 메뉴), not a
+    // standalone button -- opening it is the only thing that changed here.
+    await fireEvent.press(f.screen.getByRole("menuitem", { name: "편집" }));
     await fireEvent.changeText(
       f.screen.getByLabelText("주제 본문"),
       "버릴 초안",
@@ -489,7 +493,9 @@ describe("M10/M14 topic views with real controller and fake API", () => {
     const f = await setup(
       <TopicDetailScreen groupId={groupId} topicId={topicId} />,
     );
-    await fireEvent.press(f.screen.getByRole("button", { name: "주제 편집" }));
+    // M15/AC4: 편집 is now a HeaderActions menu item (주제 메뉴), not a
+    // standalone button -- opening it is the only thing that changed here.
+    await fireEvent.press(f.screen.getByRole("menuitem", { name: "편집" }));
     await fireEvent.changeText(f.screen.getByLabelText("새 태그"), " 새 태그 ");
     await fireEvent.press(f.screen.getByRole("button", { name: "태그 추가" }));
     await fireEvent.press(f.screen.getByRole("button", { name: "저장" }));
@@ -512,7 +518,9 @@ describe("M10/M14 topic views with real controller and fake API", () => {
       f,
     );
     await screen.findByTestId("topic-article");
-    expect(screen.queryByRole("button", { name: "주제 편집" })).toBeNull();
+    // M15/AC4/E11: the entry point is now the 주제 메뉴 trigger itself
+    // (which holds 편집/삭제); a non-author must see neither.
+    expect(screen.queryByRole("button", { name: "주제 메뉴" })).toBeNull();
   });
   test("no permission at all hides the 편집 entry point entirely", async () => {
     const f = topicsHarness();
@@ -526,7 +534,9 @@ describe("M10/M14 topic views with real controller and fake API", () => {
       f,
     );
     await screen.findByTestId("topic-article");
-    expect(screen.queryByRole("button", { name: "주제 편집" })).toBeNull();
+    // M15/AC4/E11: the entry point is now the 주제 메뉴 trigger itself
+    // (which holds 편집/삭제); a non-author must see neither.
+    expect(screen.queryByRole("button", { name: "주제 메뉴" })).toBeNull();
   });
   test("changing account removes the previous create form input", async () => {
     const f = await setup(<TopicCreateScreen groupId={groupId} />);
@@ -543,7 +553,9 @@ describe("M10/M14 topic views with real controller and fake API", () => {
     const f = await setup(
       <TopicDetailScreen groupId={groupId} topicId={topicId} />,
     );
-    await fireEvent.press(f.screen.getByRole("button", { name: "주제 편집" }));
+    // M15/AC4: 편집 is now a HeaderActions menu item (주제 메뉴), not a
+    // standalone button -- opening it is the only thing that changed here.
+    await fireEvent.press(f.screen.getByRole("menuitem", { name: "편집" }));
     await fireEvent.changeText(
       f.screen.getByLabelText("주제 본문"),
       "숨겨야 할 초안",

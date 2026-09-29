@@ -14,6 +14,7 @@ import type { AccountPrincipal } from "@/core/database/account/types";
 import type { TopicsRepository } from "@/core/database/account/topics-types";
 import type { TopicsStore, AuthorizedTopicsRequest } from "./topics-store";
 import { initialTopicsState } from "./topics-state";
+import { registerTopicDeletedHandler } from "@/features/sync/realtime/topic-deleted-dispatch";
 
 export type TopicsStoreFactory = (
   principal: AccountPrincipal,
@@ -104,6 +105,16 @@ function ScopedTopicsProvider({
     if (!store) return;
     return subscribeSync(() => store.actions.signal());
   }, [store, subscribeSync]);
+  useEffect(() => {
+    if (!store) return;
+    // M15/AC2/AC7: task-app-chat's sync engine dispatches a durably-applied
+    // topic.deleted item through this narrow seam (plan
+    // api_contracts.app_sync_apply.interface) once delta-sync.ts's
+    // applyItem commits it; this store instance is the one task-app-topics
+    // owns for it (it also fans out to the notifications destination-cache
+    // invalidation through its own `onTopicDeleted` dependency).
+    return registerTopicDeletedHandler(store.actions.applyTopicDeleted);
+  }, [store]);
   const value = useMemo(
     () => ({ state, store, ready: Boolean(store) }),
     [state, store],

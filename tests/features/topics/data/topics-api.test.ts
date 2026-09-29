@@ -230,6 +230,49 @@ describe("M10 T1-T7 contract transport", () => {
       status: 502,
     });
   });
+  test("T8 (AC1) deletes a topic on 204 with no response body needed", async () => {
+    reply(null, 204);
+    await expect(
+      api.deleteTopic("t", groupId, topicId),
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://api.example.com/api/v1/groups/${groupId}/topics/${topicId}`,
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+  test.each([
+    [403, "topic_author_required"],
+    [404, "topic_not_found"],
+    [403, "membership_required"],
+    [403, "group_not_found"],
+  ])(
+    "T8 (AC1) maps a %s %s rejection verbatim, same as every other endpoint",
+    async (status, code) => {
+      // ErrorBody requires `details` (reserved, exactly null in v1); omitting
+      // it fails validateErrorEnvelope's schema check and silently falls
+      // back to a generic "request_failed" code (the existing "keeps safe
+      // error code and status" test above never notices this because it
+      // only asserts `status`, not `code`).
+      reply(
+        {
+          error: {
+            code,
+            details: null,
+            message: "secret-input",
+            request_id: key,
+          },
+        },
+        status,
+      );
+      try {
+        await api.deleteTopic("t", groupId, topicId);
+        throw new Error("expected rejection");
+      } catch (error) {
+        expect(error).toMatchObject({ status, code });
+        expect(String(error)).not.toContain("secret-input");
+      }
+    },
+  );
   test("network failures and caller cancellation are safe and distinguishable", async () => {
     fetchMock.mockRejectedValue(new Error("secret-url"));
     await expect(api.getTopic("t", groupId, topicId)).rejects.toMatchObject({

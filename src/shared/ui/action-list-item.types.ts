@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactElement } from "react";
 
 export type RowActionSymbol =
   | "delete"
@@ -36,8 +36,12 @@ export type RowAction = Readonly<{
 export type ActionListItemProps = Readonly<{
   /** Secondary actions. iOS: trailing swipe + long-press context menu. Android: long-press or the trailing ⋮ opens a dropdown menu. */
   actions: readonly RowAction[];
-  /** Leading slot content (e.g. a monogram/photo `Avatar`, G1/I4). */
-  leading?: ReactNode;
+  /**
+   * Leading slot content (e.g. a monogram/photo `Avatar`, G1/I4): one React
+   * Native element with an explicit size, since Android hosts it through
+   * `RNHostView matchContents` (DESIGN.md §4).
+   */
+  leading?: ReactElement;
   /** Primary action for a tap on the row. */
   onPress: () => void;
   /**

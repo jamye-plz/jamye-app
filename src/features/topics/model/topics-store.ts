@@ -1,6 +1,13 @@
 import { AuthApiError } from "@/core/auth/auth-api";
-import type { Topic, TopicTag } from "@/core/contracts/server";
-import type { TopicsRepository } from "@/core/database/account/topics-types";
+import type {
+  Topic,
+  TopicDeletedEvent,
+  TopicTag,
+} from "@/core/contracts/server";
+import type {
+  TopicAuthorIdentity,
+  TopicsRepository,
+} from "@/core/database/account/topics-types";
 import { TopicsApiError, type TopicsApi } from "../data/topics-api";
 import {
   isTopicDate,
@@ -40,6 +47,14 @@ type Dependencies = Readonly<{
   watchGroup: (groupId: string) => Promise<void>;
   /** Seoul calendar date used as the initial dial selection; defaults to now. */
   today?: () => string;
+  /**
+   * M15/AC7/E4: called with the deleted topic's chatroom id so the caller
+   * can invalidate its own destination cache and refresh N1 (production
+   * wires `notificationsStore.actions.handleTopicDeleted`, see
+   * `app-providers.tsx`). Optional so existing tests that don't exercise
+   * M15 delete cleanup need no change.
+   */
+  onTopicDeleted?: (chatroomId: string) => void;
 }>;
 
 function outcome(error: unknown): TopicsError {
@@ -62,6 +77,19 @@ function unique<T>(
   const result = new Map<string, T>();
   for (const item of items) result.set(key(item), item);
   return [...result.values()];
+}
+/** M15 AC8: this response's authors, deduped by authorId (last one in the
+ * response wins, same last-write-wins rule as `unique` above) and mapped
+ * down to the identity fields the repository port propagates. Callers apply
+ * this only to a genuine T3/T4 network response, never to cache hydration. */
+function authorIdentities(
+  topics: readonly Topic[],
+): readonly TopicAuthorIdentity[] {
+  return unique(topics, (topic) => topic.authorId).map((topic) => ({
+    authorAvatarUrl: topic.authorAvatarUrl,
+    authorId: topic.authorId,
+    authorNickname: topic.authorNickname,
+  }));
 }
 function assertCursor(
   next: string | null,
@@ -251,6 +279,10 @@ export function createTopicsStore(deps: Dependencies) {
         ),
       );
       if (!ticket.current()) return;
+      await persist(ticket, () =>
+        deps.repository.refreshAuthorIdentities(authorIdentities(page.items)),
+      );
+      if (!ticket.current()) return;
       pageCursors.clear();
       dateCursors.clear();
       publish({
@@ -364,6 +396,10 @@ export function createTopicsStore(deps: Dependencies) {
       const complete = { ...topic, tags };
       await persist(ticket, () => deps.repository.saveTopic(complete));
       if (!ticket.current()) return;
+      await persist(ticket, () =>
+        deps.repository.refreshAuthorIdentities(authorIdentities([complete])),
+      );
+      if (!ticket.current()) return;
       publish({
         ownerId: owner,
         detail: {
@@ -377,15 +413,26 @@ export function createTopicsStore(deps: Dependencies) {
         permissions: topicPermissions(complete, deps.userId),
       });
     } catch (error) {
-      if (!(await handleFailure(error, ticket)) && ticket.current())
-        publish({
-          detail: {
-            ...emptyTopicDetail(),
-            id,
-            status: "error",
-            error: outcome(error),
-          },
-        });
+      if (!(await handleFailure(error, ticket)) && ticket.current()) {
+        const failure = outcome(error);
+        // A topic-detail 404 reads as "deleted" either way (E5): the app
+        // cannot tell a hard-deleted topic apart from any other 404 here.
+        publish(
+          failure === "not_found"
+            ? {
+                detail: { ...emptyTopicDetail(), id, status: "deleted" },
+                permissions: { canEdit: false, canManageTags: false },
+              }
+            : {
+                detail: {
+                  ...emptyTopicDetail(),
+                  id,
+                  status: "error",
+                  error: failure,
+                },
+              },
+        );
+      }
     } finally {
       ticket.finish();
     }
@@ -431,6 +478,10 @@ export function createTopicsStore(deps: Dependencies) {
           deps.repository.savePage(group, date, combined),
         );
         if (!ticket.current()) return;
+        await persist(ticket, () =>
+          deps.repository.refreshAuthorIdentities(authorIdentities(page.items)),
+        );
+        if (!ticket.current()) return;
         pageCursors.add(after);
         publish({
           items: combined.items,
@@ -468,7 +519,7 @@ export function createTopicsStore(deps: Dependencies) {
       ticket.finish();
     }
   }
-  function startMutation(kind: "create" | "edit" | "tags") {
+  function startMutation(kind: "create" | "edit" | "tags" | "delete") {
     if (state.mutation.status === "pending") return null;
     const ticket = begin("mutation");
     if (!ticket) return null;
@@ -631,6 +682,101 @@ export function createTopicsStore(deps: Dependencies) {
       ticket.finish();
     }
   }
+  /**
+   * Local cache cleanup for a deleted topic (AC2/E5): drops it from the list
+   * cache and, when its detail is the one currently open, marks that detail
+   * "deleted" (the screen renders the exact-copy state; back stays enabled,
+   * any composer is a chat-side concern) instead of clearing it outright.
+   * Idempotent: called both right after a successful T8 delete and from the
+   * `topic.deleted` event, in whichever order they arrive -- a repeat call
+   * for an id already dropped from `items`/`detail` is a no-op besides the
+   * harmless extra `scheduleRefresh`.
+   */
+  function dropDeletedTopic(topicId: string): void {
+    if (disposed || !state.groupId) return;
+    const inList = state.items.some((item) => item.id === topicId);
+    const isOpenDetail =
+      state.detail.id === topicId && state.detail.status !== "deleted";
+    if (!inList && !isOpenDetail) return;
+    publish({
+      ...(inList
+        ? { items: state.items.filter((item) => item.id !== topicId) }
+        : {}),
+      ...(isOpenDetail
+        ? {
+            detail: { ...state.detail, status: "deleted", error: null },
+            permissions: { canEdit: false, canManageTags: false },
+          }
+        : {}),
+    });
+    // The date dial can't locally know whether `date` still has other
+    // topics; a scheduled refresh re-fetches both from the server (which
+    // already excludes deleted topics, E1) and reconciles the repository
+    // cache the same way any other change does.
+    scheduleRefresh();
+  }
+  /**
+   * T8 (AC1): any author-row entry point calls this after `ConfirmAlert`
+   * confirms. On success (204) or a losing race against another delete
+   * (a 404 here reads identically to our own success), applies the same
+   * `dropDeletedTopic` cleanup the `topic.deleted` event uses, so the two
+   * paths stay safe to apply twice (see `applyTopicDeleted` below). Handled
+   * inline rather than through `mutationFailure` because that helper's
+   * `not_found` branch assumes the failed mutation's target is always the
+   * open detail, which is not true for a list-row delete.
+   */
+  async function remove(topicId: string): Promise<boolean> {
+    if (
+      disposed ||
+      !active ||
+      !focused ||
+      state.accessLost ||
+      state.mutation.status === "pending" ||
+      !isTopicIdentifier(topicId)
+    )
+      return false;
+    const ticket = startMutation("delete");
+    if (!ticket) return false;
+    const group = state.groupId!;
+    try {
+      await request(ticket, (token, signal) =>
+        deps.api.deleteTopic(token, group, topicId, signal),
+      );
+      if (!ticket.current()) return false;
+      dropDeletedTopic(topicId);
+      publish({
+        mutation: { kind: "delete", status: "succeeded", error: null },
+      });
+      return true;
+    } catch (error) {
+      if (await handleFailure(error, ticket)) return false;
+      if (!ticket.current()) return false;
+      const failure = outcome(error);
+      if (failure === "not_found") {
+        dropDeletedTopic(topicId);
+        publish({
+          mutation: { kind: "delete", status: "succeeded", error: null },
+        });
+        return true;
+      }
+      publish({
+        mutation: {
+          kind: "delete",
+          status: ["network", "unavailable", "invalid_response"].includes(
+            failure,
+          )
+            ? "uncertain"
+            : "error",
+          error: failure,
+        },
+      });
+      if (failure === "forbidden")
+        publish({ permissions: { canEdit: false, canManageTags: false } });
+      return false;
+    } finally {
+      ticket.finish();
+    }
+  }
   function interrupt() {
     cancelAll();
     if (state.mutation.status === "pending")
@@ -707,6 +853,24 @@ export function createTopicsStore(deps: Dependencies) {
       create,
       edit,
       saveTags,
+      deleteTopic: remove,
+      /**
+       * The narrow `onTopicDeleted(event)` callback the sync engine's
+       * `topic.deleted` distribution interface calls (owned by
+       * task-app-chat, registered via app-providers -- see this task's
+       * result report for the current wiring status). A no-op outside the
+       * group this store instance currently has open; `dropDeletedTopic`
+       * above is the idempotent cleanup itself, which `deleteTopic` also
+       * uses after a successful T8 call.
+       */
+      applyTopicDeleted(event: TopicDeletedEvent) {
+        if (disposed) return;
+        // The wire event is the S1 envelope (conversation_id/cursor/event_id
+        // plus this event's payload); the topic fields live under `.data`.
+        deps.onTopicDeleted?.(event.data.topic_chatroom_id);
+        if (state.groupId !== event.data.group_id) return;
+        dropDeletedTopic(event.data.topic_id);
+      },
       resetCreate() {
         if (state.mutation.status === "pending") return;
         intent = null;

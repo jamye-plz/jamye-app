@@ -225,6 +225,27 @@ export function createTopicsApi(origin: string) {
         topicId,
       );
     },
+    /**
+     * T8 (AC1): 204 on success. Errors flow through the shared `request()`
+     * helper the same way every other endpoint here does -- 403
+     * `topic_author_required`, 404 `topic_not_found` and any membership
+     * error the server reports all surface verbatim as
+     * `TopicsApiError(status, code)`; nothing here needs its own mapping.
+     */
+    async deleteTopic(
+      token: string,
+      groupId: string,
+      topicId: string,
+      signal?: AbortSignal,
+    ): Promise<void> {
+      await request(
+        detailPath(groupId, topicId),
+        token,
+        signal,
+        { method: "DELETE" },
+        [204],
+      );
+    },
     async replaceTags(
       token: string,
       groupId: string,

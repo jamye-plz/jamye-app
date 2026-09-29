@@ -13,11 +13,12 @@ export const authorize: AuthorizedTopicsRequest = (execute, signal) =>
   execute("test-token", signal ?? new AbortController().signal);
 export function topicsHarness({
   newKey = () => key,
-}: Readonly<{ newKey?: () => string }> = {}) {
+  userId = authorId,
+}: Readonly<{ newKey?: () => string; userId?: string }> = {}) {
   const topic = mapTopic(topicWire);
   const principal = {
     origin: "https://api.example.com",
-    userId: authorId,
+    userId,
     epoch: 1,
   };
   const api: jest.Mocked<TopicsApi> = {
@@ -32,6 +33,7 @@ export function topicsHarness({
     }),
     getTopic: jest.fn().mockResolvedValue(topic),
     updateTopic: jest.fn().mockResolvedValue({ ...topic, title: "새 제목" }),
+    deleteTopic: jest.fn().mockResolvedValue(undefined),
     listTags: jest
       .fn()
       .mockResolvedValue({ items: topic.tags, nextCursor: null }),
@@ -47,6 +49,7 @@ export function topicsHarness({
     listDirtyMarkers: jest.fn().mockResolvedValue([]),
     reconcileGroup: jest.fn().mockResolvedValue(undefined),
     invalidateGroup: jest.fn().mockResolvedValue(undefined),
+    refreshAuthorIdentities: jest.fn().mockResolvedValue(undefined),
   };
   const watchGroup = jest.fn().mockResolvedValue(undefined);
   const unsubscribe = jest.fn();

@@ -30,6 +30,7 @@ import { createChatApi } from "@/features/chat/data/chat-api";
 import { MediaProvider } from "@/features/media/ui/media-provider";
 import { PushTapHandoffListener } from "@/features/notifications/ui/push-tap-handoff-listener";
 import { PushLifecycleProvider } from "@/features/notifications/model/push-lifecycle-provider";
+import { notificationsStore } from "@/features/notifications/model/notifications-store";
 import {
   createConnectedChatStore,
   toCanonicalUpsert,
@@ -111,6 +112,12 @@ const createDefaultTopicsStore: TopicsStoreFactory = (
     authorize,
     newKey: randomUUID,
     watchGroup,
+    // M15/AC7/E4: topic-cache cleanup (dropDeletedTopic) also invalidates
+    // the notifications destination cache and refreshes N1 through this
+    // hook, called from the store's `applyTopicDeleted(event)` -- wired to
+    // task-app-chat's `topic.deleted` dispatch seam
+    // (registerTopicDeletedHandler) in topics-provider.tsx.
+    onTopicDeleted: notificationsStore.actions.handleTopicDeleted,
     async getOwner(groupId, signal) {
       try {
         const group = await authorize(
