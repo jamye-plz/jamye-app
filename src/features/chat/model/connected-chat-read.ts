@@ -38,15 +38,24 @@ export function createConnectedChatRead(
     const roomId = input.currentRoom();
     const ids = new Set(visible);
     return (
-      [...input.messages()]
-        .reverse()
-        .find(
-          (row) =>
-            row.chatroomId === roomId &&
-            row.status === "sent" &&
-            row.serverMessageId !== null &&
-            ids.has(row.serverMessageId),
-        )?.serverMessageId ?? null
+      [...input.messages()].reverse().find(
+        (row) =>
+          row.chatroomId === roomId &&
+          row.status === "sent" &&
+          // Defect 6: a soft-deleted row is never a valid read anchor --
+          // the server's read-anchor cursor requires a live message AND a
+          // live message.created event (chatrooms/mutation.rs
+          // cursor_for_message_anchor), so sending a deleted row's id
+          // 422s (CursorInvalid). Skipping it here also means the very
+          // next markVisibleMessages() call after the deletion lands
+          // locally naturally retries with a different (older, live) id
+          // -- id !== requested, so mark() does not hit its own-id dedupe
+          // guard -- without this module ever swallowing the original
+          // error.
+          row.deletedAtMs === null &&
+          row.serverMessageId !== null &&
+          ids.has(row.serverMessageId),
+      )?.serverMessageId ?? null
     );
   }
   async function mark(retry = false): Promise<void> {

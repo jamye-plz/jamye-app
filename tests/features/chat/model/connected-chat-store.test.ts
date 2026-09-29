@@ -796,3 +796,473 @@ describe("M8 room/history regressions with M9 queued-send ownership", () => {
     expect(store.getState().history.status).toBe("ready");
   });
 });
+
+// M15 device round r2 follow-up (root cause A, corrected in coordinator
+// round 2): the coordinator's device evidence found the app replacing
+// itself with "/" ~2.4s after a topic detail delete -- a topic room's own
+// eviction/`membership_required` used to set the same `accessLost` field a
+// real group membership loss sets, so use-topic-screen.ts read it as
+// "revoke the whole group". Round 1 fixed this by defaulting an unrecognized
+// room to "main room" (group-wide) and a room found in `rooms.items` with
+// `kind: "topic"` to room-scoped -- but a P2 `loadRooms` prune sweep can
+// empty a just-deleted topic room out of `rooms.items` *before* its own
+// eviction/`membership_required` lands (`dropDeletedTopic` ->
+// `scheduleRefresh` -> `watchGroup` = `loadRooms`), and a room opened via a
+// notification deep link before any `loadRooms` call was never in
+// `rooms.items` either -- both regressed back to the same bug through the
+// "unrecognized -> main" fallback. These tests pin the round 2 correction:
+// group-wide evidence is now positive only -- WS `membership-evicted`, the
+// C1 list call's own `membership_required`, and a room whose id matches
+// `knownMainRoomId` (set only by a positive `kind: "main"` sighting on a C1
+// HTTP page, never cleared by a prune) -- everything else, including an
+// unrecognized room, defaults to room-scoped.
+describe("M15 device round r2 follow-up: room-scoped vs group-wide membership loss (root cause A)", () => {
+  const TOPIC_ID = "topic-1";
+
+  function setup() {
+    const chatApi = fakeChatApi();
+    const repository = fakeConnectedChatRepository();
+    const createApi = jest.fn(() => chatApi);
+    const clock = fakeClock();
+    const messageIdentity = fakeMessageIdentity();
+    const sync = fakeConnectedSync();
+    const store: ConnectedChatStore = createConnectedChatStore({
+      clock,
+      createApi,
+      messageIdentity,
+      createSync: sync.create,
+    });
+    store.setPrincipal(PRINCIPAL, repository, authorized);
+    return { chatApi, repository, store, sync };
+  }
+
+  /** Seeds `knownMainRoomId` via a real C1 HTTP page (the only thing that
+   * may) and renders `rooms.items` with both a main and a topic room, so a
+   * later "room-scoped" assertion proves an actual id comparison, not merely
+   * a null-`knownMainRoomId` coincidence. */
+  async function loadMainAndTopicRoom(
+    chatApi: ReturnType<typeof fakeChatApi>,
+    repository: ReturnType<typeof fakeConnectedChatRepository>,
+    store: ConnectedChatStore,
+  ) {
+    chatApi.listGroupChatrooms.mockResolvedValueOnce({
+      items: [
+        wireChatroom(),
+        wireChatroom({
+          id: OTHER_CHATROOM_ID,
+          topicId: TOPIC_ID,
+          type: "topic",
+        }),
+      ],
+      nextCursor: null,
+    });
+    repository.listChatrooms.mockResolvedValueOnce({
+      hasMore: false,
+      items: [
+        repositoryChatroom(),
+        repositoryChatroom({
+          chatroomId: OTHER_CHATROOM_ID,
+          kind: "topic",
+          topicId: TOPIC_ID,
+        }),
+      ],
+      nextAfter: null,
+    });
+    await store.actions.loadRooms(GROUP_ID);
+  }
+
+  test("a topic room's own eviction sets only the room-scoped field, even though the group's main room is known", async () => {
+    const { chatApi, repository, store, sync } = setup();
+    await loadMainAndTopicRoom(chatApi, repository, store);
+    repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
+    await store.actions.openRoom(OTHER_CHATROOM_ID);
+
+    sync.bindings[0]!.onConversationEvicted?.(OTHER_CHATROOM_ID);
+
+    expect(store.getState().roomAccessLost).toBe(true);
+    expect(store.getState().accessLost).toBe(false);
+  });
+
+  test("the group's known main room being evicted sets the group's accessLost, not the room-scoped field", async () => {
+    const { chatApi, repository, store, sync } = setup();
+    await loadMainAndTopicRoom(chatApi, repository, store);
+    repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
+    await store.actions.openRoom(CHATROOM_ID);
+
+    sync.bindings[0]!.onConversationEvicted?.(CHATROOM_ID);
+
+    expect(store.getState().accessLost).toBe(true);
+    expect(store.getState().roomAccessLost).toBe(false);
+  });
+
+  // Coordinator round 2 correction, race (a): the evicted room can already
+  // have been pruned out of `rooms.items` by a *later* `loadRooms` sweep (the
+  // one a topic-delete-triggered refresh runs) by the time its own eviction
+  // lands -- `knownMainRoomId` must still tell it apart from the main room
+  // even though it is no longer in `rooms.items` at all.
+  test("a topic room pruned from rooms.items by a later loadRooms sweep still classifies as room-scoped once evicted (prune-then-evict race)", async () => {
+    const { chatApi, repository, store, sync } = setup();
+    await loadMainAndTopicRoom(chatApi, repository, store);
+    repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
+    await store.actions.openRoom(OTHER_CHATROOM_ID);
+
+    // The topic was deleted server-side: the next sweep's C1 page and
+    // repository read both come back with only the main room -- P2's prune
+    // has already dropped the topic room from rooms.items by this point.
+    chatApi.listGroupChatrooms.mockResolvedValueOnce({
+      items: [wireChatroom()],
+      nextCursor: null,
+    });
+    repository.listChatrooms.mockResolvedValueOnce({
+      hasMore: false,
+      items: [repositoryChatroom()],
+      nextAfter: null,
+    });
+    await store.actions.loadRooms(GROUP_ID);
+    expect(store.getState().rooms.items).toEqual([repositoryChatroom()]);
+
+    // The still-open topic room's own eviction lands after that publish.
+    sync.bindings[0]!.onConversationEvicted?.(OTHER_CHATROOM_ID);
+
+    expect(store.getState().roomAccessLost).toBe(true);
+    expect(store.getState().accessLost).toBe(false);
+  });
+
+  // Coordinator round 2 correction, (c): a deep link (e.g. a notification)
+  // can open a room before any `loadRooms` call ever ran for its group, so
+  // `knownMainRoomId` is still null and the room was never in `rooms.items`.
+  test("a room never listed by loadRooms is room-scoped on openRoom's own membership_required (deep link before load)", async () => {
+    const { chatApi, store } = setup();
+    chatApi.listChatroomMessages.mockRejectedValueOnce(
+      new ChatApiError(403, "membership_required"),
+    );
+
+    await store.actions.openRoom(CHATROOM_ID);
+
+    expect(store.getState().roomAccessLost).toBe(true);
+    expect(store.getState().accessLost).toBe(false);
+  });
+
+  test("WS membership-evicted stays group-wide (M14 unchanged) regardless of which room is open", async () => {
+    const { repository, store, sync } = setup();
+    repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
+    await store.actions.openRoom(CHATROOM_ID);
+
+    sync.bindings[0]!.onState("membership-evicted");
+
+    expect(store.getState().accessLost).toBe(true);
+    expect(store.getState().sync).toBe("membership-evicted");
+  });
+});
+
+// M15 device round r2 follow-up (root cause B): the coordinator's device
+// evidence found the same GET /groups/{id}/chatrooms + conversation-events
+// drain request bundle repeating roughly every 1.6s while a group stayed
+// open. loadRooms only ever upserted server rows and never removed a local
+// row the server stopped listing, so an evicted topic room's stale row kept
+// reappearing in rooms.items on every subsequent loadRooms -- and
+// syncConversations() unconditionally re-added the still-open chatroomId to
+// the realtime desired set regardless of loss, regardless of whether it had
+// been filtered from rooms.items. These tests pin both halves of the fix.
+describe("M15 device round r2 follow-up: sync loop regression (root cause B)", () => {
+  function setup() {
+    const chatApi = fakeChatApi();
+    const repository = fakeConnectedChatRepository();
+    const createApi = jest.fn(() => chatApi);
+    const clock = fakeClock();
+    const messageIdentity = fakeMessageIdentity();
+    const sync = fakeConnectedSync();
+    const store: ConnectedChatStore = createConnectedChatStore({
+      clock,
+      createApi,
+      messageIdentity,
+      createSync: sync.create,
+    });
+    store.setPrincipal(PRINCIPAL, repository, authorized);
+    return { chatApi, repository, store, sync };
+  }
+
+  test("a fully received single-page C1 sweep prunes local rows the server no longer lists", async () => {
+    const { chatApi, repository, store } = setup();
+    chatApi.listGroupChatrooms.mockResolvedValueOnce({
+      items: [wireChatroom()],
+      nextCursor: null,
+    });
+    repository.listChatrooms.mockResolvedValueOnce({
+      hasMore: false,
+      items: [repositoryChatroom()],
+      nextAfter: null,
+    });
+
+    await store.actions.loadRooms(GROUP_ID);
+
+    expect(repository.pruneChatroomsNotIn).toHaveBeenCalledWith({
+      groupId: GROUP_ID,
+      keepChatroomIds: [CHATROOM_ID],
+    });
+  });
+
+  test("a sweep still mid-pagination does not prune rows outside the range received so far", async () => {
+    const { chatApi, repository, store } = setup();
+    chatApi.listGroupChatrooms.mockResolvedValueOnce({
+      items: [wireChatroom()],
+      nextCursor: "more-rooms",
+    });
+    repository.listChatrooms.mockResolvedValueOnce({
+      hasMore: true,
+      items: [repositoryChatroom()],
+      nextAfter: { chatroomId: CHATROOM_ID, sortNanos: 0, sortSeconds: 1 },
+    });
+
+    await store.actions.loadRooms(GROUP_ID);
+
+    expect(repository.pruneChatroomsNotIn).not.toHaveBeenCalled();
+  });
+
+  test("loadMoreRooms reaching the server's last page prunes using every id accumulated across the whole sweep, not just the final page", async () => {
+    const { chatApi, repository, store } = setup();
+    const second = repositoryChatroom({ chatroomId: OTHER_CHATROOM_ID });
+    chatApi.listGroupChatrooms.mockResolvedValueOnce({
+      items: [wireChatroom()],
+      nextCursor: "more-rooms",
+    });
+    repository.listChatrooms.mockResolvedValueOnce({
+      hasMore: true,
+      items: [repositoryChatroom()],
+      nextAfter: { chatroomId: CHATROOM_ID, sortNanos: 0, sortSeconds: 1 },
+    });
+    await store.actions.loadRooms(GROUP_ID);
+    expect(repository.pruneChatroomsNotIn).not.toHaveBeenCalled();
+
+    chatApi.listGroupChatrooms.mockResolvedValueOnce({
+      items: [wireChatroom({ id: OTHER_CHATROOM_ID })],
+      nextCursor: null,
+    });
+    repository.listChatrooms.mockResolvedValueOnce({
+      hasMore: false,
+      items: [second],
+      nextAfter: null,
+    });
+    await store.actions.loadMoreRooms();
+
+    expect(repository.pruneChatroomsNotIn).toHaveBeenCalledWith({
+      groupId: GROUP_ID,
+      keepChatroomIds: [CHATROOM_ID, OTHER_CHATROOM_ID],
+    });
+  });
+
+  test("an evicted room drops out of the realtime desired set and a subsequent loadRooms/syncConversations does not re-add it", async () => {
+    const { chatApi, repository, store, sync } = setup();
+    repository.listChatrooms.mockResolvedValue({
+      hasMore: false,
+      items: [repositoryChatroom({ kind: "topic", topicId: "topic-1" })],
+      nextAfter: null,
+    });
+    chatApi.listGroupChatrooms.mockResolvedValue({
+      items: [wireChatroom()],
+      nextCursor: null,
+    });
+    await store.actions.loadRooms(GROUP_ID);
+    repository.listMessagesWindow.mockResolvedValue(emptyMessageWindow());
+    await store.actions.openRoom(CHATROOM_ID);
+    sync.runtime.setConversations.mockClear();
+
+    sync.bindings[0]!.onConversationEvicted?.(CHATROOM_ID);
+
+    // The server no longer lists the evicted room either -- production's C1
+    // already excludes a deleted topic's chatroom (chatrooms/query.rs).
+    chatApi.listGroupChatrooms.mockResolvedValueOnce({
+      items: [],
+      nextCursor: null,
+    });
+    repository.listChatrooms.mockResolvedValueOnce({
+      hasMore: false,
+      items: [],
+      nextAfter: null,
+    });
+    await store.actions.loadRooms(GROUP_ID);
+
+    expect(repository.pruneChatroomsNotIn).toHaveBeenLastCalledWith({
+      groupId: GROUP_ID,
+      keepChatroomIds: [],
+    });
+    const desiredCalls = sync.runtime.setConversations.mock.calls.map(
+      (call) => call[0],
+    );
+    for (const desired of desiredCalls)
+      expect(desired).not.toContain(CHATROOM_ID);
+  });
+});
+
+// SHIP quality review LOW (ship-quality-20260928-171401.md): M15's
+// `deleteMessage` (connected-chat-store.ts 1050-1078) and
+// `discardFailedMessage` (1080-1100) had no store-level coverage -- only the
+// layers below (chat-api.test.ts's C6, and the repository's own
+// markMessageDeleted/discardFailedMessage SQLite tests) were pinned, and
+// connected-chat-screens.test.tsx's `actions()` fixture stubs both as bare
+// `jest.fn()`s without ever asserting a call. These tests close that gap at
+// the store layer: the C6 call shape, the local tombstone write and its
+// ordering relative to C6 and the room refresh, and both actions'
+// failure/no-op paths.
+describe("M15 deleteMessage/discardFailedMessage store actions (SHIP quality review LOW)", () => {
+  function setup() {
+    const chatApi = fakeChatApi();
+    const repository = fakeConnectedChatRepository();
+    const createApi = jest.fn(() => chatApi);
+    const clock = fakeClock();
+    const messageIdentity = fakeMessageIdentity();
+    const sync = fakeConnectedSync();
+    const store: ConnectedChatStore = createConnectedChatStore({
+      clock,
+      createApi,
+      messageIdentity,
+      createSync: sync.create,
+    });
+    store.setPrincipal(PRINCIPAL, repository, authorized);
+    return { chatApi, clock, repository, store };
+  }
+
+  test("a successful C6 delete marks the local tombstone with the clock's time, then refreshes the room from the repository", async () => {
+    const { chatApi, clock, repository, store } = setup();
+    const row = repositoryHistoryRow();
+    repository.listMessagesWindow.mockResolvedValue({
+      hasMore: false,
+      items: [row],
+      nextBefore: null,
+    });
+    await store.actions.openRoom(CHATROOM_ID);
+    chatApi.deleteMessage.mockResolvedValueOnce(undefined);
+    const tombstoned = repositoryHistoryRow({ deletedAtMs: clock.nowMs() });
+    repository.listMessagesWindow.mockResolvedValueOnce({
+      hasMore: false,
+      items: [tombstoned],
+      nextBefore: null,
+    });
+
+    await store.actions.deleteMessage({
+      chatroomId: CHATROOM_ID,
+      serverMessageId: SERVER_MESSAGE_ID,
+    });
+
+    expect(chatApi.deleteMessage).toHaveBeenCalledWith(
+      "fake-token",
+      { chatroomId: CHATROOM_ID, messageId: SERVER_MESSAGE_ID },
+      expect.anything(),
+    );
+    expect(repository.markMessageDeleted).toHaveBeenCalledWith({
+      deletedAtMs: clock.nowMs(),
+      serverMessageId: SERVER_MESSAGE_ID,
+    });
+    expect(chatApi.deleteMessage.mock.invocationCallOrder[0]).toBeLessThan(
+      repository.markMessageDeleted.mock.invocationCallOrder[0]!,
+    );
+    // The refresh re-reads the room from the repository -- rendered state
+    // comes from that second read, never from a locally patched copy of `row`.
+    expect(repository.listMessagesWindow).toHaveBeenCalledTimes(2);
+    expect(repository.listMessagesWindow).toHaveBeenLastCalledWith({
+      before: null,
+      chatroomId: CHATROOM_ID,
+      limit: expect.any(Number),
+    });
+    expect(
+      repository.markMessageDeleted.mock.invocationCallOrder[0],
+    ).toBeLessThan(repository.listMessagesWindow.mock.invocationCallOrder[1]!);
+    expect(store.getState().history.items).toEqual([tombstoned]);
+  });
+
+  test("a rejected C6 call leaves the local row untouched and resolves the action, and a later retry proceeds normally", async () => {
+    const { chatApi, repository, store } = setup();
+    const row = repositoryHistoryRow();
+    repository.listMessagesWindow.mockResolvedValue({
+      hasMore: false,
+      items: [row],
+      nextBefore: null,
+    });
+    await store.actions.openRoom(CHATROOM_ID);
+    chatApi.deleteMessage.mockRejectedValueOnce(
+      new ChatApiError(403, "message_author_required"),
+    );
+
+    await expect(
+      store.actions.deleteMessage({
+        chatroomId: CHATROOM_ID,
+        serverMessageId: SERVER_MESSAGE_ID,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(repository.markMessageDeleted).not.toHaveBeenCalled();
+    // Only openRoom's own read ever happened -- a failed C6 never reaches refreshAfterWrite.
+    expect(repository.listMessagesWindow).toHaveBeenCalledTimes(1);
+    expect(store.getState().history.items).toEqual([row]);
+
+    chatApi.deleteMessage.mockResolvedValueOnce(undefined);
+    await store.actions.deleteMessage({
+      chatroomId: CHATROOM_ID,
+      serverMessageId: SERVER_MESSAGE_ID,
+    });
+
+    expect(chatApi.deleteMessage).toHaveBeenCalledTimes(2);
+    expect(repository.markMessageDeleted).toHaveBeenCalledTimes(1);
+  });
+
+  test("a successful repository discard removes only the matching failed row from history.items", async () => {
+    const { repository, store } = setup();
+    const failedRow = repositoryHistoryRow({
+      clientMsgId: "gen-client-1",
+      localId: "row-failed",
+      status: "failed",
+    });
+    const otherRow = repositoryHistoryRow({
+      clientMsgId: "gen-client-2",
+      localId: "row-other",
+    });
+    repository.listMessagesWindow.mockResolvedValue({
+      hasMore: false,
+      items: [failedRow, otherRow],
+      nextBefore: null,
+    });
+    await store.actions.openRoom(CHATROOM_ID);
+
+    await store.actions.discardFailedMessage("gen-client-1");
+
+    expect(repository.discardFailedMessage).toHaveBeenCalledWith({
+      chatroomId: CHATROOM_ID,
+      clientMsgId: "gen-client-1",
+    });
+    expect(store.getState().history.items).toEqual([otherRow]);
+  });
+
+  test("a rejected repository discard keeps the row in place and resolves the action", async () => {
+    const { repository, store } = setup();
+    const failedRow = repositoryHistoryRow({
+      clientMsgId: "gen-client-1",
+      localId: "row-failed",
+      status: "failed",
+    });
+    repository.listMessagesWindow.mockResolvedValue({
+      hasMore: false,
+      items: [failedRow],
+      nextBefore: null,
+    });
+    await store.actions.openRoom(CHATROOM_ID);
+    repository.discardFailedMessage.mockRejectedValueOnce(
+      new Error("storage write failed"),
+    );
+
+    await expect(
+      store.actions.discardFailedMessage("gen-client-1"),
+    ).resolves.toBeUndefined();
+
+    expect(store.getState().history.items).toEqual([failedRow]);
+  });
+
+  test("with no open room, discardFailedMessage never calls the repository", async () => {
+    const { repository, store } = setup();
+
+    await expect(
+      store.actions.discardFailedMessage("gen-client-1"),
+    ).resolves.toBeUndefined();
+
+    expect(repository.discardFailedMessage).not.toHaveBeenCalled();
+  });
+});

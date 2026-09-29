@@ -104,6 +104,8 @@ test.each([lightTheme, darkTheme])(
         }}
         onRetryFailedMessage={jest.fn()}
         onShareAttachment={jest.fn()}
+        onRequestDeleteMessage={jest.fn()}
+        onRequestDiscardFailedMessage={jest.fn()}
       />,
     );
     // R3: the per-attachment share icon (`MediaOpenSaveButton`) is gone --
@@ -143,6 +145,8 @@ test("passes the item's posterMediaId through row -> MessageAttachmentsView -> c
       }}
       onRetryFailedMessage={jest.fn()}
       onShareAttachment={jest.fn()}
+      onRequestDeleteMessage={jest.fn()}
+      onRequestDiscardFailedMessage={jest.fn()}
     />,
   );
   expect(mockMediaVideoThumbnailSpy).toHaveBeenCalledWith(
@@ -171,6 +175,8 @@ test("passes null through when the item has no posterMediaId", async () => {
       }}
       onRetryFailedMessage={jest.fn()}
       onShareAttachment={jest.fn()}
+      onRequestDeleteMessage={jest.fn()}
+      onRequestDiscardFailedMessage={jest.fn()}
     />,
   );
   expect(mockMediaVideoThumbnailSpy).toHaveBeenCalledWith(
@@ -199,6 +205,8 @@ test("an incoming video attachment still renders through the same chain (no cras
       }}
       onRetryFailedMessage={jest.fn()}
       onShareAttachment={jest.fn()}
+      onRequestDeleteMessage={jest.fn()}
+      onRequestDiscardFailedMessage={jest.fn()}
     />,
   );
   expect(screen.getByRole("button", { name: "첨부 동영상 재생" })).toBeTruthy();

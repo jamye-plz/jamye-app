@@ -23,6 +23,11 @@ export type ChatMessage = Pick<
      * (never set there), which falls back to the monogram via `Avatar`. */
     senderAvatarUrl?: string | null;
     serverMessageId?: string | null;
+    /** AC4/E2: ms epoch this device recorded the tombstone, or
+     * null/undefined while live -- undefined on the M5 fixture path, which
+     * never carries a deletion. Mirrors `ConnectedChatMessage.deletedAtMs`;
+     * the connected/REST mapping site must copy it through unchanged. */
+    deletedAtMs?: number | null;
     media?: readonly ConnectedChatMedia[];
     pendingMedia?: readonly ConnectedPendingAttachment[];
   }>;

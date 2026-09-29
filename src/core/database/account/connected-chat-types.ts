@@ -43,6 +43,9 @@ export type ConnectedChatMessage = Readonly<{
   chatroomId: string;
   clientMsgId: string | null;
   createdAtRaw: string | null;
+  /** Ms epoch this device recorded the tombstone, or null while live.
+   * Monotonic once set -- never cleared by a later merge (E2). */
+  deletedAtMs: number | null;
   kind: "user" | "system";
   localCreatedAtMs: number;
   localId: string;
@@ -159,6 +162,16 @@ export type ConnectedOrderedUnsupportedEventInput =
       reconcileScope: ConnectedReconciliationScope;
     }>;
 
+/** S1-ordered `message.deleted` apply (AC2): the event's own `message_id` is
+ * looked up by server id -- a message never received locally is a no-op,
+ * never a placeholder row (E2). */
+export type ConnectedOrderedMessageDeletedInput =
+  ConnectedOrderedEventIdentity &
+    Readonly<{
+      deletedAtMs: number;
+      serverMessageId: string;
+    }>;
+
 export type ConnectedOrderedEventApplyResult =
   | Readonly<{
       checkpoint: string;
@@ -172,6 +185,9 @@ export type ConnectedOrderedEventApplyResult =
 export type ConnectedChatSyncRepository = Readonly<{
   applyOrderedMessageCreated: (
     input: ConnectedOrderedMessageCreatedInput,
+  ) => Promise<ConnectedOrderedEventApplyResult>;
+  applyOrderedMessageDeleted: (
+    input: ConnectedOrderedMessageDeletedInput,
   ) => Promise<ConnectedOrderedEventApplyResult>;
   applyOrderedUnsupportedEvent: (
     input: ConnectedOrderedUnsupportedEventInput,
@@ -223,6 +239,14 @@ export type ConnectedChatSyncRepository = Readonly<{
 
 export type ConnectedChatRepository = ConnectedChatSyncRepository &
   Readonly<{
+    /** AC5: clears the failed message row, its outbox command (removed via
+     * the existing `ON DELETE CASCADE` FK), and its pending-media/upload
+     * draft snapshot (stored on the same row) in one transaction. A no-op,
+     * not an error, when the row is missing or no longer `failed` -- it may
+     * have raced to `pending`/`sent` via a concurrent retry. No server call. */
+    discardFailedMessage: (
+      input: Readonly<{ chatroomId: string; clientMsgId: string }>,
+    ) => Promise<void>;
     enqueuePendingMessage: (
       input: ConnectedPendingMessageInput,
     ) => Promise<ConnectedMessageAndCommand>;
@@ -259,6 +283,15 @@ export type ConnectedChatRepository = ConnectedChatSyncRepository &
         nextBefore: ConnectedMessageCursor | null;
       }>
     >;
+    /** AC3's local optimistic apply (right after C6's 204, before the
+     * `message.deleted` echo lands) and any other direct tombstone caller
+     * share this. Idempotent (`deleted_at_ms IS NULL` guard at the SQL
+     * layer) and a no-op when the message was never received locally, so a
+     * later `applyOrderedMessageDeleted` replay of the very same deletion is
+     * always safe (AC3: "이후 도착하는 message.deleted와 중복 적용돼도 안전"). */
+    markMessageDeleted: (
+      input: Readonly<{ deletedAtMs: number; serverMessageId: string }>,
+    ) => Promise<void>;
     markSendFailed: (
       input: Readonly<{
         clientMsgId: string;
@@ -270,6 +303,18 @@ export type ConnectedChatRepository = ConnectedChatSyncRepository &
     ) => Promise<ConnectedChatMessage>;
     mergeHistoryMessages: (
       inputs: readonly ConnectedHistoryMessageUpsert[],
+    ) => Promise<void>;
+    /** M15 device round r2 follow-up (P2, root cause B): converges this
+     * group's local `connected_chatrooms` rows onto the server's confirmed
+     * live set once a full C1 sweep completes (a topic deleted server-side
+     * never reappears in a C1 page, chatrooms/query.rs, but the local row
+     * otherwise only ever gains upserts and never loses a row on its own).
+     * `ON DELETE CASCADE` from `connected_chatrooms` removes each pruned
+     * room's messages, outbox commands, applied-event records and
+     * reconciliation markers with it. An empty `keepChatroomIds` prunes every
+     * local row for `groupId`. */
+    pruneChatroomsNotIn: (
+      input: Readonly<{ groupId: string; keepChatroomIds: readonly string[] }>,
     ) => Promise<void>;
     retryFailedMessage: (
       input: Readonly<{

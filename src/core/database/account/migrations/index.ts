@@ -3,6 +3,7 @@ import { connectedChatSchemaMigration } from "./002-connected-chat-schema";
 import { durableOutboxEventsMigration } from "./003-durable-outbox-events";
 import { topicsCacheMigration } from "./004-topics-cache";
 import { connectedChatMediaMigration } from "./005-connected-chat-media";
+import { connectedChatDeletionsMigration } from "./006-connected-chat-deletions";
 import type { Migration } from "../../migrations";
 
 export const accountMigrations: readonly Migration[] = [
@@ -11,6 +12,7 @@ export const accountMigrations: readonly Migration[] = [
   durableOutboxEventsMigration,
   topicsCacheMigration,
   connectedChatMediaMigration,
+  connectedChatDeletionsMigration,
 ];
 
 export const ACCOUNT_SCHEMA_VERSION = accountMigrations.at(-1)?.version ?? 0;

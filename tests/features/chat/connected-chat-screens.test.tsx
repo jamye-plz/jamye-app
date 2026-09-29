@@ -95,6 +95,7 @@ jest.mock("@/features/groups/model/groups-provider", () => ({
   useGroupName: () => mockGroupName,
 }));
 let mockTopicsState: {
+  accessLost: boolean;
   detail: {
     id: string | null;
     status: string;
@@ -191,6 +192,17 @@ jest.mock("@expo/ui/swift-ui/modifiers", () => ({
     $type: "accessibilityLabel",
     value,
   }),
+  // M15/AC2/AC6 (device round r2 coordinator fix): StandardStateView's iOS
+  // "deleted" kind (rendered by ConnectedChatScreen's own topic-delete
+  // branch, see the "topic chatroom's own delete state" tests below) calls
+  // these directly. Unlike @expo/ui/swift-ui above (spread from `actual`),
+  // this module is fully replaced, so every modifier StandardStateView
+  // reaches for needs a stub here too (mirrors
+  // tests/features/topics/ui/topic-detail-screen.test.tsx's mock of the same
+  // module for the same component).
+  buttonStyle: (style: string) => ({ $type: "buttonStyle", style }),
+  fixedSize: (params: unknown) => ({ $type: "fixedSize", params }),
+  frame: (params: unknown) => ({ $type: "frame", params }),
   lineLimit: (range: unknown) => ({ $type: "lineLimit", range }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
@@ -263,6 +275,8 @@ function actions(): ConnectedChatStoreActions {
     loadOlderHistory: jest.fn().mockResolvedValue(undefined),
     sendMessage: jest.fn().mockResolvedValue(undefined),
     retryMessage: jest.fn().mockResolvedValue(undefined),
+    deleteMessage: jest.fn().mockResolvedValue(undefined),
+    discardFailedMessage: jest.fn().mockResolvedValue(undefined),
     markVisibleMessages: jest.fn().mockResolvedValue(undefined),
     retryRead: jest.fn().mockResolvedValue(undefined),
     closeRoom: jest.fn(),
@@ -277,7 +291,10 @@ beforeEach(() => {
   mockParams = { groupId: GROUP_ID, chatroomId: CHATROOM_ID };
   mockAccount = { state: { status: "ready" }, retry: jest.fn() };
   mockGroupName = "그룹 이름";
-  mockTopicsState = { detail: { id: null, status: "idle", topic: null } };
+  mockTopicsState = {
+    accessLost: false,
+    detail: { id: null, status: "idle", topic: null },
+  };
   const initial = createConnectedChatStore({
     clock: fakeClock(),
     createApi: fakeChatApi,
@@ -367,6 +384,97 @@ test("membership loss leaves the inaccessible conversation", async () => {
   const screen = await render(roomTree());
   expect(screen.queryByText("안녕하세요")).toBeNull();
   expect(screen.getByText("이 대화에 접근할 수 없습니다.")).toBeTruthy();
+  // M15/M14 (device round r2): the group's main room has no associated
+  // topic, so accessLost keeps redirecting home exactly as before.
+  expect(mockRouter.replace).toHaveBeenCalledWith("/");
+});
+
+// M15/AC2/AC6/E3/E5 (device round r2 device fix): a topic chatroom's own
+// delete no longer redirects the whole app to "/" -- it shows the same
+// "삭제된 주제입니다." state topic-detail-screen.tsx uses, in place, with no
+// composer. Covers both orderings (순서 무관): topics-store already knowing
+// (T8/topic.deleted) and connected-chat-store.ts's eviction/accessLost
+// firing first.
+describe("M15/AC2/AC6/E3/E5: a topic chatroom's own delete state", () => {
+  const TOPIC_ID = "77777777-7777-4777-8777-777777777777";
+  const topicRoom = () =>
+    repositoryChatroom({ kind: "topic", topicId: TOPIC_ID });
+
+  beforeEach(() => {
+    mockChat.state = {
+      ...mockChat.state,
+      rooms: { ...mockChat.state.rooms, items: [topicRoom()] },
+    };
+  });
+
+  test("topics-store already knowing the delete (T8 success or topic.deleted, order-independent) shows the deleted state without redirecting or a composer", async () => {
+    mockTopicsState = {
+      accessLost: false,
+      detail: { id: TOPIC_ID, status: "deleted", topic: null },
+    };
+    const screen = await render(roomTree());
+    expect(screen.getByTestId("chat-topic-deleted")).toBeTruthy();
+    // This file keeps the real @expo/ui/swift-ui views (only TextField is
+    // replaced), so the exact E5 copy lives on the native
+    // ContentUnavailableView's `title` prop rather than in a Text node.
+    expect(
+      screen.container.queryAll(
+        (node) => node.props.title === "삭제된 주제입니다.",
+      ),
+    ).toHaveLength(1);
+    expect(screen.queryByLabelText("메시지 입력")).toBeNull();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+
+  test("eviction firing first asks topics-store instead of guessing, then shows the deleted state once it resolves to a 404", async () => {
+    const screen = await render(roomTree());
+    // M15 device round r2 follow-up (root cause A): a topic room's own
+    // eviction now sets the room-scoped `roomAccessLost`, not the group's
+    // `accessLost` -- see connected-chat-store.ts's `accessLostPatch`. This
+    // screen combines both into `anyAccessLost` for the same redirect/stay
+    // decision the group-level field used to drive alone. The eviction
+    // filters this room out of rooms.items -- the sticky topicId this screen
+    // captured on the render above must survive that.
+    mockChat.state = {
+      ...mockChat.state,
+      roomAccessLost: true,
+      rooms: { ...mockChat.state.rooms, items: [] },
+    };
+    await screen.rerender(roomTree());
+    expect(mockOpenTopic).toHaveBeenCalledWith(GROUP_ID, TOPIC_ID);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(screen.getByText("이 대화에 접근할 수 없습니다.")).toBeTruthy();
+    // topics-store.ts's loadDetail() 404 branch settles here (E5).
+    mockTopicsState = {
+      accessLost: false,
+      detail: { id: TOPIC_ID, status: "deleted", topic: null },
+    };
+    await screen.rerender(roomTree());
+    expect(screen.getByTestId("chat-topic-deleted")).toBeTruthy();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+
+  test("eviction resolving to a real membership loss (topic still alive, genuine 403) still redirects home (M14 unchanged)", async () => {
+    const screen = await render(roomTree());
+    // Same room-scoped eviction evidence as above (M15 r2 follow-up) --
+    // still ambiguous until topics-store resolves it below.
+    mockChat.state = {
+      ...mockChat.state,
+      roomAccessLost: true,
+      rooms: { ...mockChat.state.rooms, items: [] },
+    };
+    await screen.rerender(roomTree());
+    expect(mockOpenTopic).toHaveBeenCalledWith(GROUP_ID, TOPIC_ID);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    // topics-store.ts's handleFailure() membership_required branch settles
+    // here (topics.state.accessLost), distinct from a topic 404.
+    mockTopicsState = {
+      accessLost: true,
+      detail: { id: null, status: "idle", topic: null },
+    };
+    await screen.rerender(roomTree());
+    expect(mockRouter.replace).toHaveBeenCalledWith("/");
+  });
 });
 
 test("the connected conversation uses existing chat UI, visible canonical IDs and exact manual retry", async () => {

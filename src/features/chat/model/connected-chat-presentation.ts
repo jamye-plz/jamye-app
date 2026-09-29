@@ -36,6 +36,7 @@ export function toChatMessage(
     createdAtMs: row.createdAtRaw
       ? Date.parse(row.createdAtRaw)
       : row.localCreatedAtMs,
+    deletedAtMs: row.deletedAtMs,
     localId: row.localId,
     media: row.media,
     pendingMedia: row.pendingMedia,

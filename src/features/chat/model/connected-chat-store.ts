@@ -103,8 +103,23 @@ export type ConnectedChatSendState =
 
 export type ConnectedChatState = Readonly<{
   groupId: string | null;
+  /** M15 device round r2 follow-up (root cause A): group-wide membership
+   * evidence only -- WS `membership-evicted`, the C1 room-list call's own
+   * `membership_required`, or the group's *main* room hitting
+   * `membership_required`/an eviction. A single *topic* room's own
+   * eviction/`membership_required` is not group evidence (a deleted topic's
+   * chatroom 403s the same way a real membership loss would, S1/delta.rs) --
+   * see `roomAccessLost` below. `use-topic-screen.ts`/`topics-screen.tsx`
+   * must keep reacting only to this field. */
   accessLost: boolean;
   chatroomId: string | null;
+  /** Room-scoped membership evidence for *only* the currently open room
+   * (`chatroomId`): a topic room's own eviction or `membership_required`.
+   * Reset to `false` whenever a room opens or closes. Never a signal to
+   * revoke the whole group -- `connected-chat-screen.tsx` combines this with
+   * `accessLost` to gate its own composer/upload-queue/redirect decisions for
+   * the open room; topics-store must not react to it. */
+  roomAccessLost: boolean;
   rooms: ConnectedChatRoomsState;
   history: ConnectedChatHistoryState;
   send: ConnectedChatSendState;
@@ -124,6 +139,17 @@ export type ConnectedChatStoreActions = Readonly<{
     media?: readonly ConnectedPendingAttachment[],
   ) => Promise<void>;
   retryMessage: (clientMsgId: string) => Promise<void>;
+  /** AC3: called only after the screen's `ConfirmAlert` is confirmed. Calls
+   * C6, then applies the local tombstone immediately on success (idempotent
+   * against the later `message.deleted` echo -- see `markMessageDeleted`). */
+  deleteMessage: (
+    input: Readonly<{ chatroomId: string; serverMessageId: string }>,
+  ) => Promise<void>;
+  /** AC5: called only after the screen's `ConfirmAlert` (버리기) is
+   * confirmed. Local-only, no server call; removes the row from the
+   * rendered list directly (the additive `refreshAfterWrite` merge below
+   * cannot represent a row disappearing, only appearing/changing). */
+  discardFailedMessage: (clientMsgId: string) => Promise<void>;
   markVisibleMessages: (ids: readonly string[]) => Promise<void>;
   retryRead: () => Promise<void>;
   closeRoom: () => void;
@@ -151,6 +177,7 @@ function initialState(): ConnectedChatState {
     groupId: null,
     accessLost: false,
     chatroomId: null,
+    roomAccessLost: false,
     rooms: {
       status: "idle",
       items: [],
@@ -189,6 +216,37 @@ function isMembershipLost(error: unknown): boolean {
     error.status === 403 &&
     error.code === "membership_required"
   );
+}
+
+/** M15 device round r2 follow-up (coordinator round 2 correction, root cause
+ * A): group-wide evidence must be *positive*, not a fallback for "not
+ * recognized as a topic room". `rooms.items` is a transient view a P2
+ * `loadRooms` prune sweep can empty out for the very room whose eviction is
+ * mid-flight -- a deleted topic's row is pruned by the *next* sweep
+ * (`dropDeletedTopic` -> `scheduleRefresh` -> `watchGroup` = `loadRooms`),
+ * which can land before or after this exact room's own eviction/
+ * `membership_required` arrives -- and a room opened before any `loadRooms`
+ * call (e.g. a notification deep link) was never in `rooms.items` to begin
+ * with. Treating either as "unknown -> main room" reintroduced the same "app
+ * replaces itself with /" bug this file already fixed once. `accessLostPatch`
+ * below instead compares against `knownMainRoomId`, a plain per-group memory
+ * that only a *positive* main-room sighting on a C1 HTTP page ever sets (see
+ * `loadRooms`), and that a prune can never erase since it lives outside
+ * `rooms.items` entirely. A genuine membership loss on a topic room is still
+ * caught: WS `membership-evicted` and the C1 list call's own
+ * `membership_required` remain unconditionally group-wide (their call sites
+ * never go through this helper), and `connected-chat-screen.tsx`'s existing
+ * eviction-recheck effect makes the topics store hit `membership_required`
+ * itself for a still-alive topic, which topics-store.ts's own
+ * `handleFailure()` turns into `topics.state.accessLost` independently of
+ * this field. */
+function accessLostPatch(
+  knownMainRoomId: string | null,
+  chatroomId: string,
+  lost: boolean,
+): Readonly<{ accessLost: boolean; roomAccessLost: boolean }> {
+  const groupLevel = lost && chatroomId === knownMainRoomId;
+  return { accessLost: groupLevel, roomAccessLost: lost && !groupLevel };
 }
 
 function toConnectedMedia(wire: MessageAttachment): ConnectedChatMedia {
@@ -298,6 +356,19 @@ export function createConnectedChatStore(
 
   let roomsGroupId: string | null = null;
   let roomsHttpCursor: string | null = null;
+  /** M15 device round r2 follow-up (coordinator round 2 correction, root
+   * cause A): the current group's main room id, remembered the first time a
+   * C1 HTTP page positively identifies one (see `loadRooms`) and never
+   * cleared by a `rooms.items` prune -- only a group change or a principal
+   * change resets it. `null` until then, which `accessLostPatch` treats as
+   * "no known main room" (room-scoped default), never as a match. */
+  let knownMainRoomId: string | null = null;
+  /** M15 device round r2 follow-up (root cause B): accumulates every
+   * chatroom id C1 has returned for the in-progress `loadRooms` sweep of
+   * `roomsGroupId` (reset to a fresh set on every non-`more` call). Pruned
+   * against the local repository once the sweep reaches its last page (see
+   * `loadRooms`); `null` while no sweep is in flight. */
+  let roomsServerSeenIds: Set<string> | null = null;
   let historyHttpCursor: string | null = null;
   let historyRepoNextBefore: ConnectedMessageCursor | null = null;
   let historyBlocked = false;
@@ -330,11 +401,11 @@ export function createConnectedChatStore(
     publish: (next) => publish({ ...state, read: next }),
     errorCode: mapSendErrorCode,
     onError: (error) => {
-      if (isMembershipLost(error))
+      if (isMembershipLost(error) && state.chatroomId)
         publish({
           ...state,
           history: historyErrorPatch(state.history, error),
-          accessLost: true,
+          ...accessLostPatch(knownMainRoomId, state.chatroomId, true),
         });
     },
   });
@@ -424,6 +495,8 @@ export function createConnectedChatStore(
     api = valid ? deps.createApi(origin) : null;
     roomsGroupId = null;
     roomsHttpCursor = null;
+    roomsServerSeenIds = null;
+    knownMainRoomId = null;
     historyHttpCursor = null;
     historyRepoNextBefore = null;
     historyBlocked = false;
@@ -452,6 +525,7 @@ export function createConnectedChatStore(
         onConversationEvicted: (roomId) => {
           if (!current()) return;
           syncListeners.forEach((listener) => listener("evicted"));
+          const patch = accessLostPatch(knownMainRoomId, roomId, true);
           const rooms = {
             ...state.rooms,
             items: state.rooms.items.filter(
@@ -471,7 +545,7 @@ export function createConnectedChatStore(
           publish({
             ...state,
             rooms,
-            accessLost: true,
+            ...patch,
             history: {
               ...initialState().history,
               status: "error",
@@ -513,10 +587,19 @@ export function createConnectedChatStore(
   }
 
   function syncConversations(): void {
+    // M15 device round r2 follow-up (root cause B): once the currently open
+    // room is known lost (`historyBlocked` -- set by every eviction/
+    // `membership_required` path in this file for *this* room, cleared only
+    // when a room opens or closes), it must drop out of the realtime desired
+    // set. Otherwise the sync engine keeps resubscribing to a room the
+    // server keeps rejecting, evicting it again on roughly its own retry
+    // cadence forever. `rooms.items` already excludes an evicted room (see
+    // `onConversationEvicted`'s filter above); this closes the other half of
+    // the loop, the previously-unconditional inclusion of the open room.
     sync?.setConversations([
       ...new Set([
         ...state.rooms.items.map((room) => room.chatroomId),
-        ...(state.chatroomId ? [state.chatroomId] : []),
+        ...(state.chatroomId && !historyBlocked ? [state.chatroomId] : []),
       ]),
     ]);
   }
@@ -583,9 +666,16 @@ export function createConnectedChatStore(
     const ticket = begin("rooms");
     if (!ticket) return;
     if (!more) {
-      if (roomsGroupId !== groupId) sync?.setConversations([]);
+      if (roomsGroupId !== groupId) {
+        sync?.setConversations([]);
+        // M15 device round r2 follow-up (coordinator round 2 correction): a
+        // genuinely different group's remembered main room id must not leak
+        // into this one's classification.
+        knownMainRoomId = null;
+      }
       roomsGroupId = groupId;
       roomsHttpCursor = null;
+      roomsServerSeenIds = new Set();
     }
     publish({
       ...state,
@@ -613,6 +703,39 @@ export function createConnectedChatStore(
           await ticket.repo.upsertChatrooms(page.items.map(toChatroomUpsert));
         if (!ticket.current()) return;
         roomsHttpCursor = page.nextCursor;
+        // M15 device round r2 follow-up (root cause B): the local
+        // `connected_chatrooms` table only ever gains rows (`upsertChatrooms`
+        // above) -- a topic deleted server-side (C1 already excludes it,
+        // chatrooms/query.rs) never loses its stale local row on its own,
+        // which is what kept re-adding an evicted room back into `rooms.items`
+        // (and from there into `syncConversations()`'s desired set) on every
+        // subsequent `loadRooms`. Once this sweep of `groupId`'s C1 pages
+        // reaches its last page (`nextCursor` turns null, so
+        // `roomsServerSeenIds` now holds every chatroom id the server
+        // returned across however many pages this sweep took), prune any
+        // local row for this group that fell outside that confirmed-live
+        // set. A sweep still in progress must not prune -- rows outside the
+        // range received so far are unvisited, not confirmed stale.
+        const seen = (roomsServerSeenIds ??= new Set());
+        for (const item of page.items) {
+          seen.add(item.id);
+          // M15 device round r2 follow-up (coordinator round 2 correction,
+          // root cause A): a positive main-room sighting on the wire is the
+          // *only* thing that may ever mark a room group-wide -- this memory
+          // lives outside `rooms.items` so a prune later in this very sweep
+          // (the stale topic row a delete leaves behind) can never erase it,
+          // and a room this store has not seen yet defaults to room-scoped
+          // instead of being guessed as the main room.
+          if (item.type === "main") knownMainRoomId = item.id;
+        }
+        if (page.nextCursor === null) {
+          await ticket.repo.pruneChatroomsNotIn({
+            groupId,
+            keepChatroomIds: [...seen],
+          });
+          if (!ticket.current()) return;
+          roomsServerSeenIds = null;
+        }
       }
       const result = await ticket.repo.listChatrooms({
         after: more ? previous.nextAfter : null,
@@ -681,6 +804,7 @@ export function createConnectedChatStore(
       ...state,
       chatroomId,
       accessLost: false,
+      roomAccessLost: false,
       read: emptyReadState(),
       send: roomChanged ? { status: "idle" } : state.send,
       history: quietResync
@@ -735,7 +859,7 @@ export function createConnectedChatStore(
       publish({
         ...state,
         history: historyErrorPatch(state.history, error),
-        accessLost: historyBlocked,
+        ...accessLostPatch(knownMainRoomId, chatroomId, historyBlocked),
       });
     }
   }
@@ -798,7 +922,7 @@ export function createConnectedChatStore(
       publish({
         ...state,
         history: historyErrorPatch(state.history, error),
-        accessLost: historyBlocked,
+        ...accessLostPatch(knownMainRoomId, chatroomId, historyBlocked),
       });
     }
   }
@@ -923,6 +1047,58 @@ export function createConnectedChatStore(
     }
   }
 
+  async function deleteMessage(
+    input: Readonly<{ chatroomId: string; serverMessageId: string }>,
+  ): Promise<void> {
+    const ticket = begin("delete");
+    if (!ticket) return;
+    try {
+      await ticket.run((service, token, signal) =>
+        service.deleteMessage(
+          token,
+          { chatroomId: input.chatroomId, messageId: input.serverMessageId },
+          signal,
+        ),
+      );
+      if (!ticket.current()) return;
+      // AC3: apply the local tombstone immediately after C6's 204 rather
+      // than waiting for the S1/WebSocket echo -- markMessageDeleted's own
+      // idempotency guard makes the later replay of this exact deletion
+      // (applyOrderedMessageDeleted) safe.
+      await ticket.repo.markMessageDeleted({
+        deletedAtMs: deps.clock.nowMs(),
+        serverMessageId: input.serverMessageId,
+      });
+      if (!ticket.current()) return;
+      await refreshAfterWrite(ticket, input.chatroomId);
+    } catch {
+      // A failed C6 leaves the message and its menu item exactly as before;
+      // the confirm-then-delete flow can simply be retried from the row.
+    }
+  }
+
+  async function discardFailedMessage(clientMsgId: string): Promise<void> {
+    const chatroomId = state.chatroomId;
+    if (!chatroomId) return;
+    const ticket = begin("discard");
+    if (!ticket) return;
+    try {
+      await ticket.repo.discardFailedMessage({ chatroomId, clientMsgId });
+      if (!ticket.current()) return;
+      publish({
+        ...state,
+        history: {
+          ...state.history,
+          items: state.history.items.filter(
+            (row) => row.clientMsgId !== clientMsgId,
+          ),
+        },
+      });
+    } catch {
+      // AC5: local-only cleanup; a failed discard just leaves the row for a retry.
+    }
+  }
+
   async function refreshAfterWrite(
     ticket: NonNullable<ReturnType<typeof begin>>,
     chatroomId: string,
@@ -960,6 +1136,7 @@ export function createConnectedChatStore(
       ...state,
       chatroomId: null,
       accessLost: false,
+      roomAccessLost: false,
       read: emptyReadState(),
       history: initialState().history,
       send: { status: "idle" },
@@ -1033,6 +1210,8 @@ export function createConnectedChatStore(
       loadOlderHistory,
       sendMessage,
       retryMessage,
+      deleteMessage,
+      discardFailedMessage,
       markVisibleMessages: read.markVisibleMessages,
       retryRead: read.retryRead,
       closeRoom,

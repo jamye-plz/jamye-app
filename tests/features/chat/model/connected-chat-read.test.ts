@@ -129,6 +129,55 @@ test("late C3 response after room switch or account logout never updates the cur
   expect(api.markChatroomRead).toHaveBeenCalledTimes(1);
 });
 
+test("M15 defect 6: a deleted newest visible row is skipped in favor of the previous live visible row", async () => {
+  const { store, api, repo } = setup();
+  repo.listMessagesWindow.mockResolvedValue({
+    ...emptyMessageWindow(),
+    items: [
+      repositoryHistoryRow(),
+      repositoryHistoryRow({
+        localId: "second",
+        serverMessageId: OTHER_SERVER_MESSAGE_ID,
+        deletedAtMs: 1_700_000_500_000,
+      }),
+    ],
+  });
+  await store.actions.openRoom(CHATROOM_ID);
+  await store.actions.markVisibleMessages([
+    SERVER_MESSAGE_ID,
+    OTHER_SERVER_MESSAGE_ID,
+  ]);
+  expect(api.markChatroomRead).toHaveBeenCalledWith(
+    "fake",
+    CHATROOM_ID,
+    { messageId: SERVER_MESSAGE_ID },
+    expect.anything(),
+  );
+  expect(api.markChatroomRead).toHaveBeenCalledTimes(1);
+});
+
+test("M15 defect 6: markChatroomRead is not requested when every visible row is deleted", async () => {
+  const { store, api, repo } = setup();
+  repo.listMessagesWindow.mockResolvedValue({
+    ...emptyMessageWindow(),
+    items: [
+      repositoryHistoryRow({ deletedAtMs: 1_700_000_400_000 }),
+      repositoryHistoryRow({
+        localId: "second",
+        serverMessageId: OTHER_SERVER_MESSAGE_ID,
+        deletedAtMs: 1_700_000_500_000,
+      }),
+    ],
+  });
+  await store.actions.openRoom(CHATROOM_ID);
+  await store.actions.markVisibleMessages([
+    SERVER_MESSAGE_ID,
+    OTHER_SERVER_MESSAGE_ID,
+  ]);
+  expect(api.markChatroomRead).not.toHaveBeenCalled();
+  expect(store.getState().read.status).toBe("idle");
+});
+
 test("read membership loss hides history and disables later send attempts", async () => {
   const { store, api, repo } = setup();
   await store.actions.openRoom(CHATROOM_ID);
@@ -136,7 +185,10 @@ test("read membership loss hides history and disables later send attempts", asyn
     new ChatApiError(403, "membership_required"),
   );
   await store.actions.markVisibleMessages([SERVER_MESSAGE_ID]);
-  expect(store.getState().accessLost).toBe(true);
+  // M15: a room never listed as the group's main room loses access
+  // room-scoped (roomAccessLost), not group-wide (accessLost).
+  expect(store.getState().roomAccessLost).toBe(true);
+  expect(store.getState().accessLost).toBe(false);
   expect(store.getState().history.items).toEqual([]);
   await store.actions.sendMessage("blocked");
   expect(repo.enqueuePendingMessage).not.toHaveBeenCalled();

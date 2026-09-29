@@ -82,6 +82,7 @@ export function fakeClock(startMs = 1_700_000_000_000) {
 
 export function fakeChatApi(): jest.Mocked<ChatApi> {
   return {
+    deleteMessage: jest.fn(),
     listGroupChatrooms: jest
       .fn()
       .mockResolvedValue({ items: [], nextCursor: null }),
@@ -96,11 +97,13 @@ export function fakeChatApi(): jest.Mocked<ChatApi> {
 export function fakeConnectedChatRepository(): jest.Mocked<ConnectedChatRepository> {
   return {
     applyOrderedMessageCreated: jest.fn(),
+    applyOrderedMessageDeleted: jest.fn(),
     applyOrderedUnsupportedEvent: jest.fn(),
     applyRealtimeMessageCreated: jest
       .fn()
       .mockResolvedValue({ status: "applied" }),
     claimDueOutboxCommands: jest.fn().mockResolvedValue([]),
+    discardFailedMessage: jest.fn().mockResolvedValue(undefined),
     enqueuePendingMessage: jest.fn(),
     failClaimedOutboxCommand: jest.fn().mockResolvedValue(true),
     getEventCheckpoint: jest.fn().mockResolvedValue(null),
@@ -108,9 +111,11 @@ export function fakeConnectedChatRepository(): jest.Mocked<ConnectedChatReposito
     listChatrooms: jest.fn(),
     listDirtyReconciliationScopes: jest.fn().mockResolvedValue([]),
     listMessagesWindow: jest.fn(),
+    markMessageDeleted: jest.fn().mockResolvedValue(undefined),
     markSendFailed: jest.fn().mockResolvedValue(undefined),
     mergeCanonicalMessage: jest.fn(),
     mergeHistoryMessages: jest.fn(),
+    pruneChatroomsNotIn: jest.fn().mockResolvedValue(undefined),
     reconcileChatHistory: jest.fn().mockResolvedValue(undefined),
     releaseOutboxClaims: jest.fn().mockResolvedValue(0),
     rescheduleClaimedOutboxCommand: jest.fn().mockResolvedValue(true),
@@ -171,6 +176,7 @@ export function repositoryHistoryRow(
     chatroomId: CHATROOM_ID,
     clientMsgId: null,
     createdAtRaw: "2024-01-02T00:00:00.000000000Z",
+    deletedAtMs: null,
     kind: "user",
     localCreatedAtMs: 1_700_000_000_000,
     localId: "gen-local-1",
@@ -225,6 +231,7 @@ export function pendingEnqueueResult(
       chatroomId,
       clientMsgId,
       createdAtRaw: null,
+      deletedAtMs: null,
       kind: "user",
       localCreatedAtMs: 1_700_000_000_000,
       localId,
@@ -264,6 +271,7 @@ export function repositoryCanonicalRow(
     chatroomId: CHATROOM_ID,
     clientMsgId: "gen-client-1",
     createdAtRaw: "2024-01-02T00:05:00.000000000Z",
+    deletedAtMs: null,
     kind: "user",
     localCreatedAtMs: 1_700_000_000_000,
     localId: "gen-local-1",

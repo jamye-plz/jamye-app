@@ -230,7 +230,10 @@ test("membership denial never falls back to cached room content", async () => {
   );
   await f.store.actions.openRoom(CHATROOM_ID);
   expect(f.store.getState().history.items).toEqual([]);
-  expect(f.store.getState().accessLost).toBe(true);
+  // M15: a room never listed as the group's main room loses access
+  // room-scoped (roomAccessLost), not group-wide (accessLost).
+  expect(f.store.getState().roomAccessLost).toBe(true);
+  expect(f.store.getState().accessLost).toBe(false);
   f.store.dispose();
 });
 
@@ -248,7 +251,10 @@ test("a denied S1 room hides only that conversation and fences its pending read"
   f.bindings[0].onConversationEvicted?.(CHATROOM_ID);
   pending.resolve({ ...emptyMessageWindow(), items: [repositoryHistoryRow()] });
   await reading;
-  expect(f.store.getState().accessLost).toBe(true);
+  // M15: a room never listed as the group's main room loses access
+  // room-scoped (roomAccessLost), not group-wide (accessLost).
+  expect(f.store.getState().roomAccessLost).toBe(true);
+  expect(f.store.getState().accessLost).toBe(false);
   expect(f.store.getState().history.items).toEqual([]);
   await f.store.actions.sendMessage("차단");
   expect(f.repository.enqueuePendingMessage).not.toHaveBeenCalled();

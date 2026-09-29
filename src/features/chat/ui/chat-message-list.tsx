@@ -215,6 +215,8 @@ export function ChatMessageList({
   latestMessageRevealTarget,
   onRetryFailedMessage,
   onShareAttachment,
+  onRequestDeleteMessage,
+  onRequestDiscardFailedMessage,
   onVisibleCanonicalMessages,
 }: Readonly<{
   /** R4 layoutContract: extra bottom content inset on iOS only, equal to the
@@ -234,6 +236,16 @@ export function ChatMessageList({
     }>,
   ) => void;
   onShareAttachment: (attachment: MessageAttachmentMedia) => void;
+  /** AC3/E11: forwarded to `ChatMessageRow` unchanged -- the screen owns the
+   * `ConfirmAlert` and only calls the store's `deleteMessage` action once
+   * the user confirms (`chat-screen.tsx`'s `ChatConversationScreen`). */
+  onRequestDeleteMessage: (
+    input: Readonly<{ chatroomId: string; serverMessageId: string }>,
+  ) => void;
+  /** AC5/A2: same "request, screen confirms" split as `onRequestDeleteMessage`. */
+  onRequestDiscardFailedMessage: (
+    input: Readonly<{ clientMsgId: string }>,
+  ) => void;
 }>) {
   const visibleCallback = useRef(onVisibleCanonicalMessages);
   useLayoutEffect(() => {
@@ -563,6 +575,8 @@ export function ChatMessageList({
                 mediaPreviewEnabled={previewIds.has(item.localId)}
                 onRetryFailedMessage={onRetryFailedMessage}
                 onShareAttachment={onShareAttachment}
+                onRequestDeleteMessage={onRequestDeleteMessage}
+                onRequestDiscardFailedMessage={onRequestDiscardFailedMessage}
                 rowMeta={rowMeta[index]!}
               />
             )}

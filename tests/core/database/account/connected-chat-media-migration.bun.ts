@@ -179,11 +179,17 @@ async function verifySuccessfulUpgrade() {
   const { adapter, database } = await openPopulatedV4Database();
   await runMigrations(adapter, accountMigrations);
 
-  assert.equal(database.query("PRAGMA user_version").get().user_version, 5);
+  // M15/task-14 (AC1): migration 006 now follows 005, so the latest
+  // version running the full accountMigrations list reaches is 6, not 5 --
+  // this "after all migrations" assertion tracks the registry's current
+  // length, not 005 specifically (verifyRollback's synthetic-failure
+  // assertions right below stay pinned at 4, the version *before* 005,
+  // which 006 does not change).
+  assert.equal(database.query("PRAGMA user_version").get().user_version, 6);
   assert.equal(
     database.query("SELECT schema_version FROM scope_metadata").get()
       .schema_version,
-    5,
+    6,
   );
   assert.deepEqual(
     database

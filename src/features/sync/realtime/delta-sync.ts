@@ -1,7 +1,9 @@
+import { classifyDeltaItem } from "@/core/contracts/server";
 import type {
   CanonicalMessageWire,
-  DeltaItemWire,
+  ClassifiedDeltaItem,
   EventPageWire,
+  ReconcileScopeWire,
 } from "@/core/contracts/server";
 import type {
   ConnectedCanonicalMessageUpsert,
@@ -9,6 +11,8 @@ import type {
   ConnectedHistoryMessageUpsert,
   ConnectedOrderedEventApplyResult,
 } from "@/core/database/account/connected-chat-types";
+
+import { dispatchTopicDeleted } from "./topic-deleted-dispatch";
 
 export const DELTA_SYNC_MAX_PAGES_PER_DRAIN = 10;
 
@@ -52,10 +56,18 @@ export type DeltaSync = Readonly<{
   ) => Promise<DeltaSyncDrainResult>;
 }>;
 
-function isMessageCreatedItem(
-  item: DeltaItemWire,
-): item is Extract<DeltaItemWire, Readonly<{ data: CanonicalMessageWire }>> {
-  return "data" in item;
+// M15/task-14 phase 1 (E17 fix): typed v2 delete events (message.deleted/
+// topic.deleted) have no reconcile_scope of their own. Only called for a
+// classified item that is not "message.created"/"message.deleted" (applyItem
+// returns before reaching this for those kinds); "unsupported" v1 fallback
+// items still use their own server-provided reconcile_scope, and
+// "topic.deleted" keeps routing through the group_topics dirty-marker +
+// REST-reconcile fallback below in addition to the narrow callback dispatch,
+// since REST already excludes deleted content per contract v2 (E1).
+function reconcileScopeOf(classified: ClassifiedDeltaItem): ReconcileScopeWire {
+  if (classified.kind === "unsupported")
+    return classified.event.reconcile_scope;
+  return "group_topics";
 }
 
 function stopped(): DeltaSyncDrainResult {
@@ -115,20 +127,20 @@ export function createDeltaSync(deps: DeltaSyncDependencies): DeltaSync {
 
   async function applyItem(
     conversationId: string,
-    item: DeltaItemWire,
+    classified: ClassifiedDeltaItem,
     expectedCursor: string | null,
     signal: AbortSignal,
   ): Promise<ConnectedOrderedEventApplyResult | "rejected"> {
-    if (isMessageCreatedItem(item)) {
-      if (item.type !== "message.created" || item.version !== 1)
-        return "rejected";
-      if (item.conversation_id !== conversationId) return "rejected";
-      const message = deps.mapMessage(item.data);
+    if (classified.kind === "message.created") {
+      const event = classified.event;
+      if (event.version !== 1) return "rejected";
+      if (event.conversation_id !== conversationId) return "rejected";
+      const message = deps.mapMessage(event.data);
       if (message.chatroomId !== conversationId) return "rejected";
       const result = await deps.repository.applyOrderedMessageCreated({
         chatroomId: conversationId,
-        cursor: item.cursor,
-        eventId: item.event_id,
+        cursor: event.cursor,
+        eventId: event.event_id,
         expectedCursor,
         message,
       });
@@ -137,20 +149,49 @@ export function createDeltaSync(deps: DeltaSyncDependencies): DeltaSync {
       }
       return result;
     }
+    if (classified.kind === "message.deleted") {
+      // AC2: S1-ordered apply records the monotonic tombstone directly (no
+      // dirty-marker indirection needed -- unlike topic.deleted, this event
+      // fully identifies the row to update). The WebSocket-triggered bounded
+      // catch-up drain (realtime-sync.ts's grouped message.deleted case)
+      // converges on this exact same applyItem call, so a single tombstone
+      // write here covers "S1 순서 적용과 WebSocket 수신 모두" (AC2).
+      const event = classified.event;
+      if (event.conversation_id !== conversationId) return "rejected";
+      const result = await deps.repository.applyOrderedMessageDeleted({
+        chatroomId: conversationId,
+        cursor: event.cursor,
+        deletedAtMs: Date.now(),
+        eventId: event.event_id,
+        expectedCursor,
+        serverMessageId: event.data.message_id,
+      });
+      if (result.status === "applied" || result.status === "duplicate") {
+        reportChanged(conversationId, signal);
+      }
+      return result;
+    }
+    const reconcileScope = reconcileScopeOf(classified);
     const result = await deps.repository.applyOrderedUnsupportedEvent({
       chatroomId: conversationId,
-      cursor: item.cursor,
-      eventId: item.event_id,
+      cursor: classified.event.cursor,
+      eventId: classified.event.event_id,
       expectedCursor,
-      reconcileScope: item.reconcile_scope,
+      reconcileScope,
     });
-    if (
-      item.reconcile_scope === "group_topics" &&
-      (result.status === "applied" || result.status === "duplicate")
-    ) {
-      // The topic consumer owns refetch + matching-marker clearance. Notify
-      // only after the ordered event and its durable marker have committed.
-      reportChanged(conversationId, signal);
+    if (result.status === "applied" || result.status === "duplicate") {
+      // AC7: the sync engine only fans the already-classified topic.deleted
+      // event out through the narrow callback (plan api_contracts.
+      // app_sync_apply.interface) -- topics cache/list state stays
+      // task-app-topics' own concern, never touched here.
+      if (classified.kind === "topic.deleted") {
+        dispatchTopicDeleted(classified.event);
+      }
+      if (reconcileScope === "group_topics") {
+        // The topic consumer owns refetch + matching-marker clearance. Notify
+        // only after the ordered event and its durable marker have committed.
+        reportChanged(conversationId, signal);
+      }
     }
     return result;
   }
@@ -193,7 +234,13 @@ export function createDeltaSync(deps: DeltaSyncDependencies): DeltaSync {
       let mismatch = false;
       for (const item of pageResult.items) {
         if (cancelled(signal)) return stopped();
-        const result = await applyItem(conversationId, item, expected, signal);
+        const classified = classifyDeltaItem(item);
+        const result = await applyItem(
+          conversationId,
+          classified,
+          expected,
+          signal,
+        );
         if (cancelled(signal)) return stopped();
         if (result === "rejected") return stopped();
         if (result.status === "checkpoint_mismatch") {
@@ -203,8 +250,9 @@ export function createDeltaSync(deps: DeltaSyncDependencies): DeltaSync {
         if (result.status === "no_progress") return stopped();
         if (
           result.status === "applied" &&
-          !isMessageCreatedItem(item) &&
-          item.reconcile_scope === "chat_history"
+          classified.kind !== "message.created" &&
+          classified.kind !== "message.deleted" &&
+          reconcileScopeOf(classified) === "chat_history"
         ) {
           await reconcileDirtyChatHistory(
             conversationId,

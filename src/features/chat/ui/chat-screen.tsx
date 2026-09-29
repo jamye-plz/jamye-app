@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject, ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack } from "expo-router";
+import { Host } from "@expo/ui";
 
 import { useAppRuntime } from "@/core/providers/app-providers";
 import { useAppTheme } from "@/core/theme/theme-provider";
@@ -21,7 +22,10 @@ import {
 } from "@/features/chat/model/chat-fixture";
 import { createChatSendController } from "@/features/chat/model/chat-send";
 import type { ChatSendController } from "@/features/chat/model/chat-send";
+import { destructiveConfirmCopy } from "@/features/chat/model/destructive-confirm-copy";
+import type { PendingDestructive } from "@/features/chat/model/destructive-confirm-copy";
 import { useMediaSharing } from "@/features/media/model/media-sharing";
+import { ConfirmAlert } from "@/shared/ui/confirm-alert";
 import { HeaderActions } from "@/shared/ui/header-actions";
 import type { HeaderAction } from "@/shared/ui/header-actions";
 import { HeaderTitleButton } from "@/shared/ui/header-title-button";
@@ -88,6 +92,12 @@ export function ChatScreen({
       onRetryFailedMessage={(input) => {
         void controller.retryFailedMessage(input);
       }}
+      // M5 local fixture messages never carry a serverMessageId, so
+      // ChatMessageRow's menu never surfaces 삭제 here -- these two are
+      // unreachable no-ops, required only because ChatConversationScreen is
+      // the shared shell the connected screen also renders through.
+      onDeleteMessage={() => {}}
+      onDiscardFailedMessage={() => {}}
       focusMainHeading={focusMainHeading}
     />
   );
@@ -102,6 +112,8 @@ export function ChatConversationScreen({
   conversation,
   controller,
   onRetryFailedMessage,
+  onDeleteMessage,
+  onDiscardFailedMessage,
   toolbar,
   footer,
   headerActions,
@@ -124,6 +136,12 @@ export function ChatConversationScreen({
   onRetryFailedMessage: (
     input: Readonly<{ clientMsgId: string; conversationId: string }>,
   ) => void;
+  /** AC3: called only after this screen's own `ConfirmAlert` is confirmed. */
+  onDeleteMessage: (
+    input: Readonly<{ chatroomId: string; serverMessageId: string }>,
+  ) => void;
+  /** AC5: called only after this screen's own `ConfirmAlert`(버리기) is confirmed. */
+  onDiscardFailedMessage: (input: Readonly<{ clientMsgId: string }>) => void;
   onVisibleCanonicalMessages?: (ids: readonly string[]) => void;
   toolbar?: ReactNode;
   footer?: ReactNode;
@@ -140,6 +158,15 @@ export function ChatConversationScreen({
     string | null
   >(null);
   const [composerHeight, setComposerHeight] = useState(0);
+  // AC3/AC5/E10: one nullable "pending destructive action" slot (topic-list.tsx's
+  // ConfirmAlert precedent) shared by delete (server-backed, server call) and
+  // discard (failed, local-only) -- a message is never both, and the two only
+  // differ in confirm copy + which store action fires on confirm.
+  const [pendingDestructive, setPendingDestructive] =
+    useState<PendingDestructive | null>(null);
+  const destructiveCopy = pendingDestructive
+    ? destructiveConfirmCopy(pendingDestructive)
+    : null;
   const { shareAttachment } = useMediaSharing();
   const headingTarget = useMemo<MainHeadingTarget>(
     () => ({
@@ -223,6 +250,12 @@ export function ChatConversationScreen({
                   latestMessageRevealTarget={latestMessageRevealTarget}
                   onRetryFailedMessage={onRetryFailedMessage}
                   onShareAttachment={shareAttachment}
+                  onRequestDeleteMessage={(input) =>
+                    setPendingDestructive({ kind: "delete", ...input })
+                  }
+                  onRequestDiscardFailedMessage={(input) =>
+                    setPendingDestructive({ kind: "discard", ...input })
+                  }
                   onVisibleCanonicalMessages={onVisibleCanonicalMessages}
                 />
                 {footer}
@@ -249,6 +282,36 @@ export function ChatConversationScreen({
                     onHeightChange={setComposerHeight}
                   />
                 </View>
+                {/* Own Host: a modal alert presentation is a separate
+                    SwiftUI/Compose subtree from the list/composer above
+                    (DESIGN.md §4 interop), matching topic-list.tsx's
+                    delete-confirm precedent. */}
+                <Host matchContents seedColor={colors.primary}>
+                  <ConfirmAlert
+                    confirmLabel={destructiveCopy?.confirmLabel ?? "삭제"}
+                    destructive
+                    isPresented={pendingDestructive !== null}
+                    message={destructiveCopy?.message}
+                    onConfirm={() => {
+                      const target = pendingDestructive;
+                      setPendingDestructive(null);
+                      if (!target) return;
+                      if (target.kind === "delete") {
+                        onDeleteMessage({
+                          chatroomId: target.chatroomId,
+                          serverMessageId: target.serverMessageId,
+                        });
+                      } else {
+                        onDiscardFailedMessage({
+                          clientMsgId: target.clientMsgId,
+                        });
+                      }
+                    }}
+                    onDismiss={() => setPendingDestructive(null)}
+                    testID="chat-message-delete-confirm"
+                    title={destructiveCopy?.title ?? ""}
+                  />
+                </Host>
               </View>
             )}
           </ChatKeyboardFrame>

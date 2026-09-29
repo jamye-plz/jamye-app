@@ -1,12 +1,15 @@
+import { Host } from "@expo/ui";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/core/providers/session-provider";
 import { useAccountScope } from "@/core/providers/app-providers";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { useMediaUploadQueue } from "@/features/media/model/use-media-upload-queue";
+import { useTopics } from "@/features/topics/model/topics-provider";
 import { AppScreen } from "@/shared/ui/app-screen";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import { NativeButton } from "@/shared/ui/native-button";
+import { StandardStateView } from "@/shared/ui/standard-state-view";
 import { useConnectedChat } from "../model/connected-chat-provider";
 import {
   chatErrorMessage,
@@ -43,10 +46,16 @@ export function ConnectedChatScreen({
             })
         : undefined;
   const valid = isChatIdentifier(groupId) && isChatIdentifier(chatroomId);
+  // M15 device round r2 follow-up (root cause A): either the open room's own
+  // room-scoped loss (a topic room's eviction/`membership_required`) or a
+  // group-wide loss blocks this room the same way -- see
+  // connected-chat-store.ts's `accessLostPatch` for which evidence sets
+  // which field.
+  const anyAccessLost = state.accessLost || state.roomAccessLost;
   const attachments = useMediaUploadQueue(
     "chat",
     chatroomId,
-    valid && ready && state.chatroomId === chatroomId && !state.accessLost,
+    valid && ready && state.chatroomId === chatroomId && !anyAccessLost,
   );
   useFocusEffect(
     useCallback(() => {
@@ -82,10 +91,102 @@ export function ConnectedChatScreen({
     },
     [actions, chatroomId],
   );
+  const topics = useTopics();
+  // M15/AC2/AC6/E3/E5 (root cause #2-#4, device round r2): the server 403s a
+  // deleted topic's chatroom delta as plain `membership_required` (delta.rs)
+  // -- indistinguishable from a real membership loss by status code alone --
+  // and connected-chat-store.ts's onConversationEvicted then drops this room
+  // from state.rooms.items, the only place its `kind`/`topicId` otherwise
+  // lives. Captured here *before* any eviction, per chatroomId (independent
+  // of useChatroomTitle's own title-display "unresolved" state, which also
+  // reports "unresolved" while a *known* topic room's title is merely still
+  // loading -- a different concern), so this screen can keep asking
+  // topics-store which of the two causes this is instead of guessing.
+  // Cleared only when a *different* chatroomId is requested.
+  const liveTopicId = state.rooms.items.find(
+    (room) => room.chatroomId === chatroomId && room.kind === "topic",
+  )?.topicId;
+  const [stickyTopicRoom, setStickyTopicRoom] = useState<{
+    chatroomId: string;
+    topicId: string;
+  } | null>(null);
+  // Adjust state while rendering (React's documented pattern for deriving
+  // state from a changed input) instead of a useEffect: a ref write here
+  // would not schedule a re-render, so on the very render `liveTopicId`
+  // first becomes non-null, a ref-based version of this value would still
+  // read as null -- exactly backwards from what the redirect-gate effect
+  // below and the render branch need on *this* render, not one later.
+  if (
+    liveTopicId &&
+    (stickyTopicRoom?.chatroomId !== chatroomId ||
+      stickyTopicRoom.topicId !== liveTopicId)
+  ) {
+    setStickyTopicRoom({ chatroomId, topicId: liveTopicId });
+  } else if (
+    !liveTopicId &&
+    stickyTopicRoom !== null &&
+    stickyTopicRoom.chatroomId !== chatroomId
+  ) {
+    setStickyTopicRoom(null);
+  }
+  const stickyTopicId =
+    liveTopicId ??
+    (stickyTopicRoom?.chatroomId === chatroomId
+      ? stickyTopicRoom.topicId
+      : null);
+  const topicDetail = topics.state.detail;
+  // T8's own success or a `topic.deleted` event may already have told
+  // topics-store this exact topic is gone -- order-independent: this can
+  // turn true before `state.accessLost` ever flips (M15 "순서 무관").
+  const topicConfirmedDeleted =
+    stickyTopicId !== null &&
+    topicDetail.id === stickyTopicId &&
+    topicDetail.status === "deleted";
+  // A genuine membership loss (topic still alive, real 403): resolved either
+  // at the topics-group level or as this specific topic query's own error.
+  const topicConfirmedForbidden =
+    stickyTopicId !== null &&
+    (topics.state.accessLost ||
+      (topicDetail.id === stickyTopicId && topicDetail.status === "error"));
+  const evictionRecheckedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (state.chatroomId === chatroomId && state.accessLost)
-      router.replace("/");
-  }, [state.chatroomId, state.accessLost, chatroomId, router]);
+    if (state.chatroomId !== chatroomId || !anyAccessLost) {
+      evictionRecheckedRef.current = null;
+      return;
+    }
+    if (topicConfirmedDeleted) return; // AC2/AC6: stay put, the render branch below shows the deleted state.
+    if (!stickyTopicId || topicConfirmedForbidden) {
+      router.replace("/"); // Main room, or a topic room with a *confirmed* real membership loss (M14 unchanged).
+      return;
+    }
+    // Eviction fired before topics-store otherwise learned of a delete: ask
+    // it directly rather than guess. topics-store.ts's loadDetail() maps a
+    // 404 to detail.status "deleted" and a genuine 403 membership_required
+    // to topics.state.accessLost -- both re-read above on this effect's next
+    // run.
+    if (evictionRecheckedRef.current === chatroomId) {
+      // Already asked once for this eviction and it settled on neither --
+      // do not loop forever; fall back to the M14 redirect.
+      if (topicDetail.status !== "loading") router.replace("/");
+      return;
+    }
+    if (topics.ready && topicDetail.status !== "loading") {
+      evictionRecheckedRef.current = chatroomId;
+      void topics.store?.actions.openTopic(groupId, stickyTopicId);
+    }
+  }, [
+    state.chatroomId,
+    anyAccessLost,
+    chatroomId,
+    router,
+    stickyTopicId,
+    topicConfirmedDeleted,
+    topicConfirmedForbidden,
+    topics.ready,
+    topics.store,
+    topicDetail.status,
+    groupId,
+  ]);
   const conversation = useMemo(
     () => toChatConversation(state, actions, principal?.userId ?? ""),
     [state, actions, principal?.userId],
@@ -128,12 +229,32 @@ export function ConnectedChatScreen({
     }),
     [actions, chatroomId],
   );
-  if (!valid || !ready || state.chatroomId !== chatroomId || state.accessLost) {
+  if (valid && topicConfirmedDeleted) {
+    // M15/AC2/AC6: stay on this chatroom (no router.replace) regardless of
+    // whether this screen instance is currently focused (a topic-detail
+    // screen pushed on top leaves this one mounted underneath) -- the same
+    // StandardStateView "deleted" kind topic-detail-screen.tsx uses, so both
+    // read identically once back navigation returns here. No composer,
+    // attachments, or voice entry point renders in this branch (E3).
+    return (
+      <AppScreen backgroundColor={colors.background}>
+        <Host matchContents={{ vertical: true }} seedColor={colors.primary}>
+          <StandardStateView
+            kind="deleted"
+            systemImage="delete"
+            testID="chat-topic-deleted"
+            title="삭제된 주제입니다."
+          />
+        </Host>
+      </AppScreen>
+    );
+  }
+  if (!valid || !ready || state.chatroomId !== chatroomId || anyAccessLost) {
     const isError =
-      !valid || state.accessLost || account.state?.status === "error";
+      !valid || anyAccessLost || account.state?.status === "error";
     const message = !valid
       ? "올바르지 않은 대화 주소입니다."
-      : state.accessLost
+      : anyAccessLost
         ? "이 대화에 접근할 수 없습니다."
         : account.state?.status === "error"
           ? "대화 저장소를 열지 못했습니다."
@@ -184,6 +305,17 @@ export function ConnectedChatScreen({
       onRetryFailedMessage={({ clientMsgId, conversationId }) => {
         if (focused.current === chatroomId && conversationId === chatroomId)
           void actions.retryMessage(clientMsgId);
+      }}
+      onDeleteMessage={({ chatroomId: targetChatroomId, serverMessageId }) => {
+        if (focused.current === chatroomId && targetChatroomId === chatroomId)
+          void actions.deleteMessage({
+            chatroomId: targetChatroomId,
+            serverMessageId,
+          });
+      }}
+      onDiscardFailedMessage={({ clientMsgId }) => {
+        if (focused.current === chatroomId)
+          void actions.discardFailedMessage(clientMsgId);
       }}
       onVisibleCanonicalMessages={(ids) => {
         if (focused.current === chatroomId)

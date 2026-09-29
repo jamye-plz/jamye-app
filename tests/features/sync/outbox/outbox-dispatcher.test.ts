@@ -178,6 +178,7 @@ function fixture() {
       }
       return {
         ...input,
+        deletedAtMs: null,
         localCreatedAtMs: 0,
         senderAvatarUrl: null,
         senderNickname: null,
