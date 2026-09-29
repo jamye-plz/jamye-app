@@ -225,6 +225,22 @@ describe("StandardStateView (iOS)", () => {
     await fireEvent.press(screen.getByTestId("button-다시 시도"));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  test("M15/AC6: deleted kind reuses ContentUnavailableView with the exact copy and no implicit retry action", async () => {
+    const screen = await render(
+      <StandardStateView
+        kind="deleted"
+        systemImage="delete"
+        testID="topic-detail-deleted"
+        title="삭제된 주제입니다."
+      />,
+    );
+    expect(screen.getByText("삭제된 주제입니다.")).toBeTruthy();
+    expect(
+      screen.getByTestId("content-unavailable").props.accessibilityHint,
+    ).toBe("trash");
+    expect(screen.queryByTestId("button-다시 시도")).toBeNull();
+  });
 });
 
 describe("StandardStateViewErrorRow (iOS)", () => {
@@ -302,6 +318,19 @@ describe("StandardStateView (Android)", () => {
         title="태그 없음"
       />,
     );
+    expect(screen.getByTestId("icon")).toBeTruthy();
+  });
+
+  test("M15/AC6: deleted kind renders the exact copy (falls back to the error drawable, delete has no dedicated Android mapping)", async () => {
+    const AndroidStandardStateView = loadAndroid();
+    const screen = await render(
+      <AndroidStandardStateView
+        kind="deleted"
+        systemImage="delete"
+        title="삭제된 주제입니다."
+      />,
+    );
+    expect(screen.getByText("삭제된 주제입니다.")).toBeTruthy();
     expect(screen.getByTestId("icon")).toBeTruthy();
   });
 });

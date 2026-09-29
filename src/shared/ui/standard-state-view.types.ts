@@ -13,9 +13,15 @@ export type StandardStateViewLoadingProps = Readonly<{
   testID?: string;
 }>;
 
-/** Empty (G4/T6) or error-with-no-rows state: icon, title, optional description and actions. */
+/**
+ * Empty (G4/T6), error-with-no-rows, or terminal "deleted" (M15/AC6, e.g. a
+ * topic removed out from under an open detail screen) state: icon, title,
+ * optional description and actions. `kind` is a caller-facing discriminant
+ * only -- every variant renders identically here (no retry affordance is
+ * implied by "error"; callers supply their own `actions`).
+ */
 export type StandardStateViewContentProps = Readonly<{
-  kind: "empty" | "error";
+  kind: "empty" | "error" | "deleted";
   title: string;
   description?: string;
   systemImage: AppSymbolName;

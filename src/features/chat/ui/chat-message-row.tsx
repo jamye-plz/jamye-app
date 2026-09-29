@@ -34,12 +34,17 @@ const statusLabels = {
   sent: "전송됨",
 } as const;
 
+/** E2: exact copy for a locally tombstoned row -- no attachments, no menu. */
+const DELETED_MESSAGE_LABEL = "삭제된 메시지입니다.";
+
 export function ChatMessageRow({
   rowMeta,
   message,
   mediaPreviewEnabled = false,
   onRetryFailedMessage,
   onShareAttachment,
+  onRequestDeleteMessage,
+  onRequestDiscardFailedMessage,
 }: Readonly<{
   rowMeta: ChatMessageRowMeta;
   message: ChatMessage;
@@ -54,6 +59,19 @@ export function ChatMessageRow({
    * single screen-level `useMediaSharing()` call (its own `useFocusEffect`
    * must not be re-subscribed once per row). */
   onShareAttachment: (attachment: MessageAttachmentMedia) => void;
+  /** AC3/E11: own server-backed, non-pending, not-yet-deleted message only.
+   * This is a *request* -- the screen owns showing `ConfirmAlert`
+   * (`메시지를 삭제할까요?` / `모든 사람의 대화방에서 삭제됩니다.` / `삭제`)
+   * and only calls the store's `deleteMessage` action on confirm. */
+  onRequestDeleteMessage: (
+    input: Readonly<{ chatroomId: string; serverMessageId: string }>,
+  ) => void;
+  /** AC5/A2: own failed message only. Same row-level "request, screen
+   * confirms" split as `onRequestDeleteMessage`
+   * (`메시지를 버릴까요?` / `전송하지 못한 메시지를 이 기기에서 지웁니다.` / `버리기`). */
+  onRequestDiscardFailedMessage: (
+    input: Readonly<{ clientMsgId: string }>,
+  ) => void;
 }>) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
@@ -78,6 +96,15 @@ export function ChatMessageRow({
     timeLabel,
     showSentStatus,
   } = rowMeta;
+
+  // E2: a deleted system message (topic announcement, etc.) is hidden with
+  // no placeholder at all -- unlike a deleted user message, which keeps its
+  // row and alignment. listMessagesWindow already excludes
+  // kind='system' AND deleted_at_ms IS NOT NULL rows at the SQLite layer;
+  // this is defense in depth against any other row source reaching here.
+  if (isSystem && message.deletedAtMs != null) return null;
+
+  const isDeleted = message.deletedAtMs != null;
 
   const retry = () => {
     if (!message.clientMsgId) return;
@@ -121,7 +148,7 @@ export function ChatMessageRow({
   );
   const backgroundColor = isOutgoing ? colors.primary : colors.surface;
   const color = isOutgoing ? colors.onPrimary : colors.text;
-  const media = message.media ?? [];
+  const media = isDeleted ? [] : (message.media ?? []);
   const hasAttachments = media.length > 0;
   // "전송됨" is only ever shown visibly on the single last outgoing bubble
   // (`rowMeta.showSentStatus`, computed once linearly for the whole list);
@@ -131,14 +158,16 @@ export function ChatMessageRow({
     message.status === "sent"
       ? `${timeLabel} · ${statusLabels.sent}`
       : statusLabels[message.status];
-  const bubbleAccessibilityLabel = message.body
-    ? `${message.body}, ${statusCaptionVisible ? statusCaptionText : statusLabels[message.status]}`
-    : statusCaptionVisible
-      ? statusCaptionText
-      : statusLabels[message.status];
+  const bubbleAccessibilityLabel = isDeleted
+    ? DELETED_MESSAGE_LABEL
+    : message.body
+      ? `${message.body}, ${statusCaptionVisible ? statusCaptionText : statusLabels[message.status]}`
+      : statusCaptionVisible
+        ? statusCaptionText
+        : statusLabels[message.status];
 
   const menuActions: ChatMessageMenuAction[] = [];
-  if (message.body) {
+  if (!isDeleted && message.body) {
     menuActions.push({
       key: "copy",
       label: "복사",
@@ -146,7 +175,7 @@ export function ChatMessageRow({
       onPress: () => void copyMessageBodyToClipboard(message.body),
     });
   }
-  if (hasAttachments) {
+  if (!isDeleted && hasAttachments) {
     menuActions.push({
       key: "save-share",
       label: "저장·공유",
@@ -157,7 +186,12 @@ export function ChatMessageRow({
       },
     });
   }
-  if (isOutgoing && message.status === "failed" && message.clientMsgId) {
+  if (
+    !isDeleted &&
+    isOutgoing &&
+    message.status === "failed" &&
+    message.clientMsgId
+  ) {
     menuActions.push({
       key: "retry",
       label: "다시 보내기",
@@ -165,46 +199,98 @@ export function ChatMessageRow({
       onPress: retry,
     });
   }
+  // E11: destructive 삭제 is always the last item, own messages only, never
+  // on a pending or already-deleted row. AC3 (server-backed, sent) and AC5
+  // (failed, discard) share one menu slot since a message is never both.
+  if (
+    !isDeleted &&
+    isOutgoing &&
+    message.status === "sent" &&
+    message.serverMessageId
+  ) {
+    const serverMessageId = message.serverMessageId;
+    menuActions.push({
+      key: "delete",
+      label: "삭제",
+      systemImage: "trash",
+      destructive: true,
+      onPress: () =>
+        onRequestDeleteMessage({
+          chatroomId: message.conversationId,
+          serverMessageId,
+        }),
+    });
+  } else if (
+    !isDeleted &&
+    isOutgoing &&
+    message.status === "failed" &&
+    message.clientMsgId
+  ) {
+    const clientMsgId = message.clientMsgId;
+    menuActions.push({
+      key: "delete",
+      label: "삭제",
+      systemImage: "trash",
+      destructive: true,
+      onPress: () => onRequestDiscardFailedMessage({ clientMsgId }),
+    });
+  }
 
-  const pendingCaptions = hasAttachments ? [] : (message.pendingMedia ?? []);
-  const textBubble =
-    message.body || pendingCaptions.length > 0 ? (
-      <View
-        accessible
-        accessibilityLabel={bubbleAccessibilityLabel}
-        style={{
-          backgroundColor,
-          borderBottomLeftRadius: isOutgoing
-            ? appChatMessage.bubbleRadius
-            : appChatMessage.directionalRadius,
-          borderBottomRightRadius: isOutgoing
-            ? appChatMessage.directionalRadius
-            : appChatMessage.bubbleRadius,
-          borderCurve: "continuous",
-          borderRadius: appChatMessage.bubbleRadius,
-          maxWidth: bubbleMaxWidth,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-        }}
-      >
-        {message.body ? (
-          <Text
-            style={{
-              color,
-              fontSize: appChatMessage.fontSize,
-              lineHeight: appChatMessage.lineHeight,
-            }}
-          >
-            {message.body}
-          </Text>
-        ) : null}
-        {pendingCaptions.map((item, index) => (
-          <AppText color={color} key={item.mediaUploadId} variant="caption">
-            첨부 {index + 1}: {item.filename ?? "첨부 파일"} · 서버 전송 대기
-          </AppText>
-        ))}
-      </View>
-    ) : null;
+  const pendingCaptions =
+    isDeleted || hasAttachments ? [] : (message.pendingMedia ?? []);
+  const textBubble = isDeleted ? (
+    <View
+      accessible
+      accessibilityLabel={bubbleAccessibilityLabel}
+      style={{
+        borderCurve: "continuous",
+        borderRadius: appChatMessage.bubbleRadius,
+        maxWidth: bubbleMaxWidth,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+      }}
+    >
+      <AppText color={colors.textMuted} variant="body">
+        {DELETED_MESSAGE_LABEL}
+      </AppText>
+    </View>
+  ) : message.body || pendingCaptions.length > 0 ? (
+    <View
+      accessible
+      accessibilityLabel={bubbleAccessibilityLabel}
+      style={{
+        backgroundColor,
+        borderBottomLeftRadius: isOutgoing
+          ? appChatMessage.bubbleRadius
+          : appChatMessage.directionalRadius,
+        borderBottomRightRadius: isOutgoing
+          ? appChatMessage.directionalRadius
+          : appChatMessage.bubbleRadius,
+        borderCurve: "continuous",
+        borderRadius: appChatMessage.bubbleRadius,
+        maxWidth: bubbleMaxWidth,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+      }}
+    >
+      {message.body ? (
+        <Text
+          style={{
+            color,
+            fontSize: appChatMessage.fontSize,
+            lineHeight: appChatMessage.lineHeight,
+          }}
+        >
+          {message.body}
+        </Text>
+      ) : null}
+      {pendingCaptions.map((item, index) => (
+        <AppText color={color} key={item.mediaUploadId} variant="caption">
+          첨부 {index + 1}: {item.filename ?? "첨부 파일"} · 서버 전송 대기
+        </AppText>
+      ))}
+    </View>
+  ) : null;
 
   // R3: photos/videos sit bare (rounded, no colored bubble) with the text
   // bubble, if any, below them; a voice attachment brings its own bubble.
@@ -269,7 +355,7 @@ export function ChatMessageRow({
             </AppText>
           ) : null}
         </View>
-        {message.status === "failed" && message.clientMsgId ? (
+        {!isDeleted && message.status === "failed" && message.clientMsgId ? (
           // `NativeButton` stretches its host across its parent, so the
           // parent itself shrinks to the button and moves to my side.
           <View style={{ alignSelf: "flex-end" }}>

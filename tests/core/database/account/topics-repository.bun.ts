@@ -212,7 +212,16 @@ assert.deepEqual(await repository.listDirtyMarkers(groupId), []);
 assert.equal(await chat.getEventCheckpoint(roomId), "cursor-2");
 assert.deepEqual(
   db.query("SELECT * FROM connected_chat_messages").all(),
-  beforeMessages.map((message) => ({ ...message, pending_media_json: "[]" })),
+  // beforeMessages was captured at v3, before the v5 pending_media_json and
+  // v6 deleted_at_ms columns existed at all -- both are additive migrations
+  // that give every pre-existing row a non-destructive default, never
+  // dropped/renamed data, so both are added here rather than treated as a
+  // mismatch.
+  beforeMessages.map((message) => ({
+    ...message,
+    deleted_at_ms: null,
+    pending_media_json: "[]",
+  })),
 );
 assert.deepEqual(
   db.query("SELECT * FROM connected_chat_outbox_commands").all(),
@@ -225,6 +234,97 @@ const wrong = createTopicsRepository(
 );
 await assert.rejects(wrong.getDates(groupId), /scope/);
 await assert.rejects(wrong.saveTopic(topic), /scope/);
+
+// M15 AC8: refreshAuthorIdentities reuses connected-chat's
+// propagateSenderIdentity (r3/defect 10) against the very same account
+// SQLite DB the chat repository above writes to.
+const AUTHOR_LOCAL_ID = "topic-author-live-local";
+const AUTHOR_SERVER_MESSAGE_ID = "77777777-7777-4777-8777-777777777777";
+const ORIGINAL_AUTHOR_NICK = "원래 이름";
+const ORIGINAL_AUTHOR_AVATAR = "https://cdn.example/original.png";
+const DEPARTED_AUTHOR_NICK = "탈퇴한 사용자";
+function findChatRow(chatroomId, localId) {
+  return chat
+    .listMessagesWindow({ chatroomId, limit: 20 })
+    .then((page) => page.items.find((row) => row.localId === localId));
+}
+await chat.mergeHistoryMessages([
+  {
+    body: "작성자의 메시지",
+    chatroomId: roomId,
+    clientMsgId: null,
+    createdAtRaw: "2026-09-11T00:20:00.000000000Z",
+    kind: "user",
+    localId: AUTHOR_LOCAL_ID,
+    media: [],
+    senderAvatarUrl: ORIGINAL_AUTHOR_AVATAR,
+    senderId: otherId,
+    senderNickname: ORIGINAL_AUTHOR_NICK,
+    serverMessageId: AUTHOR_SERVER_MESSAGE_ID,
+  },
+]);
+await chat.markMessageDeleted({
+  deletedAtMs: 1_757_470_000_000,
+  serverMessageId: AUTHOR_SERVER_MESSAGE_ID,
+});
+const beforeAuthorRefresh = await findChatRow(roomId, AUTHOR_LOCAL_ID);
+assert.equal(beforeAuthorRefresh?.senderNickname, ORIGINAL_AUTHOR_NICK);
+assert.equal(beforeAuthorRefresh?.senderAvatarUrl, ORIGINAL_AUTHOR_AVATAR);
+assert.equal(beforeAuthorRefresh?.body, null);
+const principalRowBefore = await findChatRow(roomId, "pending-local");
+
+// A T3/T4 response shows the author's current (anonymized) identity.
+await repository.refreshAuthorIdentities([
+  {
+    authorId: otherId,
+    authorNickname: DEPARTED_AUTHOR_NICK,
+    authorAvatarUrl: null,
+  },
+]);
+const afterAuthorRefresh = await findChatRow(roomId, AUTHOR_LOCAL_ID);
+assert.equal(afterAuthorRefresh?.senderNickname, DEPARTED_AUTHOR_NICK);
+assert.equal(afterAuthorRefresh?.senderAvatarUrl, null);
+// E2 unaffected: content and the tombstone stay frozen.
+assert.equal(afterAuthorRefresh?.body, null);
+assert.equal(afterAuthorRefresh?.deletedAtMs, beforeAuthorRefresh?.deletedAtMs);
+// A different sender_id (the principal's own row) is untouched.
+assert.deepEqual(
+  await findChatRow(roomId, "pending-local"),
+  principalRowBefore,
+);
+
+// No-op when equal: calling again with the same identity changes nothing.
+await repository.refreshAuthorIdentities([
+  {
+    authorId: otherId,
+    authorNickname: DEPARTED_AUTHOR_NICK,
+    authorAvatarUrl: null,
+  },
+]);
+assert.deepEqual(
+  await findChatRow(roomId, AUTHOR_LOCAL_ID),
+  afterAuthorRefresh,
+);
+
+// Restore direction (A2): the account is restored, a later T3/T4 response
+// shows the original identity again.
+await repository.refreshAuthorIdentities([
+  {
+    authorId: otherId,
+    authorNickname: ORIGINAL_AUTHOR_NICK,
+    authorAvatarUrl: ORIGINAL_AUTHOR_AVATAR,
+  },
+]);
+const restoredAuthorRow = await findChatRow(roomId, AUTHOR_LOCAL_ID);
+assert.equal(restoredAuthorRow?.senderNickname, ORIGINAL_AUTHOR_NICK);
+assert.equal(restoredAuthorRow?.senderAvatarUrl, ORIGINAL_AUTHOR_AVATAR);
+assert.equal(restoredAuthorRow?.body, null);
+assert.equal(restoredAuthorRow?.deletedAtMs, beforeAuthorRefresh?.deletedAtMs);
+
+// An empty identity list is a no-op (no transaction, no error).
+await repository.refreshAuthorIdentities([]);
+assert.deepEqual(await findChatRow(roomId, AUTHOR_LOCAL_ID), restoredAuthorRow);
+
 active = false;
 await assert.rejects(repository.getTopic(groupId, topicId), /stale/);
 await assert.rejects(repository.saveTopic(topic), /stale/);

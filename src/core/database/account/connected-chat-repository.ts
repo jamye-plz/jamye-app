@@ -1,7 +1,10 @@
 import { getMediaContentPolicy } from "../../contracts/server/media";
 import type { SqliteRepositoryDatabase, SqliteRow } from "../types";
 import type { AccountPrincipal } from "./types";
-import { createConnectedChatSyncRepository } from "./connected-chat-sync-repository";
+import {
+  createConnectedChatSyncRepository,
+  tombstoneMessageIfLive,
+} from "./connected-chat-sync-repository";
 import type {
   ConnectedCanonicalMessageUpsert,
   ConnectedChatMedia,
@@ -35,6 +38,7 @@ type MessageRow = SqliteRow & {
   chatroom_id: string;
   client_msg_id: string | null;
   created_at_raw: string | null;
+  deleted_at_ms: number | null;
   kind: "user" | "system";
   local_created_at_ms: number;
   local_id: string;
@@ -67,7 +71,7 @@ const RFC3339 =
 const MESSAGE_COLUMNS = `local_id, server_message_id, chatroom_id,
   client_msg_id, sender_id, sender_nickname, sender_avatar_url, body, kind,
   media_json, pending_media_json, created_at_raw, local_created_at_ms,
-  sort_seconds, sort_nanos, sort_tiebreaker, status`;
+  sort_seconds, sort_nanos, sort_tiebreaker, status, deleted_at_ms`;
 
 const OUTBOX_COLUMNS = `command_id, local_id, chatroom_id, client_msg_id,
   body, media_upload_ids_json, state, error_code`;
@@ -243,6 +247,7 @@ function mapMessage(row: MessageRow): ConnectedChatMessage {
     chatroomId: row.chatroom_id,
     clientMsgId: row.client_msg_id,
     createdAtRaw: row.created_at_raw,
+    deletedAtMs: row.deleted_at_ms,
     kind: row.kind,
     localCreatedAtMs: row.local_created_at_ms,
     localId: row.local_id,
@@ -279,6 +284,46 @@ function cursorOfMessage(row: MessageRow): ConnectedMessageCursor {
   };
 }
 
+/** Shared by mergeMessage's "history" source (above) and
+ * topics-repository.ts's refreshAuthorIdentities (T3/T4 network responses,
+ * M15 AC8): propagates a user's current display to every local
+ * connected_chat_messages row for that sender_id in this account DB --
+ * chatroom/group-agnostic, tombstoned rows included, since names/avatars are
+ * per-user (server `users` table), not scoped to a chatroom or group. Only
+ * sender_nickname/sender_avatar_url are ever assigned, so migration 006's
+ * connected_chat_messages_deletion_monotonic trigger (`BEFORE UPDATE OF
+ * deleted_at_ms`) never engages and body/media/deleted_at_ms/kind stay
+ * frozen (E2). The WHERE diff makes a call for an already-matching sender a
+ * no-op write, so repeated calls for the same identity settle after the
+ * first real change. `excludeLocalId` skips the row a caller just wrote
+ * directly with these exact values (mergeMessage's own upsert) -- pass null
+ * to propagate to every row for that sender with no exclusion (the topics
+ * author-identity path, which never merges a message row itself). */
+export async function propagateSenderIdentity(
+  transaction: SqliteRepositoryDatabase,
+  input: Readonly<{
+    avatar: string | null;
+    excludeLocalId: string | null;
+    nickname: string | null;
+    senderId: string;
+  }>,
+): Promise<void> {
+  await transaction.runAsync(
+    `UPDATE connected_chat_messages
+     SET sender_nickname = ?, sender_avatar_url = ?
+     WHERE sender_id = ?
+       AND (? IS NULL OR local_id != ?)
+       AND (sender_nickname IS NOT ? OR sender_avatar_url IS NOT ?)`,
+    input.nickname,
+    input.avatar,
+    input.senderId,
+    input.excludeLocalId,
+    input.excludeLocalId,
+    input.nickname,
+    input.avatar,
+  );
+}
+
 export function createConnectedChatRepository(
   database: SqliteRepositoryDatabase,
   principal: AccountPrincipal,
@@ -309,6 +354,13 @@ export function createConnectedChatRepository(
   ): Promise<MessageRow> {
     const sort = parseTimestampSort(input.createdAtRaw);
     const existing = await selectMessageByIdentity(transaction, input);
+    // E2: a locally recorded tombstone is monotonic. A later message.created
+    // replay or C2/history reconcile page for the same message identity must
+    // never restore body/media/sender fields or clear deleted_at_ms -- the
+    // SQLite trigger also blocks clearing the column directly, but this
+    // early return additionally freezes every other column once deleted, and
+    // avoids a needless write the trigger would otherwise have to police.
+    if (existing?.deleted_at_ms != null) return existing;
     const localId = existing?.local_id ?? input.localId;
     const localCreatedAtMs =
       existing?.local_created_at_ms ??
@@ -354,7 +406,7 @@ export function createConnectedChatRepository(
     } else {
       await transaction.runAsync(
         `INSERT INTO connected_chat_messages (${MESSAGE_COLUMNS})
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, 'sent')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, 'sent', NULL)`,
         localId,
         input.serverMessageId,
         input.chatroomId,
@@ -382,6 +434,25 @@ export function createConnectedChatRepository(
         principal.userId,
         input.clientMsgId,
       );
+    }
+    // Defect 10 (G1/E12): "history" (C2 pages, reconcileChatHistory) is the
+    // authoritative *current* sender display for input.senderId -- names and
+    // avatars are per-user (server `users` table), not chatroom/group
+    // scoped, and C2 never returns an already-deleted message again
+    // (m.deleted_at_ms IS NULL in message_history), so a deleted row's own
+    // sender_nickname/sender_avatar_url otherwise never gets a fresh input
+    // to refresh from. Propagate the value this merge just established to
+    // every *other* local row for the same sender_id (see
+    // propagateSenderIdentity below). "canonical" (delta/WS) is
+    // intentionally excluded: replaying an old event must never regress a
+    // name/avatar that history has already brought current.
+    if (source === "history" && input.senderId !== null) {
+      await propagateSenderIdentity(transaction, {
+        avatar,
+        excludeLocalId: localId,
+        nickname,
+        senderId: input.senderId,
+      });
     }
     const merged = await transaction.getFirstAsync<MessageRow>(
       `SELECT ${MESSAGE_COLUMNS} FROM connected_chat_messages WHERE local_id = ?`,
@@ -470,6 +541,31 @@ export function createConnectedChatRepository(
       };
     },
 
+    async pruneChatroomsNotIn({ groupId, keepChatroomIds }) {
+      assertActive();
+      await database.withExclusiveTransactionAsync(async (transaction) => {
+        if (keepChatroomIds.length === 0) {
+          // `NOT IN ()` is invalid SQL with an empty list -- an empty
+          // confirmed-live set means every local row for this group is stale.
+          await transaction.runAsync(
+            `DELETE FROM connected_chatrooms WHERE group_id = ?`,
+            groupId,
+          );
+          return;
+        }
+        const placeholders = keepChatroomIds.map(() => "?").join(", ");
+        // `ON DELETE CASCADE` (migrations 002/006) removes each pruned room's
+        // messages, outbox commands, applied-event records and
+        // reconciliation markers with it in this same statement.
+        await transaction.runAsync(
+          `DELETE FROM connected_chatrooms
+           WHERE group_id = ? AND chatroom_id NOT IN (${placeholders})`,
+          groupId,
+          ...keepChatroomIds,
+        );
+      });
+    },
+
     async mergeHistoryMessages(inputs) {
       assertActive();
       await database.withExclusiveTransactionAsync(async (transaction) => {
@@ -494,12 +590,14 @@ export function createConnectedChatRepository(
       assertLimit(limit);
       const rows = await database.getAllAsync<MessageRow>(
         `SELECT ${MESSAGE_COLUMNS} FROM connected_chat_messages
-         WHERE chatroom_id = ? AND (
-           ? IS NULL OR sort_seconds < ? OR
-           (sort_seconds = ? AND sort_nanos < ?) OR
-           (sort_seconds = ? AND sort_nanos = ? AND sort_tiebreaker < ?) OR
-           (sort_seconds = ? AND sort_nanos = ? AND sort_tiebreaker = ? AND local_id < ?)
-         )
+         WHERE chatroom_id = ?
+           AND NOT (kind = 'system' AND deleted_at_ms IS NOT NULL)
+           AND (
+             ? IS NULL OR sort_seconds < ? OR
+             (sort_seconds = ? AND sort_nanos < ?) OR
+             (sort_seconds = ? AND sort_nanos = ? AND sort_tiebreaker < ?) OR
+             (sort_seconds = ? AND sort_nanos = ? AND sort_tiebreaker = ? AND local_id < ?)
+           )
          ORDER BY sort_seconds DESC, sort_nanos DESC, sort_tiebreaker DESC, local_id DESC
          LIMIT ?`,
         chatroomId,
@@ -541,7 +639,7 @@ export function createConnectedChatRepository(
       await database.withExclusiveTransactionAsync(async (transaction) => {
         await transaction.runAsync(
           `INSERT INTO connected_chat_messages (${MESSAGE_COLUMNS})
-           VALUES (?, NULL, ?, ?, ?, NULL, NULL, ?, 'user', '[]', ?, NULL, ?, ?, ?, ?, 'pending')`,
+           VALUES (?, NULL, ?, ?, ?, NULL, NULL, ?, 'user', '[]', ?, NULL, ?, ?, ?, ?, 'pending', NULL)`,
           input.localId,
           input.chatroomId,
           input.clientMsgId,
@@ -669,5 +767,47 @@ export function createConnectedChatRepository(
       if (!result) throw new Error("Connected chat retry did not complete.");
       return result;
     },
+
+    async markMessageDeleted({ deletedAtMs, serverMessageId }) {
+      assertActive();
+      assertNonEmptyValue(serverMessageId, "Deleted message server id");
+      await database.withExclusiveTransactionAsync(async (transaction) => {
+        await tombstoneMessageIfLive(transaction, {
+          deletedAtMs,
+          serverMessageId,
+        });
+      });
+    },
+
+    async discardFailedMessage({ chatroomId, clientMsgId }) {
+      assertActive();
+      await database.withExclusiveTransactionAsync(async (transaction) => {
+        const command = await transaction.getFirstAsync<OutboxRow>(
+          `SELECT ${OUTBOX_COLUMNS}
+           FROM connected_chat_outbox_commands WHERE sender_id = ? AND client_msg_id = ?`,
+          principal.userId,
+          clientMsgId,
+        );
+        if (
+          !command ||
+          command.state !== "failed" ||
+          command.chatroom_id !== chatroomId
+        )
+          return;
+        // FOREIGN KEY (local_id, chatroom_id) REFERENCES
+        // connected_chat_messages(...) ON DELETE CASCADE removes the matching
+        // connected_chat_outbox_commands row (and with it the upload draft
+        // reference in media_upload_ids_json) in the same statement -- AC5's
+        // "메시지 행, outbox 명령, 업로드 초안을 한 번에 정리" in one delete.
+        await transaction.runAsync(
+          `DELETE FROM connected_chat_messages WHERE local_id = ? AND status = 'failed'`,
+          command.local_id,
+        );
+      });
+    },
   };
+}
+
+function assertNonEmptyValue(value: string, name: string): void {
+  if (value.length === 0) throw new Error(`${name} must not be empty.`);
 }

@@ -22,6 +22,29 @@ const mockRetry = jest.fn();
 const mockPushDisable = jest.fn().mockResolvedValue(undefined);
 const mockDeleteAccount = jest.fn();
 
+// r2-18 / 기기 결함 9 regression: `Pressable` doesn't forward `onPress` as a
+// literal prop onto its underlying host node, so RNTL's
+// `getByTestId(...).props.onPress` can never observe what the screen passed
+// in. Spy on the mocked `ListItem` instead and record what it actually
+// received -- same shape as the HeaderActions spy in
+// tests/features/topics/ui/topic-detail-screen.test.tsx, but requiring the
+// manual mock file directly (not `jest.requireActual("@expo/ui")`, which
+// would bypass the manual mock entirely and return the unusable real native
+// module).
+const mockListItemCalls: { testID?: string; onPress?: unknown }[] = [];
+jest.mock("@expo/ui", () => {
+  const actual = jest.requireActual<typeof import("../../__mocks__/@expo/ui")>(
+    "../../__mocks__/@expo/ui",
+  );
+  return {
+    ...actual,
+    ListItem: (props: Parameters<typeof actual.ListItem>[0]) => {
+      mockListItemCalls.push({ testID: props.testID, onPress: props.onPress });
+      return <actual.ListItem {...props} />;
+    },
+  };
+});
+
 jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
   useRouter: () => ({ back: jest.fn(), push: mockRouterPush }),
@@ -132,11 +155,21 @@ async function renderScreen() {
   );
 }
 
+// Returns the `onPress` from the most recent render of the `ListItem` with
+// this `testID` (per the spy above), so tests can see the same prop value
+// the native side would have received -- not what the Pressable host node's
+// `.props` happens to expose.
+function lastListItemOnPress(testID: string): unknown {
+  return mockListItemCalls.filter((call) => call.testID === testID).at(-1)
+    ?.onPress;
+}
+
 describe("account screen (android)", () => {
   const originalDev = __DEV__;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockListItemCalls.length = 0;
     mockLogout.mockResolvedValue(undefined);
     mockPushDisable.mockResolvedValue(undefined);
     mockPrincipal = {
@@ -202,5 +235,64 @@ describe("account screen (android)", () => {
     mockPrincipal = null;
     const screen = await renderScreen();
     expect(screen.toJSON()).toBeNull();
+  });
+
+  // Regression for r2-18 / 기기 결함 9: the universal `ListItem` (Android)
+  // swaps its Compose `modifiers` prop between an array and `undefined`
+  // depending on whether `onPress` is defined, and `undefined` fails the
+  // native prop cast. `onPress` must stay a defined function throughout the
+  // in-flight state, with the guard living inside the handler.
+  test("keeps the logout row's onPress defined while logging out and ignores presses until it finishes", async () => {
+    let resolveDisable: (() => void) | undefined;
+    mockPushDisable.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDisable = resolve;
+        }),
+    );
+    const screen = await renderScreen();
+    await fireEvent.press(screen.getByTestId("logout-row"));
+    await fireEvent.press(screen.getByTestId("logout-confirm-alert-confirm"));
+
+    // Still in flight: the mocked ListItem must have received a defined
+    // onPress, never `undefined` (checked on what it actually received, not
+    // on the Pressable host node's props -- see the spy above).
+    expect(typeof lastListItemOnPress("logout-row")).toBe("function");
+    // Pressing again while in flight must not reopen the confirm alert or
+    // log out a second time.
+    await fireEvent.press(screen.getByTestId("logout-row"));
+    expect(screen.queryByTestId("logout-confirm-alert-confirm")).toBeNull();
+    expect(mockLogout).not.toHaveBeenCalled();
+
+    resolveDisable?.();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockLogout).toHaveBeenCalledTimes(1);
+  });
+
+  test("keeps the delete-account row's onPress defined while deleting and ignores presses until it finishes", async () => {
+    let resolveDelete: (() => void) | undefined;
+    mockDeleteAccount.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = () => resolve({ status: "ok" });
+        }),
+    );
+    const screen = await renderScreen();
+    await fireEvent.press(screen.getByTestId("delete-account-row"));
+    await fireEvent.press(screen.getByTestId("delete-confirm-alert-confirm"));
+
+    expect(typeof lastListItemOnPress("delete-account-row")).toBe("function");
+    await fireEvent.press(screen.getByTestId("delete-account-row"));
+    expect(screen.queryByTestId("delete-confirm-alert-confirm")).toBeNull();
+    expect(mockDeleteAccount).toHaveBeenCalledTimes(1);
+
+    resolveDelete?.();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
   });
 });

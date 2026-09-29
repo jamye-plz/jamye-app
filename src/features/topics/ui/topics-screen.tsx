@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 
+import { useSession } from "@/core/providers/session-provider";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appSpacing } from "@/core/theme/tokens";
 import { useGroupName } from "@/features/groups/model/groups-provider";
@@ -34,6 +35,9 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
   const screen = useTopicScreen(groupId);
   const { state, store, chat, ready, scoped, router } = screen;
   const groupName = useGroupName(groupId);
+  // M15/AC3/E11: gates each row's delete action to its author.
+  const { principal } = useSession();
+  const currentUserId = principal?.userId ?? null;
   const main =
     chat.state.groupId === groupId && !chat.state.accessLost
       ? chat.state.rooms.items.find((room) => room.kind === "main")
@@ -161,10 +165,14 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
     } else {
       body = (
         <TopicList
+          currentUserId={currentUserId}
           loadMore={
             state.nextCursor
               ? { isLoading: state.loadingMore, onVisible: handleLoadMore }
               : null
+          }
+          onDeleteConfirmed={(topic) =>
+            void store?.actions.deleteTopic(topic.id)
           }
           onOpenChat={(topic) => openChatroom(topic.chatroomId)}
           onRefresh={() => store?.actions.refresh() ?? Promise.resolve()}

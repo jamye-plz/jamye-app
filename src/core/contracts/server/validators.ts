@@ -3,9 +3,11 @@ import Ajv2020 from "ajv/dist/2020";
 import serverOpenApi from "../../../../contracts/server/openapi.json";
 import realtimeClientFrameSchema from "../../../../contracts/server/realtime/client-frame.schema.json";
 import realtimeMessageCreatedFrameSchema from "../../../../contracts/server/realtime/message.created.schema.json";
+import realtimeMessageDeletedFrameSchema from "../../../../contracts/server/realtime/message.deleted.schema.json";
 import realtimeProtocolDocument from "../../../../contracts/server/realtime/protocol.json";
 import realtimeServerFrameSchema from "../../../../contracts/server/realtime/server-frame.schema.json";
 import realtimeTopicCreatedFrameSchema from "../../../../contracts/server/realtime/topic.created.schema.json";
+import realtimeTopicDeletedFrameSchema from "../../../../contracts/server/realtime/topic.deleted.schema.json";
 import type { components } from "../generated/server/server-api";
 
 import { registerServerContractFormats } from "./formats";
@@ -167,6 +169,14 @@ export type ReconcileScopeWire = components["schemas"]["ReconcileScope"];
 export type MessageCreatedEventWire =
   components["schemas"]["MessageCreatedEvent"];
 export type TopicCreatedEventWire = components["schemas"]["TopicCreatedEvent"];
+// M15/task-14 phase 1: S1 v2 adds two typed DeltaItem variants for content
+// deletion (server C6/T8). Both are closed-schema (additionalProperties:
+// false) like every other event above; S1 v1 keeps returning
+// UnsupportedEventMarker(scope chat_history/group_topics) for these same
+// logical events instead (E1).
+export type MessageDeletedEventWire =
+  components["schemas"]["MessageDeletedEvent"];
+export type TopicDeletedEventWire = components["schemas"]["TopicDeletedEvent"];
 export type RealtimeTicketWire = components["schemas"]["RealtimeTicket"];
 
 export const validateEventPage = compileComponentSchema("EventPage");
@@ -179,6 +189,11 @@ export const validateMessageCreatedEvent = compileComponentSchema(
 );
 export const validateTopicCreatedEvent =
   compileComponentSchema("TopicCreatedEvent");
+export const validateMessageDeletedEvent = compileComponentSchema(
+  "MessageDeletedEvent",
+);
+export const validateTopicDeletedEvent =
+  compileComponentSchema("TopicDeletedEvent");
 export const validateRealtimeTicket = compileComponentSchema("RealtimeTicket");
 
 // Realtime WebSocket wire boundary, validated against the selectively
@@ -231,8 +246,16 @@ export type RealtimeServerControlFrame =
       message: string;
     }>;
 
+// M15/task-14 phase 1: the WS server-frame union grows the same two typed
+// delete events S1 v2 gained (see server-frame.schema.json's oneOf, refreshed
+// by the next intake). R1 tickets bind the negotiated contract version, so a
+// v1 session's server never emits these two frame types over the socket.
 export type RealtimeServerFrame =
-  RealtimeServerControlFrame | MessageCreatedEventWire | TopicCreatedEventWire;
+  | RealtimeServerControlFrame
+  | MessageCreatedEventWire
+  | TopicCreatedEventWire
+  | MessageDeletedEventWire
+  | TopicDeletedEventWire;
 
 export const validateRealtimeClientFrame =
   compileRealtimeFrameSchema<RealtimeClientFrame>(realtimeClientFrameSchema);
@@ -246,6 +269,47 @@ export const validateRealtimeTopicCreatedFrame =
   compileRealtimeFrameSchema<TopicCreatedEventWire>(
     realtimeTopicCreatedFrameSchema,
   );
+export const validateRealtimeMessageDeletedFrame =
+  compileRealtimeFrameSchema<MessageDeletedEventWire>(
+    realtimeMessageDeletedFrameSchema,
+  );
+export const validateRealtimeTopicDeletedFrame =
+  compileRealtimeFrameSchema<TopicDeletedEventWire>(
+    realtimeTopicDeletedFrameSchema,
+  );
+
+// M15/task-14 phase 1 public API (task-app-chat/task-app-topics consume this
+// directly): MessageDeletedEvent/TopicDeletedEvent are the app-facing names
+// for the two new S1 typed delete events -- no separate domain remap exists
+// because every field is already a plain identifier or RFC3339 timestamp
+// string consumed as-is.
+export type MessageDeletedEvent = MessageDeletedEventWire;
+export type TopicDeletedEvent = TopicDeletedEventWire;
+
+/**
+ * S1 (GET /api/v1/conversations/{conversation_id}/events) discriminates each
+ * closed-union DeltaItem by its `type` field, never by structural shape
+ * ("data" in item -- E17), because message.deleted/topic.deleted also carry
+ * a `data` object like message.created. UnsupportedEventMarker is the only
+ * DeltaItem member with no `type` field at all, so its absence is itself the
+ * discriminant for "unknown/unsupported" (an actually-unrecognized future
+ * `type` value is rejected upstream by validateDeltaItem/validateEventPage
+ * before this ever runs, since the closed oneOf has no catch-all branch).
+ */
+export type ClassifiedDeltaItem =
+  | Readonly<{ kind: "message.created"; event: MessageCreatedEventWire }>
+  | Readonly<{ kind: "message.deleted"; event: MessageDeletedEvent }>
+  | Readonly<{ kind: "topic.deleted"; event: TopicDeletedEvent }>
+  | Readonly<{ kind: "unsupported"; event: UnsupportedEventMarkerWire }>;
+
+export function classifyDeltaItem(item: DeltaItemWire): ClassifiedDeltaItem {
+  if (!("type" in item)) return { event: item, kind: "unsupported" };
+  if (item.type === "message.created")
+    return { event: item, kind: "message.created" };
+  if (item.type === "message.deleted")
+    return { event: item, kind: "message.deleted" };
+  return { event: item, kind: "topic.deleted" };
+}
 
 // protocol.json is lifecycle/versioning metadata (heartbeat timing, close
 // codes, ticket policy), not a JSON Schema; its type is inferred directly

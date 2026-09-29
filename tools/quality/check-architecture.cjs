@@ -282,9 +282,16 @@ const M9_SERVER_CONTRACT_FILES = Object.freeze([
   "contracts/server/realtime/server-frame.schema.json",
   "contracts/server/realtime/topic.created.schema.json",
 ]);
+// M15/task-14 phase 1 (task-app-contract, AC1): two new typed realtime
+// delete-event schemas, selectively vendored alongside the M9 set.
+const M15_SERVER_CONTRACT_FILES = Object.freeze([
+  "contracts/server/realtime/message.deleted.schema.json",
+  "contracts/server/realtime/topic.deleted.schema.json",
+]);
 const ACTIVE_SERVER_CONTRACT_FILES = Object.freeze([
   ...M6_SERVER_CONTRACT_FILES,
   ...M9_SERVER_CONTRACT_FILES,
+  ...M15_SERVER_CONTRACT_FILES,
 ]);
 
 const M6_CONTRACT_SOURCE_FILES = Object.freeze([
@@ -511,6 +518,10 @@ const M10_AUTHORED_FILES = Object.freeze([
 const M11_DATABASE_SOURCE_FILES = Object.freeze([
   "src/core/database/account/migrations/005-connected-chat-media.ts",
 ]);
+// M15/task-14 (task-app-chat, AC1): account DB v6 message-deletion migration.
+const M15_DATABASE_SOURCE_FILES = Object.freeze([
+  "src/core/database/account/migrations/006-connected-chat-deletions.ts",
+]);
 const M11_TEST_PATHS = Object.freeze([
   "tests/core/contracts/server-media-validators.test.ts",
   "tests/core/public-media-env.test.ts",
@@ -647,6 +658,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = Object.freeze([
   ...M9_DATABASE_SOURCE_FILES,
   ...M10_DATABASE_SOURCE_FILES,
   ...M11_DATABASE_SOURCE_FILES,
+  ...M15_DATABASE_SOURCE_FILES,
 ]);
 
 const M5_DESIGN_ARTIFACT_PATHS = Object.freeze([
@@ -713,7 +725,6 @@ const M14_ROUND1_TEST_PATHS = Object.freeze([
   "tests/features/groups/ui/group-list-screen.android.test.tsx",
   "tests/features/topics/ui/topic-date-chips.ios.test.tsx",
   "tests/features/topics/ui/topic-date-chips.android.test.tsx",
-  "tests/features/topics/ui/topic-edit-button.test.tsx",
   "tests/features/topics/ui/topic-edit-form.ios.test.tsx",
   "tests/features/topics/ui/topic-edit-form.android.test.tsx",
   "tests/features/chat/model/use-chatroom-title.test.tsx",
@@ -809,6 +820,48 @@ const M14_ROUND2_TEST_PATHS = Object.freeze([
   "tests/features/media/model/audio-playback-coordinator.test.ts",
   "tests/features/media/platform/player.test.ts",
 ]);
+// M15/task-14: task-app-contract adds no new test *files* this round (it
+// extends existing tests/core/contracts, tests/features/sync, and
+// tests/core/auth files in place); later M15 tasks append their own new
+// test file paths here.
+const M15_TEST_PATHS = Object.freeze([
+  // task-app-account (E9/G2/E13): account-delete confirm copy, the A2
+  // accountRestored one-shot store, and its first-screen (group list +
+  // invite-join) notice.
+  "tests/features/auth/model/pending-account-restore-store.test.ts",
+  "tests/features/auth/ui/account-restore-notice.test.tsx",
+  "tests/app/groups-account-restore-notice.test.tsx",
+  // task-app-chat (AC1): dedicated account DB v6 migration test (new
+  // install, v5->v6 upgrade, connected_chat_reconciliation_scopes marker
+  // preservation), mirroring connected-chat-media-migration.test.ts's
+  // per-migration convention.
+  "tests/core/database/account/connected-chat-deletions-migration.test.ts",
+  // task-app-chat (AC7): registration/unregistration/multi-listener unit
+  // tests for the topic.deleted narrow dispatch seam.
+  "tests/features/sync/realtime/topic-deleted-dispatch.test.ts",
+  // task-app-chat (E10): pure-function ConfirmAlert copy test for the
+  // delete/discard confirm dialog (AC3/AC5).
+  "tests/features/chat/ui/destructive-confirm-copy.test.ts",
+  // task-app-chat (AC5): real-SQLite discardFailedMessage cleanup test
+  // (message row + outbox command via FK cascade + upload draft).
+  "tests/core/database/account/connected-chat-discard-message.test.ts",
+  // task-app-chat r2 (coordinator round 2, device BUG 3 follow-up): pins
+  // use-topic-screen.ts revoking the topics store only on a group-wide chat
+  // loss, never on a single topic room's room-scoped loss.
+  "tests/features/topics/ui/use-topic-screen.test.tsx",
+  // task-refine (REFINE Step 10 MEDIUM, 2026-09-29): shared topic-delete
+  // ConfirmAlert copy, split out of topic-list.tsx/topic-detail-screen.tsx
+  // duplication (mirrors destructive-confirm-copy.ts's precedent).
+  "tests/features/topics/model/topic-delete-confirm-copy.test.ts",
+  // task-refine (REFINE Step 11, 2026-09-29, coordinator-verified device
+  // defect 1 regression): ComposeRnHost default/android pair tests.
+  "tests/shared/ui/compose-rn-host.test.tsx",
+  "tests/shared/ui/compose-rn-host.android.test.tsx",
+  // task-refine r2 (SHIP UX MEDIUM, 2026-09-29): group-row-actions.tsx
+  // ownership-transfer picker render test (group-transfer-picker rows +
+  // ComposeRnHost hosting + transfer confirm).
+  "tests/features/groups/ui/group-row-actions.test.tsx",
+]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
   ...new Set([
     ...ACTIVE_M3_TEST_PATHS,
@@ -826,6 +879,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M11_TEST_PATHS,
     ...M14_ROUND1_TEST_PATHS,
     ...M14_ROUND2_TEST_PATHS,
+    ...M15_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
     "tests/core/theme/tokens.test.ts",
@@ -1368,6 +1422,7 @@ const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   "contracts/server/manifest.json",
   "contracts/server/openapi.json",
   ...M9_SERVER_CONTRACT_FILES,
+  ...M15_SERVER_CONTRACT_FILES,
   "src/core/contracts/generated/",
   "docs/evidence/",
 ]);
@@ -1527,10 +1582,6 @@ const M14_ROUND1_AUTHORED_FILES = Object.freeze([
   "src/features/topics/ui/topic-date-chips.tsx",
   "src/features/topics/ui/topic-date-chips.ios.tsx",
   "src/features/topics/ui/topic-date-chips.android.tsx",
-  "src/features/topics/ui/topic-edit-button.types.ts",
-  "src/features/topics/ui/topic-edit-button.tsx",
-  "src/features/topics/ui/topic-edit-button.ios.tsx",
-  "src/features/topics/ui/topic-edit-button.android.tsx",
   "src/features/topics/ui/topic-edit-form.types.ts",
   "src/features/topics/ui/topic-edit-form.shared.ts",
   "src/features/topics/ui/topic-edit-form.tsx",
@@ -1545,7 +1596,6 @@ const M14_ROUND1_AUTHORED_FILES = Object.freeze([
   "src/features/chat/model/use-chatroom-title.ts",
   "tests/features/topics/ui/topic-date-chips.ios.test.tsx",
   "tests/features/topics/ui/topic-date-chips.android.test.tsx",
-  "tests/features/topics/ui/topic-edit-button.test.tsx",
   "tests/features/topics/ui/topic-edit-form.ios.test.tsx",
   "tests/features/topics/ui/topic-edit-form.android.test.tsx",
   "tests/features/chat/model/use-chatroom-title.test.tsx",
@@ -1774,6 +1824,63 @@ const M14_ROUND2_AUTHORED_FILES = Object.freeze([
   "docs/adr/0014-voice-messages-and-microphone-permission.md",
 ]);
 
+// M15/task-14 phase 1 (task-app-contract): the two selectively vendored
+// realtime delete-event schemas are the only new paths this task creates;
+// every other M15/task-14 phase 1 change modifies an already-authored file
+// (src/core/contracts/server/**, src/features/sync/realtime/**,
+// src/core/auth/auth-api.ts). Later M15 tasks append their own new paths
+// here (and to M15_TEST_PATHS above, if they add new test files).
+const M15_AUTHORED_FILES = Object.freeze([
+  ...M15_SERVER_CONTRACT_FILES,
+  // task-app-account (E9/G2/E13): the memory-only account-restore store and
+  // its first-screen notice component.
+  "src/features/auth/model/pending-account-restore-store.ts",
+  "src/features/auth/ui/account-restore-notice.tsx",
+  "tests/features/auth/model/pending-account-restore-store.test.ts",
+  "tests/features/auth/ui/account-restore-notice.test.tsx",
+  "tests/app/groups-account-restore-notice.test.tsx",
+  // task-app-chat (AC1/AC7): the topic.deleted narrow dispatch seam the
+  // sync engine calls and task-app-topics registers against, and the
+  // account DB v6 migration (message deletion tombstone columns/trigger,
+  // connected_chat_applied_events.event_kind widened to message.deleted/
+  // topic.deleted with connected_chat_reconciliation_scopes markers
+  // preserved across the rebuild).
+  "src/features/sync/realtime/topic-deleted-dispatch.ts",
+  "src/core/database/account/migrations/006-connected-chat-deletions.ts",
+  // task-app-chat (E10): pure-function ConfirmAlert copy, split out of
+  // chat-screen.tsx so it (and its unit test) never pull in expo-router.
+  "src/features/chat/model/destructive-confirm-copy.ts",
+  "tests/core/database/account/connected-chat-deletions-migration.bun.ts",
+  "tests/core/database/account/connected-chat-deletions-migration.test.ts",
+  "tests/features/sync/realtime/topic-deleted-dispatch.test.ts",
+  "tests/features/chat/ui/destructive-confirm-copy.test.ts",
+  "tests/core/database/account/connected-chat-discard-message.bun.ts",
+  "tests/core/database/account/connected-chat-discard-message.test.ts",
+  // task-app-chat r2 (device round): pins that only a group-wide chat
+  // access loss revokes the topics store.
+  "tests/features/topics/ui/use-topic-screen.test.tsx",
+  // task-docs (E18/AC3): M15 device and deploy evidence.
+  "docs/evidence/M15.md",
+  // task-refine (REFINE Step 10 MEDIUM, 2026-09-29): shared topic-delete
+  // ConfirmAlert copy (see AUTHORIZED_DELETE_PATHS for the topic-edit-button
+  // dead-code removal from this same task).
+  "src/features/topics/model/topic-delete-confirm-copy.ts",
+  "tests/features/topics/model/topic-delete-confirm-copy.test.ts",
+  // task-refine (REFINE Step 11, 2026-09-29): ComposeRnHost, extracted from
+  // action-list-item.android.tsx's RNHostView leading-hosting so
+  // group-row-actions.tsx's ownership-transfer picker (a universal
+  // `ListItem`, not `ActionListItem`) gets the same device defect 1 fix.
+  "src/shared/ui/compose-rn-host.tsx",
+  "src/shared/ui/compose-rn-host.android.tsx",
+  "tests/shared/ui/compose-rn-host.test.tsx",
+  "tests/shared/ui/compose-rn-host.android.test.tsx",
+  // task-refine r2 (SHIP UX MEDIUM, 2026-09-29): dedicated render test for
+  // group-row-actions.tsx's ownership-transfer picker, closing the gap
+  // ComposeRnHost's own unit tests didn't cover (the picker's
+  // `group-transfer-picker` list and each row's ComposeRnHost-hosted avatar).
+  "tests/features/groups/ui/group-row-actions.test.tsx",
+]);
+
 const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "app.config.ts",
   ".env.example",
@@ -1913,6 +2020,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M11_AUTHORED_FILES,
   ...M14_ROUND1_AUTHORED_FILES,
   ...M14_ROUND2_AUTHORED_FILES,
+  ...M15_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -1995,6 +2103,15 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
   "tests/features/account/ui/nickname-section.test.tsx",
   "src/features/account/ui/delete-account-section.tsx",
   "tests/features/account/ui/delete-account-section.test.tsx",
+  // task-refine (REFINE Step 13, 2026-09-29): topic-edit-button.* was
+  // superseded by the topic detail HeaderActions edit/delete menu (M15) and
+  // had no importer left (confirmed by search); dead code removed, no
+  // behavior change.
+  "src/features/topics/ui/topic-edit-button.types.ts",
+  "src/features/topics/ui/topic-edit-button.tsx",
+  "src/features/topics/ui/topic-edit-button.ios.tsx",
+  "src/features/topics/ui/topic-edit-button.android.tsx",
+  "tests/features/topics/ui/topic-edit-button.test.tsx",
 ]);
 
 const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
@@ -3195,7 +3312,8 @@ function discoverM5AuthoredInventory(root, { fs, path }) {
         !M8_AUTHORED_FILES.includes(file) &&
         !M9_AUTHORED_FILES.includes(file) &&
         !M14_ROUND1_AUTHORED_FILES.includes(file) &&
-        !M14_ROUND2_AUTHORED_FILES.includes(file),
+        !M14_ROUND2_AUTHORED_FILES.includes(file) &&
+        !M15_AUTHORED_FILES.includes(file),
     ),
   ].sort();
 }
@@ -3218,7 +3336,9 @@ function discoverM5TestInventory(root, { fs, path }) {
         !M14_ROUND1_AUTHORED_FILES.includes(file) &&
         !M14_ROUND1_TEST_PATHS.includes(file) &&
         !M14_ROUND2_AUTHORED_FILES.includes(file) &&
-        !M14_ROUND2_TEST_PATHS.includes(file),
+        !M14_ROUND2_TEST_PATHS.includes(file) &&
+        !M15_AUTHORED_FILES.includes(file) &&
+        !M15_TEST_PATHS.includes(file),
     ),
   ].sort();
 }

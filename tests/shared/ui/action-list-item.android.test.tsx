@@ -1,6 +1,7 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { fireEvent, render, within } from "@testing-library/react-native";
 import React from "react";
 import type { ReactNode } from "react";
+import { View } from "react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { androidThemeColors } from "@/core/theme/tokens";
 import type {
@@ -8,6 +9,29 @@ import type {
   RowAction,
 } from "@/shared/ui/action-list-item.types";
 
+// The shared manual mock, except that `RNHostView` exposes `matchContents`
+// so the leading-slot hosting test below can see how the row hosts it.
+jest.mock("@expo/ui", () => {
+  const shared = jest.requireActual<typeof import("../../__mocks__/@expo/ui")>(
+    "../../__mocks__/@expo/ui",
+  );
+  const { View: RNView } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  function RNHostView(
+    props: Readonly<{ children?: ReactNode; matchContents?: boolean }>,
+  ) {
+    return (
+      <RNView
+        testID={
+          props.matchContents ? "rn-host-view-match-contents" : "rn-host-view"
+        }
+      >
+        {props.children}
+      </RNView>
+    );
+  }
+  return { ...shared, RNHostView };
+});
 jest.mock("@expo/ui/jetpack-compose", () => {
   const { Pressable, Text, View } =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -184,5 +208,33 @@ describe("ActionListItem (Android)", () => {
     await fireEvent.press(screen.getByLabelText("우리 그룹 메뉴"));
     await fireEvent.press(screen.getByText("읽음으로 표시"));
     expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  test("M15 device regression: the leading RN view is hosted through RNHostView matchContents, never bare in the Compose slot", async () => {
+    // A bare RN avatar here crashed the app on device ("The specified child
+    // already has a parent") when a topic row with rows below it was
+    // deleted: `LazyColumn` rebuilds the index-keyed rows under it.
+    const ActionListItem = loadAndroidRow();
+    const screen = await render(
+      <AppThemeProvider>
+        <ActionListItem
+          actions={actions}
+          leading={<View testID="leading-avatar" />}
+          onPress={jest.fn()}
+          testID="row"
+          title="우리 그룹"
+        />
+      </AppThemeProvider>,
+    );
+    expect(
+      within(screen.getByTestId("rn-host-view-match-contents")).getByTestId(
+        "leading-avatar",
+      ),
+    ).toBeTruthy();
+
+    const { screen: withoutLeading } = await setup();
+    expect(
+      withoutLeading.queryByTestId("rn-host-view-match-contents"),
+    ).toBeNull();
   });
 });

@@ -154,7 +154,7 @@ describe("M11 account v5 migration registry", () => {
 
     await runMigrations(database, accountMigrations);
 
-    expect(database.userVersion).toBe(5);
+    expect(database.userVersion).toBe(6);
     const schema = schemaOf(database);
     expect(tableNames(schema)).toEqual([
       "connected_chat_applied_events",
@@ -204,7 +204,7 @@ describe("M11 account v5 migration registry", () => {
     expect(retryStatements.join("\n")).not.toMatch(
       /PRAGMA\s+user_version\s*=/i,
     );
-    expect(database.userVersion).toBe(5);
+    expect(database.userVersion).toBe(6);
   });
 
   test("does not modify the preserved fixture migration registry or its five-table schema", async () => {

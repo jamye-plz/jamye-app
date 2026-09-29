@@ -1,7 +1,10 @@
 import { Icon, ListItem, Text } from "@expo/ui";
 import { Button, ContextMenu, SwipeActions } from "@expo/ui/swift-ui";
-import { disabled } from "@expo/ui/swift-ui/modifiers";
+import { disabled, tint } from "@expo/ui/swift-ui/modifiers";
 import type { ComponentProps } from "react";
+import type { ColorValue } from "react-native";
+
+import { useAppThemeOrSystem } from "@/core/theme/theme-provider";
 
 import type {
   ActionListItemProps,
@@ -26,15 +29,30 @@ const SF_SYMBOLS: Record<RowActionSymbol, SystemImage> = {
 function actionButton(
   action: RowAction,
   keyPrefix: string,
-  useSwipeLabel = false,
+  isSwipe = false,
+  destructiveTint?: ColorValue,
 ) {
+  // M15/AC3/AC5 r3: a swipe button never gets `role="destructive"`. SwiftUI's
+  // `swipeActions` treats a destructive-role button as "delete this row" and
+  // hides the row the instant it's tapped -- before the `ConfirmAlert` this
+  // app always shows first (E10) can run. A red `tint` (the theme's iOS
+  // `systemRed`, the same red the destructive role rendered, and dark-mode
+  // aware -- unlike a literal hex) keeps the same look without that
+  // built-in hide animation. The long-press `contextMenu` has no such side
+  // effect, so its buttons keep the real destructive role.
+  const modifiers = [
+    ...(action.destructive && isSwipe && destructiveTint
+      ? [tint(destructiveTint)]
+      : []),
+    ...(action.disabled ? [disabled(true)] : []),
+  ];
   return (
     <Button
       key={`${keyPrefix}-${action.key}`}
-      label={useSwipeLabel ? (action.swipeLabel ?? action.title) : action.title}
-      modifiers={action.disabled ? [disabled(true)] : undefined}
+      label={isSwipe ? (action.swipeLabel ?? action.title) : action.title}
+      modifiers={modifiers.length > 0 ? modifiers : undefined}
       onPress={action.onPress}
-      role={action.destructive ? "destructive" : undefined}
+      role={action.destructive && !isSwipe ? "destructive" : undefined}
       systemImage={SF_SYMBOLS[action.symbol]}
     />
   );
@@ -60,6 +78,7 @@ export function ActionListItem({
   testID,
   title,
 }: ActionListItemProps) {
+  const { colors } = useAppThemeOrSystem();
   const row = (
     <ListItem
       leading={leading}
@@ -92,14 +111,14 @@ export function ActionListItem({
       {leadingActions.length > 0 ? (
         <SwipeActions.Actions edge="leading">
           {leadingActions.map((action) =>
-            actionButton(action, "swipe-leading", true),
+            actionButton(action, "swipe-leading", true, colors.error),
           )}
         </SwipeActions.Actions>
       ) : null}
       {trailingOrder.length > 0 ? (
         <SwipeActions.Actions allowsFullSwipe={false} edge="trailing">
           {trailingOrder.map((action) =>
-            actionButton(action, "swipe-trailing", true),
+            actionButton(action, "swipe-trailing", true, colors.error),
           )}
         </SwipeActions.Actions>
       ) : null}

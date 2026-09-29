@@ -120,6 +120,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/chatrooms/{chatroom_id}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a message */
+        delete: operations["C6"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chatrooms/{chatroom_id}/read": {
         parameters: {
             query?: never;
@@ -306,7 +323,8 @@ export interface paths {
         get: operations["T4"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete a topic */
+        delete: operations["T8"];
         options?: never;
         head?: never;
         /** Update a topic */
@@ -664,7 +682,7 @@ export interface components {
             /** Format: uuid */
             target_id: string;
         };
-        DeltaItem: components["schemas"]["MessageCreatedEvent"] | components["schemas"]["UnsupportedEventMarker"];
+        DeltaItem: components["schemas"]["MessageCreatedEvent"] | components["schemas"]["MessageDeletedEvent"] | components["schemas"]["TopicDeletedEvent"] | components["schemas"]["UnsupportedEventMarker"];
         DenormalizedMessage: {
             body: string | null;
             /** Format: uuid */
@@ -867,6 +885,32 @@ export interface components {
         };
         /** @enum {string} */
         MessageCreatedType: "message.created";
+        MessageDeletedData: {
+            /** Format: uuid */
+            chatroom_id: string;
+            deleted_at: string;
+            /** Format: uuid */
+            deleted_by: string;
+            /** Format: uuid */
+            group_id: string;
+            /** Format: uuid */
+            message_id: string;
+            reason: string;
+        };
+        MessageDeletedEvent: {
+            /** Format: uuid */
+            conversation_id: string;
+            cursor: string;
+            data: components["schemas"]["MessageDeletedData"];
+            /** Format: uuid */
+            event_id: string;
+            occurred_at: string;
+            type: components["schemas"]["MessageDeletedType"];
+            /** Format: int32 */
+            version: number;
+        };
+        /** @enum {string} */
+        MessageDeletedType: "message.deleted";
         /** @enum {string} */
         MessageKind: "user" | "system";
         Notification: {
@@ -1029,6 +1073,33 @@ export interface components {
             /** Format: date */
             today: string;
         };
+        TopicDeletedData: {
+            /** Format: uuid */
+            announcement_message_id?: string | null;
+            deleted_at: string;
+            /** Format: uuid */
+            deleted_by: string;
+            /** Format: uuid */
+            group_id: string;
+            /** Format: uuid */
+            topic_chatroom_id: string;
+            /** Format: uuid */
+            topic_id: string;
+        };
+        TopicDeletedEvent: {
+            /** Format: uuid */
+            conversation_id: string;
+            cursor: string;
+            data: components["schemas"]["TopicDeletedData"];
+            /** Format: uuid */
+            event_id: string;
+            occurred_at: string;
+            type: components["schemas"]["TopicDeletedType"];
+            /** Format: int32 */
+            version: number;
+        };
+        /** @enum {string} */
+        TopicDeletedType: "topic.deleted";
         TopicPage: {
             items: components["schemas"]["CanonicalTopic"][];
             next_cursor: string | null;
@@ -1236,6 +1307,8 @@ export interface operations {
             /** @description Successful response or canonical idempotent retry */
             200: {
                 headers: {
+                    /** @description Present with value true when A2 restored an account inside the deletion grace period; TokenPair body is unchanged */
+                    "X-Jamye-Account-Restored"?: "true";
                     [name: string]: unknown;
                 };
                 content: {
@@ -1443,6 +1516,36 @@ export interface operations {
             };
         };
     };
+    C6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chatroom_id: string;
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response with no body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error response; inspect error.code for the stable machine-readable reason */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     C3: {
         parameters: {
             query?: never;
@@ -1488,7 +1591,7 @@ export interface operations {
             };
             header: {
                 /** @description Required current or previous contract version */
-                "X-Jamye-Contract-Version": "1" | "0";
+                "X-Jamye-Contract-Version": "2" | "1";
             };
             path: {
                 /** @description Conversation to recover */
@@ -2021,6 +2124,36 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CanonicalTopic"];
                 };
+            };
+            /** @description Error response; inspect error.code for the stable machine-readable reason */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    T8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+                topic_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response with no body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error response; inspect error.code for the stable machine-readable reason */
             default: {
@@ -2566,7 +2699,7 @@ export interface operations {
             query?: never;
             header: {
                 /** @description Required current or previous contract version */
-                "X-Jamye-Contract-Version": "1" | "0";
+                "X-Jamye-Contract-Version": "2" | "1";
             };
             path?: never;
             cookie?: never;

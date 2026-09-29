@@ -1,4 +1,5 @@
 import { anySignal } from "@/core/http/http-client";
+import { pendingAccountRestoreStore } from "@/features/auth/model/pending-account-restore-store";
 
 import { parseOAuthCallback } from "./callback";
 import { AuthApiError } from "./auth-api";
@@ -272,7 +273,11 @@ export function createAuthController(
           });
           return;
         }
-        const pair = await deps.api.exchange(
+        // M15/task-14 phase 1 (G2/E13): the one-shot restore notice reads
+        // `accountRestored` here and hands it to `pendingAccountRestoreStore`;
+        // the persisted pair below stays the closed TokenPair shape (see
+        // src/core/auth/auth-api.ts's exchange()).
+        const { accountRestored, ...pair } = await deps.api.exchange(
           provider,
           {
             authorizationCode: callback.code,
@@ -284,6 +289,7 @@ export function createAuthController(
         );
         exchangedPair = pair;
         if (!active(current)) return;
+        if (accountRestored) pendingAccountRestoreStore.set();
         await persistThenProfile(pair, current, signal);
       } catch {
         if (active(current)) {

@@ -1,5 +1,6 @@
 import { AuthApiError } from "@/core/auth/auth-api";
 import { createAuthController } from "@/core/auth/auth-controller";
+import { pendingAccountRestoreStore } from "@/features/auth/model/pending-account-restore-store";
 
 const state = "s".repeat(43);
 const pair = {
@@ -22,7 +23,7 @@ function fixture(overrides: Record<string, unknown> = {}) {
       state,
       expiresInSeconds: 600,
     })),
-    exchange: jest.fn(async () => pair),
+    exchange: jest.fn(async () => ({ ...pair, accountRestored: false })),
     refresh: jest.fn(async () => pair),
     profile: jest.fn(async () => profile),
     logout: jest.fn(async () => undefined),
@@ -144,7 +145,10 @@ describe("auth session controller", () => {
       f.controller.dispose();
       const next = createAuthController({
         origin: "https://next.example",
-        api: { ...f.api, exchange: async () => nextPair },
+        api: {
+          ...f.api,
+          exchange: async () => ({ ...nextPair, accountRestored: false }),
+        },
         store: f.store,
         openBrowser: f.openBrowser,
         createPkce: async () => ({
@@ -298,6 +302,30 @@ describe("auth session controller", () => {
       status: "signed-in",
       profile,
     });
+  });
+  test("G2/E13: accountRestored:true from exchange sets the one-shot restore store", async () => {
+    pendingAccountRestoreStore.clear();
+    const f = fixture({
+      api: {
+        exchange: jest.fn(async () => ({ ...pair, accountRestored: true })),
+      },
+    });
+    await f.controller.signIn(
+      "kakao",
+      "https://api.example/callback",
+      "jamye://oauth/kakao",
+    );
+    expect(pendingAccountRestoreStore.consume()).toBe(true);
+  });
+  test("G2/E13: accountRestored:false from exchange leaves the restore store empty", async () => {
+    pendingAccountRestoreStore.clear();
+    const f = fixture();
+    await f.controller.signIn(
+      "kakao",
+      "https://api.example/callback",
+      "jamye://oauth/kakao",
+    );
+    expect(pendingAccountRestoreStore.consume()).toBe(false);
   });
   test("cancellation, provider/state mismatch, and expiry do not exchange", async () => {
     const cancelled = fixture();
@@ -625,7 +653,7 @@ describe("auth session controller", () => {
       origin: "https://api.example",
       api: {
         authorize,
-        exchange: jest.fn(async () => pair),
+        exchange: jest.fn(async () => ({ ...pair, accountRestored: false })),
         refresh: jest.fn(async () => pair),
         profile: jest.fn(async () => profile),
         logout: jest.fn(async () => undefined),
@@ -730,6 +758,7 @@ describe("auth session controller", () => {
     f.api.exchange.mockResolvedValueOnce({
       ...pair,
       accessToken: "new-access",
+      accountRestored: false,
     });
     f.store.save.mockRejectedValueOnce(new Error("locked"));
     await signIn();

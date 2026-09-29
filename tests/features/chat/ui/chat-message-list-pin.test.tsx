@@ -113,6 +113,8 @@ async function renderList() {
         latestMessageRevealTarget="m3"
         onRetryFailedMessage={jest.fn()}
         onShareAttachment={jest.fn()}
+        onRequestDeleteMessage={jest.fn()}
+        onRequestDiscardFailedMessage={jest.fn()}
       />
     </AppThemeProvider>,
   );

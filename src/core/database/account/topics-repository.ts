@@ -12,6 +12,7 @@ import {
 } from "../../contracts/server/validators";
 import type { SqliteRepositoryDatabase, SqliteRow } from "../types";
 import type { AccountPrincipal } from "./types";
+import { propagateSenderIdentity } from "./connected-chat-repository";
 import type { TopicsRepository } from "./topics-types";
 
 type SnapshotRow = SqliteRow & { snapshot_json: string };
@@ -246,6 +247,19 @@ export function createTopicsRepository(
           "DELETE FROM connected_topics WHERE group_id = ?",
           groupId,
         );
+      });
+    },
+    async refreshAuthorIdentities(identities) {
+      if (identities.length === 0) return;
+      await transaction(async (db) => {
+        for (const identity of identities) {
+          await propagateSenderIdentity(db, {
+            avatar: identity.authorAvatarUrl,
+            excludeLocalId: null,
+            nickname: identity.authorNickname,
+            senderId: identity.authorId,
+          });
+        }
       });
     },
   };

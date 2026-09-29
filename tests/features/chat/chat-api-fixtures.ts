@@ -57,6 +57,7 @@ export const readMarker = mapChatReadMarker(readMarkerWire);
 
 export function fakeChatApi(): jest.Mocked<ChatApi> {
   return {
+    deleteMessage: jest.fn().mockResolvedValue(undefined),
     listGroupChatrooms: jest
       .fn()
       .mockResolvedValue({ items: [chatroom], nextCursor: null }),

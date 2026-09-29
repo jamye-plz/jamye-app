@@ -154,9 +154,23 @@ the following interop rules:
 - The group home is the topic list titled with the group name. The group list header keeps only the `+` menu. On the group home the title itself is a button (`HeaderTitleButton`: the group name plus a muted trailing chevron, rendered through `headerTitle` inside the native bar) that opens 그룹 정보; the bar actions are, left to right, 그룹 대화방 (`bubble.left.and.bubble.right` / `forum`) and 새 주제 (`plus` / `add`). There is no info icon, no in-content row for the group chatroom and no "서울 날짜" caption.
 - Topic rows are `ActionListItem`s in a `NativeList`: tapping a row opens the topic's chatroom.
   They show the author's avatar, title, and supporting author/state/tag text. 상세 is reached from
-  the chatroom title -> topic detail flow, and 삭제 waits for the M15 topic delete contract. Rows
-  never show unread badges. The empty state appears only for a settled date with no topics, never
-  beside rows.
+  the chatroom title -> topic detail flow. Rows never show unread badges. The empty state appears
+  only for a settled date with no topics, never beside rows.
+- Topic delete (M15) is author-only and surfaces through three entry points: the topic detail
+  header menu (iOS `…` / Android ⋮), the row's existing long-press/⋮ `ActionListItem` action (iOS
+  context menu, Android dropdown), and an iOS swipe (Android has no row swipe, per the
+  `ActionListItem` platform split above). A non-author row shows no delete action at all. Every
+  entry point confirms through the shared `ConfirmAlert` (`주제를 삭제할까요?` /
+  `주제 대화방의 메시지와 사진·동영상도 모든 사람에게서 삭제됩니다.`, destructive `삭제`) before
+  anything is removed. On the topic row specifically, the iOS swipe action paints the system red
+  tint instead of using SwiftUI's `role: .destructive`, because the destructive role runs its row-
+  removal animation as soon as the swipe button is tapped — before the confirmation alert settles;
+  the row's `contextMenu` (long press) keeps `role: .destructive`, since a context-menu item never
+  pre-removes the row. A deleted topic's detail and chatroom both show a `삭제된 주제입니다.` state
+  with no input box and no header menu; the list drops the row entirely. When the author deletes
+  from the detail header menu, a successful delete navigates straight to the group's topic list
+  (skipping the now-gone chatroom and detail); a failed delete stays on the detail and shows the
+  error inline through the existing `TopicError`/`TOPICS_ERROR_MESSAGES` copy.
 - The date picker on the group home is a horizontal native chip row. iOS uses SwiftUI horizontal
   scroll with Liquid Glass capsule buttons (`glassProminent` selected, `glass` otherwise;
   `borderedProminent` / `bordered` below iOS 26) and opens with today at the trailing edge. Android uses `jamye-ui`'s `JamyeDateChipRowView`: a
@@ -216,7 +230,17 @@ the following interop rules:
   `계정 저장소 다시 시도`) shows to every build, but only when storage actually fails to open.
 - Logout and account deletion both confirm through the shared centered `ConfirmAlert` (iOS SwiftUI
   `Alert`, Android `AlertDialog`) — logout asks `로그아웃할까요?` with `취소`/`로그아웃`; deletion
-  reuses the existing destructive copy. Neither uses React Native's `Alert.alert`.
+  (M15) titles the alert `계정 삭제` and asks `계정을 삭제할까요? 30일 안에 같은 계정으로 다시
+로그인하면 복구할 수 있고, 30일이 지나면 되돌릴 수 없습니다.` with `취소`/destructive `삭제`.
+  Neither uses React Native's `Alert.alert`. Both rows' `ListItem`s keep `onPress` defined at all
+  times, even mid-request: the Android universal `ListItem` flips its Compose `modifiers` prop
+  between an array and `undefined` based on `onPress`'s presence, and `undefined` fails the native
+  prop cast instead of degrading (LogBox `PropSetException`, M15 device defect 9) — the handler
+  itself guards the in-flight state and ignores repeat presses instead.
+- Account recovery (M15, G2): if a 30-day-grace login restores the account, the first screen after
+  restore (group list or the pending-invite join screen) shows a one-shot `계정이 복구되었습니다.`
+  notice through the shared system-feedback API (iOS centered alert / Android `Snackbar`), handed
+  off through a memory-only pending store the same way as `pending-invite-store`.
 
 ### Notifications Inbox
 
@@ -291,10 +315,22 @@ the following interop rules:
   `RNHostView matchContents`); Android anchors a Compose M3 `DropdownMenu` to the bubble, opened by a
   plain React Native long press on the bubble itself (a bubble hosted inside the Compose trigger
   received no touches on device). Items are conditional on the message: `복사` for text,
-  `저장·공유` for a photo/video/voice attachment (the system share sheet), and `다시 보내기` for a
-  failed message. The per-attachment share icon this replaced no longer renders next to attachments;
-  the failed-message `메시지 다시 보내기` control below the bubble (Send State and Retry, below)
-  stays in addition to the menu item.
+  `저장·공유` for a photo/video/voice attachment (the system share sheet), `다시 보내기` for a
+  failed message, and (M15) a destructive `삭제` as the last item for a message I sent that is
+  still live, or a failed message of mine I want to discard from this device only — never shown for
+  another person's message or a still-pending send. The per-attachment share icon this replaced no
+  longer renders next to attachments; the failed-message `메시지 다시 보내기` control below the
+  bubble (Send State and Retry, below) stays in addition to the menu item.
+- Deleting a live message (M15) confirms through `ConfirmAlert` (`메시지를 삭제할까요?` /
+  `모든 사람의 대화방에서 삭제됩니다.`, destructive `삭제`); discarding a failed message confirms
+  with `메시지를 버릴까요?` / `전송하지 못한 메시지를 이 기기에서 지웁니다.`, confirm `버리기`. Once
+  deleted, the row keeps its sender-side alignment and grouping but renders only muted
+  `삭제된 메시지입니다.` text — no bubble color, no attachment, no menu, and the message content
+  itself never returns from a later `message.created` redelivery or C2 response. The row's sender
+  name and avatar do keep following that person's latest identity, though: a C2 page with a live
+  message from the same sender, or a fetched topic's author data (list/detail), refreshes it across
+  every local row from that sender — including deleted ones — so a deleted account shows
+  `탈퇴한 사용자` (no photo) and a restored one shows the original name and photo again.
 
 ### Send State and Retry
 

@@ -66,6 +66,15 @@ export type NotificationsStoreActions = Readonly<{
   resolveDestination: (
     conversationId: string,
   ) => Promise<NotificationDestination>;
+  /**
+   * M15/AC7/E4: called with the deleted topic's chatroom id (from
+   * `topics-store.ts`'s `applyTopicDeleted`, wired as `onTopicDeleted` in
+   * production -- see `app-providers.tsx`). Evicts any resolved destination
+   * cached for that chatroom and refreshes N1: the server already filters
+   * notifications for deleted content (E4), so a plain refresh clears the
+   * deleted target's row and folds its count out of the badge.
+   */
+  handleTopicDeleted: (chatroomId: string) => Promise<void>;
 }>;
 
 export type NotificationsStore = Readonly<{
@@ -105,7 +114,10 @@ function mergeUnique(items: readonly Notification[]): readonly Notification[] {
 
 export type NotificationsStoreDeps = Readonly<{
   createApi: (origin: string) => NotificationsApi;
-  createResolver: (origin: string) => NotificationDestinationResolver;
+  createResolver: (
+    origin: string,
+    cache: LocalChatroomCachePort,
+  ) => NotificationDestinationResolver;
 }>;
 
 /** Singleton belongs to one principal/epoch at a time; `setPrincipal` resets
@@ -118,6 +130,7 @@ export function createNotificationsStore(
   let api: NotificationsApi | null = null;
   let resolver: NotificationDestinationResolver | null = null;
   let authorize: AuthorizedNotificationsRequest | null = null;
+  let evictDestination: ((chatroomId: string) => void) | null = null;
   let state = initialNotificationsState();
   const listeners = new Set<() => void>();
   const requests = new Map<string, AbortController>();
@@ -172,7 +185,13 @@ export function createNotificationsStore(
     cancelAll();
     identity = key;
     api = valid ? deps.createApi(origin) : null;
-    resolver = valid ? deps.createResolver(origin) : null;
+    // A fresh cache per identity (never a cross-account leak, same
+    // guarantee `createInMemoryChatroomCache`'s own doc comment describes);
+    // its `evict` lets `handleTopicDeleted` (AC7/E4) drop one stale entry
+    // without discarding the rest of the warm cache.
+    const cache = valid ? createInMemoryChatroomCache() : null;
+    resolver = valid && cache ? deps.createResolver(origin, cache) : null;
+    evictDestination = cache?.evict ?? null;
     publish(initialNotificationsState());
   }
 
@@ -298,8 +317,19 @@ export function createNotificationsStore(
     );
   }
 
+  async function handleTopicDeleted(chatroomId: string): Promise<void> {
+    evictDestination?.(chatroomId);
+    await refresh();
+  }
+
   return {
-    actions: { loadMore, markRead, refresh, resolveDestination },
+    actions: {
+      handleTopicDeleted,
+      loadMore,
+      markRead,
+      refresh,
+      resolveDestination,
+    },
     dispose() {
       setPrincipal(null, null);
       listeners.clear();
@@ -323,7 +353,8 @@ export function createNotificationsStore(
  * with an empty cache after every app restart -- only the "no network call
  * on a warm cache hit" optimization is unavailable across restarts.
  */
-function createInMemoryChatroomCache(): LocalChatroomCachePort {
+function createInMemoryChatroomCache(): LocalChatroomCachePort &
+  Readonly<{ evict: (chatroomId: string) => void }> {
   const cache = new Map<string, CachedChatroomLocation>();
   return {
     async findByChatroomId(chatroomId) {
@@ -332,14 +363,20 @@ function createInMemoryChatroomCache(): LocalChatroomCachePort {
     async upsertChatroom(location) {
       cache.set(location.chatroomId, location);
     },
+    // AC7/E4: lets `handleTopicDeleted` drop one stale resolved destination
+    // without discarding every other cached chatroom lookup.
+    evict(chatroomId) {
+      cache.delete(chatroomId);
+    },
   };
 }
 
 function createDefaultNotificationsResolver(
   origin: string,
+  cache: LocalChatroomCachePort,
 ): NotificationDestinationResolver {
   return createNotificationDestinationResolver(
-    createInMemoryChatroomCache(),
+    cache,
     createChatApi(origin),
     createGroupsApi(origin),
   );

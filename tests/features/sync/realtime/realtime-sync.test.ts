@@ -92,10 +92,55 @@ function topicCreatedFrame(conversationId = ROOM_A): string {
   });
 }
 
+// M15/task-14 phase 1: message.deleted/topic.deleted have no local realtime
+// apply path yet (see delta-sync's classifyDeltaItem dispatch), so onMessage
+// only needs to recognize the frame and trigger the same bounded S1
+// catch-up drain topic.created already does.
+function messageDeletedFrame(conversationId = ROOM_A): string {
+  return JSON.stringify({
+    conversation_id: conversationId,
+    cursor: "7",
+    data: {
+      chatroom_id: conversationId,
+      deleted_at: "2026-09-10T00:00:00Z",
+      deleted_by: SENDER_ID,
+      group_id: "60000000-0000-4000-8000-000000000001",
+      message_id: MESSAGE_ID,
+      reason: "author_deleted",
+    },
+    event_id: "40000000-0000-4000-8000-000000000003",
+    occurred_at: "2026-09-10T00:00:00Z",
+    type: "message.deleted",
+    version: 1,
+  });
+}
+
+function topicDeletedFrame(conversationId = ROOM_A): string {
+  return JSON.stringify({
+    conversation_id: conversationId,
+    cursor: "8",
+    data: {
+      announcement_message_id: null,
+      deleted_at: "2026-09-10T00:00:00Z",
+      deleted_by: SENDER_ID,
+      group_id: "60000000-0000-4000-8000-000000000001",
+      topic_chatroom_id: conversationId,
+      topic_id: "60000000-0000-4000-8000-000000000002",
+    },
+    event_id: "40000000-0000-4000-8000-000000000004",
+    occurred_at: "2026-09-10T00:00:00Z",
+    type: "topic.deleted",
+    version: 1,
+  });
+}
+
 function createFakeRepository() {
   const applied: ConnectedRealtimeMessageCreatedInput[] = [];
   const repository: ConnectedChatSyncRepository = {
     async applyOrderedMessageCreated() {
+      throw new Error("not used by realtime-sync tests");
+    },
+    async applyOrderedMessageDeleted() {
       throw new Error("not used by realtime-sync tests");
     },
     async applyOrderedUnsupportedEvent() {
@@ -348,6 +393,52 @@ describe("createRealtimeSync", () => {
     expect(drainCalls.length).toBe(drainCountAfterConnect + 1);
     expect(drainCalls[drainCalls.length - 1]).toBe(ROOM_A);
   });
+
+  it.each([
+    ["message.deleted", messageDeletedFrame],
+    ["topic.deleted", topicDeletedFrame],
+  ] as const)(
+    "triggers only a bounded S1 drain for a valid %s event",
+    async (_label, buildFrame) => {
+      const drainCalls: string[] = [];
+      const drain = jest.fn(async (conversationId: string) => {
+        drainCalls.push(conversationId);
+        return { exhausted: true };
+      });
+      const { factory: createSocket, instances } = createFakeSocketFactory();
+      const { applied, repository } = createFakeRepository();
+
+      const sync = createRealtimeSync({
+        createRequestId: () => REQUEST_A,
+        createSocket,
+        drain,
+        isActive: () => true,
+        issueTicket: jest.fn(async () => ticket("t1")),
+        mapMessage,
+        nowMs: () => Date.now(),
+        onChanged: jest.fn(),
+        onState: jest.fn(),
+        random: () => 0,
+        repository,
+        socketUrl: () => "wss://example.test/ws",
+      });
+      sync.setConversations([ROOM_A]);
+      sync.start();
+      await flush();
+      instances[0].handlers.open();
+      await flush();
+      ackAllPending(instances[0]);
+      await flush();
+      const drainCountAfterConnect = drainCalls.length;
+
+      instances[0].handlers.message(buildFrame());
+      await flush();
+
+      expect(applied).toHaveLength(0);
+      expect(drainCalls.length).toBe(drainCountAfterConnect + 1);
+      expect(drainCalls[drainCalls.length - 1]).toBe(ROOM_A);
+    },
+  );
 
   it("triggers a bounded coalesced drain and persists nothing for an unknown or invalid WS frame", async () => {
     const drainCalls: string[] = [];

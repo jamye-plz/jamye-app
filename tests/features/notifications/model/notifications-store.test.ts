@@ -2,7 +2,10 @@ import { AuthApiError } from "@/core/auth/auth-api";
 import type { Notification, NotificationPage } from "@/core/contracts/server";
 import { NotificationApiError } from "@/features/notifications/data/notifications-api";
 import type { NotificationsApi } from "@/features/notifications/data/notifications-api";
-import type { NotificationDestinationResolver } from "@/features/notifications/data/notification-destination-resolver";
+import type {
+  LocalChatroomCachePort,
+  NotificationDestinationResolver,
+} from "@/features/notifications/data/notification-destination-resolver";
 import {
   createNotificationsStore,
   initialNotificationsState,
@@ -367,5 +370,87 @@ describe("createNotificationsStore", () => {
     store.setPrincipal(principal, failingAuthorize);
     await store.actions.refresh();
     expect(store.getState().error).toBe("unauthorized");
+  });
+
+  describe("M15/AC7/E4 handleTopicDeleted", () => {
+    function fakeCacheAwareResolver() {
+      let capturedCache: LocalChatroomCachePort | null = null;
+      const createResolver = jest.fn(
+        (_origin: string, cache: LocalChatroomCachePort) => {
+          capturedCache = cache;
+          return fakeResolver();
+        },
+      );
+      return { createResolver, cache: () => capturedCache! };
+    }
+
+    test("evicts the cached destination for that chatroom and refreshes N1", async () => {
+      const api = fakeApi();
+      api.listNotifications.mockResolvedValue(page({ unreadCount: 0 }));
+      const { createResolver, cache } = fakeCacheAwareResolver();
+      const store = createNotificationsStore({
+        createApi: () => api,
+        createResolver,
+      });
+      store.setPrincipal(principal, authorize);
+      await cache().upsertChatroom({
+        chatroomId: "conv-1",
+        createdAtRaw: "2026-01-01T00:00:00.000Z",
+        groupId: "group-1",
+        kind: "topic",
+        topicId: "topic-1",
+      });
+      expect(await cache().findByChatroomId("conv-1")).not.toBeNull();
+      await store.actions.handleTopicDeleted("conv-1");
+      expect(await cache().findByChatroomId("conv-1")).toBeNull();
+      expect(api.listNotifications).toHaveBeenCalledTimes(1);
+      expect(store.getState().status).toBe("ready");
+    });
+
+    test("still refreshes even when nothing was cached for that chatroom", async () => {
+      const api = fakeApi();
+      api.listNotifications.mockResolvedValue(page());
+      const store = createNotificationsStore({
+        createApi: () => api,
+        createResolver: fakeResolver,
+      });
+      store.setPrincipal(principal, authorize);
+      await store.actions.handleTopicDeleted("conv-never-seen");
+      expect(api.listNotifications).toHaveBeenCalledTimes(1);
+    });
+
+    test("is a safe no-op without an active principal", async () => {
+      const store = createNotificationsStore({
+        createApi: fakeApi,
+        createResolver: fakeResolver,
+      });
+      await store.actions.handleTopicDeleted("conv-1");
+      expect(store.getState().status).toBe("idle");
+    });
+
+    test("a fresh cache per setPrincipal identity still lets a later delete evict without leaking across accounts", async () => {
+      const api = fakeApi();
+      api.listNotifications.mockResolvedValue(page());
+      const { createResolver, cache } = fakeCacheAwareResolver();
+      const store = createNotificationsStore({
+        createApi: () => api,
+        createResolver,
+      });
+      store.setPrincipal(principal, authorize);
+      const firstCache = cache();
+      await firstCache.upsertChatroom({
+        chatroomId: "conv-1",
+        createdAtRaw: "2026-01-01T00:00:00.000Z",
+        groupId: "group-1",
+        kind: "topic",
+        topicId: "topic-1",
+      });
+      store.setPrincipal(otherPrincipal, authorize);
+      const secondCache = cache();
+      expect(secondCache).not.toBe(firstCache);
+      expect(await secondCache.findByChatroomId("conv-1")).toBeNull();
+      await store.actions.handleTopicDeleted("conv-1");
+      expect(api.listNotifications).toHaveBeenCalled();
+    });
   });
 });

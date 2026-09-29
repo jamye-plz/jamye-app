@@ -1,4 +1,5 @@
 import { createTopicsStore } from "@/features/topics/model/topics-store";
+import type { TopicDeletedEvent } from "@/core/contracts/server";
 import {
   TopicsApiError,
   type TopicsApi,
@@ -35,6 +36,7 @@ function setup(userId = authorId) {
     }),
     getTopic: jest.fn().mockResolvedValue(topic),
     updateTopic: jest.fn().mockResolvedValue({ ...topic, title: "수정" }),
+    deleteTopic: jest.fn().mockResolvedValue(undefined),
     listTags: jest
       .fn()
       .mockResolvedValue({ items: topic.tags, nextCursor: null }),
@@ -50,10 +52,12 @@ function setup(userId = authorId) {
     listDirtyMarkers: jest.fn().mockResolvedValue([]),
     reconcileGroup: jest.fn().mockResolvedValue(undefined),
     invalidateGroup: jest.fn().mockResolvedValue(undefined),
+    refreshAuthorIdentities: jest.fn().mockResolvedValue(undefined),
   };
   const watchGroup = jest.fn().mockResolvedValue(undefined);
   const getOwner = jest.fn().mockResolvedValue(otherId);
   const newKey = jest.fn().mockReturnValue(key);
+  const onTopicDeleted = jest.fn();
   const store = createTopicsStore({
     api,
     repository,
@@ -61,11 +65,41 @@ function setup(userId = authorId) {
     getOwner,
     watchGroup,
     newKey,
+    onTopicDeleted,
     authorize: (execute, signal) =>
       execute("token", signal ?? new AbortController().signal),
     today: () => "2026-09-11",
   });
-  return { store, api, repository, watchGroup, getOwner, newKey };
+  return {
+    store,
+    api,
+    repository,
+    watchGroup,
+    getOwner,
+    newKey,
+    onTopicDeleted,
+  };
+}
+function deletedEvent(
+  overrides: Partial<TopicDeletedEvent["data"]> = {},
+): TopicDeletedEvent {
+  return {
+    conversation_id: topic.chatroomId,
+    cursor: "cursor-1",
+    event_id: "66666666-6666-4666-8666-666666666666",
+    occurred_at: "2026-09-22T00:00:00Z",
+    type: "topic.deleted",
+    version: 1,
+    data: {
+      announcement_message_id: null,
+      deleted_at: "2026-09-22T00:00:00Z",
+      deleted_by: authorId,
+      group_id: groupId,
+      topic_chatroom_id: topic.chatroomId,
+      topic_id: topicId,
+      ...overrides,
+    },
+  };
 }
 
 describe("M10 topics controller", () => {
@@ -454,6 +488,99 @@ describe("M10 topics controller", () => {
     await load;
     store.dispose();
   });
+
+  describe("M15 AC8: topic-author identity propagation", () => {
+    test("cache hydration alone never applies author identities; the network response applies them deduped", async () => {
+      const { store, api, repository } = setup();
+      repository.getPage.mockResolvedValue({
+        items: [topic],
+        nextCursor: null,
+      });
+      const pending = deferred<{ items: (typeof topic)[]; nextCursor: null }>();
+      api.listTopics.mockReturnValueOnce(pending.promise);
+      const load = store.actions.openGroup(groupId);
+      await new Promise<void>((done) => setImmediate(done));
+      // Only repository.getPage cache hydration has published so far.
+      expect(store.getState().items).toEqual([topic]);
+      expect(repository.refreshAuthorIdentities).not.toHaveBeenCalled();
+      const secondTopicSameAuthor = { ...topic, id: otherId };
+      pending.resolve({
+        items: [topic, secondTopicSameAuthor],
+        nextCursor: null,
+      });
+      await load;
+      expect(repository.refreshAuthorIdentities).toHaveBeenCalledTimes(1);
+      expect(repository.refreshAuthorIdentities).toHaveBeenCalledWith([
+        {
+          authorId: topic.authorId,
+          authorNickname: topic.authorNickname,
+          authorAvatarUrl: topic.authorAvatarUrl,
+        },
+      ]);
+      store.dispose();
+    });
+    test("a failed list fetch never applies author identities", async () => {
+      const { store, api, repository } = setup();
+      api.listDates.mockRejectedValueOnce(
+        new TopicsApiError(503, "database_unavailable"),
+      );
+      await store.actions.openGroup(groupId);
+      expect(store.getState().status).toBe("error");
+      expect(repository.refreshAuthorIdentities).not.toHaveBeenCalled();
+      store.dispose();
+    });
+    test("a successful detail fetch applies that topic's author identity to the repository", async () => {
+      const { store, repository } = setup();
+      await store.actions.openTopic(groupId, topicId);
+      expect(repository.refreshAuthorIdentities).toHaveBeenCalledTimes(1);
+      expect(repository.refreshAuthorIdentities).toHaveBeenCalledWith([
+        {
+          authorId: topic.authorId,
+          authorNickname: topic.authorNickname,
+          authorAvatarUrl: topic.authorAvatarUrl,
+        },
+      ]);
+      store.dispose();
+    });
+    test("a failed detail fetch never applies an author identity", async () => {
+      const { store, api, repository } = setup();
+      api.getTopic.mockRejectedValueOnce(new TopicsApiError(404, "not_found"));
+      await store.actions.openTopic(groupId, topicId);
+      expect(store.getState().detail.status).toBe("deleted");
+      expect(repository.refreshAuthorIdentities).not.toHaveBeenCalled();
+      store.dispose();
+    });
+    test("loading more topics applies only the newly fetched page's deduped author identities", async () => {
+      const { store, api, repository } = setup();
+      api.listTopics.mockResolvedValueOnce({
+        items: [topic],
+        nextCursor: "page-2",
+      });
+      await store.actions.openGroup(groupId);
+      repository.refreshAuthorIdentities.mockClear();
+      const nextPageTopic = {
+        ...topic,
+        id: otherId,
+        authorId: otherId,
+        authorNickname: "다음 페이지 작성자",
+      };
+      api.listTopics.mockResolvedValueOnce({
+        items: [nextPageTopic],
+        nextCursor: null,
+      });
+      await store.actions.moreTopics();
+      expect(repository.refreshAuthorIdentities).toHaveBeenCalledTimes(1);
+      expect(repository.refreshAuthorIdentities).toHaveBeenCalledWith([
+        {
+          authorId: otherId,
+          authorNickname: "다음 페이지 작성자",
+          authorAvatarUrl: nextPageTopic.authorAvatarUrl,
+        },
+      ]);
+      store.dispose();
+    });
+  });
+
   test("foreground preserves the active editor instead of reloading it out from under the draft", async () => {
     const { store, api } = setup();
     await store.actions.openTopic(groupId, topicId);
@@ -494,5 +621,153 @@ describe("M10 topics controller", () => {
       api.createTopic.mock.calls[0]?.[2],
     );
     store.dispose();
+  });
+
+  describe("M15 T8 delete and topic.deleted cleanup", () => {
+    test("deleteTopic (AC1) removes the topic from the list, marks the open detail deleted, and is safe to apply twice", async () => {
+      const { store, api } = setup();
+      await store.actions.openGroup(groupId);
+      await store.actions.openTopic(groupId, topicId);
+      expect(store.getState().items).toEqual([topic]);
+      expect(await store.actions.deleteTopic(topicId)).toBe(true);
+      expect(api.deleteTopic).toHaveBeenCalledWith(
+        "token",
+        groupId,
+        topicId,
+        expect.anything(),
+      );
+      expect(store.getState().items).toEqual([]);
+      expect(store.getState().detail).toMatchObject({
+        id: topicId,
+        status: "deleted",
+      });
+      expect(store.getState().permissions).toEqual({
+        canEdit: false,
+        canManageTags: false,
+      });
+      expect(store.getState().mutation).toEqual({
+        kind: "delete",
+        status: "succeeded",
+        error: null,
+      });
+      // dropDeletedTopic must be a no-op the second time (AC2/E5: T8 success
+      // and the topic.deleted event can both call it, in either order).
+      await store.actions.applyTopicDeleted({
+        conversation_id: topic.chatroomId,
+        cursor: "c2",
+        event_id: "77777777-7777-4777-8777-777777777777",
+        occurred_at: "2026-09-22T00:00:01Z",
+        type: "topic.deleted",
+        version: 1,
+        data: {
+          announcement_message_id: null,
+          deleted_at: "2026-09-22T00:00:01Z",
+          deleted_by: authorId,
+          group_id: groupId,
+          topic_chatroom_id: topic.chatroomId,
+          topic_id: topicId,
+        },
+      });
+      expect(store.getState().detail.status).toBe("deleted");
+      store.dispose();
+    });
+
+    test("a losing race against another delete (404) applies the same cleanup as success", async () => {
+      const { store, api } = setup();
+      await store.actions.openTopic(groupId, topicId);
+      api.deleteTopic.mockRejectedValueOnce(
+        new TopicsApiError(404, "topic_not_found"),
+      );
+      expect(await store.actions.deleteTopic(topicId)).toBe(true);
+      expect(store.getState().detail.status).toBe("deleted");
+      expect(store.getState().mutation.status).toBe("succeeded");
+      store.dispose();
+    });
+
+    test("deleteTopic 403 topic_author_required clears edit permission but keeps the topic and detail", async () => {
+      const { store, api } = setup();
+      await store.actions.openGroup(groupId);
+      await store.actions.openTopic(groupId, topicId);
+      api.deleteTopic.mockRejectedValueOnce(
+        new TopicsApiError(403, "topic_author_required"),
+      );
+      expect(await store.actions.deleteTopic(topicId)).toBe(false);
+      expect(store.getState().mutation).toMatchObject({
+        kind: "delete",
+        status: "error",
+        error: "forbidden",
+      });
+      expect(store.getState().permissions).toEqual({
+        canEdit: false,
+        canManageTags: false,
+      });
+      expect(store.getState().detail.status).toBe("ready");
+      expect(store.getState().items).toEqual([topic]);
+      store.dispose();
+    });
+
+    test("deleteTopic network failure is uncertain, not a definitive error", async () => {
+      const { store, api } = setup();
+      await store.actions.openGroup(groupId);
+      api.deleteTopic.mockRejectedValueOnce(
+        new TopicsApiError(0, "network_unavailable"),
+      );
+      expect(await store.actions.deleteTopic(topicId)).toBe(false);
+      expect(store.getState().mutation).toMatchObject({
+        kind: "delete",
+        status: "uncertain",
+        error: "network",
+      });
+      store.dispose();
+    });
+
+    test("loadDetail 404 renders the deleted state instead of a retryable not_found error (E5)", async () => {
+      const { store, api } = setup();
+      api.getTopic.mockRejectedValue(
+        new TopicsApiError(404, "topic_not_found"),
+      );
+      await store.actions.openTopic(groupId, topicId);
+      expect(store.getState().detail).toMatchObject({
+        id: topicId,
+        status: "deleted",
+        error: null,
+      });
+      expect(store.getState().permissions).toEqual({
+        canEdit: false,
+        canManageTags: false,
+      });
+      store.dispose();
+    });
+
+    test("applyTopicDeleted (onTopicDeleted callback) ignores an event for a different group", async () => {
+      const { store, onTopicDeleted } = setup();
+      await store.actions.openGroup(groupId);
+      await store.actions.openTopic(groupId, topicId);
+      store.actions.applyTopicDeleted(deletedEvent({ group_id: otherId }));
+      // The notifications-cache hook still fires (account-wide, group-agnostic).
+      expect(onTopicDeleted).toHaveBeenCalledWith(topic.chatroomId);
+      expect(store.getState().items).toEqual([topic]);
+      expect(store.getState().detail.status).toBe("ready");
+      store.dispose();
+    });
+
+    test("applyTopicDeleted for the open group drops the topic from the list, marks the open detail deleted, and repeats safely", async () => {
+      const { store, onTopicDeleted } = setup();
+      await store.actions.openGroup(groupId);
+      await store.actions.openTopic(groupId, topicId);
+      store.actions.applyTopicDeleted(deletedEvent());
+      expect(onTopicDeleted).toHaveBeenCalledWith(topic.chatroomId);
+      expect(store.getState().items).toEqual([]);
+      expect(store.getState().detail).toMatchObject({
+        id: topicId,
+        status: "deleted",
+      });
+      onTopicDeleted.mockClear();
+      // Idempotent: a repeat delivery of the same (or a T8-success) cleanup
+      // must not throw or change state further.
+      store.actions.applyTopicDeleted(deletedEvent());
+      expect(store.getState().detail.status).toBe("deleted");
+      store.dispose();
+    });
   });
 });

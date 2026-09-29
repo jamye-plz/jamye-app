@@ -29,11 +29,15 @@ export type * from "@/shared/ui/header-actions.types";
  * menu items may use any symbol listed here and go icon-less otherwise.
  */
 const MATERIAL_ICONS: Record<
-  HeaderToolbarSymbol | "group" | "invite",
+  HeaderToolbarSymbol | "group" | "invite" | "edit" | "delete",
   ImageSourcePropType
 > = {
   add: require("../../../assets/icons/material/add.xml") as ImageSourcePropType,
   chat: require("../../../assets/icons/material/forum.xml") as ImageSourcePropType,
+  // M15/AC4: the topic-detail menu's 편집/삭제 items (task-app-topics).
+  delete:
+    require("../../../assets/icons/material/delete.xml") as ImageSourcePropType,
+  edit: require("../../../assets/icons/material/edit.xml") as ImageSourcePropType,
   group:
     require("../../../assets/icons/material/group.xml") as ImageSourcePropType,
   info: require("../../../assets/icons/material/info.xml") as ImageSourcePropType,

@@ -11,6 +11,7 @@ import type {
   ConnectedHistoryMessageUpsert,
   ConnectedOrderedEventApplyResult,
   ConnectedOrderedMessageCreatedInput,
+  ConnectedOrderedMessageDeletedInput,
   ConnectedOrderedUnsupportedEventInput,
   ConnectedReconciliationScope,
   ConnectedRealtimeMessageCreatedInput,
@@ -74,6 +75,62 @@ function unsupportedItem(
   } as DeltaItemWire;
 }
 
+// M15/task-14 phase 1 (E17): message.deleted/topic.deleted carry a `data`
+// object like message.created does, so a structural "data" in item guard
+// would misroute them; only classifyDeltaItem's `type` discriminant is
+// correct.
+function messageDeletedItem(
+  overrides: Partial<{
+    conversation_id: string;
+    cursor: string;
+    event_id: string;
+  }> = {},
+): DeltaItemWire {
+  return {
+    conversation_id: ROOM,
+    cursor: "1",
+    data: {
+      chatroom_id: ROOM,
+      deleted_at: "2026-09-10T00:00:00Z",
+      deleted_by: "10000000-0000-4000-8000-000000000002",
+      group_id: "10000000-0000-4000-8000-000000000003",
+      message_id: "20000000-0000-4000-8000-000000000001",
+      reason: "author_deleted",
+    },
+    event_id: "70000000-0000-4000-8000-000000000021",
+    occurred_at: "2026-09-10T00:00:00Z",
+    type: "message.deleted",
+    version: 1,
+    ...overrides,
+  } as DeltaItemWire;
+}
+
+function topicDeletedItem(
+  overrides: Partial<{
+    conversation_id: string;
+    cursor: string;
+    event_id: string;
+  }> = {},
+): DeltaItemWire {
+  return {
+    conversation_id: ROOM,
+    cursor: "1",
+    data: {
+      announcement_message_id: null,
+      deleted_at: "2026-09-10T00:00:00Z",
+      deleted_by: "10000000-0000-4000-8000-000000000002",
+      group_id: "10000000-0000-4000-8000-000000000003",
+      topic_chatroom_id: "10000000-0000-4000-8000-000000000004",
+      topic_id: "60000000-0000-4000-8000-000000000002",
+    },
+    event_id: "70000000-0000-4000-8000-000000000022",
+    occurred_at: "2026-09-10T00:00:00Z",
+    type: "topic.deleted",
+    version: 1,
+    ...overrides,
+  } as DeltaItemWire;
+}
+
 function mapMessage(
   data: CanonicalMessageWire,
 ): ConnectedCanonicalMessageUpsert {
@@ -94,7 +151,7 @@ function mapMessage(
 
 type StoredEvent = Readonly<{
   chatroomId: string;
-  kind: "message.created" | "unsupported";
+  kind: "message.created" | "unsupported" | "message.deleted";
   messageServerId: string | null;
 }>;
 
@@ -104,6 +161,7 @@ function createFakeRepository() {
   const dirty = new Map<string, Map<ConnectedReconciliationScope, string>>();
   const mergedMessages: ConnectedCanonicalMessageUpsert[] = [];
   const wsApplied: ConnectedRealtimeMessageCreatedInput[] = [];
+  const deletedMessageIds: string[] = [];
 
   function currentCheckpoint(chatroomId: string): string | null {
     return checkpoints.has(chatroomId)
@@ -145,6 +203,28 @@ function createFakeRepository() {
           messageServerId: input.message.serverMessageId,
         });
         mergedMessages.push(input.message);
+      }
+      checkpoints.set(input.chatroomId, input.cursor);
+      return { checkpoint: input.cursor, status };
+    },
+    async applyOrderedMessageDeleted(
+      input: ConnectedOrderedMessageDeletedInput,
+    ) {
+      const early = prepare(
+        input.chatroomId,
+        input.cursor,
+        input.expectedCursor,
+      );
+      if (early) return early;
+      const existing = events.get(input.eventId);
+      const status = existing ? "duplicate" : "applied";
+      if (!existing) {
+        events.set(input.eventId, {
+          chatroomId: input.chatroomId,
+          kind: "message.deleted",
+          messageServerId: input.serverMessageId,
+        });
+        deletedMessageIds.push(input.serverMessageId);
       }
       checkpoints.set(input.chatroomId, input.cursor);
       return { checkpoint: input.cursor, status };
@@ -221,7 +301,15 @@ function createFakeRepository() {
     },
   };
 
-  return { checkpoints, dirty, events, mergedMessages, repository, wsApplied };
+  return {
+    checkpoints,
+    deletedMessageIds,
+    dirty,
+    events,
+    mergedMessages,
+    repository,
+    wsApplied,
+  };
 }
 
 function alwaysActive() {
@@ -899,5 +987,122 @@ describe("createDeltaSync", () => {
       });
       expect(dirty.get(ROOM)?.get("chat_history")).toBe("c2-" + status);
     }
+  });
+
+  it("applies a typed message.deleted item as a monotonic tombstone directly, never message.created and never the chat_history dirty-marker path (E17/AC2)", async () => {
+    const {
+      checkpoints,
+      deletedMessageIds,
+      dirty,
+      mergedMessages,
+      repository,
+    } = createFakeRepository();
+    const applyMessageCreatedSpy = jest.spyOn(
+      repository,
+      "applyOrderedMessageDeleted",
+    );
+    const onChanged = jest.fn();
+    const deltaSync = createDeltaSync({
+      isActive: alwaysActive,
+      listEvents: async () => ({
+        items: [messageDeletedItem()],
+        next_cursor: null,
+      }),
+      mapMessage,
+      onChanged,
+      // A dirty-marker reconcile must never be scheduled for message.deleted
+      // any more -- the direct tombstone apply is the whole story now.
+      refreshHistory: neverRefreshHistory,
+      repository,
+    });
+
+    const result = await deltaSync.drain(ROOM, new AbortController().signal);
+
+    expect(result).toEqual({ exhausted: true });
+    expect(applyMessageCreatedSpy).toHaveBeenCalledTimes(1);
+    expect(mergedMessages).toHaveLength(0);
+    expect(checkpoints.get(ROOM)).toBe("1");
+    expect(deletedMessageIds).toEqual(["20000000-0000-4000-8000-000000000001"]);
+    // No dirty-marker Map is ever created for this room by a message.deleted
+    // apply, so this is `undefined`, not an empty/false-y Map lookup --
+    // either way, chat_history must not read back as dirty.
+    expect(dirty.get(ROOM)?.has("chat_history")).toBeFalsy();
+    expect(onChanged).toHaveBeenCalledWith(ROOM);
+  });
+
+  it("is idempotent when the same message.deleted event replays (duplicate applied-events row, no re-tombstone side effect)", async () => {
+    const { checkpoints, deletedMessageIds, repository } =
+      createFakeRepository();
+    const onChanged = jest.fn();
+    const deltaSync = createDeltaSync({
+      isActive: alwaysActive,
+      listEvents: async () => ({
+        items: [messageDeletedItem()],
+        next_cursor: null,
+      }),
+      mapMessage,
+      onChanged,
+      refreshHistory: neverRefreshHistory,
+      repository,
+    });
+
+    await deltaSync.drain(ROOM, new AbortController().signal);
+    checkpoints.set(ROOM, null); // simulate a fresh drain replaying from the start
+    const result = await deltaSync.drain(ROOM, new AbortController().signal);
+
+    expect(result).toEqual({ exhausted: true });
+    // Recorded once even though the event was seen (applied, then duplicate) twice.
+    expect(deletedMessageIds).toEqual(["20000000-0000-4000-8000-000000000001"]);
+    expect(onChanged).toHaveBeenCalledTimes(2);
+  });
+
+  it("routes a typed topic.deleted item through the group_topics dirty-marker path and notifies", async () => {
+    const { checkpoints, dirty, repository } = createFakeRepository();
+    const onChanged = jest.fn();
+    const deltaSync = createDeltaSync({
+      isActive: alwaysActive,
+      listEvents: async () => ({
+        items: [topicDeletedItem()],
+        next_cursor: null,
+      }),
+      mapMessage,
+      onChanged,
+      refreshHistory: neverRefreshHistory,
+      repository,
+    });
+
+    const result = await deltaSync.drain(ROOM, new AbortController().signal);
+
+    expect(result).toEqual({ exhausted: true });
+    expect(checkpoints.get(ROOM)).toBe("1");
+    expect(onChanged).toHaveBeenCalledWith(ROOM);
+    expect(dirty.get(ROOM)?.get("group_topics")).toBe(
+      "70000000-0000-4000-8000-000000000022",
+    );
+  });
+
+  it("does not retry-storm a mixed page of message.created, message.deleted, and topic.deleted items", async () => {
+    const { checkpoints, mergedMessages, repository } = createFakeRepository();
+    const deltaSync = createDeltaSync({
+      isActive: alwaysActive,
+      listEvents: async () => ({
+        items: [
+          messageItem({ cursor: "1", event_id: "e1" }),
+          messageDeletedItem({ cursor: "2", event_id: "e2" }),
+          topicDeletedItem({ cursor: "3", event_id: "e3" }),
+        ],
+        next_cursor: null,
+      }),
+      mapMessage,
+      onChanged: jest.fn(),
+      refreshHistory: async () => ({ complete: true, messages: [] }),
+      repository,
+    });
+
+    const result = await deltaSync.drain(ROOM, new AbortController().signal);
+
+    expect(result).toEqual({ exhausted: true });
+    expect(checkpoints.get(ROOM)).toBe("3");
+    expect(mergedMessages).toHaveLength(1);
   });
 });

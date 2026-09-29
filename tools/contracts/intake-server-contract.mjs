@@ -26,15 +26,26 @@ const M6_SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
 // upstream-only). Every path below is still covered by the whole-bundle
 // checksum verified in verifyUpstreamBundleChecksum before any byte is
 // mirrored, so selective vendoring never weakens provenance.
+// M15/task-14 phase 1 adds the two new typed realtime delete-event schemas
+// (message.deleted, topic.deleted) alongside the existing message.created/
+// topic.created pair; protocol.json's own bytes (contract_versions
+// current/previous "2"/"1") refresh automatically on the next intake because
+// it was already selectively vendored. fixtures/version-negotiation.json is
+// deliberately NOT vendored here: no app code or test reads it directly
+// (unlike the three M9 recovery fixtures, it documents server-side behavior
+// the app already exercises through plain header/status assertions), so
+// vendoring it would violate "only vendor what the app actually uses".
 export const SELECTIVE_M9_VENDORED_ARTIFACTS = Object.freeze([
   "fixtures/mobile-sync-handoff.json",
   "fixtures/realtime-lifecycle.json",
   "fixtures/unknown-event-recovery.json",
   "realtime/client-frame.schema.json",
   "realtime/message.created.schema.json",
+  "realtime/message.deleted.schema.json",
   "realtime/protocol.json",
   "realtime/server-frame.schema.json",
   "realtime/topic.created.schema.json",
+  "realtime/topic.deleted.schema.json",
 ]);
 
 function isRecord(value) {

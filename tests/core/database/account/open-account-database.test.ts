@@ -230,10 +230,10 @@ describe("M6-03 native account database open glue", () => {
       const [filename] = openDatabaseAsync.mock.calls[0] as [string];
       expect(filename).toMatch(/^jamye-account-v1-[0-9a-f]{64}\.db$/);
       expect(database.hasScopeMetadataTable).toBe(true);
-      expect(database.userVersion).toBe(5);
+      expect(database.userVersion).toBe(6);
       expect(database.scopeMetadataRow).toEqual({
         origin: PRINCIPAL.origin,
-        schema_version: 5,
+        schema_version: 6,
         singleton: 1,
         user_id: PRINCIPAL.userId,
       });

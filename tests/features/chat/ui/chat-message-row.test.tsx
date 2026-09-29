@@ -24,10 +24,18 @@ jest.mock("@/features/media/ui/message-attachments-view", () => {
 });
 
 // The platform menus are covered by their own tests; here the bubble only
-// needs to render in place.
+// needs to render in place. mockMessageMenuActions records the `actions`
+// array each render passes, so the M15 delete/discard menu-visibility tests
+// below can assert on it without a real native menu host.
+const mockMessageMenuActions = jest.fn();
 jest.mock("@/features/chat/ui/chat-message-menu", () => ({
-  ChatMessageMenu: ({ children }: Readonly<{ children?: ReactNode }>) =>
+  ChatMessageMenu: ({
+    actions,
     children,
+  }: Readonly<{ actions: unknown; children?: ReactNode }>) => {
+    mockMessageMenuActions(actions);
+    return children;
+  },
 }));
 
 const incomingMeta: ChatMessageRowMeta = {
@@ -56,17 +64,44 @@ function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
   };
 }
 
-async function renderRow(meta: ChatMessageRowMeta, row: ChatMessage) {
+async function renderRow(
+  meta: ChatMessageRowMeta,
+  row: ChatMessage,
+  overrides: Partial<{
+    onRequestDeleteMessage: (
+      input: Readonly<{ chatroomId: string; serverMessageId: string }>,
+    ) => void;
+    onRequestDiscardFailedMessage: (
+      input: Readonly<{ clientMsgId: string }>,
+    ) => void;
+  }> = {},
+) {
   return render(
     <AppThemeProvider>
       <ChatMessageRow
         message={row}
         onRetryFailedMessage={jest.fn()}
         onShareAttachment={jest.fn()}
+        onRequestDeleteMessage={overrides.onRequestDeleteMessage ?? jest.fn()}
+        onRequestDiscardFailedMessage={
+          overrides.onRequestDiscardFailedMessage ?? jest.fn()
+        }
         rowMeta={meta}
       />
     </AppThemeProvider>,
   );
+}
+
+type MockMenuAction = Readonly<{
+  key: string;
+  label: string;
+  destructive?: boolean;
+  onPress: () => void;
+}>;
+
+function lastMenuActions(): readonly MockMenuAction[] {
+  const calls = mockMessageMenuActions.mock.calls;
+  return (calls.at(-1)?.[0] as readonly MockMenuAction[] | undefined) ?? [];
 }
 
 type RenderedNode = ReturnType<
@@ -158,5 +193,101 @@ describe("ChatMessageRow R1 layout (device regressions)", () => {
     );
     expect(screen.getByText("오후 3:10")).toBeTruthy();
     expect(screen.queryByText(/전송됨/)).toBeNull();
+  });
+});
+
+describe("ChatMessageRow M15 destructive menu action (AC3/AC5/AC6/E11)", () => {
+  test("own sent server-backed message: 삭제 is the last menu action and requests a delete with chatroomId/serverMessageId", async () => {
+    const onRequestDeleteMessage = jest.fn();
+    await renderRow(
+      { ...incomingMeta, isOutgoing: true },
+      message({
+        body: "보냄",
+        conversationId: "room-9",
+        serverMessageId: "server-1",
+        status: "sent",
+      }),
+      { onRequestDeleteMessage },
+    );
+    const actions = lastMenuActions();
+    expect(actions.at(-1)).toMatchObject({
+      destructive: true,
+      key: "delete",
+      label: "삭제",
+    });
+    actions.at(-1)!.onPress();
+    expect(onRequestDeleteMessage).toHaveBeenCalledWith({
+      chatroomId: "room-9",
+      serverMessageId: "server-1",
+    });
+  });
+
+  test("own failed message: same 삭제 label, but requests a discard with clientMsgId (A2)", async () => {
+    const onRequestDiscardFailedMessage = jest.fn();
+    await renderRow(
+      { ...incomingMeta, isOutgoing: true },
+      message({ body: "보냄", clientMsgId: "client-9", status: "failed" }),
+      { onRequestDiscardFailedMessage },
+    );
+    const actions = lastMenuActions();
+    expect(actions.at(-1)).toMatchObject({
+      destructive: true,
+      key: "delete",
+      label: "삭제",
+    });
+    actions.at(-1)!.onPress();
+    expect(onRequestDiscardFailedMessage).toHaveBeenCalledWith({
+      clientMsgId: "client-9",
+    });
+  });
+
+  test("own pending message has no delete action at all (AC6)", async () => {
+    await renderRow(
+      { ...incomingMeta, isOutgoing: true },
+      message({
+        body: "보내는 중",
+        serverMessageId: null,
+        status: "pending",
+      }),
+    );
+    expect(lastMenuActions().some((action) => action.key === "delete")).toBe(
+      false,
+    );
+  });
+
+  test("a non-author (incoming) sent message never gets a delete action, even with a serverMessageId (E11)", async () => {
+    await renderRow(
+      incomingMeta,
+      message({ body: "안녕", serverMessageId: "server-2", status: "sent" }),
+    );
+    expect(lastMenuActions().some((action) => action.key === "delete")).toBe(
+      false,
+    );
+  });
+
+  test("a deleted (non-system) message shows only the muted 삭제된 메시지입니다. text, no menu actions at all (AC4)", async () => {
+    const screen = await renderRow(
+      { ...incomingMeta, isOutgoing: true },
+      message({
+        body: "지워질 내용",
+        deletedAtMs: 1_700_000_000_000,
+        serverMessageId: "server-3",
+        status: "sent",
+      }),
+    );
+    expect(screen.getByText("삭제된 메시지입니다.")).toBeTruthy();
+    expect(screen.queryByText("지워질 내용")).toBeNull();
+    expect(lastMenuActions()).toHaveLength(0);
+  });
+
+  test("a deleted system message renders nothing at all -- no placeholder (E2)", async () => {
+    const screen = await renderRow(
+      { ...incomingMeta, isSystem: true },
+      message({
+        body: "주제가 생성됐습니다.",
+        deletedAtMs: 1_700_000_000_000,
+      }),
+    );
+    expect(screen.toJSON()).toBeNull();
   });
 });

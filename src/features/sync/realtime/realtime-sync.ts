@@ -530,7 +530,15 @@ export function createRealtimeSync(
         );
         return;
       }
-      case "topic.created": {
+      // M15/task-14 phase 1: message.deleted/topic.deleted have no local
+      // realtime apply path yet (their sync apply lands with task-app-chat/
+      // task-app-topics), so -- like topic.created already does -- they only
+      // trigger a bounded S1 catch-up drain for the affected conversation;
+      // delta-sync.ts's classifyDeltaItem dispatch durably reconciles them
+      // from there.
+      case "topic.created":
+      case "message.deleted":
+      case "topic.deleted": {
         const conversationId = parsed.conversation_id;
         if (!registered.has(conversationId)) return;
         void recoverConversation(gen, target, conversationId);

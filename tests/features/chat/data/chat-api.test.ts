@@ -12,6 +12,7 @@ import {
   chatroomWire,
   clientMessageId,
   groupId,
+  messageId,
   readMarker,
   readMarkerWire,
 } from "../chat-api-fixtures";
@@ -333,6 +334,73 @@ describe("M8 chat transport", () => {
     await expect(
       api.sendChatMessage("t", chatroomId, { body: "x", clientMessageId }),
     ).rejects.toMatchObject({ status: 503, code: "dependency_unavailable" });
+  });
+
+  test("C6 delete: 204 success (author repeat-delete is also 204, retry-safe), maps 403 message_author_required / 404 message_not_found / existing membership error codes unchanged (E8/AC3)", async () => {
+    reply(204);
+    await expect(
+      api.deleteMessage("t", { chatroomId, messageId }),
+    ).resolves.toBeUndefined();
+    // A second 204 (author re-deleting an already-deleted message) is just
+    // as successful -- no special-casing needed, matching E8.
+    reply(204);
+    await expect(
+      api.deleteMessage("t", { chatroomId, messageId }),
+    ).resolves.toBeUndefined();
+
+    reply(403, {
+      error: {
+        code: "message_author_required",
+        details: null,
+        message: "must not leak",
+        request_id: "77777777-7777-4777-8777-777777777777",
+      },
+    });
+    await expect(
+      api.deleteMessage("t", { chatroomId, messageId }),
+    ).rejects.toMatchObject({ status: 403, code: "message_author_required" });
+
+    reply(404, {
+      error: {
+        code: "message_not_found",
+        details: null,
+        message: "must not leak",
+        request_id: "77777777-7777-4777-8777-777777777777",
+      },
+    });
+    await expect(
+      api.deleteMessage("t", { chatroomId, messageId }),
+    ).rejects.toMatchObject({ status: 404, code: "message_not_found" });
+
+    reply(403, {
+      error: {
+        code: "membership_required",
+        details: null,
+        message: "must not leak",
+        request_id: "77777777-7777-4777-8777-777777777777",
+      },
+    });
+    await expect(
+      api.deleteMessage("t", { chatroomId, messageId }),
+    ).rejects.toMatchObject({ status: 403, code: "membership_required" });
+
+    reply(404, {
+      error: {
+        code: "group_not_found",
+        details: null,
+        message: "must not leak",
+        request_id: "77777777-7777-4777-8777-777777777777",
+      },
+    });
+    await expect(
+      api.deleteMessage("t", { chatroomId, messageId }),
+    ).rejects.toMatchObject({ status: 404, code: "group_not_found" });
+
+    const [path, init] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
+    expect(path).toBe(
+      `https://api.example.com/api/v1/chatrooms/${chatroomId}/messages/${messageId}`,
+    );
+    expect(init.method).toBe("DELETE");
   });
 
   test("401 propagates status and code unchanged so authorizedRequest can refresh and retry", async () => {

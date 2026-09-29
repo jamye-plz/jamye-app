@@ -8,6 +8,7 @@ import type { Group, Member } from "@/core/contracts/server";
 import { useSession } from "@/core/providers/session-provider";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { Avatar } from "@/shared/ui/avatar";
+import { ComposeRnHost } from "@/shared/ui/compose-rn-host";
 import { ConfirmAlert } from "@/shared/ui/confirm-alert";
 import type { RowAction } from "@/shared/ui/action-list-item.types";
 
@@ -195,11 +196,13 @@ export function useGroupRowActions(): Readonly<{
             <ListItem
               key={member.userId}
               leading={
-                <Avatar
-                  name={member.nickname}
-                  size={32}
-                  uri={member.avatarUrl}
-                />
+                <ComposeRnHost>
+                  <Avatar
+                    name={member.nickname}
+                    size={32}
+                    uri={member.avatarUrl}
+                  />
+                </ComposeRnHost>
               }
               onPress={() => {
                 pickedCandidate.current = true;

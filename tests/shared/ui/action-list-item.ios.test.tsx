@@ -1,6 +1,7 @@
 import { fireEvent, render, within } from "@testing-library/react-native";
 import React from "react";
 import type { ReactNode } from "react";
+import { PlatformColor } from "react-native";
 import { ActionListItem } from "@/shared/ui/action-list-item";
 import type { RowAction } from "@/shared/ui/action-list-item.types";
 
@@ -17,21 +18,40 @@ jest.mock("@expo/ui/swift-ui", () => {
   const { Pressable, Text, View } =
     jest.requireActual<typeof import("react-native")>("react-native");
   type MockChildren = Readonly<{ children?: ReactNode }>;
+  type MockModifier = Readonly<{ $type: string; value?: unknown }>;
   function Button(
     props: Readonly<{
       label?: string;
-      modifiers?: unknown[];
+      modifiers?: readonly MockModifier[];
       onPress?: () => void;
       role?: string;
       systemImage?: string;
     }>,
   ) {
+    const isDisabled = Boolean(
+      props.modifiers?.some((modifier) => modifier.$type === "disabled"),
+    );
     return (
       <Pressable
         accessibilityHint={props.role}
         accessibilityLabel={props.label}
         accessibilityRole="button"
-        accessibilityState={{ disabled: Boolean(props.modifiers?.length) }}
+        accessibilityState={{ disabled: isDisabled }}
+        accessibilityValue={
+          props.modifiers?.length
+            ? {
+                // `JSON.stringify` (not `String`) so an object-shaped value
+                // (e.g. `tint`'s `PlatformColor(...)` result) round-trips
+                // into something a test can compare with `toEqual`.
+                text: props.modifiers
+                  .map(
+                    (modifier) =>
+                      `${modifier.$type}:${JSON.stringify(modifier.value)}`,
+                  )
+                  .join(","),
+              }
+            : undefined
+        }
         onPress={props.onPress}
         testID={`symbol-${props.systemImage}`}
       >
@@ -67,6 +87,11 @@ jest.mock("@expo/ui/swift-ui", () => {
 });
 jest.mock("@expo/ui/swift-ui/modifiers", () => ({
   disabled: (value: boolean) => ({ $type: "disabled", value }),
+  // The real `tint` takes a `ShapeStyle` -- on iOS the caller passes the
+  // theme's `colors.error` (`PlatformColor("systemRed")`, an object), not a
+  // string, so this mock echoes back whatever it's given rather than typing
+  // it as a color name.
+  tint: (value: unknown) => ({ $type: "tint", value }),
 }));
 
 const actions: RowAction[] = [
@@ -98,14 +123,38 @@ describe("ActionListItem (iOS)", () => {
     expect(
       swipe.getAllByRole("button").map((b) => b.props.accessibilityLabel),
     ).toEqual(["삭제", "상세"]);
-    expect(
-      swipe.getByRole("button", { name: "삭제" }).props.accessibilityHint,
-    ).toBe("destructive");
+    // M15/AC3/AC5 r3: the swipe 삭제 button carries the theme's error color
+    // (iOS `PlatformColor("systemRed")` -- the same red the destructive role
+    // rendered, and dark-mode aware, unlike a literal hex) as a tint instead
+    // of a destructive role, so SwiftUI's swipeActions won't hide the row
+    // before this app's own ConfirmAlert (E10) runs.
+    //
+    // Checked via `.accessibilityValue?.text` (not the whole object with
+    // `toBeUndefined()`/plain `toEqual`): the real RN `Pressable` we render
+    // through (react-native/Libraries/Components/Pressable/Pressable.js)
+    // unconditionally rebuilds `accessibilityValue` as `{max, min, now,
+    // text}`, so even a button with nothing to encode still has a defined
+    // object there (every field `undefined`) -- `.text` is the one field
+    // this mock actually controls.
+    const deleteSwipeButton = swipe.getByRole("button", { name: "삭제" });
+    expect(deleteSwipeButton.props.accessibilityHint).toBeUndefined();
+    expect(deleteSwipeButton.props.accessibilityValue?.text).toBe(
+      `tint:${JSON.stringify(PlatformColor("systemRed"))}`,
+    );
+    // A non-destructive swipe button gets neither a role nor a tint.
+    const infoSwipeButton = swipe.getByRole("button", { name: "상세" });
+    expect(infoSwipeButton.props.accessibilityHint).toBeUndefined();
+    expect(infoSwipeButton.props.accessibilityValue?.text).toBeUndefined();
     const menu = within(screen.getByTestId("context-menu-items"));
     expect(
       menu.getAllByRole("button").map((b) => b.props.accessibilityLabel),
     ).toEqual(["상세", "삭제"]);
     expect(menu.getByTestId("symbol-trash")).toBeTruthy();
+    // The context menu never hides a row on tap, so it keeps the real
+    // destructive role (E11).
+    expect(
+      menu.getByRole("button", { name: "삭제" }).props.accessibilityHint,
+    ).toBe("destructive");
     await fireEvent.press(swipe.getByRole("button", { name: "상세" }));
     expect(actions[0]!.onPress).toHaveBeenCalledTimes(1);
   });

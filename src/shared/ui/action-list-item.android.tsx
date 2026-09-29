@@ -1,4 +1,4 @@
-import { ListItem, Text } from "@expo/ui";
+import { ListItem, RNHostView, Text } from "@expo/ui";
 import {
   DropdownMenu,
   DropdownMenuItem,
@@ -62,7 +62,15 @@ export function ActionListItem({
   const open = () => setExpanded(true);
   return (
     <ListItem
-      leading={leading}
+      leading={
+        // DESIGN.md §4: React Native content enters a Compose row only
+        // through `RNHostView`. `LazyColumn` keys items by index, so removing
+        // a row rebuilds every row below it; a bare RN view is then handed
+        // to its new interop holder while the old one still owns it ("The
+        // specified child already has a parent"). `RNHostView` detaches it
+        // first.
+        leading ? <RNHostView matchContents>{leading}</RNHostView> : undefined
+      }
       modifiers={[
         combinedClickable({
           onClick: onPress,

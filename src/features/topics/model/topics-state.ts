@@ -26,14 +26,22 @@ export type TopicsState = Readonly<{
   detail: Readonly<{
     id: string | null;
     topic: Topic | null;
-    status: "idle" | "loading" | "ready" | "error";
+    /**
+     * M15/AC2/E5: "deleted" is a terminal state distinct from "error" -- a
+     * `topic.deleted` event, or a topic-detail 404 (which reads as deleted
+     * either way; the app cannot tell a hard-deleted topic apart from any
+     * other 404 here), moves detail here instead of "error" so the screen
+     * renders the exact-copy `삭제된 주제입니다.` state instead of a
+     * retryable error.
+     */
+    status: "idle" | "loading" | "ready" | "error" | "deleted";
     tags: readonly TopicTag[];
     tagsComplete: boolean;
     error: TopicsError | null;
   }>;
   permissions: Readonly<{ canEdit: boolean; canManageTags: boolean }>;
   mutation: Readonly<{
-    kind: "create" | "edit" | "tags" | null;
+    kind: "create" | "edit" | "tags" | "delete" | null;
     status: "idle" | "pending" | "succeeded" | "error" | "uncertain";
     error: TopicsError | null;
   }>;

@@ -10,9 +10,12 @@ import type {
   ConnectedSendErrorCode,
 } from "./connected-chat-types";
 
+type AppliedEventKind =
+  "message.created" | "unsupported" | "message.deleted" | "topic.deleted";
+
 type AppliedEventRow = SqliteRow & {
   chatroom_id: string;
-  event_kind: "message.created" | "unsupported";
+  event_kind: AppliedEventKind;
   message_server_id: string | null;
 };
 
@@ -146,7 +149,7 @@ async function insertAppliedEventIfNew(
   input: Readonly<{
     chatroomId: string;
     eventId: string;
-    eventKind: "message.created" | "unsupported";
+    eventKind: AppliedEventKind;
     messageServerId: string | null;
   }>,
 ): Promise<boolean> {
@@ -213,6 +216,26 @@ async function prepareOrderedApply(
   }
   await advanceCheckpoint(transaction, input);
   return null;
+}
+
+/** Shared by connected-chat-repository.ts's `markMessageDeleted` (AC3's local
+ * optimistic apply) and this file's `applyOrderedMessageDeleted` (S1) --
+ * both need the exact same monotonic tombstone write. Idempotent: the
+ * `deleted_at_ms IS NULL` guard makes a second call for an already-deleted
+ * (or never-received) `server_message_id` a silent no-op, never a revive and
+ * never a placeholder row (E2). Content columns are cleared to mirror the
+ * server's own S3 scrub rather than retaining stale deleted content locally. */
+export async function tombstoneMessageIfLive(
+  transaction: SqliteRepositoryDatabase,
+  input: Readonly<{ deletedAtMs: number; serverMessageId: string }>,
+): Promise<void> {
+  await transaction.runAsync(
+    `UPDATE connected_chat_messages SET
+       deleted_at_ms = ?, body = NULL, media_json = '[]', pending_media_json = '[]'
+     WHERE server_message_id = ? AND deleted_at_ms IS NULL`,
+    input.deletedAtMs,
+    input.serverMessageId,
+  );
 }
 
 export function createConnectedChatSyncRepository({
@@ -411,6 +434,38 @@ export function createConnectedChatSyncRepository({
       });
       if (!result)
         throw new Error("Ordered message event apply did not complete.");
+      return result;
+    },
+
+    async applyOrderedMessageDeleted(input) {
+      assertActive();
+      validateOrderedIdentity(input);
+      assertNonEmpty(input.serverMessageId, "Deleted message server id");
+      let result: ConnectedOrderedEventApplyResult | null = null;
+      await database.withExclusiveTransactionAsync(async (transaction) => {
+        result = await prepareOrderedApply(transaction, input);
+        if (result) return;
+        const isNew = await insertAppliedEventIfNew(transaction, {
+          chatroomId: input.chatroomId,
+          eventId: input.eventId,
+          eventKind: "message.deleted",
+          messageServerId: input.serverMessageId,
+        });
+        if (isNew) {
+          await tombstoneMessageIfLive(transaction, {
+            deletedAtMs: input.deletedAtMs,
+            serverMessageId: input.serverMessageId,
+          });
+        }
+        result = {
+          checkpoint: input.cursor,
+          status: isNew ? "applied" : "duplicate",
+        };
+      });
+      if (!result)
+        throw new Error(
+          "Ordered message-deleted event apply did not complete.",
+        );
       return result;
     },
 

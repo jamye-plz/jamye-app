@@ -45,6 +45,11 @@ export type AuthApi = Readonly<{
       expiresInSeconds: number;
     }>
   >;
+  // M15/task-14 phase 1 (G2/AC4) public API for task-app-account: A2's
+  // result carries a one-shot `accountRestored` flag alongside the unchanged
+  // TokenPair fields, sourced from the `X-Jamye-Account-Restored: true`
+  // response header (present only when A2 restored a grace-deleted
+  // account). TokenPair's own validated body/schema is untouched.
   exchange: (
     provider: OAuthProvider,
     input: Readonly<{
@@ -54,7 +59,7 @@ export type AuthApi = Readonly<{
       redirectUri: string;
     }>,
     signal?: AbortSignal,
-  ) => Promise<TokenPair>;
+  ) => Promise<TokenPair & Readonly<{ accountRestored: boolean }>>;
   refresh: (refreshToken: string, signal?: AbortSignal) => Promise<TokenPair>;
   profile: (accessToken: string, signal?: AbortSignal) => Promise<UserProfile>;
   logout: (accessToken: string, signal?: AbortSignal) => Promise<void>;
@@ -69,7 +74,7 @@ export function createAuthApi(origin: string): AuthApi {
     expectedStatus = 200,
   ) => {
     try {
-      const { status, ok, payload } = await withTimeoutSignal(
+      const { status, ok, payload, headers } = await withTimeoutSignal(
         signal,
         REQUEST_TIMEOUT_MS,
         async (composedSignal) => {
@@ -92,7 +97,12 @@ export function createAuthApi(origin: string): AuthApi {
                     throw error;
                   return null;
                 });
-          return { status: response.status, ok: response.ok, payload: body };
+          return {
+            status: response.status,
+            ok: response.ok,
+            payload: body,
+            headers: response.headers,
+          };
         },
       );
       if (!ok) {
@@ -103,7 +113,7 @@ export function createAuthApi(origin: string): AuthApi {
       }
       if (status !== expectedStatus)
         throw new AuthApiError(502, "invalid_response_status");
-      return payload;
+      return { payload, headers };
     } catch (error) {
       if (error instanceof AuthApiError) throw error;
       if (error instanceof HttpAbortedError)
@@ -115,7 +125,7 @@ export function createAuthApi(origin: string): AuthApi {
   };
   return {
     async authorize(provider, input, signal) {
-      const value = await request(
+      const { payload: value } = await request(
         `/api/v1/auth/oauth/${provider}/authorize`,
         {
           method: "POST",
@@ -135,7 +145,7 @@ export function createAuthApi(origin: string): AuthApi {
       return mapOAuthAuthorization(value);
     },
     async exchange(provider, input, signal) {
-      const value = await request(
+      const { payload: value, headers } = await request(
         `/api/v1/auth/oauth/${provider}/exchange`,
         {
           method: "POST",
@@ -150,10 +160,17 @@ export function createAuthApi(origin: string): AuthApi {
       );
       if (!validateTokenPair(value))
         throw new AuthApiError(502, "invalid_token_response");
-      return mapTokenPair(value);
+      // `headers` is read defensively: a real fetch Response always carries
+      // one, but not every Response-shaped value passed through this path
+      // (tests, or a future non-fetch transport) is guaranteed to. A missing
+      // header source must resolve to "not restored", never throw.
+      return {
+        ...mapTokenPair(value),
+        accountRestored: headers?.get("X-Jamye-Account-Restored") === "true",
+      };
     },
     async refresh(refreshToken, signal) {
-      const value = await request(
+      const { payload: value } = await request(
         "/api/v1/auth/refresh",
         {
           method: "POST",
@@ -166,7 +183,7 @@ export function createAuthApi(origin: string): AuthApi {
       return mapTokenPair(value);
     },
     async profile(accessToken, signal) {
-      const value = await request(
+      const { payload: value } = await request(
         "/api/v1/me",
         { headers: { Authorization: `Bearer ${accessToken}` } },
         signal,

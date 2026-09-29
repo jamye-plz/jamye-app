@@ -59,7 +59,23 @@ export type ChatMessageSendResult = Readonly<{
   message: CanonicalChatMessage;
 }>;
 
+export type ChatDeleteMessageInput = Readonly<{
+  chatroomId: string;
+  messageId: string;
+}>;
+
 export type ChatApi = Readonly<{
+  /** C6: 204 success (author repeat-delete is also 204, retry-safe). Maps
+   * 403 `message_author_required`, 404 `message_not_found`, and the existing
+   * membership error codes (403 `membership_required`, 404 `group_not_found`)
+   * through the shared `ChatApiError` below the same way every other method
+   * here does -- no special-casing needed since the server's codes already
+   * match 1:1 (E8), the caller reads `ChatApiError.code`. */
+  deleteMessage: (
+    accessToken: string,
+    input: ChatDeleteMessageInput,
+    signal?: AbortSignal,
+  ) => Promise<void>;
   listGroupChatrooms: (
     accessToken: string,
     groupId: string,
@@ -268,6 +284,15 @@ export function createChatApi(origin: string): ChatApi {
         message: mapCanonicalChatMessage(payload),
         status: status as 200 | 201,
       };
+    },
+    async deleteMessage(accessToken, { chatroomId, messageId }, signal) {
+      await request(
+        `/api/v1/chatrooms/${identifier(chatroomId)}/messages/${identifier(messageId)}`,
+        accessToken,
+        { method: "DELETE" },
+        signal,
+        [204],
+      );
     },
   };
 }
