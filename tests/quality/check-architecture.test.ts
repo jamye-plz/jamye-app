@@ -169,6 +169,10 @@ const M9_SERVER_CONTRACT_FILES = [
   "contracts/server/realtime/server-frame.schema.json",
   "contracts/server/realtime/topic.created.schema.json",
 ];
+const M15_SERVER_CONTRACT_FILES = [
+  "contracts/server/realtime/message.deleted.schema.json",
+  "contracts/server/realtime/topic.deleted.schema.json",
+];
 
 const M6_CONTRACT_SOURCE_FILES = [
   "src/core/contracts/generated/server/server-api.ts",
@@ -298,7 +302,6 @@ const M14_ROUND1_TEST_PATHS = [
   // resolution, and the chatroom-context group-info route.
   "tests/features/topics/ui/topic-date-chips.ios.test.tsx",
   "tests/features/topics/ui/topic-date-chips.android.test.tsx",
-  "tests/features/topics/ui/topic-edit-button.test.tsx",
   "tests/features/topics/ui/topic-edit-form.ios.test.tsx",
   "tests/features/topics/ui/topic-edit-form.android.test.tsx",
   "tests/features/chat/model/use-chatroom-title.test.tsx",
@@ -390,6 +393,35 @@ const M14_ROUND2_TEST_PATHS = [
   "tests/features/media/model/audio-playback-coordinator.test.ts",
   "tests/features/media/platform/player.test.ts",
 ];
+const M15_TEST_PATHS = [
+  // task-app-account (E9/G2/E13): account-delete confirm copy, the A2
+  // accountRestored one-shot store, and its first-screen (group list +
+  // invite-join) notice.
+  "tests/features/auth/model/pending-account-restore-store.test.ts",
+  "tests/features/auth/ui/account-restore-notice.test.tsx",
+  "tests/app/groups-account-restore-notice.test.tsx",
+  // task-app-chat (AC1): dedicated account DB v6 migration test.
+  "tests/core/database/account/connected-chat-deletions-migration.test.ts",
+  // task-app-chat (AC7): topic.deleted narrow dispatch seam unit tests.
+  "tests/features/sync/realtime/topic-deleted-dispatch.test.ts",
+  // task-app-chat (E10): ConfirmAlert copy pure-function test.
+  "tests/features/chat/ui/destructive-confirm-copy.test.ts",
+  // task-app-chat (AC5): real-SQLite discardFailedMessage cleanup test.
+  "tests/core/database/account/connected-chat-discard-message.test.ts",
+  // task-app-chat r2 (coordinator round 2, device BUG 3 follow-up):
+  // use-topic-screen.ts room-scoped-vs-group-wide revoke contract.
+  "tests/features/topics/ui/use-topic-screen.test.tsx",
+  // task-refine (REFINE Step 10 MEDIUM, 2026-09-29): shared topic-delete
+  // ConfirmAlert copy test.
+  "tests/features/topics/model/topic-delete-confirm-copy.test.ts",
+  // task-refine (REFINE Step 11, 2026-09-29): ComposeRnHost default/android
+  // pair tests.
+  "tests/shared/ui/compose-rn-host.test.tsx",
+  "tests/shared/ui/compose-rn-host.android.test.tsx",
+  // task-refine r2 (SHIP UX MEDIUM, 2026-09-29): group-row-actions.tsx
+  // ownership-transfer picker render test.
+  "tests/features/groups/ui/group-row-actions.test.tsx",
+];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",
   "tests/core/public-media-env.test.ts",
@@ -453,6 +485,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M11_TEST_PATHS,
   ...M14_ROUND1_TEST_PATHS,
   ...M14_ROUND2_TEST_PATHS,
+  ...M15_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
   "tests/core/theme/tokens.test.ts",
@@ -731,6 +764,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = [
   "src/core/database/account/migrations/003-durable-outbox-events.ts",
   "src/core/database/account/migrations/004-topics-cache.ts",
   "src/core/database/account/migrations/005-connected-chat-media.ts",
+  "src/core/database/account/migrations/006-connected-chat-deletions.ts",
   "src/core/database/account/topics-types.ts",
   "src/core/database/account/topics-repository.ts",
 ];
@@ -916,6 +950,7 @@ function buildValidRepositorySnapshot() {
         server: clone([
           ...M6_SERVER_CONTRACT_FILES,
           ...M9_SERVER_CONTRACT_FILES,
+          ...M15_SERVER_CONTRACT_FILES,
         ]),
       },
     },
@@ -1763,7 +1798,8 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     expect(isAuthorizedWorkingTreePath("docs/evidence/M12.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M13.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M14.md")).toBe(true);
-    expect(isAuthorizedWorkingTreePath("docs/evidence/M15.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M15.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M16.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10-private.md")).toBe(
       false,
     );
@@ -1795,6 +1831,25 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
       "src/features/chat/model/realtime-dispatcher.ts",
     ])
       expect(isAuthorizedWorkingTreePath(path)).toBe(false);
+  });
+
+  test("authorizes the M15/task-14 selectively vendored delete-event schemas", () => {
+    for (const path of M15_SERVER_CONTRACT_FILES)
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    expect(
+      isAuthorizedWorkingTreePath(
+        "contracts/server/realtime/group.deleted.schema.json",
+      ),
+    ).toBe(false);
+  });
+
+  test("authorizes the task-app-account M15 restore-store and notice files", () => {
+    const taskAppAccountAuthoredFiles = [
+      "src/features/auth/model/pending-account-restore-store.ts",
+      "src/features/auth/ui/account-restore-notice.tsx",
+    ];
+    for (const path of taskAppAccountAuthoredFiles)
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
   });
 
   test("denies a missing M5 authored inventory path", () => {
