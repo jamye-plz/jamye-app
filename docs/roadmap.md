@@ -927,43 +927,98 @@ M14 종료 후 후속 후보(각각 별도 결정):
 
 ### M15. 소프트 삭제 수용 (서버 task-14 연동)
 
-- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 서버 task-14 계약
-  publish 이후 별도 승인
-- 선행: 서버 task-14(soft delete 계약)의 배포와 contract intake; M9(realtime/delta 엔진); M13(계정 삭제
-  흐름)
+- 상태: 구현·기기 검증 완료(2026-09-29). 커밋·push와 milestone 종료 승인은 구현과 별도 gate로 남아
+  있다(§10.1). 2026-09-22 사용자 결정으로 로드맵에 등록했고, 2026-09-28 사용자 요청("M15 구현
+  시작해. 선행조건인 서버 task-14 먼저 진행하고 배포한 뒤에 시작해.")으로 착수를 승인받았다(근거
+  jamye-server `.agents/results/requirements-20260928-171401.md` §1).
+- 선행: 서버 task-14(soft delete 계약)의 배포와 contract intake — 충족(1·2·3차 모두 운영 배포, 앱
+  `task-app-contract`가 계약 v2 intake 완료; jamye-server 로드맵 §14 task-14); M9(realtime/delta
+  엔진, 기존 충족); M13(계정 삭제 흐름, 기존 충족).
 - 결정(2026-09-22): 서버는 모든 테이블에 `created_at`/`updated_at`/`deleted_at`를 적용하고, 기존 hard
   delete를 soft delete로 전환하며, 메시지·주제 삭제 API를 신설하고, 계정 삭제도 유예·복구형 soft
-  delete로 바꾼다(서버 로드맵 D14·D15). 범위가 크면 서버 단계 분할을 허용한다. 앱은 서버가 publish한
-  계약만 수용한다.
+  delete로 바꾼다(서버 로드맵 D14·D15).
+- 결정(2026-09-28 인터뷰 확정, 근거 jamye-server `.agents/results/requirements-20260928-171401.md`
+  §3): 서버 배포는 1차(감사 컬럼 + 삭제 API/이벤트 + 계정 유예 + 필요한 soft delete) 먼저, 나머지 B
+  (초대·푸시·알림·읽음 위치·태그·업로드)는 2차로 병행한다(S1). 삭제 권한은 작성자만이고 그룹
+  소유자에게 추가 권한은 없다(S2). 삭제한 내용은 서버가 본문·첨부·과거 이벤트 payload까지 완전히
+  지우고 되돌릴 수 없다(S3). 계정 삭제 유예 중 표시는 즉시 `탈퇴한 사용자`(사진 없음)이고, 30일 안에
+  같은 provider로 재로그인하면 이름·멤버십·글이 복구된다(G1). 복구는 자동으로 일어나고 첫 화면에
+  한 번 안내한다(G2). 주제 삭제 진입점은 주제 상세 헤더 메뉴·목록 행 길게 누르기·iOS 스와이프
+  3개다(A1). 메시지 삭제는 내 메시지 삭제와 실패한 메시지 버리기 둘 다를 포함한다(A2).
 - 사용자 결과: 내 메시지나 주제를 삭제하면 상대방 화면에서도 '삭제된 메시지/주제'로 바뀐다. 삭제된
-  그룹·주제·메시지는 목록과 알림함에서 사라지거나 placeholder로 남는다. 계정 삭제 후 30일 유예 기간 안에 같은 provider로 다시 로그인하면 계정이 부활한다.
-- 계약 범위(예정, 가칭): 메시지 삭제 `DELETE /api/v1/chatrooms/{chatroom_id}/messages/{message_id}`(C6;
-  `C5`는 2026-09-26 대화방 미디어 목록이 사용),
-  주제 삭제 `DELETE /api/v1/groups/{group_id}/topics/{topic_id}`(T8), realtime/delta 이벤트
-  `message.deleted`·`topic.deleted`, `CanonicalMessage`와 `CanonicalTopic`의 `deleted_at`(및 `updated_at`) 필드,
-  계정 삭제 유예·복구 응답/endpoint. 정확한 ID·shape·권한(권고: 작성자 또는 group owner)은 서버
-  task-14가 확정한다.
+  주제·메시지는 목록과 알림함에서 사라지거나 placeholder로 남는다. 계정 삭제 후 30일 유예 기간 안에 같은 provider로 다시 로그인하면 계정이 부활한다.
+- 계약 범위(구현됨): 메시지 삭제 `DELETE /api/v1/chatrooms/{chatroom_id}/messages/{message_id}`(C6),
+  주제 삭제 `DELETE /api/v1/groups/{group_id}/topics/{topic_id}`(T8) — 둘 다 작성자만 호출할 수
+  있고 성공 204(같은 대상 재삭제도 204, 재시도 안전), 없는 대상 404, 작성자가 아니면 403
+  (`message_author_required`/`topic_author_required`). 계약 버전 `X-Jamye-Contract-Version`을
+  current `"2"`/previous `"1"`("0" 지원 종료)로 올리고, v2 요청에만 typed realtime/delta 이벤트
+  `message.deleted`·`topic.deleted`를 주며 v1 요청에는 기존 `UnsupportedEventMarker`(scope
+  `chat_history`/`group_topics`)를 그대로 준다. 설치된 앱(v1) 보호를 위해 REST 응답 모양은 바꾸지
+  않는다 — 당초 계획했던 `CanonicalMessage`/`CanonicalTopic`의 `deleted_at`/`updated_at` 노출 대신,
+  삭제된 메시지·주제·주제 대화방을 모든 REST 조회에서 제외(목록 제외, 단건 404)하는 방식으로
+  확정했다. 계정 삭제는 30일 유예 뒤 purge이고, 유예 중 같은 provider 재로그인이면 A2 응답 헤더
+  `X-Jamye-Account-Restored: true`로 복구를 알린다(`TokenPair` 본문은 불변).
 
-핵심 작업:
+구현 범위:
 
-- Contract intake: `contracts/server/*`와 `contract.lock`을 새 revision으로 갱신하고 generated
-  type/validator를 재생성
-- SQLite 스키마에 `updated_at`/`deleted_at` 반영(데이터 삭제 없는 migration, account namespace 유지)
-- 본인 메시지 길게 누르기 → 삭제 액션; tombstone 렌더링은 M8의 tombstone-safe rendering을 확장
-- 주제 삭제 UI와 연결된 topic chatroom·미디어 표시 규칙
-- `*.deleted` 이벤트 apply: 기존 커서·dedupe·restart 규칙을 그대로 따르고, 서버가 realtime version을
-  올리면 426 upgrade 경로를 재검증
-- 알림함에서 삭제된 대상 항목 처리
-- 계정 삭제 유예·복구 UX(M13 `delete-account-section` 흐름 갱신)
+- Contract v2 intake: 검증기(`validateMessageDeletedEvent`/`validateTopicDeletedEvent`/WS 프레임
+  검증)와 `classifyDeltaItem`(S1 델타 아이템을 `type`으로만 판별, E17 재시도 폭주 방지), S1/R1 버전
+  헤더, A2 복구 신호(`accountRestored`) intake(`task-app-contract`).
+- 계정 SQLite schema v6 migration(삭제 이벤트 로컬 반영).
+- 메시지 삭제: 내 메시지 길게 누르기 → 메뉴 맨 아래 빨간 `삭제` → 확인창 → 양쪽 기기 모두
+  `삭제된 메시지입니다.`로 표시(흐린 글씨, 첨부·메뉴 없음). 전송 실패한 내 메시지는 같은 `삭제`로
+  이 기기에서 버린다(`task-app-chat`).
+- 주제 삭제 3개 진입점(상세 헤더 메뉴, 목록 행 길게 누르기, iOS 스와이프) → 확인창 →
+  `삭제된 주제입니다.` 상태(입력창 없음, 뒤로 가기 가능). 작성자가 상세 헤더 메뉴로 삭제하면
+  곧바로 그룹 주제 목록으로 이동하고, 실패하면 상세에 인라인 오류를 보여준다(`task-app-topics`).
+- 탈퇴한 사용자의 표시: 삭제 표시 행의 보낸 사람 이름·사진을 같은 사용자의 다른 로컬 행과 주제
+  작성자 표시 전체에 전파한다(`task-app-chat`, AC8).
+- 알림함·배지에서 삭제 대상 항목 정리(서버 필터 + 앱 목적지 캐시 무효화).
+- 계정 삭제 확인 문구·복구 안내(`task-app-account`; 문구는 DESIGN.md "Account Screen" 참고).
+- 서버 task-14 1·2·3차 배포 — 전 범위 soft delete, 계정 삭제 유예·복구, `topic.deleted` 기록 위치
+  수정(jamye-server 로드맵 §14 task-14).
+- REFINE(동작 보존 정리, `task-refine`): 주제 삭제 확인 문구를 `topic-delete-confirm-copy.ts` 하나로
+  모으고, 쓰이지 않던 `topic-edit-button.*`를 지웠다. 그룹 소유권 이전 선택창의 아바타는 Android에서
+  공용 `ComposeRnHost`(`RNHostView matchContents`)로 호스팅한다(결함 1과 같은 부류, 선택창 렌더 테스트와
+  `ComposeRnHost` 단위 테스트로 확인, 기기 재확인은 하지 않음).
 
-완료 증거:
+검증 결과:
 
-- 이벤트 apply 테스트(중복·순서·restart), 삭제 후 restart 유지, 상대 기기 반영, 양 플랫폼 사용자 수용
+- 자동 검사(최종값, SHIP 보강 뒤 coordinator 확인): `bun run check:code` 235 suites / 2199 tests 통과,
+  coverage statements 87.52% / branches 82.18% / functions 87.12% / lines 90.31%, eslint 오류 0 —
+  근거 jamye-server `.agents/results/checks-app-m15-20260928-171401.md`("SHIP final gate").
+- 기기 검증(Android 자동 검증 + iOS 공동 세션 + 3차 배포 뒤 재검증) — 상세는 [M15
+  evidence](evidence/M15.md), 원본은 jamye-server `.agents/results/device-m15-20260928-171401.md`:
+  AC1(양방향 `삭제된 메시지입니다.`)·AC3(iOS 스와이프 + 다른 기기 반영)·AC4(삭제된 주제 상태)·
+  AC6(계정 삭제·복구) 통과. AC5(알림함·배지)는 3차 배포(`6dcb6d5`, `topic.deleted`를 그룹 메인
+  대화방 피드에 기록하도록 수정) 뒤 통과 — 앱이 열린 그룹만 실시간 구독하는 기존 설계라 그룹 밖
+  에서는 그룹을 열 때·푸시·앱 활성화 때 반영된다. AC2(`버리기`)는 삭제된 주제의 대기 메시지가
+  결함 5 수정의 로컬 정리(FK cascade)로 함께 지워져 이 흐름으로 도달할 수 없어, 사용자 결정으로
+  자동 테스트 근거(`task-app-chat` AC5 테스트)로 대체했다.
+- 기기 결함 10건 모두 수정·확인([M15 evidence](evidence/M15.md) §6). 결함 10(탈퇴한 사용자의 삭제
+  행이 옛 이름·사진 유지)은 완화됐지만 완전한 해결이 남아 아래 "후속 후보" 참고.
+- 테스트 데이터: 테스트 주제 15002~15008·15201·15301·15401·15411과 사용자 테스트 주제는 검증 중
+  삭제됐고, 주제 A와 기존 대화는 사용자 결정으로 그대로 뒀다. 검증을 위해 잠시 이전했던 그룹
+  소유권은 사용자가 직접 되돌렸다.
 
 미검증 / 별도 승인 필요:
 
-- 서버 task-14의 migration 적용·계약 publication·배포는 서버 측 별도 승인
-- 서버 D15(30일 유예 후 tombstone 전이, 유예 중 같은 provider 재로그인 시 부활)·D18(새 `message.deleted`/`topic.deleted` 이벤트)·D19(PostgreSQL `BEFORE UPDATE` 트리거)는 2026-09-22 사용자 승인으로 locked; 실제 계약 shape는 task-14 publish 후 확정
+- 커밋·push와 milestone 종료 승인(이 문서 정리는 코드나 git을 건드리지 않는다).
+- 서버 D15(30일 유예 후 tombstone 전이, 유예 중 같은 provider 재로그인 시 부활)·D18(새
+  `message.deleted`/`topic.deleted` 이벤트)·D19(PostgreSQL `BEFORE UPDATE` 트리거)는 2026-09-22
+  사용자 승인으로 locked; 실제 계약 shape는 위 "계약 범위"에서 확정한 대로다.
+- 계정 삭제·복구의 실계정 검증은 사용자가 직접 확인했다(E15 운영 데이터 규칙 — 메시지·주제 쓰기는
+  테스트 주제에서만 했다).
+
+후속 후보(각각 별도 결정):
+
+- 결함 10의 남는 한계: 탈퇴한 사람의 살아 있는 메시지도, 작성한 주제도 기기가 다시 받지 않으면
+  삭제 행이 옛 이름·사진으로 남는다. 완전한 해결은 서버 계약 확장이 필요하다.
+- 알림 배지는 열린 그룹만 실시간 구독하는 기존 설계라 그룹 밖에서는 그룹을 열 때·푸시·앱 활성화
+  때만 반영된다(시뮬레이터·에뮬레이터 dev 빌드는 푸시를 받지 못해 더 눈에 띈다).
+- REFINE 후보(관찰, 기능 문제는 아님): 삭제 상태 대화방 헤더에 주제 제목이 남는 것, 내 삭제 행의
+  시간 표시가 iOS(없음)와 Android(`시간 · 전송됨` 유지)에서 다른 것, 주제 목록 새로고침에 어색한
+  오프라인 복귀 오류 문구(`입력을 유지했으니…`).
 
 ### M16. Sign in with Apple (서버 task-15 연동)
 
@@ -1198,7 +1253,9 @@ R4 수정을 확인하고 M14 종료를 승인해 M14는 `COMPLETED / USER_ACCEP
 
 다음 milestone은 미정이며 사용자 결정으로 시작한다. 후보별 선행 조건은 다음과 같다.
 
-- M15 소프트 삭제 수용: 서버 task-14의 계약 publish·배포와 앱 contract intake.
+- M15 소프트 삭제 수용: 서버 task-14 1·2·3차 배포와 앱 contract intake를 모두 마치고 구현·기기
+  검증까지 끝났다(2026-09-29, 위 "M15. 소프트 삭제 수용" 절 참고). 남은 것은 커밋과 milestone 종료
+  승인이다.
 - M16 Sign in with Apple: 서버 task-15. 서버 로드맵은 계정 삭제 흐름 결합(D17) 때문에 task-14를
   task-15의 선행으로 둔다. Apple Developer 설정과 production bundle identifier 결정도 필요하다.
 - M17 잔여 백로그: 항목별 개별 승인. 서버 계약 변경이 필요한 것은 (C) 묶음뿐이고, (B)의 파괴적 로컬
