@@ -108,6 +108,10 @@ export default function resolveExpoConfig() {
       bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier,
       appleTeamId: IOS_APPLE_TEAM_ID,
       associatedDomains: IOS_ASSOCIATED_DOMAINS,
+      // M16/E13/U3: Sign in with Apple entitlement (plan
+      // dependencies_and_config_E13.entitlement -- a direct Expo config
+      // option, no separate config plugin).
+      usesAppleSignIn: true,
     },
     android: {
       ...baseConfig.android,
