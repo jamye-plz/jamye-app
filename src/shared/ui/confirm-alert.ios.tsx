@@ -10,9 +10,12 @@ export type * from "./confirm-alert.types";
  * controlled entirely by `isPresented`. `Alert.Trigger` is a required slot
  * but never receives user interaction here, so it holds an invisible
  * `Spacer`. Android resolves to `confirm-alert.android.tsx` (Compose
- * `AlertDialog`). RN `Alert`/action sheets are not used (C2).
+ * `AlertDialog`). RN `Alert`/action sheets are not used (C2). `acknowledge`
+ * (task-app-device fix1) drops the cancel button for a single-button notice
+ * alert (e.g. account-delete failure).
  */
 export function ConfirmAlert({
+  acknowledge,
   cancelLabel = CONFIRM_ALERT_DEFAULT_CANCEL_LABEL,
   confirmLabel,
   destructive,
@@ -36,7 +39,9 @@ export function ConfirmAlert({
         <Spacer />
       </Alert.Trigger>
       <Alert.Actions>
-        <Button label={cancelLabel} onPress={onDismiss} role="cancel" />
+        {acknowledge ? null : (
+          <Button label={cancelLabel} onPress={onDismiss} role="cancel" />
+        )}
         <Button
           label={confirmLabel}
           onPress={onConfirm}

@@ -9,9 +9,11 @@ export type * from "./confirm-alert.types";
  * Fallback for platforms without a native centered-alert affordance (web): a
  * plain inline confirmation block (not an imperative `Alert.alert` call,
  * which is out of policy here). iOS and Android resolve to their own files
- * (`Alert` / `AlertDialog`).
+ * (`Alert` / `AlertDialog`). `acknowledge` (task-app-device fix1) drops the
+ * cancel line for a single-button notice.
  */
 export function ConfirmAlert({
+  acknowledge,
   cancelLabel = CONFIRM_ALERT_DEFAULT_CANCEL_LABEL,
   confirmLabel,
   isPresented,
@@ -26,9 +28,11 @@ export function ConfirmAlert({
     <View accessibilityRole="alert" accessibilityViewIsModal testID={testID}>
       <Text accessibilityRole="header">{title}</Text>
       {message ? <Text>{message}</Text> : null}
-      <Text accessibilityRole="button" onPress={onDismiss}>
-        {cancelLabel}
-      </Text>
+      {acknowledge ? null : (
+        <Text accessibilityRole="button" onPress={onDismiss}>
+          {cancelLabel}
+        </Text>
+      )}
       <Text accessibilityRole="button" onPress={onConfirm}>
         {confirmLabel}
       </Text>

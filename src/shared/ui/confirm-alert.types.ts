@@ -10,6 +10,13 @@ export type ConfirmAlertProps = Readonly<{
   cancelLabel?: string;
   /** Styles the confirm action as destructive (iOS `role="destructive"` / Android error color). */
   destructive?: boolean;
+  /**
+   * Single-button mode (task-app-device fix1): hides the cancel/dismiss
+   * button entirely, leaving only `confirmLabel`'s button. For an
+   * acknowledge-only notice (e.g. a delete-failure alert) with no cancel
+   * action -- `cancelLabel` is ignored while this is set.
+   */
+  acknowledge?: boolean;
   onConfirm: () => void;
   /** Called for cancel and for any other dismissal (e.g. tap outside, back gesture). */
   onDismiss: () => void;
