@@ -14,9 +14,12 @@ export type * from "./confirm-alert.types";
  * `AlertDialog`, mounted only while `isPresented` (Compose shows a dialog
  * for as long as it stays composed). A destructive confirm label uses the
  * Material error color (`androidThemeColors`). iOS resolves to
- * `confirm-alert.ios.tsx`.
+ * `confirm-alert.ios.tsx`. `acknowledge` (task-app-device fix1) drops the
+ * `DismissButton` slot for a single-button notice alert (e.g. account-delete
+ * failure).
  */
 export function ConfirmAlert({
+  acknowledge,
   cancelLabel = CONFIRM_ALERT_DEFAULT_CANCEL_LABEL,
   confirmLabel,
   destructive,
@@ -47,13 +50,15 @@ export function ConfirmAlert({
           </Text>
         </AlertDialog.Text>
       ) : null}
-      <AlertDialog.DismissButton>
-        <TextButton onClick={onDismiss}>
-          <Text color={hex.primary} style={{ typography: "labelLarge" }}>
-            {cancelLabel}
-          </Text>
-        </TextButton>
-      </AlertDialog.DismissButton>
+      {acknowledge ? null : (
+        <AlertDialog.DismissButton>
+          <TextButton onClick={onDismiss}>
+            <Text color={hex.primary} style={{ typography: "labelLarge" }}>
+              {cancelLabel}
+            </Text>
+          </TextButton>
+        </AlertDialog.DismissButton>
+      )}
       <AlertDialog.ConfirmButton>
         <TextButton onClick={onConfirm}>
           <Text

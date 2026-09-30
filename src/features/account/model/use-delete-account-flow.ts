@@ -1,17 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { AccountLifecycle } from "./account-lifecycle";
+import { appleAuthenticationPort } from "@/core/auth/apple-authentication-port";
+import { createAppleNonce } from "@/core/auth/apple-authentication.shared";
+import { useSession } from "@/core/providers/session-provider";
+
+import type {
+  AccountLifecycle,
+  AppleAccountDeletionProof,
+} from "./account-lifecycle";
 
 const BLOCKED_MESSAGE = "그룹 소유권을 먼저 이전한 뒤 다시 시도해 주세요.";
 const ERROR_MESSAGE = "계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 
 export type DeleteAccountFlow = Readonly<{
   pending: boolean;
-  message: string | null;
+  failureMessage: string | null;
   confirmVisible: boolean;
   requestConfirm: () => void;
   dismissConfirm: () => void;
   confirmDelete: () => void;
+  dismissFailure: () => void;
 }>;
 
 /**
@@ -25,12 +33,32 @@ export type DeleteAccountFlow = Readonly<{
  * unmount guard for the settle callback (a successful delete logs out
  * synchronously, unmounting the caller before this hook's own `.then()`
  * settles).
+ *
+ * task-app-device fix1 (device verification): a blocked/error result surfaces
+ * through `failureMessage` + `dismissFailure` instead of an inline row
+ * caption -- the caller renders a single-button acknowledge `ConfirmAlert`
+ * (title "계정 삭제", the message below, one "확인" button) rather than text
+ * under the delete row. A cancelled Apple reauthentication still settles
+ * `failureMessage` to `null` (no alert).
+ *
+ * APPCON-AC5/U7: an Apple-provider account (read from `useSession()`, never
+ * a caller-supplied argument -- account-screen.tsx's call site is task-app-ui
+ * territory and stays untouched here) reauthenticates with a fresh nonce and
+ * no requested scopes (U7 never re-asks for the name) before `confirmDelete`
+ * ever reaches the lifecycle. A cancelled or failed native sheet never calls
+ * `accountLifecycle.deleteAccount` at all -- cancel settles silently (U7:
+ * "인증을 취소하면 삭제도 취소된다"), a genuine native error surfaces the
+ * same generic `ERROR_MESSAGE` as any other failure. Kakao/Google accounts
+ * skip this branch entirely via `proceed()`, calling `deleteAccount()` with
+ * no proof in exactly the same synchronous call / `.then()` shape as before
+ * this task, so existing callers' microtask-flush timing is unchanged.
  */
 export function useDeleteAccountFlow(
   accountLifecycle: AccountLifecycle | null,
 ): DeleteAccountFlow {
+  const session = useSession();
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [failureMessage, setFailureMessage] = useState<string | null>(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const pendingRef = useRef(false);
   const mountedRef = useRef(true);
@@ -46,7 +74,7 @@ export function useDeleteAccountFlow(
     pendingRef.current = false;
     if (!mountedRef.current) return;
     setPending(false);
-    setMessage(next);
+    setFailureMessage(next);
   }
 
   function requestConfirm(): void {
@@ -58,40 +86,76 @@ export function useDeleteAccountFlow(
     setConfirmVisible(false);
   }
 
+  function dismissFailure(): void {
+    setFailureMessage(null);
+  }
+
   function confirmDelete(): void {
     setConfirmVisible(false);
     if (pendingRef.current || !accountLifecycle) return;
     pendingRef.current = true;
     setPending(true);
-    setMessage(null);
-    void accountLifecycle
-      .deleteAccount()
-      .then((result) => {
-        if (result.status === "blocked") {
-          settle(BLOCKED_MESSAGE);
+    setFailureMessage(null);
+    const lifecycle = accountLifecycle;
+    const proceed = (appleProof?: AppleAccountDeletionProof): void => {
+      void lifecycle
+        .deleteAccount(appleProof)
+        .then((result) => {
+          if (result.status === "blocked") {
+            settle(BLOCKED_MESSAGE);
+            return;
+          }
+          if (result.status === "error") {
+            settle(ERROR_MESSAGE);
+            return;
+          }
+          // status === "ok": session.logout() already fired inside the
+          // lifecycle and navigates the app to the signed-out shell -- no
+          // further action needed here.
+          settle(null);
+        })
+        .catch(() => {
+          // The lifecycle resolves to a result object by contract; if that
+          // contract is ever broken the row must still leave the busy state.
+          settle(ERROR_MESSAGE);
+        });
+    };
+    if (session.state.profile?.provider !== "apple") {
+      proceed();
+      return;
+    }
+    void (async () => {
+      try {
+        const nonce = await createAppleNonce();
+        const result = await appleAuthenticationPort.signIn({
+          nonce: nonce.hashed,
+          requestedScopes: [],
+        });
+        if (result.type === "cancel") {
+          settle(null);
           return;
         }
-        if (result.status === "error") {
+        if (result.type === "error") {
           settle(ERROR_MESSAGE);
           return;
         }
-        // status === "ok": session.logout() already fired inside the
-        // lifecycle and navigates the app to the signed-out shell -- no
-        // further action needed here.
-        settle(null);
-      })
-      .catch(() => {
-        // The lifecycle resolves to a result object by contract; if that
-        // contract is ever broken the row must still leave the busy state.
+        proceed({
+          identityToken: result.identityToken,
+          authorizationCode: result.authorizationCode,
+          rawNonce: nonce.raw,
+        });
+      } catch {
         settle(ERROR_MESSAGE);
-      });
+      }
+    })();
   }
 
   return {
     confirmDelete,
     confirmVisible,
     dismissConfirm,
-    message,
+    dismissFailure,
+    failureMessage,
     pending,
     requestConfirm,
   };

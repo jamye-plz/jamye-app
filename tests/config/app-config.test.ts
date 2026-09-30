@@ -247,6 +247,7 @@ describe("M3-I1 Expo configuration contract", () => {
         bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier,
         appleTeamId: IOS_APPLE_TEAM_ID,
         associatedDomains: IOS_ASSOCIATED_DOMAINS,
+        usesAppleSignIn: true,
       },
       android: {
         ...(base.android as UnknownRecord),
@@ -275,6 +276,7 @@ describe("M3-I1 Expo configuration contract", () => {
         bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier,
         appleTeamId: IOS_APPLE_TEAM_ID,
         associatedDomains: IOS_ASSOCIATED_DOMAINS,
+        usesAppleSignIn: true,
       },
       android: {
         package: DEVELOPMENT_IDENTITY.androidPackage,

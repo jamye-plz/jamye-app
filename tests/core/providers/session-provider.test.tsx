@@ -37,6 +37,10 @@ function fakeController(
     refresh: jest.fn(async () => null),
     restore: jest.fn(async () => undefined),
     signIn: jest.fn(async () => undefined),
+    // E14/E15/AC6: the Apple auth interface slot. session-provider.tsx's
+    // `loginWithApple` delegates here with no provider/redirect args (see
+    // that entry point's own comment).
+    signInWithApple: jest.fn(async () => undefined),
     logout: jest.fn(async () => undefined),
     retryProfile: jest.fn(async () => undefined),
     authorizedRequest: jest.fn(async (execute) =>
@@ -248,6 +252,50 @@ describe("SessionProvider / useSession", () => {
     );
     expect(controller.retryProfile).toHaveBeenCalledWith(signal);
     expect(controller.logout).toHaveBeenCalledWith(signal);
+  });
+
+  test("E14/E15/AC6: loginWithApple delegates straight to controller.signInWithApple with the caller signal", async () => {
+    const controller = fakeController();
+    const createController = jest.fn(() => controller);
+    const { result } = await renderHook(() => useSession(), {
+      wrapper: ({ children }) => (
+        <SessionProvider
+          origin="https://api.example"
+          createController={createController}
+        >
+          {children}
+        </SessionProvider>
+      ),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const signal = new AbortController().signal;
+    await act(async () => {
+      await result.current.loginWithApple(signal);
+    });
+    expect(controller.signInWithApple).toHaveBeenCalledWith(signal);
+  });
+
+  test("loginWithApple resolves without throwing when the controller double omits signInWithApple", async () => {
+    const controller = fakeController();
+    // Simulates a controller double that predates the Apple auth interface slot.
+    delete (controller as { signInWithApple?: unknown }).signInWithApple;
+    const createController = jest.fn(() => controller);
+    const { result } = await renderHook(() => useSession(), {
+      wrapper: ({ children }) => (
+        <SessionProvider
+          origin="https://api.example"
+          createController={createController}
+        >
+          {children}
+        </SessionProvider>
+      ),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await expect(result.current.loginWithApple()).resolves.toBeUndefined();
   });
 
   test("does not carry the previous profile into a replacement origin/controller", async () => {

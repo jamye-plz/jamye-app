@@ -156,6 +156,29 @@ describe("ConfirmAlert (iOS)", () => {
     );
     expect(screen.queryByText("제목")).toBeNull();
   });
+
+  // task-app-device fix1: the account-delete failure notice is a
+  // single-button "확인"-only alert -- no cancel/dismiss button at all.
+  test("acknowledge mode hides the cancel button, leaving only the confirm action", async () => {
+    const onConfirm = jest.fn();
+    const onDismiss = jest.fn();
+    const screen = await render(
+      <ConfirmAlert
+        acknowledge
+        confirmLabel="확인"
+        isPresented
+        message="계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        onConfirm={onConfirm}
+        onDismiss={onDismiss}
+        testID="failure-alert"
+        title="계정 삭제"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "취소" })).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "확인" }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
 });
 
 describe("ConfirmAlert (Android)", () => {
@@ -198,5 +221,29 @@ describe("ConfirmAlert (Android)", () => {
       />,
     );
     expect(screen.queryByText("제목")).toBeNull();
+  });
+
+  // task-app-device fix1: same single-button acknowledge mode, Android side
+  // -- the AlertDialog.DismissButton slot is omitted entirely.
+  test("acknowledge mode omits the DismissButton slot, leaving only the confirm action", async () => {
+    const AndroidConfirmAlert = loadAndroid();
+    const onConfirm = jest.fn();
+    const onDismiss = jest.fn();
+    const screen = await render(
+      <AndroidConfirmAlert
+        acknowledge
+        confirmLabel="확인"
+        isPresented
+        message="계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        onConfirm={onConfirm}
+        onDismiss={onDismiss}
+        testID="failure-alert"
+        title="계정 삭제"
+      />,
+    );
+    expect(screen.queryByText("취소")).toBeNull();
+    await fireEvent.press(screen.getByText("확인"));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
   });
 });

@@ -189,23 +189,31 @@ the following interop rules:
 ### Login Screen
 
 - The app name `잼얘좀` sits at the exact center of the screen (the whole window, not the space
-  above the buttons), with the one-line subtitle `카카오 또는 Google 계정으로 로그인합니다.`
-  hanging below it without moving it. Two full-width brand buttons (48pt tall, at most 440pt wide)
-  are pinned just above the thumb-reachable bottom safe area: `카카오로 계속하기` (Kakao official
-  style, `#FEE500` fill, the Kakao speech-bubble symbol, black label) and `Google로 계속하기`
-  (Google official style, white fill, `#747775` outline, the Google "G" mark). iOS renders each as
-  a capsule SwiftUI `Button` (size the frame before painting the capsule; the Google outline is a
-  `strokeBorder` along the capsule); Android renders each as a rounded M3 `Button` (the Google
-  outline is a 1dp ring around it — Compose's `border` modifier has no shape). Both use the
-  vendors' official logo assets on a transparent background, centered together with the label like
-  the official artwork: an 18pt "G" and a ~14pt Kakao symbol (asset sources in the M14 evidence).
+  above the buttons), with a one-line subtitle hanging below it without moving it: iOS reads
+  `카카오, Google 또는 Apple 계정으로 로그인합니다.` (M16 appends the Apple clause) and Android keeps
+  `카카오 또는 Google 계정으로 로그인합니다.`. Two full-width brand buttons (48pt tall, at most 440pt
+  wide) are pinned just above the thumb-reachable bottom safe area: `카카오로 계속하기` (Kakao
+  official style, `#FEE500` fill, the Kakao speech-bubble symbol, black label) and `Google로
+계속하기` (Google official style, white fill, `#747775` outline, the Google "G" mark). iOS renders
+  each as a capsule SwiftUI `Button` (size the frame before painting the capsule; the Google
+  outline is a `strokeBorder` along the capsule); Android renders each as a rounded M3 `Button`
+  (the Google outline is a 1dp ring around it — Compose's `border` modifier has no shape). Both
+  use the vendors' official logo assets on a transparent background, centered together with the
+  label like the official artwork: an 18pt "G" and a ~14pt Kakao symbol (asset sources in the M14
+  evidence).
+- M16, iOS only: a third full-width `Apple로 로그인` button follows the same 48pt/440pt capsule,
+  fixed order Kakao then Google then Apple, using SF Symbol `apple.logo` at 18pt in the same logo
+  slot. Its fill inverts with color scheme instead of a fixed brand color — black fill/white
+  content in light mode, white fill/black content in dark mode. The button hides entirely when
+  `AppleAuthentication.isAvailableAsync()` resolves false, and Android never renders it (no
+  provider-default copy is ever shown, matching the Kakao/Google buttons).
 - The pressed button shows an in-button spinner in the logo's slot, so the label does not shift
-  (iOS `ProgressView`, Android `CircularProgressIndicator`), and both buttons disable while a
-  sign-in is in flight. A
-  user-initiated cancel (cancel, dismiss, `access_denied`) returns to the login screen with no
-  notice. Any other failure — including session-restore, profile-retry, and logout-retry failures
-  reusing the existing copy — shows through the shared system-feedback API (iOS centered `Alert`,
-  Android `Snackbar`) with a `다시 시도` action.
+  (iOS `ProgressView`, Android `CircularProgressIndicator`), and every visible button disables
+  while a sign-in is in flight. A user-initiated cancel (cancel, dismiss, `access_denied`, or the
+  Apple sheet's own cancel) returns to the login screen with no notice. Any other failure —
+  including session-restore, profile-retry, and logout-retry failures reusing the existing copy —
+  shows through the shared system-feedback API (iOS centered `Alert`, Android `Snackbar`) with a
+  `다시 시도` action.
 - The native splash screen (`expo-splash-screen`) stays up while a saved session is restoring, so the
   login screen never flashes before an authenticated redirect. Once restore settles — signed in,
   signed out, or errored — the app hides the splash and shows the group list, a pending-invite join
@@ -214,9 +222,10 @@ the following interop rules:
 ### Account Screen
 
 - The screen opens on a centered profile header: a 72pt avatar (the existing `Avatar` component —
-  the Kakao/Google photo, or a first-letter monogram), the nickname, and `카카오 계정으로 로그인됨`
-  or `Google 계정으로 로그인됨` (the provider ID rendered as its Korean display name). Avatar upload
-  stays out of scope (ADR 0008 §5).
+  the Kakao/Google photo, or a first-letter monogram), the nickname, and `카카오 계정으로 로그인됨`,
+  `Google 계정으로 로그인됨`, or `Apple 계정으로 로그인됨` (M16; Apple never supplies a photo, so this
+  provider always shows the monogram) — the provider ID rendered as its Korean display name. Avatar
+  upload stays out of scope (ADR 0008 §5).
 - Below the header, a settings list follows this order: a `프로필` section with a `닉네임` row
   (current nickname as the trailing value; tapping it opens the C3 nickname editor,
   `닉네임 변경`, helper text `그룹에서 보이는 이름입니다.`); an `알림` section with `푸시 알림` and
@@ -231,12 +240,20 @@ the following interop rules:
 - Logout and account deletion both confirm through the shared centered `ConfirmAlert` (iOS SwiftUI
   `Alert`, Android `AlertDialog`) — logout asks `로그아웃할까요?` with `취소`/`로그아웃`; deletion
   (M15) titles the alert `계정 삭제` and asks `계정을 삭제할까요? 30일 안에 같은 계정으로 다시
-로그인하면 복구할 수 있고, 30일이 지나면 되돌릴 수 없습니다.` with `취소`/destructive `삭제`.
-  Neither uses React Native's `Alert.alert`. Both rows' `ListItem`s keep `onPress` defined at all
-  times, even mid-request: the Android universal `ListItem` flips its Compose `modifiers` prop
-  between an array and `undefined` based on `onPress`'s presence, and `undefined` fails the native
-  prop cast instead of degrading (LogBox `PropSetException`, M15 device defect 9) — the handler
-  itself guards the in-flight state and ignores repeat presses instead.
+로그인하면 복구할 수 있고, 30일이 지나면 되돌릴 수 없습니다.` with `취소`/destructive `삭제`. For an
+  Apple-provider account (M16), the same confirmation appends one sentence: `...되돌릴 수 없습니다.
+삭제하려면 Apple 인증을 한 번 더 진행합니다.` Confirming re-opens the Apple sheet for
+  reauthentication before the delete request goes out; a user-cancelled reauthentication silently
+  cancels the deletion, the same as any other cancel on this screen. Kakao/Google confirmations are
+  unchanged. Neither uses React Native's `Alert.alert`. Both rows' `ListItem`s keep `onPress`
+  defined at all times, even mid-request: the Android universal `ListItem` flips its Compose
+  `modifiers` prop between an array and `undefined` based on `onPress`'s presence, and `undefined`
+  fails the native prop cast instead of degrading (LogBox `PropSetException`, M15 device defect 9)
+  — the handler itself guards the in-flight state and ignores repeat presses instead.
+- M16: a failed account deletion — whether the pre-existing `그룹 소유권을 먼저 이전한 뒤 다시
+시도해 주세요.` conflict or the generic `계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.`
+  — now shows through a dedicated single-button alert instead of inline copy: title `계정 삭제`,
+  one `확인` button (iOS system `Alert`, Android Material `AlertDialog`).
 - Account recovery (M15, G2): if a 30-day-grace login restores the account, the first screen after
   restore (group list or the pending-invite join screen) shows a one-shot `계정이 복구되었습니다.`
   notice through the shared system-feedback API (iOS centered alert / Android `Snackbar`), handed

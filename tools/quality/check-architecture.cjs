@@ -862,6 +862,13 @@ const M15_TEST_PATHS = Object.freeze([
   // ComposeRnHost hosting + transfer confirm).
   "tests/features/groups/ui/group-row-actions.test.tsx",
 ]);
+// M16 (task-app-ui): the Apple auth port unit test and the iOS/Android
+// Apple login button component tests (mirrors M15_TEST_PATHS's precedent).
+const M16_TEST_PATHS = Object.freeze([
+  "tests/core/auth/apple-authentication-port.test.ts",
+  "tests/features/auth/apple-login-button.ios.test.tsx",
+  "tests/features/auth/apple-login-button.android.test.tsx",
+]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
   ...new Set([
     ...ACTIVE_M3_TEST_PATHS,
@@ -880,6 +887,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M14_ROUND1_TEST_PATHS,
     ...M14_ROUND2_TEST_PATHS,
     ...M15_TEST_PATHS,
+    ...M16_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
     "tests/core/theme/tokens.test.ts",
@@ -964,6 +972,9 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   "@expo/ui": "57.0.17",
   ajv: "8.20.0",
   expo: "~57.0.21",
+  // M16/E13: coordinator-installed via `bunx expo install
+  // expo-apple-authentication` (bun add expo-apple-authentication@~57.0.2).
+  "expo-apple-authentication": "~57.0.2",
   "expo-audio": "~57.0.5",
   "expo-auth-session": "~57.0.11",
   "expo-clipboard": "~57.0.2",
@@ -1054,7 +1065,7 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
 ]);
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "e452041bd0ec6ec96f920035fc32b48030da345137071ee9cbd61aa934f0b78e";
+  "1099d00796e41d2f804dd030d2a7c1cfb86b40b1c529faa1b3f849b870f79873";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -1881,6 +1892,31 @@ const M15_AUTHORED_FILES = Object.freeze([
   "tests/features/groups/ui/group-row-actions.test.tsx",
 ]);
 
+// M16 (task-app-ui, plan api_contracts.app.login_screen_E14_U3 /
+// dependencies_and_config_E13): the Apple auth port (cross-platform type +
+// Android/default stub, iOS real implementation), the iOS-only Apple login
+// button (+ Android null sibling), and their tests/mock.
+const M16_AUTHORED_FILES = Object.freeze([
+  "src/core/auth/apple-authentication.shared.ts",
+  "src/core/auth/apple-authentication-port.ts",
+  "src/core/auth/apple-authentication-port.ios.ts",
+  "src/features/auth/ui/apple-login-button.tsx",
+  "src/features/auth/ui/apple-login-button.ios.tsx",
+  "src/features/auth/ui/apple-login-button.android.tsx",
+  "tests/__mocks__/expo-apple-authentication.ts",
+  "tests/core/auth/apple-authentication-port.test.ts",
+  "tests/features/auth/apple-login-button.ios.test.tsx",
+  "tests/features/auth/apple-login-button.android.test.tsx",
+  // task-docs (DOCS-AC3): M16 device and deploy evidence.
+  "docs/evidence/M16.md",
+  // task-refine (REFINE Step 10 MEDIUM x2, 2026-09-30): the shared iOS
+  // capsule-button shell extracted from apple-login-button.ios.tsx /
+  // brand-login-button.ios.tsx, and the account-screen copy shared across
+  // account-screen.tsx / .ios.tsx / .android.tsx.
+  "src/features/auth/ui/capsule-login-button.ios.tsx",
+  "src/features/home/ui/account-screen.constants.ts",
+]);
+
 const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "app.config.ts",
   ".env.example",
@@ -2021,6 +2057,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M14_ROUND1_AUTHORED_FILES,
   ...M14_ROUND2_AUTHORED_FILES,
   ...M15_AUTHORED_FILES,
+  ...M16_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -3037,6 +3074,8 @@ function checkExpoBasePreservation(snapshot, violations) {
     bundleIdentifier: APPROVED_DEVELOPMENT_IDENTITY.iosBundleIdentifier,
     appleTeamId: APPROVED_IOS_APPLE_TEAM_ID,
     associatedDomains: APPROVED_IOS_ASSOCIATED_DOMAINS,
+    // M16/E13/U3: Sign in with Apple entitlement.
+    usesAppleSignIn: true,
   };
   if (!deepEqual(ios, expectedIos)) {
     pushViolation(

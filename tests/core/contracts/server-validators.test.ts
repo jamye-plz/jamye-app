@@ -6,6 +6,7 @@ import {
   isValidInviteJoinCode,
   parseOAuthCallbackQuery,
   realtimeProtocol,
+  validateAppleExchangeIn,
   validateCanonicalMessage,
   validateChatroom,
   validateChatroomPage,
@@ -230,10 +231,34 @@ describe("M6-01 server contract runtime validators", () => {
     };
     expect(validateUser(valid)).toBe(true);
     expect(validateUser({ ...valid, id: "not-a-uuid" })).toBe(false);
-    expect(validateUser({ ...valid, provider: "apple" })).toBe(false);
+    // APPCON-AC2 (M16): `apple` joined User.provider's enum
+    // (contracts/server/openapi.json); an unrecognized provider is still
+    // rejected.
+    expect(validateUser({ ...valid, provider: "apple" })).toBe(true);
+    expect(validateUser({ ...valid, provider: "naver" })).toBe(false);
     expect(validateUser({ ...valid, extra: true })).toBe(false);
     const { avatar_url: _avatarUrl, ...missingAvatar } = valid;
     expect(validateUser(missingAvatar)).toBe(false);
+  });
+
+  test("APPCON-AC2/A6 AppleExchangeIn accepts the required fields, an optional full_name up to 256 chars, and enforces additionalProperties/length bounds", () => {
+    const valid = { identity_token: "idt", raw_nonce: "n".repeat(16) };
+    expect(validateAppleExchangeIn(valid)).toBe(true);
+    expect(validateAppleExchangeIn({ ...valid, full_name: "김철수" })).toBe(
+      true,
+    );
+    expect(
+      validateAppleExchangeIn({ ...valid, full_name: "a".repeat(256) }),
+    ).toBe(true);
+    expect(
+      validateAppleExchangeIn({ ...valid, full_name: "a".repeat(257) }),
+    ).toBe(false);
+    expect(validateAppleExchangeIn({ raw_nonce: "n".repeat(16) })).toBe(false);
+    expect(validateAppleExchangeIn({ identity_token: "idt" })).toBe(false);
+    expect(validateAppleExchangeIn({ ...valid, raw_nonce: "short" })).toBe(
+      false,
+    );
+    expect(validateAppleExchangeIn({ ...valid, extra: true })).toBe(false);
   });
 
   test("S3 User.avatar_url accepts null, empty string, or an https URL up to 512 chars, and rejects http/non-URL values", () => {

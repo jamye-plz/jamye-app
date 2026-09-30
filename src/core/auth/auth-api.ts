@@ -33,6 +33,16 @@ export function isCallerCancelled(error: unknown): boolean {
   );
 }
 
+// M15/task-14 (G2/AC4) + APPCON-AC3: both `exchange()` and `exchangeApple()`
+// read the same one-shot restore flag off the response headers; shared here
+// instead of repeating the inline `headers?.get(...) === "true"` check
+// (REFINE, reusability LOW).
+function isAccountRestored(
+  headers: Readonly<{ get: (name: string) => string | null }> | undefined,
+): boolean {
+  return headers?.get("X-Jamye-Account-Restored") === "true";
+}
+
 export type AuthApi = Readonly<{
   authorize: (
     provider: OAuthProvider,
@@ -57,6 +67,21 @@ export type AuthApi = Readonly<{
       state: string;
       verifier: string;
       redirectUri: string;
+    }>,
+    signal?: AbortSignal,
+  ) => Promise<TokenPair & Readonly<{ accountRestored: boolean }>>;
+  // APPCON-AC3 (A6, plan api_contracts.app.login_flow_E15): Apple's native
+  // sheet yields an identity token (never an authorization code + PKCE state
+  // like the browser OAuth `exchange` above) plus the raw nonce the
+  // controller generated. `fullName` is the iOS-formatted display name, sent
+  // only on a first-ever Apple sign-in (auth-controller.ts's
+  // sendableFullName gate). Reuses the same TokenPair + one-shot
+  // `accountRestored` header contract as `exchange`.
+  exchangeApple: (
+    input: Readonly<{
+      identityToken: string;
+      rawNonce: string;
+      fullName?: string;
     }>,
     signal?: AbortSignal,
   ) => Promise<TokenPair & Readonly<{ accountRestored: boolean }>>;
@@ -166,7 +191,29 @@ export function createAuthApi(origin: string): AuthApi {
       // header source must resolve to "not restored", never throw.
       return {
         ...mapTokenPair(value),
-        accountRestored: headers?.get("X-Jamye-Account-Restored") === "true",
+        accountRestored: isAccountRestored(headers),
+      };
+    },
+    async exchangeApple(input, signal) {
+      const { payload: value, headers } = await request(
+        "/api/v1/auth/apple/exchange",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            identity_token: input.identityToken,
+            raw_nonce: input.rawNonce,
+            ...(input.fullName !== undefined
+              ? { full_name: input.fullName }
+              : {}),
+          }),
+        },
+        signal,
+      );
+      if (!validateTokenPair(value))
+        throw new AuthApiError(502, "invalid_token_response");
+      return {
+        ...mapTokenPair(value),
+        accountRestored: isAccountRestored(headers),
       };
     },
     async refresh(refreshToken, signal) {

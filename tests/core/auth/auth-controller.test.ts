@@ -24,6 +24,11 @@ function fixture(overrides: Record<string, unknown> = {}) {
       expiresInSeconds: 600,
     })),
     exchange: jest.fn(async () => ({ ...pair, accountRestored: false })),
+    // APPCON-AC1 (A6): kept on this shared OAuth fixture purely so every
+    // existing `api` literal here still satisfies the `AuthApi` type (this
+    // suite never calls it -- Apple's own tests use the separate
+    // `appleFixture()` below).
+    exchangeApple: jest.fn(async () => ({ ...pair, accountRestored: false })),
     refresh: jest.fn(async () => pair),
     profile: jest.fn(async () => profile),
     logout: jest.fn(async () => undefined),
@@ -654,6 +659,10 @@ describe("auth session controller", () => {
       api: {
         authorize,
         exchange: jest.fn(async () => ({ ...pair, accountRestored: false })),
+        exchangeApple: jest.fn(async () => ({
+          ...pair,
+          accountRestored: false,
+        })),
         refresh: jest.fn(async () => pair),
         profile: jest.fn(async () => profile),
         logout: jest.fn(async () => undefined),
@@ -1133,5 +1142,235 @@ describe("A2 regression: a stale refresh token (deleted-account shape) never rep
       message: expect.any(String),
     });
     expect(f.store.clear).toHaveBeenCalled();
+  });
+});
+
+describe("APPCON-AC3/AC4/AC6: signInWithApple (A6)", () => {
+  function appleFixture(overrides: Record<string, unknown> = {}) {
+    const api = {
+      authorize: jest.fn(),
+      exchange: jest.fn(),
+      exchangeApple: jest.fn(async () => ({
+        ...pair,
+        accountRestored: false,
+      })),
+      refresh: jest.fn(async () => pair),
+      profile: jest.fn(async () => profile),
+      logout: jest.fn(async () => undefined),
+      ...(overrides.api as object),
+    };
+    const store = {
+      load: jest.fn(async () => null),
+      save: jest.fn(async () => undefined),
+      clear: jest.fn(async () => undefined),
+      ...(overrides.store as object),
+    };
+    const applePort = {
+      isAvailableAsync: jest.fn(async () => true),
+      signIn: jest.fn(async () => ({
+        type: "success" as const,
+        identityToken: "identity-token",
+        authorizationCode: "authorization-code",
+        fullName: "김철수",
+      })),
+      ...(overrides.applePort as object),
+    };
+    const createAppleNonce = jest.fn(async () => ({
+      raw: "raw-nonce",
+      hashed: "hashed-nonce",
+    }));
+    const controller = createAuthController({
+      origin: "https://api.example",
+      api,
+      store,
+      openBrowser: jest.fn(),
+      createPkce: async () => ({
+        verifier: "v".repeat(43),
+        challenge: "c".repeat(43),
+      }),
+      applePort,
+      createAppleNonce,
+      nowMs: () => 100,
+    });
+    return { api, store, applePort, createAppleNonce, controller };
+  }
+
+  test("hashes the raw nonce for Apple's sheet, requests only FULL_NAME, and sends the raw nonce plus identity token/full_name to A6", async () => {
+    const f = appleFixture();
+    await f.controller.signInWithApple();
+    expect(f.applePort.signIn).toHaveBeenCalledWith({
+      nonce: "hashed-nonce",
+      requestedScopes: ["fullName"],
+    });
+    expect(f.api.exchangeApple).toHaveBeenCalledWith(
+      {
+        identityToken: "identity-token",
+        rawNonce: "raw-nonce",
+        fullName: "김철수",
+      },
+      expect.any(AbortSignal),
+    );
+  });
+
+  test("omits full_name when the port returns none, an empty/whitespace name, a too-long name, or a control character", async () => {
+    const f = appleFixture({
+      applePort: {
+        signIn: jest.fn(async () => ({
+          type: "success" as const,
+          identityToken: "identity-token",
+          authorizationCode: "authorization-code",
+        })),
+      },
+    });
+    await f.controller.signInWithApple();
+    expect(f.api.exchangeApple).toHaveBeenCalledWith(
+      expect.objectContaining({ fullName: undefined }),
+      expect.any(AbortSignal),
+    );
+
+    for (const fullName of [
+      "   ",
+      "a".repeat(257),
+      "bad\u0000name",
+      "bad\u0085name",
+    ]) {
+      const g = appleFixture({
+        applePort: {
+          signIn: jest.fn(async () => ({
+            type: "success" as const,
+            identityToken: "identity-token",
+            authorizationCode: "authorization-code",
+            fullName,
+          })),
+        },
+      });
+      await g.controller.signInWithApple();
+      expect(g.api.exchangeApple).toHaveBeenCalledWith(
+        expect.objectContaining({ fullName: undefined }),
+        expect.any(AbortSignal),
+      );
+    }
+  });
+
+  test("A6 success persists the pair and publishes signed-in with the profile", async () => {
+    const f = appleFixture();
+    await f.controller.signInWithApple();
+    expect(f.store.save).toHaveBeenCalledWith("https://api.example", pair);
+    expect(f.controller.getState()).toEqual({
+      status: "signed-in",
+      profile,
+      message: null,
+    });
+  });
+
+  test("a restore header sets the one-shot pendingAccountRestoreStore flag", async () => {
+    const f = appleFixture({
+      api: {
+        exchangeApple: jest.fn(async () => ({
+          ...pair,
+          accountRestored: true,
+        })),
+      },
+    });
+    await f.controller.signInWithApple();
+    expect(pendingAccountRestoreStore.consume()).toBe(true);
+  });
+
+  test("no restore header leaves the restore store empty", async () => {
+    const f = appleFixture();
+    await f.controller.signInWithApple();
+    expect(pendingAccountRestoreStore.peek()).toBe(false);
+  });
+
+  test("a cancelled Apple sheet publishes signed-out with no message and never calls A6", async () => {
+    const f = appleFixture({
+      applePort: {
+        signIn: jest.fn(async () => ({ type: "cancel" as const })),
+      },
+    });
+    await f.controller.signInWithApple();
+    expect(f.controller.getState()).toEqual({
+      status: "signed-out",
+      profile: null,
+      message: null,
+    });
+    expect(f.api.exchangeApple).not.toHaveBeenCalled();
+  });
+
+  test("without an Apple port the controller publishes the unavailable message and never calls A6", async () => {
+    const f = appleFixture();
+    const controller = createAuthController({
+      origin: "https://api.example",
+      api: f.api,
+      store: f.store,
+      openBrowser: jest.fn(),
+      createPkce: async () => ({
+        verifier: "v".repeat(43),
+        challenge: "c".repeat(43),
+      }),
+      nowMs: () => 100,
+    });
+    await controller.signInWithApple();
+    expect(controller.getState()).toEqual({
+      status: "error",
+      profile: null,
+      message: "Apple 로그인을 사용할 수 없습니다.",
+    });
+    expect(f.api.exchangeApple).not.toHaveBeenCalled();
+  });
+
+  test("a native Apple sheet error publishes the retryable Apple message and never calls A6", async () => {
+    const f = appleFixture({
+      applePort: {
+        signIn: jest.fn(async () => ({
+          type: "error" as const,
+          message: "native failure",
+        })),
+      },
+    });
+    await f.controller.signInWithApple();
+    expect(f.controller.getState()).toEqual({
+      status: "error",
+      profile: null,
+      message: "Apple 로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
+    });
+    expect(f.api.exchangeApple).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    [
+      "422 apple_identity_token_invalid",
+      { status: 422, code: "apple_identity_token_invalid" },
+    ],
+    [
+      "404 oauth_provider_not_supported",
+      { status: 404, code: "oauth_provider_not_supported" },
+    ],
+    ["503 provider_unavailable", { status: 503, code: "provider_unavailable" }],
+    ["a network failure", { status: 0, code: "network_unavailable" }],
+  ])(
+    "%s from A6 (or the network) surfaces the existing generic retryable error message",
+    async (_label, rejection) => {
+      const f = appleFixture({
+        api: {
+          exchangeApple: jest.fn(async () => {
+            throw new AuthApiError(rejection.status, rejection.code);
+          }),
+        },
+      });
+      await f.controller.signInWithApple();
+      expect(f.controller.getState()).toEqual({
+        status: "error",
+        profile: null,
+        message: "Apple 로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
+      });
+    },
+  );
+
+  test("APPCON-AC6: the browser OAuth provider list stays kakao/google and never gains apple", () => {
+    const { OAUTH_PROVIDERS } = jest.requireActual<{
+      OAUTH_PROVIDERS: readonly string[];
+    }>("@/core/auth/types");
+    expect(OAUTH_PROVIDERS).toEqual(["kakao", "google"]);
   });
 });

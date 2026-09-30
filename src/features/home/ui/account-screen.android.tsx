@@ -17,20 +17,13 @@ import { Avatar } from "@/shared/ui/avatar";
 import { ConfirmAlert } from "@/shared/ui/confirm-alert";
 import { ListSubheader } from "@/shared/ui/list-subheader";
 
-const STORAGE_ERROR_TEXT =
-  "로컬 계정 저장소를 열 수 없습니다. 다시 시도해 주세요.";
-const DELETE_CONFIRM_TITLE = "계정 삭제";
-const DELETE_CONFIRM_MESSAGE =
-  "계정을 삭제할까요? 30일 안에 같은 계정으로 다시 로그인하면 복구할 수 있고, 30일이 지나면 되돌릴 수 없습니다.";
-const LOGOUT_CONFIRM_TITLE = "로그아웃할까요?";
-const PROVIDER_LABELS: Record<string, string> = {
-  google: "Google",
-  kakao: "카카오",
-};
-
-function providerLoginLabel(provider: string): string {
-  return `${PROVIDER_LABELS[provider] ?? provider} 계정으로 로그인됨`;
-}
+import {
+  deleteConfirmMessage,
+  DELETE_CONFIRM_TITLE,
+  LOGOUT_CONFIRM_TITLE,
+  providerLoginLabel,
+  STORAGE_ERROR_TEXT,
+} from "./account-screen.constants";
 
 /**
  * A1-A4 (Android): flat M3 `ListItem` rows in a single `List`, with a plain
@@ -132,14 +125,6 @@ export function AccountScreen() {
           <ListItem onPress={handleDeleteRowPress} testID="delete-account-row">
             <Text textStyle={{ color: hex.error }}>계정 삭제</Text>
           </ListItem>
-          {deleteFlow.message ? (
-            <Text
-              testID="delete-account-message"
-              textStyle={{ color: hex.error }}
-            >
-              {deleteFlow.message}
-            </Text>
-          ) : undefined}
           {showStorageErrorToEveryone ? (
             <>
               <ListItem testID="storage-error-row">
@@ -173,10 +158,24 @@ export function AccountScreen() {
           confirmLabel="삭제"
           destructive
           isPresented={deleteFlow.confirmVisible}
-          message={DELETE_CONFIRM_MESSAGE}
+          message={deleteConfirmMessage(profile.provider)}
           onConfirm={deleteFlow.confirmDelete}
           onDismiss={deleteFlow.dismissConfirm}
           testID="delete-confirm-alert"
+          title={DELETE_CONFIRM_TITLE}
+        />
+        {/* task-app-device fix1: a blocked/error delete result surfaces here
+            instead of an inline caption under the delete row -- a
+            single-button acknowledge Material dialog (U-decision
+            2026-09-30). */}
+        <ConfirmAlert
+          acknowledge
+          confirmLabel="확인"
+          isPresented={deleteFlow.failureMessage !== null}
+          message={deleteFlow.failureMessage ?? undefined}
+          onConfirm={deleteFlow.dismissFailure}
+          onDismiss={deleteFlow.dismissFailure}
+          testID="delete-failure-alert"
           title={DELETE_CONFIRM_TITLE}
         />
       </Host>

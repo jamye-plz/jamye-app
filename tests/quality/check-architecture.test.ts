@@ -422,6 +422,13 @@ const M15_TEST_PATHS = [
   // ownership-transfer picker render test.
   "tests/features/groups/ui/group-row-actions.test.tsx",
 ];
+// M16 (task-app-ui): mirrors tools/quality/check-architecture.cjs's
+// M16_TEST_PATHS.
+const M16_TEST_PATHS = [
+  "tests/core/auth/apple-authentication-port.test.ts",
+  "tests/features/auth/apple-login-button.ios.test.tsx",
+  "tests/features/auth/apple-login-button.android.test.tsx",
+];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",
   "tests/core/public-media-env.test.ts",
@@ -486,6 +493,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M14_ROUND1_TEST_PATHS,
   ...M14_ROUND2_TEST_PATHS,
   ...M15_TEST_PATHS,
+  ...M16_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
   "tests/core/theme/tokens.test.ts",
@@ -565,6 +573,7 @@ const APPROVED_DEPENDENCIES = {
   "@expo/ui": "57.0.17",
   ajv: "8.20.0",
   expo: "~57.0.21",
+  "expo-apple-authentication": "~57.0.2",
   "expo-audio": "~57.0.5",
   "expo-auth-session": "~57.0.11",
   "expo-clipboard": "~57.0.2",
@@ -623,7 +632,7 @@ const APPROVED_DEPENDENCY_OVERRIDES = {
 };
 
 const APPROVED_BUN_LOCK_SHA256 =
-  "e452041bd0ec6ec96f920035fc32b48030da345137071ee9cbd61aa934f0b78e";
+  "1099d00796e41d2f804dd030d2a7c1cfb86b40b1c529faa1b3f849b870f79873";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -811,6 +820,7 @@ function buildValidRepositorySnapshot() {
     "applinks:jamye-api.ridewithmin.com",
     "applinks:jamye-api.ridewithmin.com?mode=developer",
   ];
+  (resolvedDevelopment.ios as Record<string, unknown>).usesAppleSignIn = true;
   (resolvedDevelopment.android as Record<string, unknown>).package =
     "dev.local.jamyeapp";
   (resolvedDevelopment.android as Record<string, unknown>).permissions = clone(
@@ -1799,7 +1809,8 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     expect(isAuthorizedWorkingTreePath("docs/evidence/M13.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M14.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M15.md")).toBe(true);
-    expect(isAuthorizedWorkingTreePath("docs/evidence/M16.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M16.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M17.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10-private.md")).toBe(
       false,
     );

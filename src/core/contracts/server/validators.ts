@@ -80,6 +80,13 @@ export const validateOAuthAuthorizeOut =
   compileComponentSchema("OAuthAuthorizeOut");
 export const validateOAuthExchangeIn =
   compileComponentSchema("OAuthExchangeIn");
+// APPCON-AC1/AC2 (A6, plan api_contracts.server.A6_POST_/api/v1/auth/apple/exchange):
+// the Apple exchange request body. `full_name` is optional (maxLength 256);
+// the no-control-character rule is enforced by auth-controller.ts's
+// sendableFullName gate, not by this ajv shape.
+export type AppleExchangeInWire = components["schemas"]["AppleExchangeIn"];
+export const validateAppleExchangeIn =
+  compileComponentSchema("AppleExchangeIn");
 export const validateRefreshIn = compileComponentSchema("RefreshIn");
 export const validateTokenPair = compileComponentSchema("TokenPair");
 export const validateUser = compileComponentSchema("User");

@@ -3,7 +3,7 @@ import React, { type ReactNode } from "react";
 import { StyleSheet } from "react-native";
 
 import { AppThemeProvider } from "@/core/theme/theme-provider";
-import { AuthScreen } from "@/features/auth/ui/auth-screen";
+import { authIntroText, AuthScreen } from "@/features/auth/ui/auth-screen";
 
 type AuthState = Readonly<{
   status: "loading" | "signed-out" | "signing-in" | "signed-in" | "error";
@@ -19,6 +19,7 @@ type AuthState = Readonly<{
 }>;
 
 const mockLogin = jest.fn();
+const mockLoginWithApple = jest.fn();
 const mockLogout = jest.fn();
 const mockRetryProfile = jest.fn();
 const mockRestore = jest.fn();
@@ -39,6 +40,7 @@ jest.mock("@/core/providers/session-provider", () => ({
     state: mockState,
     principal: null,
     login: mockLogin,
+    loginWithApple: mockLoginWithApple,
     logout: mockLogout,
     restore: mockRestore,
     retryProfile: mockRetryProfile,
@@ -70,10 +72,11 @@ jest.mock("@expo/ui/swift-ui/modifiers", () => ({
   shapes: { capsule: jest.fn() },
   strokeBorder: jest.fn(),
 }));
-// The SwiftUI `Alert`/`Button`/`Spacer` used by `SystemFeedbackHost` and the
-// `Button`/`HStack`/`ProgressView` used by `BrandLoginButton` are both
-// `@expo/ui/swift-ui`, mocked once here the same way as
-// `system-feedback.test.tsx` (which exercises the identical upstream Alert).
+// The SwiftUI `Alert`/`Button`/`Spacer` used by `SystemFeedbackHost`, the
+// `Button`/`HStack`/`ProgressView` used by `BrandLoginButton`, and the
+// `Button`/`HStack`/`Image`/`ProgressView`/`Text` used by `AppleLoginButton`
+// are all `@expo/ui/swift-ui`, mocked once here the same way as
+// system-feedback.test.tsx (which exercises the identical upstream Alert).
 jest.mock("@expo/ui/swift-ui", () => {
   const { ActivityIndicator, Pressable, Text, View } =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -133,7 +136,18 @@ jest.mock("@expo/ui/swift-ui", () => {
   function MockText({ children }: MockChildren) {
     return <Text>{children}</Text>;
   }
-  return { Alert, Button, HStack, ProgressView, Spacer, Text: MockText };
+  function MockImage({ testID }: Readonly<{ testID?: string }>) {
+    return <View testID={testID} />;
+  }
+  return {
+    Alert,
+    Button,
+    HStack,
+    Image: MockImage,
+    ProgressView,
+    Spacer,
+    Text: MockText,
+  };
 });
 
 describe("connected auth screen (session-driven, no owned controller)", () => {
@@ -239,7 +253,7 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
   });
 
   test.each(["loading", "signing-in"] as const)(
-    "disables both provider buttons while %s",
+    "disables every provider button (Kakao/Google/Apple) while %s",
     async (status) => {
       mockState = { status, profile: null, message: null };
       const screen = await render(
@@ -251,11 +265,17 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
       const google = screen.getByRole("button", {
         name: "Google로 계속하기",
       });
+      const apple = await screen.findByRole("button", {
+        name: "Apple로 로그인",
+      });
       expect(kakao).toBeDisabled();
       expect(google).toBeDisabled();
+      expect(apple).toBeDisabled();
       await fireEvent.press(kakao);
       await fireEvent.press(google);
+      await fireEvent.press(apple);
       expect(mockLogin).not.toHaveBeenCalled();
+      expect(mockLoginWithApple).not.toHaveBeenCalled();
     },
   );
 
@@ -338,5 +358,72 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
       ),
     ).rejects.toThrow(/API_ORIGIN/);
     consoleErrorSpy.mockRestore();
+  });
+
+  // U3/E14: order, size parity (48pt capsule/shared max width comes from the
+  // same column as Kakao/Google -- no separate assertion needed), and copy.
+  describe("U3/E14 Apple button", () => {
+    test("orders Kakao -> Google -> Apple and labels it 'Apple로 로그인'", async () => {
+      const screen = await render(
+        <AppThemeProvider>
+          <AuthScreen />
+        </AppThemeProvider>,
+      );
+      await screen.findByRole("button", { name: "Apple로 로그인" });
+      const tree = JSON.stringify(screen.toJSON());
+      expect(tree.indexOf("카카오로 계속하기")).toBeLessThan(
+        tree.indexOf("Google로 계속하기"),
+      );
+      expect(tree.indexOf("Google로 계속하기")).toBeLessThan(
+        tree.indexOf("Apple로 로그인"),
+      );
+    });
+
+    test("pressing Apple calls session.loginWithApple with no provider/redirect args", async () => {
+      const screen = await render(
+        <AppThemeProvider>
+          <AuthScreen />
+        </AppThemeProvider>,
+      );
+      const apple = await screen.findByRole("button", {
+        name: "Apple로 로그인",
+      });
+      await fireEvent.press(apple);
+      expect(mockLoginWithApple).toHaveBeenCalledTimes(1);
+      expect(mockLoginWithApple).toHaveBeenCalledWith();
+    });
+
+    test("iOS subtitle names all three providers", async () => {
+      const screen = await render(
+        <AppThemeProvider>
+          <AuthScreen />
+        </AppThemeProvider>,
+      );
+      expect(screen.getByTestId("auth-intro").props.children).toBe(
+        "카카오, Google 또는 Apple 계정으로 로그인합니다.",
+      );
+    });
+  });
+
+  // Babel inlines `process.env.EXPO_OS` at transform time (jest is always
+  // "ios" -- see src/core/theme/tokens.ts's identical precedent), so
+  // mutating that env var at test runtime cannot exercise the non-iOS
+  // branch through a render. `authIntroText` is a plain exported function
+  // instead, unit-tested here directly with a literal argument.
+  describe("authIntroText", () => {
+    test("names all three providers on iOS", () => {
+      expect(authIntroText("ios")).toBe(
+        "카카오, Google 또는 Apple 계정으로 로그인합니다.",
+      );
+    });
+
+    test("keeps the original two-provider copy on every other platform", () => {
+      expect(authIntroText("android")).toBe(
+        "카카오 또는 Google 계정으로 로그인합니다.",
+      );
+      expect(authIntroText(undefined)).toBe(
+        "카카오 또는 Google 계정으로 로그인합니다.",
+      );
+    });
   });
 });

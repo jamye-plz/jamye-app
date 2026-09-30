@@ -116,6 +116,33 @@ describe("A1 account transport", () => {
     expect(init).toEqual(expect.objectContaining({ method: "DELETE" }));
   });
 
+  test("APPCON-AC5: Kakao/Google deleteAccount() (no Apple proof) still sends no body", async () => {
+    reply(204, null);
+    await api.deleteAccount("t");
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBeUndefined();
+  });
+
+  test("APPCON-AC5: an Apple proof becomes the snake_case JSON U3 body with a Content-Type header", async () => {
+    reply(204, null);
+    await api.deleteAccount("t", {
+      identityToken: "identity-token",
+      authorizationCode: "authorization-code",
+      rawNonce: "raw-nonce",
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.example.com/api/v1/me");
+    expect(init.method).toBe("DELETE");
+    expect(JSON.parse(String(init.body))).toEqual({
+      identity_token: "identity-token",
+      authorization_code: "authorization-code",
+      raw_nonce: "raw-nonce",
+    });
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe(
+      "application/json",
+    );
+  });
+
   test("U3 deleteAccount() maps a 409 group_ownership_transfer_required envelope to a distinct AccountApiError", async () => {
     reply(409, errorEnvelope("group_ownership_transfer_required"));
     await expect(api.deleteAccount("t")).rejects.toMatchObject({
