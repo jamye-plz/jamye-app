@@ -24,13 +24,13 @@
     "realtime/topic.created.schema.json": "1db02f6910b016bd1100e45f2354935ba4e2d7b69a89f1d51e22a67ee10d98c5",
     "realtime/topic.deleted.schema.json": "c104da766595c017c9005ac85f66c114b3548ce99436de1815a4cfa1c0e4480b"
   },
-  "source_git_revision": "b20a4d0327203e58734d5cc202deddfc3e562d42",
+  "source_git_revision": "2c93ed1637eb1896d8749ae3d31a287585e38d05",
   "upstream_artifact_count": 23,
-  "upstream_bundle_sha256": "65da7e8e7b496eafcaf2a8ac8b95337f5941bebb51d299e4b1f994e498b2a23c",
+  "upstream_bundle_sha256": "3a9278661f82d069f60acca7d9a63df08d198296592a24f507618662ee0071ed",
   "upstream_bundle_verified": true,
   "upstream_contract_version": "2",
-  "upstream_manifest_sha256": "8f03614f42ac5378010e17e59196cc6bd8fc3e52d55409224d56d7718a419c9a",
-  "upstream_openapi_sha256": "f7335a42bdbfc4549af9fc897f95c14fdb98c53828fc11472b3d915c253a79d0",
+  "upstream_manifest_sha256": "7e9520fd3dbad7ba7ee66dbb18d33888a71fd5faecd7d6642e52e90b154da699",
+  "upstream_openapi_sha256": "d3a34ac34913cf5bd8a89488d5a5e1c186c9e1270fed757c9c8b863169aaf6c9",
   "upstream_server_commit": "dirty",
   "validator_identity": "ajv@8.20.0"
 }

@@ -28,15 +28,23 @@ const GENERATOR_IDENTITY = "openapi-typescript@7.13.0";
 // every other schema here, so SCHEMA_CLOSURE_OPERATION_IDS is unchanged by
 // this task (C6/T8 delete operation IDs are added by the tasks that build
 // their REST calls, not this contract-intake task).
+// M16 (APPCON-AC1/E17) adds A6 (POST /api/v1/auth/apple/exchange) and U3
+// (DELETE /api/v1/me, whose requestBody now conditionally carries
+// AppleAccountDeletionProof for Apple-provider accounts) to the closure --
+// both operationIds already exist as literal ids in the deployed
+// contracts/server/openapi.json (`paths["/api/v1/auth/apple/exchange"].post
+// .operationId === "A6"`, `paths["/api/v1/me"].delete.operationId === "U3"`).
 const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "A1",
   "A2",
   "A3",
   "A4",
   "A5",
+  "A6",
   "H1",
   "H2",
   "U1",
+  "U3",
   "G1",
   "G2",
   "G3",

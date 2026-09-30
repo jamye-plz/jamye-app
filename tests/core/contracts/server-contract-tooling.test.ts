@@ -192,10 +192,15 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         // which carries the phase-1 contract (v2 negotiation,
         // message.deleted/topic.deleted realtime events, account grace
         // restore header) plus the openapi info.version fix (it was
-        // hardcoded "1" while manifest.contract_version was "2").
-        source_git_revision: "b20a4d0327203e58734d5cc202deddfc3e562d42",
+        // hardcoded "1" while manifest.contract_version was "2"). M16
+        // (task-app-contract): re-intook at the deployed jamye-server merge
+        // commit 2c93ed1 (A6 Apple exchange, U3 Apple account-deletion
+        // proof, User.provider gains "apple"); the frozen M6 schema closure
+        // snapshot right below is unaffected by design -- only
+        // generate-server-contract.mjs's runtime closure grows (by A6/U3).
+        source_git_revision: "2c93ed1637eb1896d8749ae3d31a287585e38d05",
         upstream_bundle_sha256:
-          "65da7e8e7b496eafcaf2a8ac8b95337f5941bebb51d299e4b1f994e498b2a23c",
+          "3a9278661f82d069f60acca7d9a63df08d198296592a24f507618662ee0071ed",
         upstream_bundle_verified: true,
         upstream_contract_version: "2",
         upstream_server_commit: "dirty",
@@ -222,7 +227,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         server_commit: "dirty",
         server_tag: null,
         sha256:
-          "65da7e8e7b496eafcaf2a8ac8b95337f5941bebb51d299e4b1f994e498b2a23c",
+          "3a9278661f82d069f60acca7d9a63df08d198296592a24f507618662ee0071ed",
       }),
     );
   });
@@ -263,9 +268,11 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         "A3",
         "A4",
         "A5",
+        "A6",
         "H1",
         "H2",
         "U1",
+        "U3",
         "G1",
         "G2",
         "G3",
