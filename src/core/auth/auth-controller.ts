@@ -4,6 +4,7 @@ import { pendingAccountRestoreStore } from "@/features/auth/model/pending-accoun
 import { parseOAuthCallback } from "./callback";
 import { AuthApiError } from "./auth-api";
 import type { AuthApi } from "./auth-api";
+import type { AppleAuthenticationPort } from "./apple-authentication.shared";
 import type { SessionStore } from "./secure-session-store";
 import type { OAuthProvider, TokenPair, UserProfile } from "./types";
 
@@ -29,7 +30,18 @@ type RefreshFlight = Readonly<{
   promise: Promise<TokenPair | null>;
 }>;
 
-export type AuthController = ReturnType<typeof createAuthController>;
+type FullAuthController = ReturnType<typeof createAuthController>;
+/**
+ * `signInWithApple` is optional here (unlike every other method) so the
+ * many existing fake `AuthController` test doubles across the suite (e.g.
+ * `tests/core/providers/session-provider.test.tsx`,
+ * `tests/core/app-providers.test.tsx`,
+ * `tests/features/auth/session-splash.test.tsx`) keep typechecking without
+ * adding it. The real controller returned by `createAuthController` always
+ * provides it as a real function.
+ */
+export type AuthController = Omit<FullAuthController, "signInWithApple"> &
+  Readonly<{ signInWithApple?: FullAuthController["signInWithApple"] }>;
 
 // Native I/O already in progress cannot be cancelled. All controllers sharing
 // one secure record must drain it before a later owner reads or writes that record.
@@ -44,6 +56,13 @@ export function createAuthController(
     createPkce: () => Promise<
       Readonly<{ verifier: string; challenge: string }>
     >;
+    // Apple auth interface slot (task-app-ui/task-app-contract split, plan
+    // api_contracts.app.login_flow_E15): optional so every existing deps
+    // literal across the test suite keeps typechecking without them.
+    // Production (session-provider.tsx's createProductionSessionController)
+    // always supplies both.
+    applePort?: AppleAuthenticationPort;
+    createAppleNonce?: () => Promise<Readonly<{ raw: string; hashed: string }>>;
     nowMs?: () => number;
   }>,
 ) {
@@ -306,6 +325,78 @@ export function createAuthController(
         }
       }
     },
+    /**
+     * Apple auth interface slot (E14/E15/AC3/AC4, plan
+     * `api_contracts.app.login_flow_E15`): orchestrates the native Apple
+     * sheet exactly like `signIn` orchestrates the browser -- publishing
+     * "signing-in" before it (so the shared busy/disabled state spans the
+     * whole native interaction, not just a network call), a silent
+     * `signed-out` on `AppleSignInResult.type === "cancel"` (U3/E14: cancel
+     * never shows a notice), and `error` otherwise. APPCON-AC3/AC4: a
+     * successful native credential calls A6 (`deps.api.exchangeApple`) with
+     * the *raw* nonce (Apple only ever saw its sha256 hex hash) and the
+     * port-formatted `fullName` gated through `sendableFullName` (E15/U6:
+     * omit rather than send an empty/too-long/control-character name so the
+     * server's `Apple{6}` fallback nickname applies instead of a 400 --
+     * login is never blocked by a bad name). Any `AuthApiError` from A6 (422
+     * apple_identity_token_invalid, 404 oauth_provider_not_supported, 503
+     * provider_unavailable) or a network failure falls into the same
+     * catch-all below as `signIn`'s own OAuth exchange failure -- one
+     * generic retryable message, no per-code UI.
+     */
+    async signInWithApple(callerSignal?: AbortSignal) {
+      const current = beginGeneration();
+      if (!deps.applePort || !deps.createAppleNonce) {
+        if (active(current))
+          publish({
+            status: "error",
+            profile: null,
+            message: "Apple 로그인을 사용할 수 없습니다.",
+          });
+        return;
+      }
+      const signal = requestSignal(callerSignal);
+      publish({ status: "signing-in", profile: null, message: null });
+      try {
+        const nonce = await deps.createAppleNonce();
+        if (!active(current) || signal.aborted) return;
+        const result = await deps.applePort.signIn({
+          nonce: nonce.hashed,
+          requestedScopes: ["fullName"],
+        });
+        if (!active(current) || signal.aborted) return;
+        if (result.type === "cancel") {
+          publish({ status: "signed-out", profile: null, message: null });
+          return;
+        }
+        if (result.type === "error") {
+          publish({
+            status: "error",
+            profile: null,
+            message: "Apple 로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
+          });
+          return;
+        }
+        const { accountRestored, ...pair } = await deps.api.exchangeApple(
+          {
+            identityToken: result.identityToken,
+            rawNonce: nonce.raw,
+            fullName: sendableFullName(result.fullName),
+          },
+          signal,
+        );
+        if (!active(current) || signal.aborted) return;
+        if (accountRestored) pendingAccountRestoreStore.set();
+        await persistThenProfile(pair, current, signal);
+      } catch {
+        if (active(current))
+          publish({
+            status: "error",
+            profile: null,
+            message: "Apple 로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
+          });
+      }
+    },
     async refresh() {
       const current = generation;
       if (refreshFlight && refreshFlight.generation === current)
@@ -498,6 +589,27 @@ export function createAuthController(
       return entry.promise;
     },
   };
+}
+
+const APPLE_FULL_NAME_MAX_LENGTH = 256;
+// Matches the control characters (Unicode Cc: C0, DEL, C1) that the server's
+// A6 validation rejects in full_name (Rust `char::is_control`), so the app
+// omits such a name instead of failing the whole login with 422.
+const APPLE_FULL_NAME_CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
+
+/**
+ * APPCON-AC3: gates the Apple port's already-trimmed `fullName` (see
+ * `apple-authentication-port.ios.ts`'s `formatName()`) against A6's
+ * `full_name` wire contract (trim, 1..256 chars, no control characters)
+ * before it is ever sent. `undefined` in either direction means "omit the
+ * field" -- the server then assigns `Apple{6}` (E4/U6), never a 400.
+ */
+function sendableFullName(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > APPLE_FULL_NAME_MAX_LENGTH)
+    return undefined;
+  return APPLE_FULL_NAME_CONTROL_CHARS.test(trimmed) ? undefined : trimmed;
 }
 
 function isUnauthorized(error: unknown): boolean {

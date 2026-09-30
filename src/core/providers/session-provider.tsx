@@ -12,6 +12,8 @@ import {
 import type { PropsWithChildren } from "react";
 import { AppState } from "react-native";
 
+import { appleAuthenticationPort } from "@/core/auth/apple-authentication-port";
+import { createAppleNonce } from "@/core/auth/apple-authentication.shared";
 import { createAuthApi } from "@/core/auth/auth-api";
 import { createAuthController } from "@/core/auth/auth-controller";
 import type { AuthController, AuthState } from "@/core/auth/auth-controller";
@@ -51,6 +53,14 @@ export type SessionContextValue = Readonly<{
     appReturnUri: string,
     signal?: AbortSignal,
   ) => Promise<void>;
+  /**
+   * E14/E15/AC6 entry point: the iOS-only Apple button calls this directly
+   * (no provider/redirect args -- there is no browser/PKCE leg). Delegates
+   * to the controller's Apple auth interface slot
+   * (`AuthController.signInWithApple`); a controller double that omits it
+   * (see that type's own comment) resolves to a no-op.
+   */
+  loginWithApple: (signal?: AbortSignal) => Promise<void>;
   logout: (signal?: AbortSignal) => Promise<void>;
   restore: (signal?: AbortSignal) => Promise<void>;
   retryProfile: (signal?: AbortSignal) => Promise<void>;
@@ -97,6 +107,8 @@ export function createProductionSessionController(
     store: secureSessionStore,
     createPkce: createPkcePair,
     openBrowser: productionOpenBrowser,
+    applePort: appleAuthenticationPort,
+    createAppleNonce,
   });
 }
 
@@ -193,6 +205,13 @@ export function SessionProvider({
     (profile) => controller.applyProfile(profile),
     [controller],
   );
+  const loginWithApple = useCallback<SessionContextValue["loginWithApple"]>(
+    (signal) =>
+      controller.signInWithApple
+        ? controller.signInWithApple(signal)
+        : Promise.resolve(),
+    [controller],
+  );
 
   const value = useMemo<SessionContextValue>(
     () => ({
@@ -200,13 +219,22 @@ export function SessionProvider({
       principal,
       login: (provider, providerRedirectUri, appReturnUri, signal) =>
         controller.signIn(provider, providerRedirectUri, appReturnUri, signal),
+      loginWithApple,
       logout,
       restore: (signal) => controller.restore(signal),
       retryProfile: (signal) => controller.retryProfile(signal),
       authorizedRequest,
       applyProfile,
     }),
-    [state, principal, controller, authorizedRequest, logout, applyProfile],
+    [
+      state,
+      principal,
+      controller,
+      authorizedRequest,
+      logout,
+      applyProfile,
+      loginWithApple,
+    ],
   );
 
   return (

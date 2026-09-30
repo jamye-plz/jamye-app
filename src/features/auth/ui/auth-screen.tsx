@@ -15,6 +15,7 @@ import {
   useSystemFeedback,
 } from "@/shared/ui/system-feedback";
 
+import { AppleLoginButton } from "./apple-login-button";
 import { BrandLoginButton } from "./brand-login-button";
 
 const RETRY_LABELS = {
@@ -30,11 +31,30 @@ const RETRY_LABELS = {
  * case returns to the original screen with no announcement at all, unlike
  * every other error, which is why it is matched by message text rather than
  * by `status` (both this case and a real failure can publish `signed-out`).
+ * The Apple flow (`signInWithApple`) never publishes a message on cancel at
+ * all (it stays `null`), so it is silent by construction and needs no entry
+ * here.
  */
 const CANCELLED_LOGIN_MESSAGE = "로그인이 취소되었습니다.";
 
 /** Keeps the brand buttons at a readable width on tablets and landscape. */
 const BUTTONS_MAX_WIDTH = 440;
+
+/** U3/E14: iOS names all three providers; every other platform keeps the original two. */
+const IOS_INTRO_TEXT = "카카오, Google 또는 Apple 계정으로 로그인합니다.";
+const DEFAULT_INTRO_TEXT = "카카오 또는 Google 계정으로 로그인합니다.";
+
+/**
+ * Exported as a pure function (not inlined at its call site) so it stays
+ * unit-testable: Babel inlines `process.env.EXPO_OS` at transform time (the
+ * same precedent as `src/core/theme/tokens.ts`'s identical
+ * `process.env.EXPO_OS` branch), so mutating that env var at test runtime
+ * has no effect on this file's already-transformed comparison. Tests call
+ * this resolver directly with a literal value instead.
+ */
+export function authIntroText(os: string | undefined): string {
+  return os === "ios" ? IOS_INTRO_TEXT : DEFAULT_INTRO_TEXT;
+}
 
 export function AuthScreen() {
   const env = getPublicEnv();
@@ -49,11 +69,12 @@ export function AuthScreen() {
 
 /**
  * L1-L3/E12/E13: the app name at the exact centre of the screen with the
- * intro line hanging below it, over a screen-width pair of brand buttons
- * pinned above the bottom safe area.
+ * intro line hanging below it, over a screen-width column of brand buttons
+ * pinned above the bottom safe area (U3: 카카오 → Google → Apple, iOS only,
+ * same 48pt capsule size).
  * `status === "loading"` (session restore) is normally hidden behind the
  * native splash (`session-provider`'s E12 coordination) -- this screen never
- * shows a "준비 중" label for it, it only keeps both buttons disabled as a
+ * shows a "준비 중" label for it, it only keeps every button disabled as a
  * defensive fallback for the rare case the splash's safety timeout elapses
  * before restore settles.
  */
@@ -63,9 +84,9 @@ function AuthScreenContent({ origin }: Readonly<{ origin: string }>) {
   const session = useSession();
   const { showNotice } = useSystemFeedback();
   const state = session.state;
-  const [pendingProvider, setPendingProvider] = useState<OAuthProvider | null>(
-    null,
-  );
+  const [pendingProvider, setPendingProvider] = useState<
+    OAuthProvider | "apple" | null
+  >(null);
   const busy = state.status === "signing-in";
   const disabled = busy || state.status === "loading";
   const retryAction = state.status === "error" ? state.retryAction : undefined;
@@ -109,6 +130,12 @@ function AuthScreenContent({ origin }: Readonly<{ origin: string }>) {
       appReturnUri(provider),
     );
   };
+  const startLoginApple = () => {
+    setPendingProvider("apple");
+    void session.loginWithApple();
+  };
+
+  const introText = authIntroText(process.env.EXPO_OS);
 
   return (
     <>
@@ -148,7 +175,7 @@ function AuthScreenContent({ origin }: Readonly<{ origin: string }>) {
               testID="auth-intro"
               variant="body"
             >
-              카카오 또는 Google 계정으로 로그인합니다.
+              {introText}
             </AppText>
           </View>
         </View>
@@ -184,6 +211,11 @@ function AuthScreenContent({ origin }: Readonly<{ origin: string }>) {
               label="Google로 계속하기"
               onPress={() => startLogin("google")}
               provider="google"
+            />
+            <AppleLoginButton
+              busy={busy && pendingProvider === "apple"}
+              disabled={disabled}
+              onPress={startLoginApple}
             />
           </View>
         </View>

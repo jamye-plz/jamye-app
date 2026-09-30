@@ -360,6 +360,114 @@ describe("auth API contract", () => {
   });
 });
 
+describe("APPCON-AC3/A6 exchangeApple", () => {
+  const originalFetch = globalThis.fetch;
+  const fetchMock = jest.fn();
+  beforeEach(() => {
+    fetchMock.mockReset();
+    globalThis.fetch = fetchMock;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  test("sends identity_token/raw_nonce/full_name as snake_case JSON and maps the TokenPair response", async () => {
+    fetchMock.mockResolvedValueOnce(response(token));
+    const pair = await createAuthApi("https://api.example").exchangeApple({
+      identityToken: "idt",
+      rawNonce: "raw-nonce",
+      fullName: "김철수",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example/api/v1/auth/apple/exchange",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          identity_token: "idt",
+          raw_nonce: "raw-nonce",
+          full_name: "김철수",
+        }),
+      }),
+    );
+    expect(pair).toEqual({
+      accessToken: token.access_token,
+      accessTokenExpiresAt: token.access_token_expires_at,
+      refreshToken: token.refresh_token,
+      refreshTokenExpiresAt: token.refresh_token_expires_at,
+      accountRestored: false,
+    });
+  });
+
+  test("omits full_name from the wire body when absent", async () => {
+    fetchMock.mockResolvedValueOnce(response(token));
+    await createAuthApi("https://api.example").exchangeApple({
+      identityToken: "idt",
+      rawNonce: "raw-nonce",
+    });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      identity_token: "idt",
+      raw_nonce: "raw-nonce",
+    });
+  });
+
+  test("reads the one-shot X-Jamye-Account-Restored header exactly like exchange()", async () => {
+    fetchMock.mockResolvedValueOnce(
+      response(token, { "X-Jamye-Account-Restored": "true" }),
+    );
+    const pair = await createAuthApi("https://api.example").exchangeApple({
+      identityToken: "idt",
+      rawNonce: "raw-nonce",
+    });
+    expect(pair.accountRestored).toBe(true);
+  });
+
+  test("maps a malformed TokenPair response to invalid_token_response and surfaces a server error code verbatim", async () => {
+    fetchMock.mockResolvedValueOnce(
+      response({ ...token, token_type: "Basic" }),
+    );
+    await expect(
+      createAuthApi("https://api.example").exchangeApple({
+        identityToken: "idt",
+        rawNonce: "raw-nonce",
+      }),
+    ).rejects.toMatchObject({ code: "invalid_token_response", status: 502 });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: async () => ({
+        error: {
+          code: "apple_identity_token_invalid",
+          details: null,
+          message: "invalid",
+          request_id: "33333333-3333-4333-8333-333333333333",
+        },
+      }),
+      headers: { get: () => null },
+    });
+    await expect(
+      createAuthApi("https://api.example").exchangeApple({
+        identityToken: "idt",
+        rawNonce: "raw-nonce",
+      }),
+    ).rejects.toMatchObject({
+      code: "apple_identity_token_invalid",
+      status: 422,
+    });
+  });
+
+  test("maps a fetch failure to network_unavailable", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("Network request failed"));
+    await expect(
+      createAuthApi("https://api.example").exchangeApple({
+        identityToken: "idt",
+        rawNonce: "raw-nonce",
+      }),
+    ).rejects.toMatchObject({ code: "network_unavailable", status: 0 });
+  });
+});
+
 function response(
   body: unknown,
   headers: Readonly<Record<string, string>> = {},
