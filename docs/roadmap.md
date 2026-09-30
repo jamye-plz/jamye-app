@@ -1,15 +1,12 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15 소프트 삭제 수용 완료 (2026-09-29 M15 사용자 종료 승인), M16 Sign in with Apple 구현·검증 완료 (2026-09-30: 서버 task-15 운영 배포, 기기 검증, 격리 리뷰 PASS, 로컬 브랜치 커밋 — push·PR·머지와 종료 승인 대기), M17-M18(잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15 소프트 삭제 수용 완료 (2026-09-29 M15 사용자 종료 승인), M16 Sign in with Apple 완료 (2026-09-30 M16 사용자 종료 승인), M17-M18(잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M16 Sign in with Apple — 2026-09-30 사용자 요청("앱 M16, 서버 task-15 진행해")으로
-  착수해 같은 날 서버 task-15 운영 배포, 앱 구현, 기기 검증, ultrawork 격리 리뷰(VERIFY·REFINE·SHIP)를
-  마쳤다. 변경은 로컬 브랜치 `feature/m16-apple-sign-in`에 커밋했고 push·PR·머지와 milestone 종료
-  승인이 남아 있다([M16 evidence](evidence/M16.md)). 직전 M15 소프트 삭제 수용은
-  `COMPLETED / USER_ACCEPTED`(2026-09-29 사용자 종료 승인, [M15 evidence](evidence/M15.md))다. M18 스토어 배포는
-  M14 만족 선언 조건을 충족했고 M16 종료·M17(A)·release 범위 확정과 별도 승인이 남아 있다. 파괴적
-  로컬 정리는 여전히 별도 승인 대상(M17-B).
+- 현재 frontier: 다음 milestone은 미정이며 사용자 결정으로 시작한다(선행 조건은 §12). 직전 M16 Sign
+  in with Apple은 `COMPLETED / USER_ACCEPTED`(2026-09-30 사용자 종료 승인, PR #4 merge `c7b6958`,
+  [M16 evidence](evidence/M16.md))다. M18 스토어 배포는 M14 만족 선언과 M16 종료 조건을 충족했고
+  M17(A)·release 범위 확정과 별도 승인이 남아 있다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-30
@@ -202,7 +199,7 @@ M13 completed (2026-09-22)
   ↓
 M14 UI/UX 다듬기 completed (2026-09-28, round 1·2)
   ├─→ M15 소프트 삭제 수용 completed (2026-09-29) ← server task-14
-  ├─→ M16 Sign in with Apple (2026-09-30 구현·검증 완료, 종료 승인 대기) ← server task-15 (2026-09-30 배포)
+  ├─→ M16 Sign in with Apple completed (2026-09-30) ← server task-15
   └─→ M17 잔여 백로그 ← server task-16 (일부)
 M14 만족 선언 (충족) + release 범위 확정 ─→ M18 스토어 배포
 
@@ -216,7 +213,7 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 
 M14-M18은 2026-09-22 사용자 결정으로 등록했다. M14는 라운드 1·2를 거쳐 2026-09-28 사용자 만족
 선언과 종료 승인으로 완료했고, M15는 2026-09-29 사용자 종료 승인으로 완료했다. M16은 2026-09-30
-착수해 같은 날 구현·검증을 마쳤고 종료 승인이 남아 있다. M17-M18은 `planned_unapproved`로 남아
+사용자 종료 승인으로 완료했다. M17-M18은 `planned_unapproved`로 남아
 각각 별도 승인으로 착수한다.
 M18은 M14 만족 선언(충족)과 release 범위 확정 뒤에만 시작하며, 10.2절의 공통 release acceptance를
 실제 선택한 범위에 적용한다. 서버 측 작업(task-14-16)은 jamye-server 저장소의 로드맵 문서가 소유한다.
@@ -1026,14 +1023,14 @@ M14 종료 후 후속 후보(각각 별도 결정):
 
 ### M16. Sign in with Apple (서버 task-15 연동)
 
-- 상태: `COMPLETED / DEVICE_VERIFIED` — 서버 task-15 운영 배포(`2c93ed1`/homelab 활성화 `fe6a4e9`)
-  뒤 iOS 시뮬레이터와 Android 에뮬레이터(로그인 화면 불변, 카카오·Google 회귀)에서 요구사항 §8 검증
-  1-7번을 모두 통과했다(2026-09-30). ultrawork 세션 `20260930-000919`의 격리 리뷰(VERIFY 3건·REFINE
-  2건·SHIP 4건)도 모두 PASS했다(CRITICAL/HIGH 0). 2026-09-30 사용자 요청("앱 M16, 서버 task-15
-  진행해")으로 착수했고 2026-09-22 사용자 결정으로 로드맵에 먼저 등록했다. 같은 날 사용자 요청("앱과
-  서버 전부 커밋하고 문서 기록도 지금 상태로 전부 업데이트해")으로 변경을 로컬 브랜치
-  `feature/m16-apple-sign-in`에 기능별로 커밋하고 ultrawork 세션을 종료했다. push·PR·머지와
-  milestone 종료(사용자 승인)는 남아 있다.
+- 상태: `COMPLETED / USER_ACCEPTED` — 구현·기기 검증 완료(2026-09-30). 2026-09-30 사용자 종료
+  승인("COMPLETE / USER_ACCEPTED로 기록하고 push pr 머지까지 전부 다 진행해", "M16을 닫아")으로 PR #4
+  (merge `c7b6958`)를 머지했다. 서버의 test-only 후속과 task-15 로드맵 기록은 jamye-server PR #17
+  (merge `fd83621`)로 반영했다. 서버 task-15 운영 배포(`2c93ed1`/homelab 활성화 `fe6a4e9`) 뒤 iOS
+  시뮬레이터와 Android 에뮬레이터(로그인 화면 불변, 카카오·Google 회귀)에서 요구사항 §8 검증 1-7번을
+  모두 통과했고, ultrawork 세션 `20260930-000919`의 격리 리뷰(VERIFY 3건·REFINE 2건·SHIP 4건)도 모두
+  PASS했다(CRITICAL/HIGH 0). 2026-09-30 사용자 요청("앱 M16, 서버 task-15 진행해")으로 착수했고
+  2026-09-22 사용자 결정으로 로드맵에 먼저 등록했다.
 - 선행: M6(세션 모델, 충족); 서버 task-15 운영 배포(충족, jamye-server 로드맵 §14 task-15); Apple
   Developer 설정 — 개발 bundle id(`dev.local.jamyeapp`, Team `6ZH8V43A7D`)의 App ID Sign in with
   Apple capability와 서버 key(.p8)의 Sign in with Apple service 둘 다 사용자가 직접 켰다(기기 검증
@@ -1131,7 +1128,6 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
 
 미검증 / 별도 승인 필요:
 
-- push·PR·머지와 milestone 종료 승인. 변경은 로컬 브랜치 `feature/m16-apple-sign-in`에 커밋만 했다.
 - 기기에서 따로 확인하지 않은 경로 두 개(SHIP UX 리뷰 LOW, 단위 테스트로만 확인): 계정 삭제 중
   Apple 재인증 취소(`tests/features/account/model/use-delete-account-flow.test.ts`)와 앱 수준 Apple
   로그인 오류 안내(`tests/core/auth/auth-controller.test.ts`). 기기 검증의 `-24000` 실패는 OS의
@@ -1189,7 +1185,7 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
 
 - 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 M14 만족 선언(2026-09-28
   충족) 이후 별도 승인
-- 선행: M14 만족 선언(2026-09-28 충족); M16(Guideline 4.8); M17(A) blocker 해소; release에 포함할 M15/M17 범위 확정
+- 선행: M14 만족 선언(2026-09-28 충족); M16(Guideline 4.8, 2026-09-30 충족); M17(A) blocker 해소; release에 포함할 M15/M17 범위 확정
 - 결정(2026-09-22): iOS App Store와 Google Play 양 스토어에 출시한다. legacy jamye-plz 데이터는
   이관하지 않고 새 서버에서 신규 출발한다. 서버는 이미 homelab(midgard)에 배포되어 있으므로 release 시
   배포 revision과 contract binding을 고정한다.
@@ -1366,16 +1362,17 @@ R4 수정을 확인하고 M14 종료를 승인해 M14는 `COMPLETED / USER_ACCEP
 `COMPLETED / USER_ACCEPTED`다([M15 evidence](evidence/M15.md)). 남은 한계와 후속은 M15 절 "후속
 후보"에 있다. 이 종료 승인도 앱 출시, 스토어 배포를 뜻하지 않는다.
 
-2026-09-30 사용자가 M16과 서버 task-15 착수를 요청했다. 같은 날 서버 task-15 운영 배포와 M16
-구현·기기 검증·격리 리뷰를 마치고, 변경을 로컬 브랜치 `feature/m16-apple-sign-in`에 커밋한 뒤
-ultrawork 세션을 종료했다. 남은 후보의 선행 조건은 다음과 같다.
+2026-09-30 사용자가 M16 종료를 승인했다. 서버 task-15 운영 배포, 앱 계약 intake, 구현, 양 플랫폼
+기기 검증(결함 U8·U9 수정, Apple Developer 설정 누락 2건 조치)과 격리 리뷰를 마쳤고 PR #4(merge
+`c7b6958`)로 머지했다. M16은 `COMPLETED / USER_ACCEPTED`다([M16 evidence](evidence/M16.md)). 남은
+한계와 후속은 M16 절 "후속 후보"에 있다. 이 종료 승인도 앱 출시, 스토어 배포를 뜻하지 않는다.
 
-- M16 Sign in with Apple(구현·검증 완료, 종료 승인 대기): 서버 task-15 운영 배포와 개발 bundle id의
-  Apple Developer 설정(App ID capability, .p8 키 service)은 충족했다. push·PR·머지와 종료 승인이
-  남아 있고, production bundle identifier와 그 설정은 M18에서 정한다.
+다음 milestone은 미정이며 사용자 결정으로 시작한다. 후보별 선행 조건은 다음과 같다.
+
 - M17 잔여 백로그: 항목별 개별 승인. 서버 계약 변경이 필요한 것은 (C) 묶음뿐이고, (B)의 파괴적 로컬
   정리는 별도 명시 승인 뒤에만 한다.
-- M18 스토어 배포: M14 만족 선언은 충족했다. M16 종료(Guideline 4.8), M17(A) blocker 해소, release에 포함할
-  범위 확정이 남아 있다.
+- M18 스토어 배포: M14 만족 선언과 M16 종료(Guideline 4.8)는 충족했다. M17(A) blocker 해소와 release에
+  포함할 범위 확정이 남아 있고, production bundle identifier와 그 App ID·key Sign in with Apple 설정도
+  이때 정한다.
 
 M14 종료 뒤 남은 개선 후보는 M14 절의 "M14 종료 후 후속 후보"에 모았다.
