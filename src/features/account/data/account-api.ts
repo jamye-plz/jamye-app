@@ -19,13 +19,26 @@ export class AccountApiError extends Error {
   }
 }
 
+// APPCON-AC5 (U3 Apple proof, plan api_contracts.server.apple_account_deletion).
+export type AppleAccountDeletionProof = Readonly<{
+  identityToken: string;
+  authorizationCode: string;
+  rawNonce: string;
+}>;
+
 export type AccountApiPort = Readonly<{
   updateProfile: (
     accessToken: string,
     input: UserPatchInput,
     signal?: AbortSignal,
   ) => Promise<UserProfile>;
-  deleteAccount: (accessToken: string, signal?: AbortSignal) => Promise<void>;
+  // An Apple-provider account sends this proof as the DELETE JSON body;
+  // Kakao/Google accounts call this with no proof (unchanged bodyless U3).
+  deleteAccount: (
+    accessToken: string,
+    appleProof?: AppleAccountDeletionProof,
+    signal?: AbortSignal,
+  ) => Promise<void>;
 }>;
 
 /**
@@ -74,15 +87,30 @@ export function createAccountApi(origin: string): AccountApiPort {
         throw new AccountApiError(502, "invalid_profile_response");
       return mapUserProfile(payload);
     },
-    async deleteAccount(accessToken, signal) {
+    async deleteAccount(accessToken, appleProof, signal) {
       // U3: 409 group_ownership_transfer_required is a distinct blocker code
       // (not a mutation) -- createHttpRequester already surfaces the
       // ErrorEnvelope's code verbatim as AccountApiError(status, code), so no
       // extra remapping is needed here to keep it distinct from request_failed.
+      // APPCON-AC5: an Apple proof becomes the JSON body
+      // (AppleAccountDeletionProof); Kakao/Google calls stay bodyless,
+      // matching the server's existing "reject any body for a non-Apple
+      // account" invariant.
       await request(
         "/api/v1/me",
         accessToken,
-        { method: "DELETE" },
+        {
+          method: "DELETE",
+          ...(appleProof
+            ? {
+                body: JSON.stringify({
+                  identity_token: appleProof.identityToken,
+                  authorization_code: appleProof.authorizationCode,
+                  raw_nonce: appleProof.rawNonce,
+                }),
+              }
+            : {}),
+        },
         signal,
         [204],
       );

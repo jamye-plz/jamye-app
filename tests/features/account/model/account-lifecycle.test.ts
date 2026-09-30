@@ -1,8 +1,5 @@
 import { createAccountLifecycle } from "@/features/account/model/account-lifecycle";
-import type {
-  AccountApiPort,
-  PushDisablePort,
-} from "@/features/account/model/account-lifecycle";
+import type { AccountApiPort } from "@/features/account/model/account-lifecycle";
 import type { SessionContextValue } from "@/core/providers/session-provider";
 
 const profile = {
@@ -31,7 +28,6 @@ function deferred<T>() {
 function fixture(
   overrides: Readonly<{
     accountApi?: Partial<AccountApiPort>;
-    pushDisable?: Partial<PushDisablePort>;
     session?: Partial<FakeSession>;
   }> = {},
 ) {
@@ -39,10 +35,6 @@ function fixture(
     updateProfile: jest.fn(async () => profile),
     deleteAccount: jest.fn(async () => undefined),
     ...overrides.accountApi,
-  };
-  const pushDisable: PushDisablePort = {
-    disable: jest.fn(async () => undefined),
-    ...overrides.pushDisable,
   };
   const session: FakeSession = {
     authorizedRequest: jest.fn((execute) =>
@@ -54,9 +46,8 @@ function fixture(
   };
   return {
     accountApi,
-    pushDisable,
     session,
-    lifecycle: createAccountLifecycle({ accountApi, pushDisable, session }),
+    lifecycle: createAccountLifecycle({ accountApi, session }),
   };
 }
 
@@ -121,36 +112,47 @@ describe("account lifecycle: updateNickname", () => {
 });
 
 describe("account lifecycle: deleteAccount", () => {
-  test("calls pushDisable.disable() before authorizedRequest(deleteAccount) before session.logout() on success", async () => {
+  // task-app-device fix1 (device verification): deleteAccount() no longer disables
+  // push before the DELETE call. AccountLifecycleDeps has no `pushDisable`
+  // dependency anymore, so there is no such call left to order against
+  // authorizedRequest -- the server disables push installations inside its
+  // own deletion transaction instead (see account-lifecycle.ts's comment).
+  test("calls authorizedRequest(deleteAccount) before session.logout() on success", async () => {
     const f = fixture();
     const result = await f.lifecycle.deleteAccount();
     expect(result).toEqual({ status: "ok" });
-    const disableOrder = (f.pushDisable.disable as jest.Mock).mock
-      .invocationCallOrder[0];
     const authorizedOrder = (f.session.authorizedRequest as jest.Mock).mock
       .invocationCallOrder[0];
     const logoutOrder = (f.session.logout as jest.Mock).mock
       .invocationCallOrder[0];
-    expect(disableOrder).toBeLessThan(authorizedOrder);
     expect(authorizedOrder).toBeLessThan(logoutOrder);
+    // APPCON-AC5 round 2: deleteAccount() always forwards a (possibly
+    // undefined) appleProof as accountApi.deleteAccount's 2nd positional
+    // arg -- signal must stay last to match every other API method's
+    // convention (updateProfile/exchange/refresh/profile/logout), so a
+    // Kakao/Google call (no proof) now passes an explicit `undefined` here
+    // rather than omitting the argument.
     expect(f.accountApi.deleteAccount).toHaveBeenCalledWith(
       "access-token",
+      undefined,
       expect.any(AbortSignal),
     );
   });
 
-  test("swallows a disable() rejection and still proceeds to call deleteAccount and logout", async () => {
-    const f = fixture({
-      pushDisable: {
-        disable: jest.fn(async () => {
-          throw new Error("push disable failed");
-        }),
-      },
-    });
-    const result = await f.lifecycle.deleteAccount();
+  test("APPCON-AC5: forwards an Apple proof through to accountApi.deleteAccount unchanged", async () => {
+    const f = fixture();
+    const appleProof = {
+      identityToken: "identity-token",
+      authorizationCode: "authorization-code",
+      rawNonce: "raw-nonce",
+    };
+    const result = await f.lifecycle.deleteAccount(appleProof);
     expect(result).toEqual({ status: "ok" });
-    expect(f.accountApi.deleteAccount).toHaveBeenCalledTimes(1);
-    expect(f.session.logout).toHaveBeenCalledTimes(1);
+    expect(f.accountApi.deleteAccount).toHaveBeenCalledWith(
+      "access-token",
+      appleProof,
+      expect.any(AbortSignal),
+    );
   });
 
   test("resolves ok even if the best-effort logout call itself rejects", async () => {
@@ -166,6 +168,11 @@ describe("account lifecycle: deleteAccount", () => {
     });
   });
 
+  // task-app-device fix1 regression: a blocked delete must never touch push
+  // state. There is no `pushDisable` dependency left to call (removed from
+  // AccountLifecycleDeps), so this doubles as proof no such call happens --
+  // session.logout() (the only thing that could unregister a device
+  // locally) is also never reached.
   test("returns 'blocked' and never calls logout on group_ownership_transfer_required", async () => {
     const f = fixture({
       accountApi: {
@@ -179,6 +186,9 @@ describe("account lifecycle: deleteAccount", () => {
     expect(f.session.logout).not.toHaveBeenCalled();
   });
 
+  // task-app-device fix1 regression: same as the 'blocked' case above, for
+  // every other rejection code (409 aside) -- e.g. 422 Apple proof errors,
+  // 500/503, network failures.
   test("returns 'error' distinct from 'blocked' and never calls logout on any other rejection", async () => {
     const f = fixture({
       accountApi: {

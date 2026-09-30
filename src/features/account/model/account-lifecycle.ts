@@ -8,22 +8,28 @@ import type { SessionContextValue } from "@/core/providers/session-provider";
  * stays decoupled from A1's concrete client -- any object satisfying this
  * shape (real client, test double) works.
  */
+/**
+ * Structural mirror of A1's `AppleAccountDeletionProof` (account-api.ts).
+ * APPCON-AC5: use-delete-account-flow.ts builds this from a fresh Apple
+ * reauthentication and passes it through `deleteAccount()` unchanged.
+ */
+export type AppleAccountDeletionProof = Readonly<{
+  identityToken: string;
+  authorizationCode: string;
+  rawNonce: string;
+}>;
+
 export type AccountApiPort = Readonly<{
   updateProfile: (
     accessToken: string,
     input: Readonly<{ nickname?: string; avatarUrl?: string | null }>,
     signal?: AbortSignal,
   ) => Promise<UserProfile>;
-  deleteAccount: (accessToken: string, signal?: AbortSignal) => Promise<void>;
-}>;
-
-/**
- * Structural mirror of `usePushLifecycle()`'s `disable()` shape. Declared
- * locally (not imported) so this module stays decoupled from
- * push-lifecycle-provider.tsx.
- */
-export type PushDisablePort = Readonly<{
-  disable: () => Promise<void>;
+  deleteAccount: (
+    accessToken: string,
+    appleProof?: AppleAccountDeletionProof,
+    signal?: AbortSignal,
+  ) => Promise<void>;
 }>;
 
 export type UpdateNicknameResult =
@@ -38,7 +44,6 @@ export type DeleteAccountResult =
 
 export type AccountLifecycleDeps = Readonly<{
   accountApi: AccountApiPort;
-  pushDisable: PushDisablePort;
   session: Pick<
     SessionContextValue,
     "authorizedRequest" | "logout" | "applyProfile"
@@ -47,7 +52,9 @@ export type AccountLifecycleDeps = Readonly<{
 
 export type AccountLifecycle = Readonly<{
   updateNickname: (nickname: string) => Promise<UpdateNicknameResult>;
-  deleteAccount: () => Promise<DeleteAccountResult>;
+  deleteAccount: (
+    appleProof?: AppleAccountDeletionProof,
+  ) => Promise<DeleteAccountResult>;
 }>;
 
 const GROUP_OWNERSHIP_TRANSFER_REQUIRED_CODE =
@@ -114,26 +121,37 @@ export function createAccountLifecycle(
         },
       );
     },
-    async deleteAccount(): Promise<DeleteAccountResult> {
+    async deleteAccount(
+      appleProof?: AppleAccountDeletionProof,
+    ): Promise<DeleteAccountResult> {
       return withGuard<DeleteAccountResult>(
         { status: "error", code: IN_FLIGHT_CODE },
         async () => {
-          // P4 best-effort teardown must fire while this account's access
-          // token is still valid, before the DELETE call (and definitely
-          // before logout) removes it. A rejection here never blocks account
-          // deletion.
-          await deps.pushDisable.disable().catch(() => undefined);
           try {
             await deps.session.authorizedRequest((accessToken, signal) =>
-              deps.accountApi.deleteAccount(accessToken, signal),
+              deps.accountApi.deleteAccount(accessToken, appleProof, signal),
             );
           } catch (error) {
             if (errorCode(error) === GROUP_OWNERSHIP_TRANSFER_REQUIRED_CODE)
               return { status: "blocked" };
             return { status: "error", code: errorCode(error) };
           }
-          // The DELETE resolved (204): tokens are server-invalidated already,
-          // so a local logout failure must never block reporting success.
+          // task-app-device fix1 (device verification): no local push teardown runs
+          // before this DELETE call anymore. The server already disables
+          // this account's push installations inside the same deletion
+          // transaction (jamye-server's
+          // src/adapters/postgres/account_deletion/grace.rs
+          // disable_push_installations), so a rejected/blocked delete (409
+          // group_ownership_transfer_required, 422 Apple proof errors,
+          // 500/503, network failure, or a cancelled Apple reauthentication)
+          // leaves this device's push subscription untouched -- there is
+          // nothing to restore. The DELETE resolved (204): tokens are
+          // server-invalidated already, so a local logout failure must never
+          // block reporting success. PushLifecycleProvider's
+          // principal-vanished effect (push-lifecycle-provider.tsx) clears
+          // local push state once `session.logout()` below fires; an
+          // account restored via re-login re-registers through that same
+          // provider's `enable()`.
           await deps.session.logout().catch(() => undefined);
           return { status: "ok" };
         },

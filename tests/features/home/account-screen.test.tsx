@@ -35,6 +35,7 @@ jest.mock("@/core/providers/session-provider", () => ({
     state: { status: "signed-in", profile, message: null },
     principal: mockPrincipal,
     login: jest.fn(),
+    loginWithApple: jest.fn(),
     logout: mockLogout,
     restore: jest.fn(),
     retryProfile: jest.fn(),
@@ -288,7 +289,11 @@ describe("account screen (ios)", () => {
     expect(screen.queryByTestId("delete-confirm-alert")).toBeNull();
   });
 
-  test("shows the blocked message when the account can't be deleted yet", async () => {
+  // task-app-device fix1: a blocked/error delete result surfaces as a
+  // single-button acknowledge alert (title "계정 삭제"), not an inline
+  // caption under the delete row -- `getAllByText` staying at 1 proves the
+  // inline caption is gone.
+  test("shows a blocked failure alert (not an inline message) when the account can't be deleted yet, and 확인 dismisses it", async () => {
     mockDeleteAccount.mockResolvedValue({ status: "blocked" });
     const screen = await renderScreen();
     await fireEvent.press(screen.getByRole("button", { name: "계정 삭제" }));
@@ -297,12 +302,15 @@ describe("account screen (ios)", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(
-      screen.getByText("그룹 소유권을 먼저 이전한 뒤 다시 시도해 주세요."),
-    ).toBeTruthy();
+    const message = "그룹 소유권을 먼저 이전한 뒤 다시 시도해 주세요.";
+    const alert = screen.getByTestId("delete-failure-alert");
+    expect(within(alert).getByText(message)).toBeTruthy();
+    expect(screen.getAllByText(message)).toHaveLength(1);
+    await fireEvent.press(screen.getByTestId("delete-failure-alert-confirm"));
+    expect(screen.queryByTestId("delete-failure-alert")).toBeNull();
   });
 
-  test("shows a generic error message when the delete request fails", async () => {
+  test("shows a generic error failure alert (not an inline message) when the delete request fails, and 확인 dismisses it", async () => {
     mockDeleteAccount.mockRejectedValue(new Error("network"));
     const screen = await renderScreen();
     await fireEvent.press(screen.getByRole("button", { name: "계정 삭제" }));
@@ -311,16 +319,39 @@ describe("account screen (ios)", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(
-      screen.getByText(
-        "계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-      ),
-    ).toBeTruthy();
+    const message = "계정을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    const alert = screen.getByTestId("delete-failure-alert");
+    expect(within(alert).getByText(message)).toBeTruthy();
+    expect(screen.getAllByText(message)).toHaveLength(1);
+    await fireEvent.press(screen.getByTestId("delete-failure-alert-confirm"));
+    expect(screen.queryByTestId("delete-failure-alert")).toBeNull();
   });
 
   test("renders nothing when no validated principal is present, never leaking a stale profile", async () => {
     mockPrincipal = null;
     const screen = await renderScreen();
     expect(screen.toJSON()).toBeNull();
+  });
+
+  // U3/U7/AC5: provider label and delete-confirm copy for an Apple account.
+  // `profile` is a module-level fixture the mocked useSession closes over,
+  // so the provider is mutated in place and restored in `finally` (kept to
+  // one dedicated test to avoid leaking state into the kakao-fixture tests
+  // above).
+  test("Apple 계정: 라벨은 'Apple 계정으로 로그인됨'이고 삭제 확인 문구는 기존 E9 문구 뒤에 재인증 안내를 덧붙인다", async () => {
+    profile.provider = "apple";
+    try {
+      const screen = await renderScreen();
+      expect(screen.getByText("Apple 계정으로 로그인됨")).toBeTruthy();
+      await fireEvent.press(screen.getByRole("button", { name: "계정 삭제" }));
+      const alert = screen.getByTestId("delete-confirm-alert");
+      expect(
+        within(alert).getByText(
+          "계정을 삭제할까요? 30일 안에 같은 계정으로 다시 로그인하면 복구할 수 있고, 30일이 지나면 되돌릴 수 없습니다. 삭제하려면 Apple 인증을 한 번 더 진행합니다.",
+        ),
+      ).toBeTruthy();
+    } finally {
+      profile.provider = "kakao";
+    }
   });
 });
