@@ -1,13 +1,15 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15 소프트 삭제 수용 완료 (2026-09-29 M15 사용자 종료 승인), M16 Sign in with Apple 착수 승인 (2026-09-30, 서버 task-15 선행), M17-M18(잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15 소프트 삭제 수용 완료 (2026-09-29 M15 사용자 종료 승인), M16 Sign in with Apple 구현·검증 완료 (2026-09-30: 서버 task-15 운영 배포, 기기 검증, 격리 리뷰 PASS, 로컬 브랜치 커밋 — push·PR·머지와 종료 승인 대기), M17-M18(잔여 백로그·스토어 배포) 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
 - 현재 frontier: M16 Sign in with Apple — 2026-09-30 사용자 요청("앱 M16, 서버 task-15 진행해")으로
-  착수했고 서버 task-15가 선행한다. 직전 M15 소프트 삭제 수용은 `COMPLETED / USER_ACCEPTED`
-  (2026-09-29 사용자 종료 승인, [M15 evidence](evidence/M15.md))다. M18 스토어 배포는 M14 만족 선언
-  조건을 충족했고 M16·M17(A)·release 범위 확정과 별도 승인이 남아 있다. 파괴적 로컬 정리는 여전히
-  별도 승인 대상(M17-B).
+  착수해 같은 날 서버 task-15 운영 배포, 앱 구현, 기기 검증, ultrawork 격리 리뷰(VERIFY·REFINE·SHIP)를
+  마쳤다. 변경은 로컬 브랜치 `feature/m16-apple-sign-in`에 커밋했고 push·PR·머지와 milestone 종료
+  승인이 남아 있다([M16 evidence](evidence/M16.md)). 직전 M15 소프트 삭제 수용은
+  `COMPLETED / USER_ACCEPTED`(2026-09-29 사용자 종료 승인, [M15 evidence](evidence/M15.md))다. M18 스토어 배포는
+  M14 만족 선언 조건을 충족했고 M16 종료·M17(A)·release 범위 확정과 별도 승인이 남아 있다. 파괴적
+  로컬 정리는 여전히 별도 승인 대상(M17-B).
 - 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
 - 결정권자: 사용자
 - 최종 수정일: 2026-09-30
@@ -200,7 +202,7 @@ M13 completed (2026-09-22)
   ↓
 M14 UI/UX 다듬기 completed (2026-09-28, round 1·2)
   ├─→ M15 소프트 삭제 수용 completed (2026-09-29) ← server task-14
-  ├─→ M16 Sign in with Apple (2026-09-30 착수) ← server task-15 (task-14 선행, 충족)
+  ├─→ M16 Sign in with Apple (2026-09-30 구현·검증 완료, 종료 승인 대기) ← server task-15 (2026-09-30 배포)
   └─→ M17 잔여 백로그 ← server task-16 (일부)
 M14 만족 선언 (충족) + release 범위 확정 ─→ M18 스토어 배포
 
@@ -214,7 +216,8 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 
 M14-M18은 2026-09-22 사용자 결정으로 등록했다. M14는 라운드 1·2를 거쳐 2026-09-28 사용자 만족
 선언과 종료 승인으로 완료했고, M15는 2026-09-29 사용자 종료 승인으로 완료했다. M16은 2026-09-30
-착수 승인을 받았고, M17-M18은 `planned_unapproved`로 남아 각각 별도 승인으로 착수한다.
+착수해 같은 날 구현·검증을 마쳤고 종료 승인이 남아 있다. M17-M18은 `planned_unapproved`로 남아
+각각 별도 승인으로 착수한다.
 M18은 M14 만족 선언(충족)과 release 범위 확정 뒤에만 시작하며, 10.2절의 공통 release acceptance를
 실제 선택한 범위에 적용한다. 서버 측 작업(task-14-16)은 jamye-server 저장소의 로드맵 문서가 소유한다.
 
@@ -1023,37 +1026,140 @@ M14 종료 후 후속 후보(각각 별도 결정):
 
 ### M16. Sign in with Apple (서버 task-15 연동)
 
-- 상태: 착수 승인(2026-09-30 사용자 요청 "앱 M16, 서버 task-15 진행해") — 2026-09-22 사용자
-  결정으로 로드맵 등록. 서버 task-15 계약 publish와 Apple Developer 설정이 선행한다.
-- 선행: M6(세션 모델); 서버 task-15; Apple Developer 설정(App ID의 Sign in with Apple capability,
-  서버용 key(.p8)·Team ID·Key ID); production bundle identifier 결정(M18 선행 항목 — identity token의
-  `aud`가 bundle id이므로 서버는 development/production audience allowlist가 필요)
+- 상태: `COMPLETED / DEVICE_VERIFIED` — 서버 task-15 운영 배포(`2c93ed1`/homelab 활성화 `fe6a4e9`)
+  뒤 iOS 시뮬레이터와 Android 에뮬레이터(로그인 화면 불변, 카카오·Google 회귀)에서 요구사항 §8 검증
+  1-7번을 모두 통과했다(2026-09-30). ultrawork 세션 `20260930-000919`의 격리 리뷰(VERIFY 3건·REFINE
+  2건·SHIP 4건)도 모두 PASS했다(CRITICAL/HIGH 0). 2026-09-30 사용자 요청("앱 M16, 서버 task-15
+  진행해")으로 착수했고 2026-09-22 사용자 결정으로 로드맵에 먼저 등록했다. 같은 날 사용자 요청("앱과
+  서버 전부 커밋하고 문서 기록도 지금 상태로 전부 업데이트해")으로 변경을 로컬 브랜치
+  `feature/m16-apple-sign-in`에 기능별로 커밋하고 ultrawork 세션을 종료했다. push·PR·머지와
+  milestone 종료(사용자 승인)는 남아 있다.
+- 선행: M6(세션 모델, 충족); 서버 task-15 운영 배포(충족, jamye-server 로드맵 §14 task-15); Apple
+  Developer 설정 — 개발 bundle id(`dev.local.jamyeapp`, Team `6ZH8V43A7D`)의 App ID Sign in with
+  Apple capability와 서버 key(.p8)의 Sign in with Apple service 둘 다 사용자가 직접 켰다(기기 검증
+  중 누락을 발견해 조치, 아래 "검증 결과" 참고). production bundle identifier 결정은 M18 선행
+  항목으로 남는다 — identity token의 `aud`가 bundle id이므로 그때도 같은 두 설정이 필요하다.
 - 결정(2026-09-22): iOS native(`expo-apple-authentication`) + 서버 identity token 검증 방식. Android에는
   Apple 버튼을 표시하지 않는다. 계정 연결은 하지 않고 provider별 별도 계정을 유지한다(서버 D16).
   목적은 App Store Review Guideline 4.8 충족이다.
+- 결정(2026-09-30 인터뷰 확정, 근거 jamye-server `.agents/results/requirements-20260930-000919.md`
+  §3, §9): U1 토큰 폐기는 계정 삭제 때 Apple 재인증으로 한다 — 삭제를 확인하면 Apple 인증창이 한 번
+  더 뜨고, 서버는 새 authorization code로 Apple 토큰을 받아 즉시 폐기(revoke)하며 Apple 토큰 자체는
+  저장하지 않는다(서버 D17). U2 Apple Developer 설정은 개발 bundle id로 지금 진행하고 production
+  bundle id는 M18에서 정한다. U3 Apple 버튼은 카카오·Google과 같은 48pt 캡슐 SwiftUI 버튼으로
+  카카오 → Google → Apple 순서, 같은 크기로 맨 아래 두며 라이트 검정·다크 흰색이고 iOS에만
+  표시한다. U4 설치·재빌드는 coordinator가 하고, 시뮬레이터의 Apple ID 로그인은 사용자가 직접
+  한다. U5 서버를 먼저 운영 배포한 뒤 앱을 시뮬레이터에서 검증한다. U6 첫 닉네임은 Apple이 준
+  이름, 없으면 기존 `카카오{6}`·`Google{6}`과 같은 방식으로 `Apple`+숫자 6자리다. U7 Apple 계정
+  삭제 확인창은 기존 문구 뒤에 `삭제하려면 Apple 인증을 한 번 더 진행합니다.`를 붙이고, 인증을
+  취소하면 삭제도 취소된다. 기기 검증 중 추가 결정(§9): U8 계정 삭제 때 푸시는 삭제가 승인될
+  때만 꺼진다 — 앱은 삭제 요청 전에 푸시를 끄지 않고, 서버가 삭제 트랜잭션에서 push installation을
+  끈다. 실패·취소 시 푸시는 그대로다. U9 계정 삭제 실패 안내(그룹 소유권 이전 필요/일반 실패)는
+  둘 다 제목 `계정 삭제`, 버튼 `확인` 하나의 Alert로 보인다(iOS 시스템 Alert, Android Material
+  다이얼로그, 인라인 문구 없음).
 - 사용자 결과: iOS에서 'Apple로 로그인'으로 로그인하고 Kakao/Google과 같은 세션
-  모델(TokenPair·refresh·logout·계정 삭제)을 쓴다.
-- 계약 범위(예정, 가칭): `POST /api/v1/auth/apple/exchange`(A6) — `identity_token`,
-  `authorization_code`, `nonce`, 최초 1회 `full_name` → TokenPair. 서버 검증: Apple JWKS 서명,
-  `iss=https://appleid.apple.com`, `aud` allowlist, `exp`, `nonce`(SHA-256) 일치,
-  `auth_identities(provider='apple', provider_id=sub)`. 계정 삭제 시 Apple token revoke(App Store Review
-  Guideline 5.1.1(v), 서버 D17)는 M15의 계정 삭제 흐름과 연계한다.
+  모델(TokenPair·refresh·logout·계정 삭제)을 쓴다. 기기 검증(2026-09-30)으로 확인했다.
+- 계약 범위(구현됨): `POST /api/v1/auth/apple/exchange`(A6) — `identity_token`, `raw_nonce`, 선택
+  `full_name` → 기존 TokenPair, 유예 계정 복구 시 `X-Jamye-Account-Restored: true`. 서버 검증:
+  Apple JWKS RS256 서명, `iss=https://appleid.apple.com`, `aud` allowlist(`JAMYE_APPLE_AUDIENCES`),
+  `exp`/`iat`, `nonce`(SHA-256) 일치, `sub` 길이. 검증 실패는 원인을 나누지 않고
+  `422 apple_identity_token_invalid` 하나로 수렴한다(원인은 서버 내부 tracing에만 남는다). 기능이
+  꺼져 있으면 `404 oauth_provider_not_supported`다. 계정 삭제(`DELETE /api/v1/me`)는 Apple
+  계정일 때만 JSON body(`identity_token`/`authorization_code`/`raw_nonce`)를 허용하고, 서버가
+  identity token 검증 → ES256 client_secret으로 Apple `/auth/token` 교환 → `/auth/revoke` 폐기 →
+  기존 계정 삭제 유예 transaction 순서로 처리한다(App Store Review Guideline 5.1.1(v), 서버
+  D17). Kakao·Google 계정의 U3 body 거부는 그대로다. `auth_identities.provider` CHECK에 `apple`을
+  추가하는 migration `0018`. 계약은 `contract_version` `"2"`를 유지하며 `User.provider` enum에
+  `apple`을 추가한다. 상세는 jamye-server 저장소의 로드맵 §14 task-15와 ADR 0006(mobile
+  OAuth)에 있다.
 
-핵심 작업:
+구현 범위:
 
-- `expo-apple-authentication` 추가(native rebuild, entitlement `com.apple.developer.applesignin`)
-- AuthScreen에 iOS 전용 Apple 버튼(HIG 버튼 스타일); Android는 미표시
-- `expo-crypto`로 nonce 생성 → 서버 exchange → 기존 SecureStore·refresh single-flight 경로 재사용
-- 취소·오류 분기, 'Hide My Email' 릴레이 이메일과 닉네임 초기값(full name은 최초 1회만 제공됨)
-- 실기기 검증(시뮬레이터 제약)
+- Apple 버튼: iOS 전용 `apple-login-button.ios.tsx`. `AuthScreen`에 카카오 → Google → Apple
+  순서로 같은 48pt 캡슐(최대 440pt 폭)에 SF Symbol `apple.logo`, 라벨 `Apple로 로그인`을 두고
+  라이트 검정·다크 흰색으로 반전한다. `AppleAuthentication.isAvailableAsync()`가 false면 숨기고,
+  진행 중에는 로고 자리에 spinner를 두고 세 버튼 모두 비활성화한다. iOS 부제는 `카카오, Google
+또는 Apple 계정으로 로그인합니다.`로 바뀌고 Android는 기존 문구(`카카오 또는 Google 계정으로
+로그인합니다.`)를 유지한다.
+- Apple 인증 포트(`apple-authentication-port.ts`/`.ios.ts`)와 mock, `expo-crypto` 기반 raw/hashed
+  nonce(`createAppleNonce`). `auth-controller.ts`의 `signInWithApple`이 `FULL_NAME` 범위만
+  요청해 A6를 호출하고, 성공하면 기존 `persistThenProfile`과 복구 헤더 처리(`accountRestored`)로
+  이어진다. Apple 시트 취소는 조용히 로그인 화면에 남고, 다른 오류는 기존 system feedback +
+  `다시 시도`로 안내한다.
+- 계정 화면: provider 라벨에 `Apple 계정으로 로그인됨`을 추가하고, Apple 계정의 삭제 확인창에만
+  U7 문구를 붙인다. `use-delete-account-flow.ts`가 같은 Apple 인증 포트로 재인증(요청 범위 없음)한
+  뒤 proof를 U3 JSON body로 보낸다. 재인증 취소는 조용히 삭제를 취소하고, 서버 오류는 기존 오류
+  표시로 안내한다.
+- 계약 intake: 서버 배포 뒤 A6와 U3 Apple proof schema를 closure 목록에 추가해 재생성했다.
+  `User.provider` validator는 코드 변경 없이 계약의 enum을 그대로 컴파일해 `apple`을 받아들인다.
+- `expo-apple-authentication`(coordinator install 결과 버전)을 추가하고 `ios.usesAppleSignIn =
+true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SHA256`, `expectedIos`)과
+  `docs/development-workflow.md` 버전 표를 갱신했다. Android에는 네이티브 변경이 없다.
+- 기기 검증 중 결함 수정(U8/U9, `task-app-device` fix1): 계정 삭제가 실패해도 푸시가 꺼진 채 남던
+  결함을 고쳤다 — 앱이 삭제 요청 전에 하던 푸시 해제를 없애고 서버가 삭제 트랜잭션에서 처리하도록
+  옮겼다. 삭제 실패 안내 두 가지(그룹 소유권 이전 필요/일반 실패)를 인라인 문구 대신 제목
+  `계정 삭제`, 버튼 `확인` 하나의 Alert로 바꿨다.
+- 격리 리뷰 반영(REFINE·SHIP, 동작 불변): iOS 캡슐 버튼 골격을 `capsule-login-button.ios.tsx`로
+  모아 카카오·Google·Apple 버튼이 함께 쓰고(`BRAND_LOGO_SIZE` 공유), 계정 화면의 삭제·로그아웃
+  문구와 provider 라벨·삭제 확인 문구를 `account-screen.constants.ts`로 모았으며, 복구 헤더 판정을
+  `isAccountRestored`로 뽑았다. SHIP 품질 리뷰가 지적한 `auth-controller.ts` branch coverage
+  80.11%는 Apple 실패 경로 테스트 2개(Apple 포트 없음, native 시트 오류)로 81.81%까지 올렸다.
 
-완료 증거:
+검증 결과:
 
-- 실기기 iOS Apple 로그인·재로그인·취소, 계정 삭제 후 Apple ID 설정에서 앱 연결 해제 확인, 자동 검사
+- 최종 자동 검사(REFINE·SHIP 반영 후, coordinator 확인): `bun run check:code` 238 suites / 2254
+  tests 통과, coverage statements 87.62 / branches 82.32 / functions 87.24 / lines 90.41(기준 80),
+  architecture 검사 PASS, eslint 경고 15(기존 기준선). fix1 직후 수치(2252 tests)는 jamye-app
+  `.agents/results/device-m16-20260930-000919.md` §3에 있다. 서버 task-15 필수 검사 7개는 test-only
+  후속 fix2까지 반영한 상태에서 모두 exit 0이다(915 tests).
+- 격리 리뷰(ultrawork, 2026-09-30): VERIFY(정합성·안전·회귀), REFINE(재사용·일관성), SHIP(품질·UX
+  흐름·연쇄 영향·배포 준비) 9건 모두 PASS, CRITICAL/HIGH 0. 집계는 jamye-server
+  `.agents/results/result-qa-20260930-000919.md`.
+- 기기 검증(iOS 시뮬레이터·Android 에뮬레이터, 운영 서버 기준, 2026-09-30) — 상세는
+  [M16 evidence](evidence/M16.md), 원본은 jamye-app `.agents/results/device-m16-20260930-000919.md`
+  (로컬 전용): 요구사항 §8 1-7번 모두
+  PASS. 로그인 화면(카카오→Google→Apple 순서·같은 크기·라이트 검정/다크 흰색·iOS 부제, Android
+  불변), Apple 첫 로그인(신규 계정, 닉네임, `Apple 계정으로 로그인됨`), 로그아웃→재로그인(같은
+  계정), 인증 취소(조용히 로그인 화면), 계정 삭제(U7 문구→재인증→삭제→로그인 화면, 시뮬레이터
+  설정에서 앱 연결 해제 확인), 유예 중 재로그인(복구 + `계정이 복구되었습니다.` 1회), 카카오·Google
+  회귀(로그인·삭제 모두 그대로) 전부 통과했다.
+- 검증 중 Apple Developer 설정 누락 두 곳을 찾아 사용자가 직접 고쳤다(요구사항 E21): App ID의
+  Sign in with Apple capability가 없으면 로그인이 `-24000 Invalid client`로 실패했고, 서버 .p8
+  키의 Services에 Sign in with Apple이 없으면 삭제 때 코드 교환이
+  `apple_authorization_code_invalid`로 거부됐다. 두 설정 모두 M18 production bundle id에도 다시
+  필요하다.
 
 미검증 / 별도 승인 필요:
 
-- Apple Developer Program 설정과 credential, production identity, native rebuild
+- push·PR·머지와 milestone 종료 승인. 변경은 로컬 브랜치 `feature/m16-apple-sign-in`에 커밋만 했다.
+- 기기에서 따로 확인하지 않은 경로 두 개(SHIP UX 리뷰 LOW, 단위 테스트로만 확인): 계정 삭제 중
+  Apple 재인증 취소(`tests/features/account/model/use-delete-account-flow.test.ts`)와 앱 수준 Apple
+  로그인 오류 안내(`tests/core/auth/auth-controller.test.ts`). 기기 검증의 `-24000` 실패는 OS의
+  Apple 시트 안에서 난 것이라 앱 안내가 떴는지는 기록되지 않았다.
+- production bundle identifier와 그에 대한 App ID·key Sign in with Apple 설정은 M18에서 별도로
+  진행한다.
+
+후속 후보(각각 별도 결정):
+
+- Apple 서버 간 알림(server-to-server notifications, consent-revoked) endpoint: 사용자가 Apple
+  ID 설정에서 앱 연결을 끊어도 서버가 그 신호를 받아 계정을 정리하지 못한다. 범위 밖으로 미룬
+  항목(요구사항 §5)이며 별도 승인이 필요하다.
+- Expo SDK 57 patch 22개가 최신보다 뒤처져 있다(`@expo/ui` 57.0.17→~57.0.21, `expo`
+  57.0.21→~57.0.26 등). 새 모듈 `expo-apple-authentication`만 SDK와 맞고, 나머지 일괄 patch
+  갱신은 별도 승인이 필요한 의존성 변경이라 후속으로 미룬다.
+- Apple 어댑터가 `/auth/token`·`/auth/revoke`의 4xx를 모두 `apple_authorization_code_invalid`
+  하나로 뭉뚱그리고 Apple이 준 `error` 값(invalid_client/invalid_grant 등)을 범주형으로도 남기지
+  않는다. 로그에 범주만 추가하면 설정 문제와 실제 코드 무효를 구분하기 쉬워진다(서버, 기기 검증
+  중 발견).
+- Android 에뮬레이터가 `default_boot` 스냅샷으로 오래된 dev client 상태(예: 이전 빌드에 없던
+  네이티브 모듈)를 되살리는 문제의 재발 방지 절차를 문서로 정리한다.
+- M18 production bundle id를 정하면 App ID + key 양쪽에 Sign in with Apple을 다시 설정해야
+  한다(요구사항 E21).
+- `auth-controller.ts`가 622줄이고 `createAuthController`가 543줄짜리 factory 하나다(M16 전에도
+  약 511줄). characterization test를 먼저 둔 뒤 세션 저장, 세대 관리, Apple 이름 정리 같은 묶음을
+  모듈로 나누고 `max-lines-per-function` lint 규칙을 추가한다(REFINE·SHIP 품질 리뷰).
+- 카카오·Google 계정으로 로그인할 때마다 새 push installation이 생기는지 관찰한다(검증 중 live
+  installation이 provider별 2개였다).
 
 ### M17. 잔여 백로그
 
@@ -1129,7 +1235,10 @@ M14 종료 후 후속 후보(각각 별도 결정):
 
 모든 43개 HTTP operation은 위 표에 포함된다. WebSocket은 M9에 배정한다. 2026-09-26 서버
 `5b987a2`가 MD3(주제 미디어 목록)를 제거하고 C5(대화방 미디어 목록)를 추가해 operation 수는 43개로
-같다. 현재 intake 기준은 서버 `a77cac5`다(`contracts/server/intake.json`).
+같다. M16(task-app-contract)이 A6(`POST /api/v1/auth/apple/exchange`)을 추가해 44개가 됐다(U3
+`DELETE /api/v1/me`는 기존 operation 그대로이고 requestBody만 Apple 계정용으로 조건부 확장). 현재
+intake 기준은 서버 `2c93ed1`다(`contracts/server/intake.json`, source_git_revision
+`2c93ed1637eb1896d8749ae3d31a287585e38d05`).
 
 다음 operation은 2026-09-22 로드맵 등록 시점에 계약에 없는 **예정 항목(가칭, 계약 미publish)**이다.
 이름과 shape는 서버 task-14/task-15가 확정하며, 앱은 publish된 계약을 intake한 뒤에만 구현한다.
@@ -1257,15 +1366,16 @@ R4 수정을 확인하고 M14 종료를 승인해 M14는 `COMPLETED / USER_ACCEP
 `COMPLETED / USER_ACCEPTED`다([M15 evidence](evidence/M15.md)). 남은 한계와 후속은 M15 절 "후속
 후보"에 있다. 이 종료 승인도 앱 출시, 스토어 배포를 뜻하지 않는다.
 
-2026-09-30 사용자가 M16과 서버 task-15 착수를 요청했다. 진행 중인 milestone은 M16이고, 나머지 후보의
-선행 조건은 다음과 같다.
+2026-09-30 사용자가 M16과 서버 task-15 착수를 요청했다. 같은 날 서버 task-15 운영 배포와 M16
+구현·기기 검증·격리 리뷰를 마치고, 변경을 로컬 브랜치 `feature/m16-apple-sign-in`에 커밋한 뒤
+ultrawork 세션을 종료했다. 남은 후보의 선행 조건은 다음과 같다.
 
-- M16 Sign in with Apple(진행 중): 서버 task-15가 선행한다. 서버 로드맵이 task-15의 선행으로 둔
-  task-14(계정 삭제 흐름 결합, D17)는 충족했다. Apple Developer 설정과 production bundle identifier
-  결정도 필요하다.
+- M16 Sign in with Apple(구현·검증 완료, 종료 승인 대기): 서버 task-15 운영 배포와 개발 bundle id의
+  Apple Developer 설정(App ID capability, .p8 키 service)은 충족했다. push·PR·머지와 종료 승인이
+  남아 있고, production bundle identifier와 그 설정은 M18에서 정한다.
 - M17 잔여 백로그: 항목별 개별 승인. 서버 계약 변경이 필요한 것은 (C) 묶음뿐이고, (B)의 파괴적 로컬
   정리는 별도 명시 승인 뒤에만 한다.
-- M18 스토어 배포: M14 만족 선언은 충족했다. M16(Guideline 4.8), M17(A) blocker 해소, release에 포함할
+- M18 스토어 배포: M14 만족 선언은 충족했다. M16 종료(Guideline 4.8), M17(A) blocker 해소, release에 포함할
   범위 확정이 남아 있다.
 
 M14 종료 뒤 남은 개선 후보는 M14 절의 "M14 종료 후 후속 후보"에 모았다.

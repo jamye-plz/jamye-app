@@ -118,6 +118,11 @@ rebuild 없이 사용할 수 있다. `expo-image`(~57.0.5)는 후속 승인으�
 rebuild가 필요해 clean prebuild와 iOS·Android rebuild/install을 수행했다. 세부 배경은
 [ADR 0005](adr/0005-native-ui-toolkit-adoption.md)를 따른다.
 
+M16(Sign in with Apple)에서 추가한 `expo-apple-authentication`(~57.0.2)도 native 코드가
+있는 dependency라 clean prebuild와 iOS dev client rebuild/install이 필요했다(U4 빌드
+승인). `expo-module.config.json`의 `platforms`가 `["apple"]`뿐이라 Android native 코드는
+없고, Android rebuild는 수행하지 않았다.
+
 ## 3. 코드 품질 script
 
 | 명령                                 | 분류        | 결과와 사용 시점                                                |
