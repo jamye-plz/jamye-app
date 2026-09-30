@@ -903,7 +903,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
   87.55% / 90.61%, `check-architecture` PASS). ultrawork의 VERIFY·REFINE·SHIP 격리 리뷰는 사용자의
   종료 결정으로 실행하지 않았다(아래 후속 후보의 품질 정리 항목 참고).
 
-M14 종료 후 후속 후보(각각 별도 결정):
+M14 종료 후 후속 후보(각각 별도 결정, 2026-09-30 M17 절의 묶음으로 모음):
 
 - 주제 공지(announcement) 메시지가 markdown 링크를 원문 그대로 렌더한다(raw markdown link).
 - 업로드가 만료된(1시간 초과) 실패 메시지는 다시 보내기도, 버리기도 할 수 없다. 재시도 시 만료된
@@ -1011,7 +1011,7 @@ M14 종료 후 후속 후보(각각 별도 결정):
 - 계정 삭제·복구의 실계정 검증은 사용자가 직접 확인했다(E15 운영 데이터 규칙 — 메시지·주제 쓰기는
   테스트 주제에서만 했다).
 
-후속 후보(각각 별도 결정):
+후속 후보(각각 별도 결정, 2026-09-30 M17 절의 묶음으로 모음):
 
 - 결함 10의 남는 한계: 탈퇴한 사람의 살아 있는 메시지도, 작성한 주제도 기기가 다시 받지 않으면
   삭제 행이 옛 이름·사진으로 남는다. 완전한 해결은 서버 계약 확장이 필요하다.
@@ -1135,7 +1135,7 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
 - production bundle identifier와 그에 대한 App ID·key Sign in with Apple 설정은 M18에서 별도로
   진행한다.
 
-후속 후보(각각 별도 결정):
+후속 후보(각각 별도 결정, 2026-09-30 M17 절의 묶음으로 모음):
 
 - Apple 서버 간 알림(server-to-server notifications, consent-revoked) endpoint: 사용자가 Apple
   ID 설정에서 앱 연결을 끊어도 서버가 그 신호를 받아 계정을 정리하지 못한다. 범위 밖으로 미룬
@@ -1159,19 +1159,95 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
 
 ### M17. 잔여 백로그
 
-- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 네 묶음 모두 등록; 항목별 착수는 개별 승인
-- 선행: 항목별 상이(아래 표)
+- 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 네 묶음((A)-(D))을 등록했다. 2026-09-30
+  사용자 요청("M14–M16의 각 절에 적힌 '후속 후보'까지 모아서 M17 묶음을 정리해줘")으로 M14–M16의
+  후속 후보를 (A)-(D)에 더하고 (E)·(F)를 새로 만들었다. 항목별 착수는 개별 승인이다.
+- 선행: 항목별 상이(아래 묶음별 목록)
 - 결정(2026-09-22): 각 항목은 개별 승인으로 착수하고, M18 release에 포함할지도 개별로 결정한다. 서버
   계약이 필요한 항목은 서버 task-16(또는 별도 task)을 선행한다.
-- 사용자 결과: 출시를 막는 결함이 정리되고, 보류했던 기능 중 선택한 것이 제품에 들어간다.
-- 계약 범위: (C) 묶음만 서버 계약 변경을 요구한다. 나머지는 app-only 또는 운영 작업이다.
+- 사용자 결과: 출시를 막는 결함이 정리되고, 보류했던 기능과 M14–M16에서 미룬 다듬기 중 선택한 것이
+  제품에 들어간다.
+- 계약 범위: (C) 묶음만 서버 계약 변경을 요구한다. (D)는 서버 코드와 운영 작업이고, 나머지는
+  app-only다.
+- 목록 규칙: M14–M16 절의 후속 후보 목록은 기록으로 남기고, 이 절을 단일 목록으로 쓴다. 항목 끝
+  괄호는 출처다 — `등록`은 2026-09-22 등록, `M14`·`M15`·`M16`은 해당 절의 후속 후보다.
 
-| 묶음                | 항목                                                                                                                                                                                                                           | 선행·비고                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| (A) 앱 출시 blocker | dependency audit image-size High 2건 재감사; Android 시작 ANR 원인 규명; 자동 E2E; 실기기·접근성 수용(VoiceOver/TalkBack, 200% 텍스트, reduce motion); production identity·서명 준비                                           | M18 선행. 기존 기록은 [개발 workflow](development-workflow.md)                       |
-| (B) 보류된 앱 기능  | 아바타 업로드([ADR 0008](adr/0008-account-lifecycle-placement.md) 5번; U2 + MD1/MD2 재사용); 계정 삭제 후 파괴적 로컬 정리(ADR 0008 6번); bootstrap/local-fixture 모드 정리(M6에서 미룸; M4 bootstrap contract 제거 여부 결정) | 파괴적 로컬 정리는 별도 명시 승인 뒤에만                                             |
-| (C) 채팅 기능 확장  | 메시지 편집; 상대방 메시지별 읽음 표시; 주제별 안읽음 표시; presence/typing/reaction                                                                                                                                           | 모두 서버 계약 선행. 메시지 편집은 서버 task-16 후보, 나머지는 별도 product decision |
-| (D) 서버·운영       | homelab 자동 백업(현재 없음; jamye-server PostgreSQL·MinIO 포함); 서버 README/roadmap drift 정리; 모니터링·알림 점검                                                                                                           | 서버 task-16과 homelab 로드맵에서 수행                                               |
+| 묶음                      | 성격                | 선행·비고                                                       |
+| ------------------------- | ------------------- | --------------------------------------------------------------- |
+| (A) 앱 출시 blocker       | M18 선행            | 기존 기록은 [개발 workflow](development-workflow.md)            |
+| (B) 보류된 앱 기능        | app-only            | 파괴적 로컬 정리는 별도 명시 승인 뒤에만                        |
+| (C) 채팅·미디어 기능 확장 | 서버 계약 선행      | 메시지 편집은 서버 task-16 후보, 나머지는 별도 product decision |
+| (D) 서버·운영             | 서버·homelab 작업   | 서버 task-16과 homelab 로드맵에서 수행                          |
+| (E) UI/UX·동작 다듬기     | app-only            | M14 라운드 1 잔여와 M14·M15 관찰                                |
+| (F) 코드 품질·개발 환경   | app-only, 동작 불변 | M14 REFINE 후보와 M16 품질 리뷰                                 |
+
+(A) 앱 출시 blocker:
+
+- 의존성: dependency audit의 image-size High 2건 재감사(등록, M14), Expo SDK 57 patch 22개
+  갱신(M16, 별도 의존성 승인)
+- Android 시작 ANR 원인 규명(등록). dev build 콜드 스타트의 긴 빈 화면은 release build로 다시
+  잰다(M14).
+- 자동 E2E(등록)
+- 실기기·접근성 수용: VoiceOver/TalkBack, 200% 텍스트, reduce motion(등록). 같은 기회에 확인할 기기
+  항목은 V2 iPhone 무음 모드 재생, V3 iOS 햅틱, iOS 전화 수신 중단 뒤 미리듣기 유지(M14)와 계정 삭제
+  중 Apple 재인증 취소, 앱 수준 Apple 로그인 오류 안내(M16 미검증)다.
+- production identity·서명 준비(등록)
+
+(B) 보류된 앱 기능:
+
+- 아바타 업로드([ADR 0008](adr/0008-account-lifecycle-placement.md) 5번; U2 + MD1/MD2 재사용)(등록,
+  M14의 아바타 변경)
+- 계정 삭제 후 파괴적 로컬 정리(ADR 0008 6번). 별도 명시 승인 뒤에만 한다(등록).
+- bootstrap/local-fixture 모드 정리(M6에서 미룸; M4 bootstrap contract 제거 여부 결정)(등록). 모드를
+  남기면 로컬 모드 DB(`jamye.db`) 쓰기 직렬화 적용 여부도 정한다(M14).
+
+(C) 채팅·미디어 기능 확장(서버 계약 선행):
+
+- 메시지 편집(등록, 서버 task-16 후보)
+- 상대방 메시지별 읽음 표시, 주제별 안읽음 표시, presence/typing/reaction(등록, 각각 별도 product
+  decision)
+- 탈퇴한 사용자의 삭제 행이 옛 이름·사진으로 남는 문제의 완전한 해결(M15 결함 10의 남은 한계)
+- 3열 grid의 서버 썸네일(M14, 타일 모양은 (E))
+
+(D) 서버·운영(서버 task-16과 homelab 로드맵에서 수행):
+
+- homelab 자동 백업(현재 없음; jamye-server PostgreSQL·MinIO 포함), 서버 README/roadmap drift 정리,
+  모니터링·알림 점검(등록)
+- Apple 서버 간 알림(server-to-server notifications, consent-revoked) endpoint. 사용자가 Apple ID
+  설정에서 앱 연결을 끊어도 지금은 서버가 알 수 없다(M16, 별도 승인).
+- Apple 어댑터가 `/auth/token`·`/auth/revoke` 4xx의 Apple `error` 값을 범주형으로 남기게 한다(M16).
+- 서버 미디어 어댑터 테스트 fixture가 호스트 `now`와 DB `clock_timestamp()`를 섞어 간헐적으로
+  실패한다(`media_uploads_timestamp_check`)(M14).
+- 관찰: 카카오·Google로 로그인할 때마다 새 push installation이 생기는지 본다(검증 중 provider별 live
+  2개). 원인이 앱 등록 흐름이면 (E)로 옮긴다(M16).
+
+(E) UI/UX·동작 다듬기(app-only):
+
+- 주제 공지(announcement) 메시지의 markdown 링크 원문 렌더와 앱 경로 정리(M14)
+- 업로드가 만료된(1시간 초과) 실패 메시지의 재업로드 또는 버리기(M14)
+- 음성을 틀어도 동영상이 멈추지 않는다: 동영상 플레이어와 음성 재생 조정기 연결(M14 품질 정리 후보)
+- 새 메시지가 도착할 때 Android 뷰어가 한 번 닫힌 관찰(M14, 원인 미확인)
+- 알림 배지: 열린 그룹만 실시간 구독해서 그룹 밖 배지는 그룹을 열 때·푸시·앱 활성화 때만
+  반영된다(M15).
+- 삭제 상태 대화방 헤더에 남는 주제 제목, 내 삭제 행 시간 표시의 플랫폼 차이(iOS 없음, Android
+  `시간 · 전송됨`), 주제 목록 새로고침의 오프라인 복귀 문구(`입력을 유지했으니…`)(M15 REFINE 관찰)
+- M14 라운드 1 잔여: 인증 게이트 라우팅 분리(`(auth)/sign-in`), 그룹 목록을 거치지 않고 연 그룹
+  홈의 `그룹` 제목, 날짜 선택 haptics, 그룹 기본 대화방 갤러리, Android carousel `maskClip`, 3열
+  grid 타일 모양, iOS 그룹 정보 섹션 헤더, iOS toolbar 강조 버튼 tint(상세는 M14 "라운드 2 또는
+  이후 후보")
+
+(F) 코드 품질·개발 환경(app-only, 동작 불변):
+
+- lint 경고 15건과 media 화면의 eslint 예외(`react-hooks/refs`·immutability)(M14)
+- 중복된 player hook, 알림 snackbar host 2개(M14)
+- 공용 입력 shell 테스트 mock이 `value`를 렌더해 실제 `initialValue` 동작과 어긋난다(M14).
+- `auth-controller.ts` 분리(622줄, `createAuthController` 543줄; characterization test 선행)와
+  `max-lines-per-function` lint 규칙(M16)
+- Android 에뮬레이터 `default_boot` 스냅샷이 오래된 dev client를 되살리는 문제의 재발 방지 절차
+  문서화(M16)
+
+M18로 보낸 항목: production bundle id의 App ID capability와 .p8 키 Sign in with Apple 설정, 그 점검
+순서 문서화(M16, 요구사항 E21). M18 핵심 작업에 있다.
 
 완료 증거:
 
@@ -1179,7 +1255,8 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
 
 미검증 / 별도 승인 필요:
 
-- 모든 항목의 착수 승인; (B) 파괴적 로컬 정리와 (C) 계약 변경은 각각 별도 승인
+- 모든 항목의 착수 승인. (A) Expo SDK patch 갱신(의존성), (B) 파괴적 로컬 정리, (C) 계약 변경,
+  (D) Apple 서버 간 알림은 각각 별도 승인
 
 ### M18. 스토어 배포 (iOS App Store + Google Play)
 
@@ -1199,6 +1276,9 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
 - 서명(Apple Distribution/Provisioning, Android keystore) — 사용자가 직접 수행
 - 빌드 파이프라인 결정(EAS Build vs 로컬 Xcode/Gradle) — M18 PLAN에서 결정
 - Expo push production credential(APNs key, FCM), OAuth 콘솔 production 등록(Kakao/Google/Apple)
+- production bundle id의 Sign in with Apple 설정: App ID capability와 서버 .p8 키의 Sign in with
+  Apple service를 둘 다 켠다(M16 기기 검증에서 둘 다 빠져 막혔다, 요구사항 E21). 점검 순서(App ID
+  capability → 키 Services → 기기 목록)를 문서로 남긴다.
 - 개인정보처리방침·계정 삭제 안내 URL, App Store Connect/Play Console 메타데이터·스크린샷·심사 대응
 - rollback preflight([개발 workflow](development-workflow.md) 6.1절)
 
@@ -1369,8 +1449,9 @@ R4 수정을 확인하고 M14 종료를 승인해 M14는 `COMPLETED / USER_ACCEP
 
 다음 milestone은 미정이며 사용자 결정으로 시작한다. 후보별 선행 조건은 다음과 같다.
 
-- M17 잔여 백로그: 항목별 개별 승인. 서버 계약 변경이 필요한 것은 (C) 묶음뿐이고, (B)의 파괴적 로컬
-  정리는 별도 명시 승인 뒤에만 한다.
+- M17 잔여 백로그: 항목별 개별 승인. 2026-09-30에 M14–M16의 후속 후보를 모아 여섯 묶음((A)-(F))으로
+  정리했다. 서버 계약 변경은 (C), 서버·homelab 작업은 (D)이고, (B)의 파괴적 로컬 정리는 별도 명시
+  승인 뒤에만 한다. M18로 가는 선행은 (A)다.
 - M18 스토어 배포: M14 만족 선언과 M16 종료(Guideline 4.8)는 충족했다. M17(A) blocker 해소와 release에
   포함할 범위 확정이 남아 있고, production bundle identifier와 그 App ID·key Sign in with Apple 설정도
   이때 정한다.
