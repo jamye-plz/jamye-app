@@ -152,10 +152,27 @@ the following interop rules:
 - The top-level destinations are a three-item tab bar: 그룹 (`person.2` / `group`), 알림 (`bell` / `notifications`), 계정 (`person.crop.circle` / `account_circle`) via Expo Router `NativeTabs` (ADR 0009, ADR 0010): a `UITabBarController` in Liquid Glass on iOS 26 and a Material 3 navigation bar on Android. The active tab icon and label use Conversation Berry or Petal Berry. On iOS every other color, the indicator, and the minimize behavior stay the platform default; on Android the bar sits on `surface`, the active pill is `accentContainer`, and inactive icons and labels are `textMuted` (ADR 0011 D4). The notifications tab shows the unread count as a native badge, hidden at zero and capped at `99+`. Each tab owns its own native Stack so the rules above apply unchanged inside a tab.
 - The chat screen and the create/join/new-topic modals live on the root Stack, so the tab bar is hidden while they are open.
 - The group home is the topic list titled with the group name. The group list header keeps only the `+` menu. On the group home the title itself is a button (`HeaderTitleButton`: the group name plus a muted trailing chevron, rendered through `headerTitle` inside the native bar) that opens 그룹 정보; the bar actions are, left to right, 그룹 대화방 (`bubble.left.and.bubble.right` / `forum`) and 새 주제 (`plus` / `add`). There is no info icon, no in-content row for the group chatroom and no "서울 날짜" caption.
+- 그룹 정보 (M17) is a native list — `Form`/`Section` on iOS, a single `NativeList` on Android —
+  holding, in order, a centered summary header (avatar, group name, member count), a 사진·동영상
+  row that opens the group's main chatroom in the 3-column media grid (see Media Attachments
+  below), a 멤버 section of member rows, and a destructive 그룹 나가기/그룹 삭제 row; there is no
+  separate 관리 section. The owner renames the group by tapping its name in the summary header — a
+  trailing pencil marks the name as a button, shown only to the owner — which opens the same
+  `Form`-sheet shell as 새 주제 on iOS (`groups/[groupId]/rename`, Berry `저장` done button) or the
+  existing M3 rename `AlertDialog` on Android. Invite-link sharing is a native share button at the
+  header's top-right, shown only to the owner since the server allows only an owner to create an
+  invite, opening the system share sheet with the invite text.
 - Topic rows are `ActionListItem`s in a `NativeList`: tapping a row opens the topic's chatroom.
   They show the author's avatar, title, and supporting author/state/tag text. 상세 is reached from
   the chatroom title -> topic detail flow. Rows never show unread badges. The empty state appears
   only for a settled date with no topics, never beside rows.
+- Opening a topic from its announcement link in a group's main chatroom still opens topic detail,
+  but once the topic resolves it also swaps the chatroom screen beneath that detail for the
+  topic's own chatroom, so back from the opened detail goes to the topic's chatroom and then to whatever sat
+  beneath the main chatroom — the topic list when it was opened from the group home (M17). Going
+  back before the topic has loaded still returns to the main chatroom. A topic detail opened the
+  usual way, from its own chatroom's title button, is unaffected, and so is a deleted topic (no
+  chatroom to swap to).
 - Topic delete (M15) is author-only and surfaces through three entry points: the topic detail
   header menu (iOS `…` / Android ⋮), the row's existing long-press/⋮ `ActionListItem` action (iOS
   context menu, Android dropdown), and an iOS swipe (Android has no row swipe, per the
@@ -167,7 +184,9 @@ the following interop rules:
   removal animation as soon as the swipe button is tapped — before the confirmation alert settles;
   the row's `contextMenu` (long press) keeps `role: .destructive`, since a context-menu item never
   pre-removes the row. A deleted topic's detail and chatroom both show a `삭제된 주제입니다.` state
-  with no input box and no header menu; the list drops the row entirely. When the author deletes
+  with no input box and no header menu, and the chatroom's header title changes to exactly
+  `삭제된 주제`, removing the title button that otherwise opens topic detail (M17); the list drops
+  the row entirely. When the author deletes
   from the detail header menu, a successful delete navigates straight to the group's topic list
   (skipping the now-gone chatroom and detail); a failed delete stays on the detail and shows the
   error inline through the existing `TopicError`/`TOPICS_ERROR_MESSAGES` copy.
@@ -182,6 +201,11 @@ the following interop rules:
 ### Native Header, Buttons, Sheets, Rows
 
 - `HeaderActions` renders header actions per platform: native bar button items and pull-down menus through `Stack.Toolbar` on iOS (Liquid Glass capsules with the system glyph color on iOS 26), and `@expo/ui` Compose `IconButton`s plus Material 3 `DropdownMenu`s hosted in `headerRight` on Android (transparent button container, `text`-colored glyphs, icons from the Material vector drawables under `assets/icons/material/`). Header tint on both platforms is the label color, never Berry. Screens pass an action list and never draw header buttons themselves. Choices offered from a header button (그룹 추가 → 새 그룹 만들기 / 초대 코드로 가입) are menu items anchored to the button, not a bottom sheet. `HeaderIconButton` remains for in-content icon buttons. react-navigation's own theme follows the app color scheme (`resolveNavigationTheme`) with the platform canvas as `card`, so a regular-title iOS bar paints `systemBackground` in both modes instead of the library's light default.
+- A sheet's or screen's primary confirm toolbar button (`variant="done"` — the C3 input sheet's
+  submit button, used by 새 주제 and by the group-rename sheet, and a topic's edit-save button)
+  tints Berry (`colors.primary`) on iOS; this is the one exception to the label-color header-tint
+  rule above, since it marks the one primary action in that bar the same way a filled primary
+  button would (M17).
 - `NativeButton` wraps `@expo/ui`'s `Button` inside a `Host` and offers `filled`, `outlined`, and `text` variants, plus `busy`, `retryAt`, and `destructive` states.
 - In-content action sheets and pickers use `@expo/ui`'s `BottomSheet` together with `List`/`ListItem`; option labels are wrapped in `@expo/ui`'s `Text`. Header-anchored choices use the native menu above instead.
 - `GroupedSection`/`GroupedRow` render inset-grouped rows; the trailing chevron is iOS only.
@@ -318,6 +342,14 @@ the following interop rules:
 - Bubbles use elevation 0. Shape, alignment, and color provide grouping.
 - Message text is 16px equivalent at 1.55 line height.
 - Timestamp and state text are 13px equivalent.
+- A topic announcement message (the fixed prefix `새로운 주제를 올렸어요: ` followed by the topic
+  title) renders in the same bubble as any other message; only the title segment is a pressable
+  link (`accessibilityRole="link"`) to the topic's detail route. The link inherits the bubble's
+  own text color and adds an underline instead of a separate link color, so the title stays
+  legible inside an outgoing Berry bubble. Only the server's one announcement text format is
+  recognized; anything else renders as plain bubble text, and a deleted topic's announcement
+  disappears from the conversation entirely rather than falling back to the generic
+  `삭제된 메시지입니다.` placeholder (M17).
 
 ### Message Grouping, Dates, and Actions
 
@@ -353,6 +385,11 @@ the following interop rules:
 
 - Pending is `전송 중`.
 - Failed is `전송 실패` and exposes a separate retry control named `메시지 다시 보내기`.
+- An attachment upload that expired before the message could send (the server's upload-URL
+  window, about one hour) shows the fixed reason `첨부 업로드 시간이 지나 보낼 수 없습니다.` in
+  place of `전송 실패`, hides the retry control and the long-press menu's `다시 보내기` item, and
+  shows `버리기` where the retry control would be — the same discard confirmation
+  (`메시지를 버릴까요?` / `버리기`) as any other failed message the user discards (M17).
 - Sent is `전송됨`.
 - The retry control uses the existing message identity. It must not look like a new send action.
 - A repository notification that leaves state unchanged does not repeat a live announcement.
@@ -371,6 +408,15 @@ the following interop rules:
 - Tapping an attachment opens a full-screen viewer on the root Stack (`fullScreenModal`
   presentation): swiping left or right pages through that message's attachments, swiping down
   dismisses, and share/save buttons reuse the existing MD5-download-then-system-share-sheet path.
+- A chatroom's 사진·동영상 gallery — opened from a topic's gallery link, or from M17 a group's
+  그룹 정보 사진·동영상 row for its main chatroom — lists that chatroom's attachments as a fixed
+  3-column grid of square, razor-edge tiles (radius 0, unlike the rounded tiles above) with a 2dp
+  gap between them, the photo-app convention.
+- Android's topic gallery also shows a horizontal Material 3 `HorizontalMultiBrowseCarousel`
+  preview; its React Native thumbnail content gets a fixed 12dp corner radius and clip, so a
+  fully visible item matches the carousel's rounded item mask. The carousel's own item mask does
+  not reach React Native content, so an item shrinking at the scroll edge still shows square
+  corners on device — a known limitation, since `@expo/ui` exposes no API for that mask (M17).
 
 ### Voice Messages
 
