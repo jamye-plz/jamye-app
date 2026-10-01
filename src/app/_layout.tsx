@@ -25,6 +25,15 @@ function RootStack() {
             header itself) or a redirect; while that redirect is pending, or
             restore outlasts the splash, it showed a header titled "index". */}
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        {/* E7a/C13: registered here for the same reason as the C3 screens
+            below -- a signed-out guard's `<Redirect href="/sign-in" />`
+            resolves through the router the same way an external link would,
+            and `AuthScreen`/`ChatScreen` already self-set `headerShown:
+            false`/their own title via their own `Stack.Screen`, but an
+            explicit entry keeps both new routes discoverable in this one
+            manifest alongside every other route this file already lists. */}
+        <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
+        <Stack.Screen name="local-fixture" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         {/* C3 input screens. Declared here, not only from inside the
             screens: options a screen sets on itself never reach a route

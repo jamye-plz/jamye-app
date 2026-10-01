@@ -678,7 +678,9 @@ test("thin routes use real params and reject malformed arrays; fixture and signe
       <></>
     </ChatRouteGuard>,
   );
-  expect(mockRedirect).toHaveBeenCalledWith("/");
+  // E7a/task-app-auth: signed-out now redirects to the split (auth)/sign-in
+  // route instead of "/".
+  expect(mockRedirect).toHaveBeenCalledWith("/sign-in");
   mockAppMode = "fixture";
   await screen.rerender(
     <ChatRouteGuard>

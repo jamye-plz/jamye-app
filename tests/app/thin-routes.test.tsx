@@ -471,7 +471,11 @@ describe("M3-I3 actual thin Expo Router modules", () => {
     expect(screen.getByLabelText("Expo Router stack light")).toBeTruthy();
   });
 
-  test("binds the actual index route to one fixture selector and the exact local fixture notice", async () => {
+  // E7a/C13/AUTH-AC2: the fixture screen moved from `app/index.tsx` (now a
+  // pure redirector, see connected-index-route.test.tsx) to its own
+  // `/local-fixture` route -- this test now exercises that route file
+  // directly. `ChatScreen`/`chat-fixture.ts` themselves are unmodified.
+  test("binds the actual local-fixture route to one fixture selector and the exact local fixture notice", async () => {
     const chat = loadRequiredModule<NamedComponentModule>(
       "../../src/features/chat/ui/chat-screen",
       "src/features/chat/ui/chat-screen.tsx",
@@ -507,9 +511,9 @@ describe("M3-I3 actual thin Expo Router modules", () => {
     }
     const fixtureConversationId = fixture.FIXTURE_CONVERSATION_ID;
 
-    const IndexRoute = loadActualRoute(
-      "../../src/app/index",
-      "src/app/index.tsx",
+    const LocalFixtureRoute = loadActualRoute(
+      "../../src/app/local-fixture",
+      "src/app/local-fixture.tsx",
     );
     const AppProviders = loadActualAppProviders();
     const repository = {
@@ -539,7 +543,7 @@ describe("M3-I3 actual thin Expo Router modules", () => {
           next: () => ({ clientMsgId: "test-client", localId: "test-local" }),
         })}
       >
-        <IndexRoute />
+        <LocalFixtureRoute />
       </AppProviders>,
     );
 
