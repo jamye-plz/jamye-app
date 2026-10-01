@@ -7,6 +7,7 @@ import {
 } from "@expo/ui/swift-ui/modifiers";
 import { Platform } from "react-native";
 
+import { selectionAsync } from "@/shared/platform/haptics";
 import { supportsLiquidGlassButtons } from "@/shared/ui/standard-state-view.ios";
 
 import { dialDates, topicDateLabel } from "../model/topics-dates";
@@ -63,7 +64,10 @@ export function TopicDateChips({
                   ),
                 ]}
                 onPress={() => {
-                  if (!isSelected) onSelect(date);
+                  if (!isSelected) {
+                    void selectionAsync();
+                    onSelect(date);
+                  }
                 }}
               />
             );
