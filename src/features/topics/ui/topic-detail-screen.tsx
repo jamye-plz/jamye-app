@@ -25,7 +25,11 @@ import { TopicMediaGallery } from "@/features/media/ui/topic-media-gallery";
 
 import { topicDeleteConfirmCopy } from "../model/topic-delete-confirm-copy";
 import { topicCreatedAtLabel } from "../model/topics-dates";
-import { TOPICS_ERROR_MESSAGES, TopicError } from "./topic-controls";
+import {
+  TOPICS_ERROR_MESSAGES,
+  TOPICS_READ_ERROR_MESSAGES,
+  TopicError,
+} from "./topic-controls";
 import { TopicEditForm } from "./topic-edit-form";
 import type {
   TopicEditFormRef,
@@ -33,6 +37,7 @@ import type {
 } from "./topic-edit-form.types";
 import { useCloseEditOnBack } from "./use-close-edit-on-back";
 import { TopicTagsView } from "./topic-tags-view";
+import { useTopicChatBeneath } from "./use-topic-chat-beneath";
 import { useTopicScreen } from "./use-topic-screen";
 
 const AVATAR_SIZE = 44;
@@ -71,6 +76,11 @@ export function TopicDetailScreen({
     screen.scoped && state.detail.id === topicId ? state.detail : null;
   const topic = detail?.topic;
   const detailReady = detail?.status === "ready" && topic !== undefined;
+  useTopicChatBeneath(
+    groupId,
+    topicId,
+    detailReady ? topic?.chatroomId : undefined,
+  );
   const canEditBody = detailReady && state.permissions.canEdit;
   const canEditTags = detailReady && state.permissions.canManageTags;
   const canEditAnything = canEditBody || canEditTags;
@@ -184,6 +194,7 @@ export function TopicDetailScreen({
               accessibilityLabel="저장"
               disabled={!canSave || busy}
               onPress={handleSave}
+              tintColor={colors.primary}
               variant="done"
             >
               저장
@@ -252,7 +263,7 @@ export function TopicDetailScreen({
         ) : !screen.ready ? (
           <AppText color={colors.textMuted}>주제 저장소 준비 중…</AppText>
         ) : state.accessLost ? (
-          <TopicError error={state.error} />
+          <TopicError error={state.error} variant="read" />
         ) : detail?.status === "deleted" ? (
           // M15/AC2/AC6/E5: topic.deleted or a topic-detail 404 either way;
           // back stays enabled (the nav stack, untouched), any composer is
@@ -281,7 +292,9 @@ export function TopicDetailScreen({
                 },
               ]}
               description={
-                detail.error ? TOPICS_ERROR_MESSAGES[detail.error] : undefined
+                detail.error
+                  ? TOPICS_READ_ERROR_MESSAGES[detail.error]
+                  : undefined
               }
               kind="error"
               systemImage="error"
@@ -291,7 +304,7 @@ export function TopicDetailScreen({
           </Host>
         ) : topic && store && detail ? (
           <>
-            <TopicError error={detail.error} />
+            <TopicError error={detail.error} variant="read" />
             <TopicError error={deleteMutationError} />
             {editing ? (
               <TopicEditForm

@@ -4,8 +4,9 @@ import { AppState } from "react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { TopicsProvider } from "@/features/topics/model/topics-provider";
 import { TopicDetailScreen } from "@/features/topics/ui/topic-detail-screen";
+import { withTopicChatBeneath } from "@/features/topics/ui/use-topic-chat-beneath";
 import { authorize, topicsHarness } from "../topics-harness";
-import { groupId, otherId, topicId } from "../topics-fixtures";
+import { groupId, otherId, roomId, topicId } from "../topics-fixtures";
 import { TopicsApiError } from "@/features/topics/data/topics-api";
 import type { HeaderActionsProps } from "@/shared/ui/header-actions.types";
 
@@ -145,6 +146,9 @@ const mockCloseRooms = jest.fn();
 // author delete now triggers (real `showGroupHome` -- not mocked -- calls
 // `router.dismissTo(...)`, so this is the one router method it needs).
 const mockDismissTo = jest.fn();
+// M17/U13: the root stack as `useTopicChatBeneath` reads and resets it.
+const mockNavigationReset = jest.fn();
+let mockNavigationState: Readonly<Record<string, unknown>> | undefined;
 jest.mock("expo-router", () => ({
   Stack: {
     Screen: (props: { options?: Record<string, unknown> }) => {
@@ -158,6 +162,10 @@ jest.mock("expo-router", () => ({
       .createStackToolbarMock(),
   },
   useLocalSearchParams: () => ({}),
+  useNavigation: () => ({
+    getState: () => mockNavigationState,
+    reset: mockNavigationReset,
+  }),
   useRouter: () => ({
     dismissTo: mockDismissTo,
     push: jest.fn(),
@@ -249,6 +257,7 @@ describe("TopicDetailScreen article structure (D1) and edit-mode header (D2)", (
   beforeEach(() => {
     jest.clearAllMocks();
     lastStackScreenOptions = undefined;
+    mockNavigationState = undefined;
     AppState.currentState = "active";
     mockHeaderActionsCalls.length = 0;
   });
@@ -280,6 +289,94 @@ describe("TopicDetailScreen article structure (D1) and edit-mode header (D2)", (
     expect(f.screen.getByText("오늘 이야기")).toBeTruthy();
     expect(f.screen.getByText("작성자")).toBeTruthy();
     expect(f.screen.getByText("#여행")).toBeTruthy();
+  });
+
+  describe("M17/U13: back from a topic opened from its announcement", () => {
+    const CHATROOM = "groups/[groupId]/chatrooms/[chatroomId]";
+    const TOPIC = "groups/[groupId]/topics/[topicId]";
+    function rootStack(beneath: Readonly<Record<string, unknown>>) {
+      return {
+        index: 2,
+        key: "root",
+        routeNames: ["(tabs)", CHATROOM, TOPIC],
+        routes: [
+          { key: "tabs", name: "(tabs)" },
+          { key: "beneath", ...beneath },
+          { key: "detail", name: TOPIC, params: { groupId, topicId } },
+        ],
+        stale: false,
+        type: "stack",
+      };
+    }
+
+    test("swaps the group's main chat beneath the detail for the topic's own chat, keeping every other route", async () => {
+      mockNavigationState = rootStack({
+        name: CHATROOM,
+        params: { chatroomId: otherId, groupId },
+      });
+      const f = await setup();
+      await f.screen.findByText("오늘 이야기");
+      expect(mockNavigationReset).toHaveBeenCalledTimes(1);
+      expect(mockNavigationReset.mock.calls[0]![0]).toEqual({
+        ...rootStack({}),
+        routes: [
+          { key: "tabs", name: "(tabs)" },
+          { name: CHATROOM, params: { chatroomId: roomId, groupId } },
+          { key: "detail", name: TOPIC, params: { groupId, topicId } },
+        ],
+      });
+    });
+
+    test("leaves the stack alone when the topic was opened from its own chat", async () => {
+      mockNavigationState = rootStack({
+        name: CHATROOM,
+        params: { chatroomId: roomId, groupId },
+      });
+      const f = await setup();
+      await f.screen.findByText("오늘 이야기");
+      expect(mockNavigationReset).not.toHaveBeenCalled();
+    });
+
+    test("withTopicChatBeneath only swaps a same-group chatroom directly beneath the top-most matching detail", () => {
+      const target = { chatroomId: roomId, groupId, topicId };
+      const detail = { key: "d", name: TOPIC, params: { groupId, topicId } };
+      const otherGroup = "77777777-7777-4777-8777-777777777777";
+      expect(withTopicChatBeneath([detail], target)).toBeNull();
+      expect(
+        withTopicChatBeneath([{ key: "t", name: "(tabs)" }, detail], target),
+      ).toBeNull();
+      expect(
+        withTopicChatBeneath(
+          [
+            {
+              key: "c",
+              name: CHATROOM,
+              params: { chatroomId: otherId, groupId: otherGroup },
+            },
+            detail,
+          ],
+          target,
+        ),
+      ).toBeNull();
+      expect(
+        withTopicChatBeneath(
+          [
+            {
+              key: "c",
+              name: CHATROOM,
+              params: { chatroomId: otherId, groupId },
+            },
+            detail,
+            { key: "g", name: "groups/[groupId]/gallery", params: { groupId } },
+          ],
+          target,
+        ),
+      ).toEqual([
+        { name: CHATROOM, params: { chatroomId: roomId, groupId } },
+        detail,
+        { key: "g", name: "groups/[groupId]/gallery", params: { groupId } },
+      ]);
+    });
   });
 
   test("no tags renders 태그 없음 instead of an empty chip row", async () => {

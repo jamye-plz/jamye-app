@@ -1,8 +1,11 @@
 import { InlineMessage } from "@/shared/ui/inline-message";
 import type { TopicsError } from "../model/topics-state";
 
-/** Exported so `topics-screen.tsx` can reuse the same copy for the C1
- * `StandardStateView` error description and the Android Snackbar message. */
+/** Exported so `topics-screen.tsx`/`topic-detail-screen.tsx` reuse the same
+ * copy for the C1 `StandardStateView` error description and the Android
+ * Snackbar message. Write (create/edit/delete) failure copy only -- read
+ * failures (list refresh, detail fetch) use `TOPICS_READ_ERROR_MESSAGES`
+ * below (E6c/C7/GROUPS-AC2). */
 export const TOPICS_ERROR_MESSAGES: Record<TopicsError, string> = {
   network:
     "응답을 확인하지 못했습니다. 입력을 유지했으니 연결 상태를 확인한 뒤 같은 요청을 재시도해 주세요.",
@@ -19,8 +22,29 @@ export const TOPICS_ERROR_MESSAGES: Record<TopicsError, string> = {
   storage: "주제를 저장소에서 처리하지 못했습니다. 다시 불러와 주세요.",
 };
 
-export function TopicError({ error }: Readonly<{ error: TopicsError | null }>) {
-  return error ? (
-    <InlineMessage kind="error" message={TOPICS_ERROR_MESSAGES[error]} />
-  ) : null;
+/**
+ * E6c/C7/GROUPS-AC2: read paths (topic list refresh, topic detail fetch)
+ * show copy that doesn't claim "입력을 유지했으니" -- a read has no pending
+ * input to keep. Only `network` differs from `TOPICS_ERROR_MESSAGES`; every
+ * other error kind keeps the exact same wording for both read and write.
+ */
+export const TOPICS_READ_ERROR_MESSAGES: Record<TopicsError, string> = {
+  ...TOPICS_ERROR_MESSAGES,
+  network: "주제를 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.",
+};
+
+export function TopicError({
+  error,
+  variant = "write",
+}: Readonly<{
+  error: TopicsError | null;
+  /** Selects which copy map to read from; defaults to the pre-existing
+   * write copy so every call site keeps its current behavior unless it
+   * opts into `"read"` (E6c/C7). */
+  variant?: "read" | "write";
+}>) {
+  if (!error) return null;
+  const messages =
+    variant === "read" ? TOPICS_READ_ERROR_MESSAGES : TOPICS_ERROR_MESSAGES;
+  return <InlineMessage kind="error" message={messages[error]} />;
 }
