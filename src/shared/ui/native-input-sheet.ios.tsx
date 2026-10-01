@@ -10,6 +10,8 @@ import { disabled } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
 import { useEffect } from "react";
 
+import { useAppTheme } from "@/core/theme/theme-provider";
+
 import type { NativeInputShellProps } from "./native-input-shell.types";
 
 export type * from "./native-input-shell.types";
@@ -41,6 +43,7 @@ export function NativeInputSheet({
   testID,
   title,
 }: NativeInputShellProps) {
+  const { colors } = useAppTheme();
   const disableSubmit = Boolean(submitDisabled) || Boolean(busy);
   const footerText = errorText ?? helperText;
   const text = useNativeState(initialValue ?? "");
@@ -64,6 +67,7 @@ export function NativeInputSheet({
           accessibilityLabel={submitLabel}
           disabled={disableSubmit}
           onPress={onSubmit}
+          tintColor={colors.primary}
           variant="done"
         >
           {submitLabel}
