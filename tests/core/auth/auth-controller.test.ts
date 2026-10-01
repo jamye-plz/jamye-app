@@ -774,6 +774,113 @@ describe("auth session controller", () => {
     expect(f.controller.getState().retryAction).toBeUndefined();
     expect(f.api.profile).toHaveBeenCalledTimes(1);
   });
+
+  // R3 (REFINE, VERIFY V8): session-persistence.ts's two SessionStore
+  // failure catches, pinned directly from `restore()` -- not via a rotation
+  // or an already-expired refresh token, which existing tests above already
+  // cover for the *success*-then-clear path and the refresh-expiry path
+  // respectively.
+  test("SessionStore.save rejecting during restore clears the session and surfaces a sign-in-again message", async () => {
+    const f = fixture({
+      store: {
+        load: jest.fn(async () => pair),
+        save: jest.fn(async () => {
+          throw new Error("disk full");
+        }),
+      },
+    });
+    await f.controller.restore();
+    expect(f.store.clear).toHaveBeenCalled();
+    expect(f.controller.getState()).toEqual({
+      status: "signed-out",
+      profile: null,
+      message: "세션을 안전하게 저장할 수 없습니다. 다시 로그인해 주세요.",
+    });
+  });
+
+  test("SessionStore.clear also rejecting after a save failure surfaces the clear-failure message instead", async () => {
+    const f = fixture({
+      store: {
+        load: jest.fn(async () => pair),
+        save: jest.fn(async () => {
+          throw new Error("disk full");
+        }),
+        clear: jest.fn(async () => {
+          throw new Error("locked");
+        }),
+      },
+    });
+    await f.controller.restore();
+    expect(f.store.save).toHaveBeenCalled();
+    expect(f.store.clear).toHaveBeenCalled();
+    expect(f.controller.getState()).toEqual({
+      status: "error",
+      profile: null,
+      message: "보안 저장소에서 세션을 지울 수 없습니다. 다시 시도해 주세요.",
+      retryAction: "logout",
+    });
+  });
+
+  // R3 (REFINE, VERIFY V8): oauth-sign-in.ts's early-return branches,
+  // reachable through the public signIn() API without any dispose/
+  // supersede harness.
+  test("an already-expired PKCE attempt by the time the browser returns is a failed login, not an exchange", async () => {
+    const f = fixture({
+      api: {
+        authorize: jest.fn(async () => ({
+          authorizationUrl: "https://kauth.kakao.com/oauth/authorize",
+          state,
+          expiresInSeconds: -1,
+        })),
+      },
+    });
+    await f.controller.signIn(
+      "kakao",
+      "https://api.example/callback",
+      "jamye://oauth/kakao",
+    );
+    expect(f.api.exchange).not.toHaveBeenCalled();
+    expect(f.controller.getState()).toMatchObject({
+      status: "error",
+      message: "로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
+    });
+  });
+
+  test("a callback state that does not match the PKCE attempt's state is a failed login, not an exchange", async () => {
+    const f = fixture();
+    f.openBrowser.mockResolvedValue({
+      type: "success",
+      url: `jamye://oauth/kakao?code=code&state=${"t".repeat(43)}`,
+    });
+    await f.controller.signIn(
+      "kakao",
+      "https://api.example/callback",
+      "jamye://oauth/kakao",
+    );
+    expect(f.api.exchange).not.toHaveBeenCalled();
+    expect(f.controller.getState()).toMatchObject({
+      status: "error",
+      message: "로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
+    });
+  });
+
+  test("a non-access_denied provider error shows the generic cancelled-login message, not the retryable error", async () => {
+    const f = fixture();
+    f.openBrowser.mockResolvedValue({
+      type: "success",
+      url: `jamye://oauth/kakao?error=server_error&state=${state}`,
+    });
+    await f.controller.signIn(
+      "kakao",
+      "https://api.example/callback",
+      "jamye://oauth/kakao",
+    );
+    expect(f.api.exchange).not.toHaveBeenCalled();
+    expect(f.controller.getState()).toMatchObject({
+      status: "signed-out",
+      message: "로그인을 완료할 수 없습니다.",
+    });
+  });
 });
 
 describe("authorizedRequest (M7 narrow session-owned authorized executor)", () => {
@@ -1372,5 +1479,120 @@ describe("APPCON-AC3/AC4/AC6: signInWithApple (A6)", () => {
       OAUTH_PROVIDERS: readonly string[];
     }>("@/core/auth/types");
     expect(OAUTH_PROVIDERS).toEqual(["kakao", "google"]);
+  });
+
+  // R3 (REFINE, VERIFY V8): apple-sign-in.ts's generation-guard early
+  // returns around the A6 exchange, both the plain superseded-return and
+  // its catch-side twin, reached through the public signInWithApple() API.
+  test.each([
+    ["resolves", false],
+    ["rejects", true],
+  ])(
+    "a disposed generation's in-flight Apple sign-in never republishes once A6 belatedly %s",
+    async (_label, shouldReject) => {
+      const started = deferred();
+      const release = deferred();
+      const f = appleFixture({
+        api: {
+          exchangeApple: jest.fn(async () => {
+            started.resolve();
+            await release.promise;
+            if (shouldReject) throw new Error("late network failure");
+            return { ...pair, accountRestored: false };
+          }),
+        },
+      });
+      const pending = f.controller.signInWithApple();
+      await started.promise;
+      f.controller.dispose();
+      const stateAfterDispose = f.controller.getState();
+      release.resolve();
+      await pending;
+      expect(f.controller.getState()).toBe(stateAfterDispose);
+    },
+  );
+});
+
+/**
+ * C19/F6/AUTH-AC4: characterization tests pinning current behavior at the
+ * specific lines/branches the split (F6) must preserve, added *before* that
+ * split per the plan's characterization-first order -- see
+ * `api_contracts.F6_auth_controller_modules.characterization_tests_first`.
+ */
+describe("auth session controller (F6 characterization, AUTH-AC4)", () => {
+  test(":179 getGeneration() reflects the current session epoch, starting at 0 before any operation", async () => {
+    const f = fixture({ store: { load: jest.fn(async () => pair) } });
+    expect(f.controller.getGeneration()).toBe(0);
+    await f.controller.restore();
+    expect(f.controller.getGeneration()).toBe(1);
+    await f.controller.restore();
+    expect(f.controller.getGeneration()).toBe(2);
+  });
+
+  test(":183 the subscribe() unsubscribe function stops further publishes reaching that listener", async () => {
+    const f = fixture({ store: { load: jest.fn(async () => null) } });
+    const listener = jest.fn();
+    const unsubscribe = f.controller.subscribe(listener);
+    await f.controller.restore();
+    expect(listener).toHaveBeenCalled();
+    listener.mockClear();
+    unsubscribe();
+    await f.controller.restore();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  test(":448 a refresh whose new tokens fail an unauthorized profile fetch clears the session with the expired-session message", async () => {
+    const f = fixture({ store: { load: jest.fn(async () => pair) } });
+    await f.controller.restore();
+    expect(f.controller.getState().status).toBe("signed-in");
+    f.api.profile.mockRejectedValueOnce(new AuthApiError(401, "unauthorized"));
+    await f.controller.refresh();
+    expect(f.api.refresh).toHaveBeenCalledTimes(1);
+    expect(f.store.clear).toHaveBeenCalled();
+    expect(f.controller.getState()).toEqual({
+      status: "signed-out",
+      profile: null,
+      message: "세션이 만료되었습니다. 다시 로그인해 주세요.",
+    });
+  });
+
+  test(":578-581 retryProfile calls refresh() (not the generic retryable error) on an unauthorized profile fetch", async () => {
+    const f = fixture({ store: { load: jest.fn(async () => pair) } });
+    await f.controller.restore();
+    f.api.profile.mockRejectedValueOnce(new AuthApiError(401, "unauthorized"));
+    await f.controller.retryProfile();
+    expect(f.api.refresh).toHaveBeenCalledTimes(1);
+    // The refresh triggered above completes normally (default fixture
+    // mocks), landing back on signed-in -- confirming the branch really is
+    // "await this.refresh()", not the sibling retryableError() branch (which
+    // an existing non-401 test elsewhere in this file already pins).
+    expect(f.controller.getState().status).toBe("signed-in");
+  });
+
+  test("superseded-generation guard: a disposed controller's late in-flight refresh never republishes state", async () => {
+    const release = deferred();
+    const started = deferred();
+    const f = fixture({
+      store: { load: jest.fn(async () => pair) },
+      api: {
+        refresh: jest.fn(async () => {
+          started.resolve();
+          await release.promise;
+          return { ...pair, accessToken: "stale-refresh-access" };
+        }),
+      },
+    });
+    await f.controller.restore();
+    f.api.profile.mockClear();
+    const pending = f.controller.refresh();
+    await started.promise;
+    f.controller.dispose();
+    const stateAfterDispose = f.controller.getState();
+    release.resolve();
+    await pending;
+    // The generation guard right after `deps.api.refresh()` resolves must
+    // stop this stale flight before it ever calls persistThenProfile again.
+    expect(f.api.profile).not.toHaveBeenCalled();
+    expect(f.controller.getState()).toBe(stateAfterDispose);
   });
 });
