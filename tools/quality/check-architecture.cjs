@@ -522,6 +522,11 @@ const M11_DATABASE_SOURCE_FILES = Object.freeze([
 const M15_DATABASE_SOURCE_FILES = Object.freeze([
   "src/core/database/account/migrations/006-connected-chat-deletions.ts",
 ]);
+// M17 round 1 (task-app-chat, E2/C2/U2): account DB v7 media-expired
+// error-code migration.
+const M17_DATABASE_SOURCE_FILES = Object.freeze([
+  "src/core/database/account/migrations/007-media-expired-error-code.ts",
+]);
 const M11_TEST_PATHS = Object.freeze([
   "tests/core/contracts/server-media-validators.test.ts",
   "tests/core/public-media-env.test.ts",
@@ -659,6 +664,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = Object.freeze([
   ...M10_DATABASE_SOURCE_FILES,
   ...M11_DATABASE_SOURCE_FILES,
   ...M15_DATABASE_SOURCE_FILES,
+  ...M17_DATABASE_SOURCE_FILES,
 ]);
 
 const M5_DESIGN_ARTIFACT_PATHS = Object.freeze([
@@ -869,6 +875,31 @@ const M16_TEST_PATHS = Object.freeze([
   "tests/features/auth/apple-login-button.ios.test.tsx",
   "tests/features/auth/apple-login-button.android.test.tsx",
 ]);
+// M17 round 1 (task-app-auth, E7a/C13/AUTH-AC1-AC3): the dedicated
+// `(auth)/sign-in` route split out of `app/index.tsx`. Later M17 tasks
+// append their own new test file paths here (append-only, see
+// architecture.shared_file_owner_rules in the plan).
+// task-app-groups (F5/C18/GROUPS-AC8): the new direct unit test for the
+// shared native-input-shell test mock.
+// task-app-chat (E1/E2/E6a, CHAT-AC1/AC2/AC3/AC4/AC6): topic-announcement
+// parser, the deleted-topic header regression, and the dedicated account DB
+// v7 migration test.
+const M17_TEST_PATHS = Object.freeze([
+  "tests/app/sign-in-route.test.tsx",
+  "tests/support/native-input-shell-mock.test.tsx",
+  "tests/features/chat/model/topic-announcement.test.ts",
+  "tests/features/chat/ui/connected-chat-screen.test.tsx",
+  "tests/core/database/account/migrations.test.ts",
+  // task-app-groups (E5/C5/U3/GROUPS-AC1): the realtime
+  // message.created/topic.created + read-marker-success badge-refresh bridge.
+  "tests/features/notifications/ui/notifications-realtime-refresh-bridge.test.tsx",
+  // task-app-groups (E7d/U6/GROUPS-AC5): the group info gallery route --
+  // resolves chatroomId from the route param, falling back to a cache-only
+  // lookup against GroupsProvider's open detail / cached list.
+  "tests/app/group-gallery-route.test.tsx",
+  // M17 device follow-up (U11): the iOS I3 rename sheet screen.
+  "tests/features/groups/ui/group-rename-screen.test.tsx",
+]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
   ...new Set([
     ...ACTIVE_M3_TEST_PATHS,
@@ -888,6 +919,7 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
     ...M14_ROUND2_TEST_PATHS,
     ...M15_TEST_PATHS,
     ...M16_TEST_PATHS,
+    ...M17_TEST_PATHS,
     "tests/quality/dependency-security.test.ts",
     "tests/quality/image-size-security.test.ts",
     "tests/core/theme/tokens.test.ts",
@@ -1305,6 +1337,24 @@ const REQUIRED_ROUTE_PERSISTENCE_MODULES = Object.freeze([
   "expo-clipboard",
 ]);
 
+// E7c/C9/GROUPS-AC10: eslint.config.js's single `no-restricted-syntax`
+// block rejects every static, `require`, and dynamic `expo-haptics` import in
+// src, exempting only the chat platform wrapper and the shared platform
+// haptics module.
+const HAPTICS_ALLOWED_FILES = Object.freeze([
+  "src/features/chat/platform/**",
+  "src/shared/platform/haptics.ios.ts",
+]);
+const HAPTICS_RESTRICTED_FILES_GLOBS = Object.freeze([
+  "src/**/*.ts",
+  "src/**/*.tsx",
+]);
+const HAPTICS_RESTRICTED_SELECTORS = Object.freeze([
+  'ImportDeclaration[source.value="expo-haptics"]',
+  'CallExpression[callee.name="require"][arguments.0.value="expo-haptics"]',
+  'ImportExpression[source.value="expo-haptics"]',
+]);
+
 const REQUIRED_SCREEN_FILES_GLOBS = Object.freeze([
   "src/features/**/ui/**/*.ts",
   "src/features/**/ui/**/*.tsx",
@@ -1582,9 +1632,9 @@ const M14_ROUND1_AUTHORED_FILES = Object.freeze([
   "tests/features/groups/ui/group-list-screen.android.test.tsx",
   // task-app-groups (I3): the rename dialog's platform split (tested via
   // tests/features/groups/ui/group-detail.test.tsx, no dedicated test file).
+  // The iOS file was removed in M17 (see AUTHORIZED_DELETE_PATHS).
   "src/features/groups/ui/group-rename-dialog.types.ts",
   "src/features/groups/ui/group-rename-dialog.tsx",
-  "src/features/groups/ui/group-rename-dialog.ios.tsx",
   "src/features/groups/ui/group-rename-dialog.android.tsx",
   // task-app-topics (C1/T1-T7/D1-D3/D6-D7/E4/E5/E11): topic list date chips,
   // integrated edit screen, root-Stack topic detail route, chat header title
@@ -1622,7 +1672,6 @@ const M14_ROUND1_AUTHORED_FILES = Object.freeze([
   // VERIFY Step 7 follow-up: https-only avatar URL guard shared by the
   // platform avatar variants.
   "src/shared/ui/avatar.shared.ts",
-  "src/features/groups/ui/group-rename-dialog.shared.ts",
   "src/shared/ui/native-input-shell.shared.tsx",
   // Coverage backfill: see the matching comment in M14_ROUND1_TEST_PATHS
   // above for why these two test files were added.
@@ -1917,6 +1966,76 @@ const M16_AUTHORED_FILES = Object.freeze([
   "src/features/home/ui/account-screen.constants.ts",
 ]);
 
+// M17 round 1 (task-app-auth, plan api_contracts.E7a_auth_routing /
+// F6_auth_controller_modules): the login screen's own route (split out of
+// `app/index.tsx`, AUTH-AC1) and the local-fixture mode's own route
+// (AUTH-AC2). `src/core/auth/auth-controller.ts` split (F6/AUTH-AC5) is
+// tracked as remaining work in this round's result report -- its planned new
+// module files are not created yet, so they are not listed here. Later M17
+// tasks append their own new paths here (append-only).
+const M17_AUTHORED_FILES = Object.freeze([
+  "src/app/(auth)/sign-in.tsx",
+  "src/app/local-fixture.tsx",
+  // task-app-groups (E7c/C9/GROUPS-AC4/AC10): the new shared platform
+  // haptics module -- `haptics.ios.ts` is the real `expo-haptics` wrapper,
+  // `haptics.android.ts` is its no-op sibling, `haptics.ts` is the tsc
+  // bare-import fallback (same pattern as `player.ts`).
+  "src/shared/platform/haptics.ios.ts",
+  "src/shared/platform/haptics.android.ts",
+  "src/shared/platform/haptics.ts",
+  // task-app-chat (E1/C1/U4, E2/C2/U2): the announcement parser, the new
+  // account DB v7 migration, and its bun:sqlite migration scenario script
+  // (not itself a *.test.* file, so it is not covered by M17_TEST_PATHS).
+  "src/features/chat/model/topic-announcement.ts",
+  "src/core/database/account/migrations/007-media-expired-error-code.ts",
+  "tests/core/database/account/media-expired-error-code-migration.bun.ts",
+  // task-app-media (E7e/U7, MEDIA-AC3): the M3 carousel's real Compose
+  // implementation, moved out of the bare `topic-media-carousel-row.tsx`
+  // (which is now a tsc-only re-export shim, not itself a new path).
+  "src/features/media/ui/topic-media-carousel-row.android.tsx",
+  // task-app-groups (E5/C5/U3/GROUPS-AC1): the realtime
+  // message.created/topic.created + read-marker-success badge-refresh bridge.
+  "src/features/notifications/ui/notifications-realtime-refresh-bridge.tsx",
+  // task-app-auth r2 (F6/C19/U9, AUTH-AC5): the auth-controller.ts module
+  // split -- generation/epoch guard, secure-storage persistence, the
+  // refresh single-flight, the two sign-in orchestrations, and the Apple
+  // full-name helper, each moved out of auth-controller.ts unchanged.
+  "src/core/auth/auth-generation.ts",
+  "src/core/auth/session-persistence.ts",
+  "src/core/auth/refresh-single-flight.ts",
+  "src/core/auth/oauth-sign-in.ts",
+  "src/core/auth/apple-sign-in.ts",
+  "src/core/auth/apple-full-name.ts",
+  // task-app-groups (E7d/U6/GROUPS-AC5): the group info "사진·동영상" row
+  // destination -- reuses D4's ChatroomMediaGridScreen against
+  // Group.mainChatroomId (route param first, then a cache-only fallback).
+  "src/app/groups/[groupId]/gallery.tsx",
+  // task-app-groups part 2a-2 (E7g/C11): the group info screen split --
+  // `group-detail-screen.shared.ts` is the `useGroupDetailScreen` hook
+  // (state/effects/handlers shared by both platform files), and
+  // `group-detail-screen.ios.tsx` is the new native Form/Section list
+  // (`group-detail-screen.tsx` stays the Android/fallback screen, not a new
+  // path). Both also carry the E7d/U6/GROUPS-AC5 "사진·동영상" entry row.
+  "src/features/groups/ui/group-detail-screen.shared.ts",
+  "src/features/groups/ui/group-detail-screen.ios.tsx",
+  // M17 device follow-up (U11): the iOS I3 rename sheet -- the C3 `Form`
+  // sheet route (same shell as 새 주제) that replaces the swift-ui `Alert`
+  // prompt, presented from `group-detail-screen.ios.tsx`.
+  "src/app/groups/[groupId]/rename.tsx",
+  "src/features/groups/ui/group-rename-screen.tsx",
+  // M17 device follow-up (U12): the group info header's group name, which
+  // is also the owner's rename entry point (trailing pencil) on both
+  // platforms, replacing the 관리 section's 그룹 이름 row.
+  "src/features/groups/ui/group-name-heading.tsx",
+  // M17 device follow-up (U13): a topic opened from its announcement in the
+  // main chat gets the topic's own chat swapped in beneath its detail, so
+  // back returns to that chat and then to the topic list.
+  "src/features/topics/ui/use-topic-chat-beneath.ts",
+  // task-docs (DOCS-AC4): the M17 round 1 evidence record.
+  "docs/evidence/M17.md",
+  ...M17_TEST_PATHS,
+]);
+
 const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   "app.config.ts",
   ".env.example",
@@ -2058,6 +2177,7 @@ const AUTHORIZED_CREATE_OR_REPLACE_PATHS = Object.freeze([
   ...M14_ROUND2_AUTHORED_FILES,
   ...M15_AUTHORED_FILES,
   ...M16_AUTHORED_FILES,
+  ...M17_AUTHORED_FILES,
   "docs/evidence/M3.md",
   "docs/evidence/M4.md",
 ]);
@@ -2149,6 +2269,14 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
   "src/features/topics/ui/topic-edit-button.ios.tsx",
   "src/features/topics/ui/topic-edit-button.android.tsx",
   "tests/features/topics/ui/topic-edit-button.test.tsx",
+  // M17 device follow-up (U11): the iOS I3 rename moved from the swift-ui
+  // `Alert` + `TextField` prompt to the `groups/[groupId]/rename` C3 sheet
+  // (see M17_AUTHORED_FILES), so the iOS dialog file has no importer left.
+  "src/features/groups/ui/group-rename-dialog.ios.tsx",
+  // M17 REFINE: once U11 moved iOS's I3 rename to the sheet route above,
+  // group-rename-dialog.shared.ts's useResyncOnPresent had one caller left,
+  // group-rename-dialog.android.tsx, so it was inlined there.
+  "src/features/groups/ui/group-rename-dialog.shared.ts",
 ]);
 
 const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
@@ -2740,6 +2868,29 @@ function checkM5Foundation(snapshot, violations) {
   }
 }
 
+function checkHapticsImportScope(snapshot, violations) {
+  const eslintConfig = isPlainObject(snapshot && snapshot.eslintConfig)
+    ? snapshot.eslintConfig
+    : {};
+  const haptics = isPlainObject(eslintConfig.hapticsRestriction)
+    ? eslintConfig.hapticsRestriction
+    : {};
+
+  if (
+    haptics.entryCount !== 1 ||
+    haptics.severity !== "error" ||
+    !sameStringSet(haptics.files, HAPTICS_RESTRICTED_FILES_GLOBS) ||
+    !sameStringSet(haptics.ignores, HAPTICS_ALLOWED_FILES) ||
+    !sameStringSet(haptics.selectors, HAPTICS_RESTRICTED_SELECTORS)
+  ) {
+    pushViolation(
+      violations,
+      "haptics-import-scope",
+      "eslint.config.js must reject static, require, and dynamic expo-haptics imports across src/**/*.{ts,tsx} in its only no-restricted-syntax block, exempting exactly src/features/chat/platform/** and src/shared/platform/haptics.ios.ts (E7c/C9/GROUPS-AC10).",
+    );
+  }
+}
+
 function checkLintTransportBinding(snapshot, violations) {
   const eslintConfig = isPlainObject(snapshot && snapshot.eslintConfig)
     ? snapshot.eslintConfig
@@ -3295,6 +3446,7 @@ function checkArchitecture(snapshot) {
   checkM6Foundation(snapshot, violations);
   checkM5Foundation(snapshot, violations);
   checkLintTransportBinding(snapshot, violations);
+  checkHapticsImportScope(snapshot, violations);
   checkExpoBasePreservation(snapshot, violations);
   checkNixNativeToolchain(snapshot, violations);
   checkGeneratedNativeOutput(snapshot, violations);
@@ -3352,7 +3504,8 @@ function discoverM5AuthoredInventory(root, { fs, path }) {
         !M9_AUTHORED_FILES.includes(file) &&
         !M14_ROUND1_AUTHORED_FILES.includes(file) &&
         !M14_ROUND2_AUTHORED_FILES.includes(file) &&
-        !M15_AUTHORED_FILES.includes(file),
+        !M15_AUTHORED_FILES.includes(file) &&
+        !M17_AUTHORED_FILES.includes(file),
     ),
   ].sort();
 }
@@ -3377,7 +3530,9 @@ function discoverM5TestInventory(root, { fs, path }) {
         !M14_ROUND2_AUTHORED_FILES.includes(file) &&
         !M14_ROUND2_TEST_PATHS.includes(file) &&
         !M15_AUTHORED_FILES.includes(file) &&
-        !M15_TEST_PATHS.includes(file),
+        !M15_TEST_PATHS.includes(file) &&
+        !M17_AUTHORED_FILES.includes(file) &&
+        !M17_TEST_PATHS.includes(file),
     ),
   ].sort();
 }
@@ -3844,6 +3999,7 @@ function introspectEslintConfig(root, { fs, path }) {
       screenOverride: {},
       routeOverride: {},
       m5FeatureDataOverride: {},
+      hapticsRestriction: extractHapticsRestriction([]),
     };
   }
 
@@ -3966,6 +4122,35 @@ function introspectEslintConfig(root, { fs, path }) {
         ? [M5_REPOSITORY_PORT_PATTERN]
         : [],
     },
+    hapticsRestriction: extractHapticsRestriction(configArray),
+  };
+}
+
+// Flat config replaces (not merges) a rule per file with the last matching
+// entry, so the haptics restriction must be the only `no-restricted-syntax`
+// entry; `entryCount` exposes any second one.
+function extractHapticsRestriction(configArray) {
+  const entries = Array.isArray(configArray)
+    ? configArray.filter(
+        (entry) =>
+          isPlainObject(entry) &&
+          isPlainObject(entry.rules) &&
+          "no-restricted-syntax" in entry.rules,
+      )
+    : [];
+  const entry = entries.length === 1 ? entries[0] : undefined;
+  const rule = entry ? entry.rules["no-restricted-syntax"] : undefined;
+  return {
+    entryCount: entries.length,
+    files: entry && Array.isArray(entry.files) ? entry.files : [],
+    ignores: entry && Array.isArray(entry.ignores) ? entry.ignores : [],
+    severity: Array.isArray(rule) ? rule[0] : rule,
+    selectors: Array.isArray(rule)
+      ? rule
+          .slice(1)
+          .filter(isPlainObject)
+          .map((option) => option.selector)
+      : [],
   };
 }
 
