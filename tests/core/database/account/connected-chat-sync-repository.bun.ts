@@ -182,14 +182,14 @@ async function migrateWithoutLosingV2Rows() {
   });
 
   await runMigrations(adapter, accountMigrations);
-  // M15/task-14 (AC1): the full registry's latest version is now 6 (005 +
-  // 006), not 5 -- this is an "after all migrations" assertion, not a pin
-  // on 005 specifically.
-  assert.equal(database.query("PRAGMA user_version").get().user_version, 6);
+  // task-app-chat (E2/C2/U2): the full registry's latest version is now 7
+  // (005 + 006 + 007), not 5 -- this is an "after all migrations"
+  // assertion, not a pin on 005 specifically.
+  assert.equal(database.query("PRAGMA user_version").get().user_version, 7);
   assert.equal(
     database.query("SELECT schema_version FROM scope_metadata").get()
       .schema_version,
-    6,
+    7,
   );
   assert.deepEqual(
     database

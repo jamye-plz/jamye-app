@@ -2,6 +2,7 @@ import type { Message as RepositoryMessage } from "@/core/database/repositories/
 import type {
   ConnectedChatMedia,
   ConnectedPendingAttachment,
+  ConnectedSendErrorCode,
 } from "@/core/database/account/connected-chat-types";
 
 /** Presentation-only fields shared by the fixture and REST conversations. `media` is
@@ -28,6 +29,9 @@ export type ChatMessage = Pick<
      * never carries a deletion. Mirrors `ConnectedChatMessage.deletedAtMs`;
      * the connected/REST mapping site must copy it through unchanged. */
     deletedAtMs?: number | null;
+    /** E2/CHAT-AC3: mirrors `ConnectedChatMessage.errorCode` -- the backing
+     * outbox command's current failure reason, when known. */
+    errorCode?: ConnectedSendErrorCode | null;
     media?: readonly ConnectedChatMedia[];
     pendingMedia?: readonly ConnectedPendingAttachment[];
   }>;

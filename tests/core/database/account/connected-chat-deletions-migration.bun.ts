@@ -136,11 +136,14 @@ async function verifySuccessfulUpgrade() {
   const { adapter, database } = await openPopulatedV5Database();
   await runMigrations(adapter, accountMigrations);
 
-  assert.equal(database.query("PRAGMA user_version").get().user_version, 6);
+  // task-app-chat (E2/C2/U2): the full registry's latest version is now 7
+  // (006 + 007) -- this "after all migrations" assertion tracks the
+  // registry's current length, not migration 006 specifically.
+  assert.equal(database.query("PRAGMA user_version").get().user_version, 7);
   assert.equal(
     database.query("SELECT schema_version FROM scope_metadata").get()
       .schema_version,
-    6,
+    7,
   );
 
   // The pre-existing message.created/unsupported applied-events rows and the
@@ -334,7 +337,10 @@ async function verifyFreshInstallReachesV6(): Promise<void> {
   const database = new Database(":memory:");
   const adapter = createAdapter(database);
   await runMigrations(adapter, accountMigrations);
-  assert.equal(database.query("PRAGMA user_version").get().user_version, 6);
+  // task-app-chat (E2/C2/U2): a fresh install now reaches 7 (006 + 007),
+  // not 6 -- this function name predates 007 but still exercises "every
+  // migration including 006 applies to a brand-new database", unchanged.
+  assert.equal(database.query("PRAGMA user_version").get().user_version, 7);
   assert.deepEqual(
     database
       .query(

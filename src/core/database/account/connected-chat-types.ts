@@ -46,6 +46,12 @@ export type ConnectedChatMessage = Readonly<{
   /** Ms epoch this device recorded the tombstone, or null while live.
    * Monotonic once set -- never cleared by a later merge (E2). */
   deletedAtMs: number | null;
+  /** E2/CHAT-AC3: the backing outbox command's current `error_code`, joined
+   * in by `listMessagesWindow` only -- undefined on rows other repository
+   * reads return (enqueue/retry/merge), where it is not meaningful. `null`
+   * when the row has no failure on record (never sent an outbox command,
+   * or it is queued/in_flight/acked). */
+  errorCode?: ConnectedSendErrorCode | null;
   kind: "user" | "system";
   localCreatedAtMs: number;
   localId: string;
@@ -109,7 +115,11 @@ export type ConnectedSendErrorCode =
   | "conflict"
   | "validation"
   | "server_unavailable"
-  | "unknown";
+  | "unknown"
+  /** E2/C2/U2: a 422 media_not_available send failure -- the staged
+   * upload's 1h server-side bind TTL elapsed before the message could be
+   * sent. Terminal, retry hidden (plan api_contracts.E2_media_expired_failure). */
+  | "media_expired";
 
 export type ConnectedPendingMessageInput = Readonly<{
   body: string;
@@ -290,6 +300,15 @@ export type ConnectedChatRepository = ConnectedChatSyncRepository &
      * later `applyOrderedMessageDeleted` replay of the very same deletion is
      * always safe (AC3: "이후 도착하는 message.deleted와 중복 적용돼도 안전"). */
     markMessageDeleted: (
+      input: Readonly<{ deletedAtMs: number; serverMessageId: string }>,
+    ) => Promise<void>;
+    /** E1/C1/U4: `topic.deleted`'s `announcement_message_id`. Hides the
+     * announcement entirely (no "삭제된 메시지입니다." placeholder) by turning
+     * it into a deleted system row, whether or not the server's preceding
+     * `message.deleted` for the same message was applied first. Idempotent
+     * and a no-op for a message never received locally, mirroring
+     * `markMessageDeleted`. */
+    markAnnouncementDeleted: (
       input: Readonly<{ deletedAtMs: number; serverMessageId: string }>,
     ) => Promise<void>;
     markSendFailed: (

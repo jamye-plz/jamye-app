@@ -18,6 +18,7 @@ import type {
   Chatroom,
   ChatMessage as WireChatMessage,
   MessageAttachment,
+  TopicDeletedEvent,
 } from "@/core/contracts/server";
 import { ChatApiError } from "@/features/chat/data/chat-api";
 import type { ChatApi } from "@/features/chat/data/chat-api";
@@ -128,6 +129,12 @@ export type ConnectedChatState = Readonly<{
 }>;
 
 export type ConnectedChatStoreActions = Readonly<{
+  /** E1/C1/U4: `topic.deleted`'s `announcement_message_id` tombstone -- the
+   * `registerTopicDeletedHandler` seam's chat-side handler (wired in
+   * connected-chat-provider.tsx, mirroring topics-provider.tsx's own
+   * `applyTopicDeleted` registration). A no-op when the event carries no
+   * announcement id. */
+  applyAnnouncementTopicDeleted: (event: TopicDeletedEvent) => Promise<void>;
   loadRooms: (groupId: string) => Promise<void>;
   loadMoreRooms: () => Promise<void>;
   closeRooms: () => void;
@@ -1123,6 +1130,34 @@ export function createConnectedChatStore(
     });
   }
 
+  /** E1/C1/U4: does not gate on `historyBlocked`/`repository` readiness the
+   * way the room-scoped actions above do -- an account-wide handler can fire
+   * for any group, not just the currently open room. Only the currently
+   * open room's window is refreshed (mirrors the `onChanged` callback in
+   * `resetForIdentity` above); a background room's hidden announcement is
+   * simply absent the next time that room's window is read. */
+  async function applyAnnouncementTopicDeleted(
+    event: TopicDeletedEvent,
+  ): Promise<void> {
+    const announcementMessageId = event.data.announcement_message_id;
+    if (!announcementMessageId || !repository) return;
+    await repository.markAnnouncementDeleted({
+      deletedAtMs: deps.clock.nowMs(),
+      serverMessageId: announcementMessageId,
+    });
+    // The hidden row is excluded from every later window read, and the
+    // refresh below merges rather than replaces, so drop it here.
+    const items = state.history.items.filter(
+      (row) => row.serverMessageId !== announcementMessageId,
+    );
+    if (items.length !== state.history.items.length)
+      publish({ ...state, history: { ...state.history, items } });
+    if (historyBlocked || !state.chatroomId) return;
+    const roomId = state.chatroomId;
+    const ticket = begin("sync-read");
+    if (ticket) await refreshAfterWrite(ticket, roomId);
+  }
+
   function closeRoom(): void {
     cancel("sync-read");
     cancel("history");
@@ -1192,6 +1227,7 @@ export function createConnectedChatStore(
       syncListeners.clear();
     },
     actions: {
+      applyAnnouncementTopicDeleted,
       loadRooms: (groupId) => loadRooms(groupId, false),
       loadMoreRooms: () =>
         roomsGroupId ? loadRooms(roomsGroupId, true) : Promise.resolve(),

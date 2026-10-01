@@ -41,7 +41,15 @@ export function toOutboxSendFailure(error: unknown): OutboxSendFailure {
   if (status === 403) return { kind: "forbidden" };
   if (status === 404) return { kind: "not_found" };
   if (status === 409) return { kind: "conflict" };
-  if (status === 422) return { kind: "validation" };
+  if (status === 422) {
+    // E2/C2/U2: only the attachment-upload-expiry 422 code is a distinct
+    // terminal kind (plan api_contracts.E2_media_expired_failure.mapping);
+    // every other 422 keeps mapping to the existing generic "validation".
+    const code = "code" in record ? record.code : undefined;
+    return code === "media_not_available"
+      ? { kind: "media_not_available" }
+      : { kind: "validation" };
+  }
   if (status === 426) return { kind: "upgrade_required" };
   if (status === 429) {
     const seconds =

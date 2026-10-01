@@ -195,6 +195,22 @@ test.each([
   ).toEqual({ kind });
 });
 
+// E2/C2/U2 (plan api_contracts.E2_media_expired_failure.mapping): only the
+// attachment-upload-expiry 422 code is a distinct kind; every other 422
+// keeps mapping to the existing generic "validation" (covered above).
+test("maps 422 media_not_available to the distinct media_not_available kind", () => {
+  expect(
+    toOutboxSendFailure({ status: 422, code: "media_not_available" }),
+  ).toEqual({ kind: "media_not_available" });
+});
+
+test("keeps a 422 with a different or missing code mapped to validation", () => {
+  expect(
+    toOutboxSendFailure({ status: 422, code: "invalid_message_input" }),
+  ).toEqual({ kind: "validation" });
+  expect(toOutboxSendFailure({ status: 422 })).toEqual({ kind: "validation" });
+});
+
 test("callback read failures are handled and disposal invalidates all late callbacks", async () => {
   const f = setup();
   f.options.onChanged.mockRejectedValueOnce(new Error("SQLite unavailable"));

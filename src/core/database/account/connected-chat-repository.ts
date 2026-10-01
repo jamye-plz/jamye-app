@@ -3,6 +3,7 @@ import type { SqliteRepositoryDatabase, SqliteRow } from "../types";
 import type { AccountPrincipal } from "./types";
 import {
   createConnectedChatSyncRepository,
+  hideAnnouncementMessage,
   tombstoneMessageIfLive,
 } from "./connected-chat-sync-repository";
 import type {
@@ -43,6 +44,9 @@ type MessageRow = SqliteRow & {
   local_created_at_ms: number;
   local_id: string;
   media_json: string;
+  /** Only present when selected via the `listMessagesWindow` LEFT JOIN below;
+   * absent (not merely null) on every other MESSAGE_COLUMNS-only read. */
+  outbox_error_code?: ConnectedSendErrorCode | null;
   pending_media_json: string;
   sender_avatar_url: string | null;
   sender_id: string | null;
@@ -72,6 +76,15 @@ const MESSAGE_COLUMNS = `local_id, server_message_id, chatroom_id,
   client_msg_id, sender_id, sender_nickname, sender_avatar_url, body, kind,
   media_json, pending_media_json, created_at_raw, local_created_at_ms,
   sort_seconds, sort_nanos, sort_tiebreaker, status, deleted_at_ms`;
+
+// E2/CHAT-AC3: same columns as MESSAGE_COLUMNS, `m`-qualified for
+// listMessagesWindow's LEFT JOIN against connected_chat_outbox_commands
+// (`local_id`, `chatroom_id`, `client_msg_id`, `sender_id`, `body` collide
+// between the two tables' unqualified column names).
+const MESSAGE_COLUMNS_QUALIFIED = `m.local_id, m.server_message_id, m.chatroom_id,
+  m.client_msg_id, m.sender_id, m.sender_nickname, m.sender_avatar_url, m.body, m.kind,
+  m.media_json, m.pending_media_json, m.created_at_raw, m.local_created_at_ms,
+  m.sort_seconds, m.sort_nanos, m.sort_tiebreaker, m.status, m.deleted_at_ms`;
 
 const OUTBOX_COLUMNS = `command_id, local_id, chatroom_id, client_msg_id,
   body, media_upload_ids_json, state, error_code`;
@@ -248,6 +261,9 @@ function mapMessage(row: MessageRow): ConnectedChatMessage {
     clientMsgId: row.client_msg_id,
     createdAtRaw: row.created_at_raw,
     deletedAtMs: row.deleted_at_ms,
+    ...(row.outbox_error_code !== undefined
+      ? { errorCode: row.outbox_error_code }
+      : {}),
     kind: row.kind,
     localCreatedAtMs: row.local_created_at_ms,
     localId: row.local_id,
@@ -588,17 +604,22 @@ export function createConnectedChatRepository(
     async listMessagesWindow({ before, chatroomId, limit }) {
       assertActive();
       assertLimit(limit);
+      // E2/CHAT-AC3: LEFT JOINed so a failed row's UI can show its specific
+      // reason (e.g. media_expired) -- the outbox command is the only place
+      // error_code lives (connected_chat_messages has no such column).
       const rows = await database.getAllAsync<MessageRow>(
-        `SELECT ${MESSAGE_COLUMNS} FROM connected_chat_messages
-         WHERE chatroom_id = ?
-           AND NOT (kind = 'system' AND deleted_at_ms IS NOT NULL)
+        `SELECT ${MESSAGE_COLUMNS_QUALIFIED}, o.error_code AS outbox_error_code
+         FROM connected_chat_messages m
+         LEFT JOIN connected_chat_outbox_commands o ON o.local_id = m.local_id
+         WHERE m.chatroom_id = ?
+           AND NOT (m.kind = 'system' AND m.deleted_at_ms IS NOT NULL)
            AND (
-             ? IS NULL OR sort_seconds < ? OR
-             (sort_seconds = ? AND sort_nanos < ?) OR
-             (sort_seconds = ? AND sort_nanos = ? AND sort_tiebreaker < ?) OR
-             (sort_seconds = ? AND sort_nanos = ? AND sort_tiebreaker = ? AND local_id < ?)
+             ? IS NULL OR m.sort_seconds < ? OR
+             (m.sort_seconds = ? AND m.sort_nanos < ?) OR
+             (m.sort_seconds = ? AND m.sort_nanos = ? AND m.sort_tiebreaker < ?) OR
+             (m.sort_seconds = ? AND m.sort_nanos = ? AND m.sort_tiebreaker = ? AND m.local_id < ?)
            )
-         ORDER BY sort_seconds DESC, sort_nanos DESC, sort_tiebreaker DESC, local_id DESC
+         ORDER BY m.sort_seconds DESC, m.sort_nanos DESC, m.sort_tiebreaker DESC, m.local_id DESC
          LIMIT ?`,
         chatroomId,
         before?.localId ?? null,
@@ -773,6 +794,17 @@ export function createConnectedChatRepository(
       assertNonEmptyValue(serverMessageId, "Deleted message server id");
       await database.withExclusiveTransactionAsync(async (transaction) => {
         await tombstoneMessageIfLive(transaction, {
+          deletedAtMs,
+          serverMessageId,
+        });
+      });
+    },
+
+    async markAnnouncementDeleted({ deletedAtMs, serverMessageId }) {
+      assertActive();
+      assertNonEmptyValue(serverMessageId, "Deleted announcement server id");
+      await database.withExclusiveTransactionAsync(async (transaction) => {
+        await hideAnnouncementMessage(transaction, {
           deletedAtMs,
           serverMessageId,
         });

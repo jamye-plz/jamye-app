@@ -37,6 +37,7 @@ export function toChatMessage(
       ? Date.parse(row.createdAtRaw)
       : row.localCreatedAtMs,
     deletedAtMs: row.deletedAtMs,
+    errorCode: row.errorCode,
     localId: row.localId,
     media: row.media,
     pendingMedia: row.pendingMedia,
@@ -93,6 +94,10 @@ export function chatErrorMessage(error: ConnectedSendErrorCode): string {
       "서버가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도하세요.",
     unknown:
       "처리를 완료하지 못했습니다. 저장 상태를 확인하고 다시 시도하세요.",
+    // E2/C2/U2: this footer copy is for the *current* send attempt's own
+    // rejection; the per-row reason (chat-message-row.tsx) uses the same
+    // fixed copy for a persisted media_expired outbox failure.
+    media_expired: "첨부 업로드 시간이 지나 보낼 수 없습니다.",
   };
   return labels[error];
 }

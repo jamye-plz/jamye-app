@@ -21,6 +21,8 @@ jest.mock("expo-router", () => ({
     jest
       .requireActual<typeof import("react")>("react")
       .useEffect(callback, [callback]),
+  // M17 E1: ChatMessageRow reads the router for topic-announcement links.
+  useRouter: () => ({ push: jest.fn() }),
   Stack: {
     Screen: (props: { options?: RecordedScreenOptions }) => {
       mockScreenOptions = props.options;

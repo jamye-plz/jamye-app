@@ -238,6 +238,29 @@ export async function tombstoneMessageIfLive(
   );
 }
 
+/** E1/C1/U4: `topic.deleted`'s `announcement_message_id`. The server appends
+ * the announcement's own `message.deleted` just before `topic.deleted`, so in
+ * the ordered S1 apply this row is normally already a scrubbed user
+ * tombstone (which would render the generic "삭제된 메시지입니다."
+ * placeholder). Re-classifying it as a deleted system row puts it under
+ * `listMessagesWindow`'s existing hidden-system-tombstone exclusion in either
+ * arrival order. The deletion stays monotonic (an earlier `deleted_at_ms` is
+ * kept), content is scrubbed like any tombstone, and a message never received
+ * locally is a no-op. */
+export async function hideAnnouncementMessage(
+  transaction: SqliteRepositoryDatabase,
+  input: Readonly<{ deletedAtMs: number; serverMessageId: string }>,
+): Promise<void> {
+  await transaction.runAsync(
+    `UPDATE connected_chat_messages SET
+       kind = 'system', deleted_at_ms = COALESCE(deleted_at_ms, ?),
+       body = NULL, media_json = '[]', pending_media_json = '[]'
+     WHERE server_message_id = ?`,
+    input.deletedAtMs,
+    input.serverMessageId,
+  );
+}
+
 export function createConnectedChatSyncRepository({
   assertActive,
   database,

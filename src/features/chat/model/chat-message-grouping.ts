@@ -75,9 +75,15 @@ export function buildChatMessageRowMeta(
   items: readonly ChatMessage[],
   now: Date = new Date(),
 ): readonly ChatMessageRowMeta[] {
+  // E6b/CHAT-AC5: a deleted row is never the one carrying `showSentStatus`
+  // (which chat-message-row.tsx uses to append " · 전송됨") -- only the most
+  // recent *live* outgoing row still qualifies, so a deletion of what was the
+  // last outgoing message defers the status caption to the nearest surviving
+  // one instead of showing 전송됨 on a row that now reads "삭제된 메시지입니다.".
   let lastOutgoingLocalId: string | null = null;
   for (const item of items) {
-    if (isOutgoingMessage(item)) lastOutgoingLocalId = item.localId;
+    if (isOutgoingMessage(item) && item.deletedAtMs == null)
+      lastOutgoingLocalId = item.localId;
   }
 
   return items.map((item, index) => {

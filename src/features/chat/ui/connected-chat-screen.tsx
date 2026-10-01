@@ -1,5 +1,5 @@
 import { Host } from "@expo/ui";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useIsFocused, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/core/providers/session-provider";
 import { useAccountScope } from "@/core/providers/app-providers";
@@ -29,8 +29,13 @@ export function ConnectedChatScreen({
   const account = useAccountScope();
   const { colors } = useAppTheme();
   const router = useRouter();
+  // E4/C4 (task-app-media request): a media viewer pushed on top of this
+  // screen must never be popped by this screen's own access-loss redirect --
+  // `focused` below is an unrelated pre-existing ref (the currently-open
+  // chatroomId for the send/menu callbacks), hence the distinct name.
+  const screenFocused = useIsFocused();
   const focused = useRef<string | null>(null);
-  const titleResolution = useChatroomTitle(groupId, chatroomId);
+  const titleResolution = useChatroomTitle(groupId, chatroomId, screenFocused);
   const onTitlePress =
     titleResolution.kind === "main"
       ? () =>
@@ -150,6 +155,11 @@ export function ConnectedChatScreen({
       (topicDetail.id === stickyTopicId && topicDetail.status === "error"));
   const evictionRecheckedRef = useRef<string | null>(null);
   useEffect(() => {
+    // E4/C4: a screen pushed on top (media viewer, topic detail, group info)
+    // leaves this screen mounted but unfocused -- redirecting out from under
+    // that other screen would pop it too. Recheck once this screen regains
+    // focus (`screenFocused` in the deps below).
+    if (!screenFocused) return;
     if (state.chatroomId !== chatroomId || !anyAccessLost) {
       evictionRecheckedRef.current = null;
       return;
@@ -175,6 +185,7 @@ export function ConnectedChatScreen({
       void topics.store?.actions.openTopic(groupId, stickyTopicId);
     }
   }, [
+    screenFocused,
     state.chatroomId,
     anyAccessLost,
     chatroomId,
@@ -237,16 +248,27 @@ export function ConnectedChatScreen({
     // read identically once back navigation returns here. No composer,
     // attachments, or voice entry point renders in this branch (E3).
     return (
-      <AppScreen backgroundColor={colors.background}>
-        <Host matchContents={{ vertical: true }} seedColor={colors.primary}>
-          <StandardStateView
-            kind="deleted"
-            systemImage="delete"
-            testID="chat-topic-deleted"
-            title="삭제된 주제입니다."
-          />
-        </Host>
-      </AppScreen>
+      <>
+        {/* E6a/CHAT-AC4: this branch skips chat-screen.tsx's shared shell
+            entirely and must set its own header. Screen options merge across
+            renders, so when the topic is deleted while its room is open, the
+            shell's earlier `headerTitle` (the topic's title button) is still
+            set; a plain-string `headerTitle` replaces it, so no title button
+            renders at all rather than merely disabled (device round). */}
+        <Stack.Screen
+          options={{ headerTitle: "삭제된 주제", title: "삭제된 주제" }}
+        />
+        <AppScreen backgroundColor={colors.background}>
+          <Host matchContents={{ vertical: true }} seedColor={colors.primary}>
+            <StandardStateView
+              kind="deleted"
+              systemImage="delete"
+              testID="chat-topic-deleted"
+              title="삭제된 주제입니다."
+            />
+          </Host>
+        </AppScreen>
+      </>
     );
   }
   if (!valid || !ready || state.chatroomId !== chatroomId || anyAccessLost) {

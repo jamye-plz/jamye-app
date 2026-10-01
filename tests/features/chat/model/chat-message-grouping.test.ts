@@ -188,6 +188,40 @@ describe("buildChatMessageRowMeta (E7)", () => {
     expect(meta.map((row) => row.showSentStatus)).toEqual([false, false, true]);
   });
 
+  test("E6b/CHAT-AC5: a deleted outgoing row never carries showSentStatus, even when it is the most recent outgoing message -- it falls back to the nearest surviving one", () => {
+    const items = [
+      message({
+        localId: "out-1",
+        clientMsgId: "client-1",
+        isOutgoing: true,
+        createdAtMs: Date.parse("2025-09-27T12:00:00+09:00"),
+      }),
+      message({
+        localId: "out-2",
+        clientMsgId: "client-2",
+        isOutgoing: true,
+        deletedAtMs: 1_700_000_000_000,
+        createdAtMs: Date.parse("2025-09-27T12:02:00+09:00"),
+      }),
+    ];
+    const meta = buildChatMessageRowMeta(items, NOW);
+    expect(meta.map((row) => row.showSentStatus)).toEqual([true, false]);
+  });
+
+  test("E6b/CHAT-AC5: when every outgoing row is deleted, no row carries showSentStatus", () => {
+    const items = [
+      message({
+        localId: "out-1",
+        clientMsgId: "client-1",
+        isOutgoing: true,
+        deletedAtMs: 1_700_000_000_000,
+        createdAtMs: Date.parse("2025-09-27T12:00:00+09:00"),
+      }),
+    ];
+    const meta = buildChatMessageRowMeta(items, NOW);
+    expect(meta[0]!.showSentStatus).toBe(false);
+  });
+
   test("keeps outgoing and incoming rows from the same senderId out of the same group", () => {
     // Defensive: a system or mirrored row should never visually merge with a
     // differently-directed row even if ids happened to collide.
