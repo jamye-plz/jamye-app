@@ -453,4 +453,54 @@ describe("createNotificationsStore", () => {
       expect(api.listNotifications).toHaveBeenCalled();
     });
   });
+
+  describe("E5/C5/U3/GROUPS-AC1 scheduleRefresh", () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test("debounces a burst of triggers into a single refresh() call after 500ms", async () => {
+      jest.useFakeTimers();
+      const api = fakeApi();
+      api.listNotifications.mockResolvedValue(page());
+      const store = createNotificationsStore({
+        createApi: () => api,
+        createResolver: fakeResolver,
+      });
+      store.setPrincipal(principal, authorize);
+      store.actions.scheduleRefresh();
+      store.actions.scheduleRefresh();
+      store.actions.scheduleRefresh();
+      expect(api.listNotifications).not.toHaveBeenCalled();
+      await jest.advanceTimersByTimeAsync(500);
+      expect(api.listNotifications).toHaveBeenCalledTimes(1);
+    });
+
+    test("a trigger while a scheduled refresh is already in flight queues exactly one rerun, never two concurrent calls", async () => {
+      jest.useFakeTimers();
+      const api = fakeApi();
+      let resolveFirst!: (value: ReturnType<typeof page>) => void;
+      const firstPage = new Promise<ReturnType<typeof page>>((resolve) => {
+        resolveFirst = resolve;
+      });
+      api.listNotifications
+        .mockImplementationOnce(() => firstPage)
+        .mockResolvedValue(page());
+      const store = createNotificationsStore({
+        createApi: () => api,
+        createResolver: fakeResolver,
+      });
+      store.setPrincipal(principal, authorize);
+      store.actions.scheduleRefresh();
+      await jest.advanceTimersByTimeAsync(500);
+      expect(api.listNotifications).toHaveBeenCalledTimes(1);
+      // Fires while the first call is still unresolved.
+      store.actions.scheduleRefresh();
+      await jest.advanceTimersByTimeAsync(500);
+      expect(api.listNotifications).toHaveBeenCalledTimes(1);
+      resolveFirst(page());
+      await jest.advanceTimersByTimeAsync(0);
+      expect(api.listNotifications).toHaveBeenCalledTimes(2);
+    });
+  });
 });

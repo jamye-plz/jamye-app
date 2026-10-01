@@ -1,6 +1,5 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState } from "react-native";
 
 import { useSession } from "@/core/providers/session-provider";
 import {
@@ -70,15 +69,11 @@ export function PushTapHandoffListener({
     store.setPrincipal(principal, authorize);
   }, [store, principal, authorize]);
   useEffect(() => () => store.setPrincipal(null, null), [store]);
-  // Badge foreground refresh: whenever the app returns to the foreground,
-  // re-pull the unread count/list so the tab badge (and an already-mounted
-  // inbox screen) stay live even if a push was delivered while backgrounded.
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (next) => {
-      if (next === "active") void store.actions.refresh();
-    });
-    return () => subscription.remove();
-  }, [store]);
+  // E5/C5/GROUPS-AC1: AppState-active and the foreground 60s interval badge
+  // refresh now live in `useNotificationsUnreadCount` (mounted once at the
+  // tab layout root, same "whole signed-in lifetime" scope this listener
+  // has), routed through the store's debounced `scheduleRefresh()` instead
+  // of an unthrottled `refresh()` here.
   const principalRef = useRef(principal);
   // Keep the "latest value" ref in sync after every commit (never during
   // render itself -- react-hooks/refs forbids that), so the async listener
