@@ -560,25 +560,4 @@ module.exports = defineConfig([
       ],
     },
   },
-  {
-    // R3/V2 (task-app-media): `react-native-gesture-handler`'s
-    // `Gesture.Pinch()/.Pan()/.Tap()` builder methods (`.onStart`,
-    // `.onUpdate`, `.onEnd`) only ever invoke their callback later, from an
-    // async native gesture event -- never synchronously while the owning
-    // component is rendering. `react-hooks/refs`/`react-hooks/immutability`
-    // (React Compiler-oriented rules) cannot verify that for an arbitrary,
-    // non-React callback API and flag any `useRef`/hook-derived value
-    // reachable from one as if it were an unsafe render-time read/write.
-    // Scoped to exactly the two files with this genuine, confirmed-safe
-    // pattern (see each file's own comment at the `useRef` in question) --
-    // not a blanket disable.
-    files: [
-      "src/features/media/ui/media-viewer-screen.tsx",
-      "src/features/media/ui/voice-message-bubble.tsx",
-    ],
-    rules: {
-      "react-hooks/refs": "off",
-      "react-hooks/immutability": "off",
-    },
-  },
 ]);

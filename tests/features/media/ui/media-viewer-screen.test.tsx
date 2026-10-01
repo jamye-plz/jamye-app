@@ -1,5 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
 import { Dimensions } from "react-native";
+import { MediaViewerScreen } from "@/features/media/ui/media-viewer-screen";
 
 // Focus reaches the viewer after its first render, as on device: callbacks
 // only run when a test calls `mockFocusScreen()`.
@@ -9,10 +10,15 @@ function mockFocusScreen() {
   mockScreenFocused = true;
   for (const callback of mockFocusCallbacks) callback();
 }
+// E4/C4: the route's own sessionId param, read via useLocalSearchParams.
+// undefined (the default) means "no session param in this render" -- the
+// same as every pre-E4 test in this file, none of which care about it.
+let mockRouteSessionId: string | undefined;
 jest.mock("expo-router", () => ({
   useFocusEffect: (callback: () => void) => {
     mockFocusCallbacks.push(callback);
   },
+  useLocalSearchParams: () => ({ sessionId: mockRouteSessionId }),
 }));
 
 jest.mock("react-native-safe-area-context", () => ({
@@ -60,7 +66,92 @@ jest.mock("@/features/media/platform/native-video-player", () => {
   };
 });
 
-import { MediaViewerScreen } from "@/features/media/ui/media-viewer-screen";
+// F2/MEDIA-AC8: gesture mock pattern from `media-image-viewer.test.tsx:34-62`.
+// This screen builds exactly one pinch, one dismiss pan, and one double-tap
+// gesture at a time, so registering captured handlers by a fixed name (not
+// per-instance) is safe -- each fresh `render()` re-creates and overwrites
+// them.
+type GestureEvent = {
+  scale?: number;
+  translationX: number;
+  translationY: number;
+  velocityY?: number;
+};
+type TouchPoint = { x: number; y: number };
+type TouchEvent = { changedTouches: TouchPoint[] };
+type StateManager = { fail: () => void };
+type Handlers = {
+  start?: () => void;
+  update?: (event: GestureEvent) => void;
+  end?: (event: GestureEvent, success?: boolean) => void;
+  touchesDown?: (event: TouchEvent, stateManager: StateManager) => void;
+};
+const mockGestures: Record<string, Handlers> = {};
+jest.mock("react-native-gesture-handler", () => {
+  const { View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  const gesture = (name: string) => {
+    const handlers: Handlers = {};
+    mockGestures[name] = handlers;
+    const chain = {
+      runOnJS: () => chain,
+      activeOffsetY: () => chain,
+      failOffsetX: () => chain,
+      numberOfTaps: () => chain,
+      onTouchesDown: (callback: Handlers["touchesDown"]) => {
+        handlers.touchesDown = callback;
+        return chain;
+      },
+      onStart: (callback: () => void) => {
+        handlers.start = callback;
+        return chain;
+      },
+      onUpdate: (callback: (event: GestureEvent) => void) => {
+        handlers.update = callback;
+        return chain;
+      },
+      onEnd: (callback: (event: GestureEvent, success?: boolean) => void) => {
+        handlers.end = callback;
+        return chain;
+      },
+    };
+    return chain;
+  };
+  return {
+    GestureDetector: View,
+    Gesture: {
+      Pinch: () => gesture("pinch"),
+      Pan: () => gesture("pan"),
+      Tap: () => gesture("tap"),
+      Simultaneous: (..._gestures: unknown[]) => ({}),
+    },
+  };
+});
+
+// F2: shared-value mock pattern from `media-image-viewer.test.tsx:66-96` --
+// a stable per-hook-call box exposing the real `.get()`/`.set()` API.
+jest.mock("react-native-reanimated", () => {
+  const ReactActual = jest.requireActual<typeof import("react")>("react");
+  return {
+    __esModule: true,
+    useSharedValue: (initial: unknown) => {
+      const ref = ReactActual.useRef<{
+        get: () => unknown;
+        set: (next: unknown) => void;
+      } | null>(null);
+      if (!ref.current) {
+        let value = initial;
+        ref.current = {
+          get: () => value,
+          set: (next: unknown) => {
+            value = next;
+          },
+        };
+      }
+      return ref.current;
+    },
+  };
+});
 
 const photo = {
   id: "photo-1",
@@ -84,6 +175,7 @@ const video = {
 };
 
 beforeEach(() => {
+  mockRouteSessionId = undefined;
   mockCloseMediaViewer.mockReset();
   mockClearMediaViewer.mockReset();
   mockShareAttachment.mockReset();
@@ -113,6 +205,37 @@ test("closes itself when opened with no params (e.g. a cold deep-link)", async (
     await Promise.resolve();
   });
   expect(mockCloseMediaViewer).toHaveBeenCalledTimes(1);
+});
+
+test("closes itself when the route's sessionId does not match the store's current session (E4 stale-session defense)", async () => {
+  mockParams = {
+    messageId: "message-1",
+    attachments: [photo, video],
+    startIndex: 0,
+    sessionId: "session-current",
+  };
+  mockRouteSessionId = "session-stale";
+  await render(<MediaViewerScreen />);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(mockCloseMediaViewer).toHaveBeenCalledTimes(1);
+});
+
+test("renders normally when the route's sessionId matches the store's current session", async () => {
+  mockParams = {
+    messageId: "message-1",
+    attachments: [photo, video],
+    startIndex: 0,
+    sessionId: "session-current",
+  };
+  mockRouteSessionId = "session-current";
+  const screen = await render(<MediaViewerScreen />);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(mockCloseMediaViewer).not.toHaveBeenCalled();
+  expect(screen.getByText("1 / 2")).toBeTruthy();
 });
 
 test("shows the starting index as n / N and closes on the close button", async () => {
@@ -235,4 +358,133 @@ test("a video page opens once the viewer is focused, even though focus arrives a
 
   await act(async () => mockFocusScreen());
   expect(opened).toHaveBeenCalled();
+});
+
+test("pinch onStart snapshots the current scale, so a second pinch multiplies from where the first left off (MEDIA-AC8)", async () => {
+  const screen = await render(<MediaViewerScreen />);
+  const getScale = () =>
+    screen.getByRole("image", { name: "a.jpg 상세 이미지" }).props.style
+      .transform[2].scale;
+  expect(getScale()).toBe(1);
+  await act(() => {
+    mockGestures.pinch.start?.();
+    mockGestures.pinch.update?.({
+      scale: 2,
+      translationX: 0,
+      translationY: 0,
+    });
+  });
+  expect(getScale()).toBe(2);
+  await act(() => {
+    // A second, independent pinch gesture: `.onStart` must re-snapshot the
+    // *current* scale (2), not reuse the first gesture's start value.
+    mockGestures.pinch.start?.();
+    mockGestures.pinch.update?.({
+      scale: 1.5,
+      translationX: 0,
+      translationY: 0,
+    });
+  });
+  expect(getScale()).toBe(3);
+});
+
+test("pinch onUpdate clamps to the model's zoom ceiling (MEDIA-AC8)", async () => {
+  const screen = await render(<MediaViewerScreen />);
+  await act(() => {
+    mockGestures.pinch.start?.();
+    mockGestures.pinch.update?.({
+      scale: 10,
+      translationX: 0,
+      translationY: 0,
+    });
+  });
+  expect(
+    screen.getByRole("image", { name: "a.jpg 상세 이미지" }).props.style
+      .transform[2].scale,
+  ).toBe(4);
+});
+
+test("dismiss pan onEnd closes past the distance threshold, and only resets the drag otherwise (MEDIA-AC8)", async () => {
+  await render(<MediaViewerScreen />);
+  await act(() => {
+    mockGestures.pan.end?.({ translationX: 0, translationY: 50, velocityY: 0 });
+  });
+  expect(mockCloseMediaViewer).not.toHaveBeenCalled();
+  await act(() => {
+    mockGestures.pan.end?.({
+      translationX: 0,
+      translationY: 200,
+      velocityY: 0,
+    });
+  });
+  expect(mockCloseMediaViewer).toHaveBeenCalledTimes(1);
+});
+
+test("the video-control exclusion does not apply on a photo page (E4/C4)", async () => {
+  await render(<MediaViewerScreen />);
+  const { width, height } = Dimensions.get("window");
+  const fail = jest.fn();
+  mockGestures.pan.touchesDown?.(
+    { changedTouches: [{ x: width / 2, y: height - 10 }] },
+    { fail },
+  );
+  expect(fail).not.toHaveBeenCalled();
+});
+
+test("the dismiss pan does not start inside the video's control areas (E4/C4)", async () => {
+  mockParams = {
+    messageId: "message-1",
+    attachments: [photo, video],
+    startIndex: 1,
+  };
+  await render(<MediaViewerScreen />);
+  const { width, height } = Dimensions.get("window");
+  // Bottom playback-control band.
+  const bottomFail = jest.fn();
+  mockGestures.pan.touchesDown?.(
+    { changedTouches: [{ x: width / 2, y: height - 10 }] },
+    { fail: bottomFail },
+  );
+  expect(bottomFail).toHaveBeenCalledTimes(1);
+  // Top share/close band.
+  const topFail = jest.fn();
+  mockGestures.pan.touchesDown?.(
+    { changedTouches: [{ x: width / 2, y: 10 }] },
+    { fail: topFail },
+  );
+  expect(topFail).toHaveBeenCalledTimes(1);
+  // Center play/pause hit zone.
+  const centerFail = jest.fn();
+  mockGestures.pan.touchesDown?.(
+    { changedTouches: [{ x: width / 2, y: height / 2 }] },
+    { fail: centerFail },
+  );
+  expect(centerFail).toHaveBeenCalledTimes(1);
+});
+
+test("the dismiss pan still starts and closes elsewhere on a video page (E4/C4)", async () => {
+  mockParams = {
+    messageId: "message-1",
+    attachments: [photo, video],
+    startIndex: 1,
+  };
+  await render(<MediaViewerScreen />);
+  const { height } = Dimensions.get("window");
+  const fail = jest.fn();
+  // Clear of every control band/zone for any realistic test window height:
+  // more than the center zone's half-width (48) below the vertical middle,
+  // and far from the horizontal middle too.
+  mockGestures.pan.touchesDown?.(
+    { changedTouches: [{ x: 4, y: height / 2 + 49 }] },
+    { fail },
+  );
+  expect(fail).not.toHaveBeenCalled();
+  await act(() => {
+    mockGestures.pan.end?.({
+      translationX: 0,
+      translationY: 200,
+      velocityY: 0,
+    });
+  });
+  expect(mockCloseMediaViewer).toHaveBeenCalledTimes(1);
 });
