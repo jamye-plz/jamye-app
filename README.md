@@ -24,7 +24,7 @@ M9는 영속 outbox와 실시간·누락 복구를 연결했다. M10 주제·태
 [M10 주제·태그 검증](docs/evidence/M10.md), [M11 미디어 구현·검증 현황](docs/evidence/M11.md),
 [M12 알림·푸시 증거](docs/evidence/M12.md), [M13 계정 수명주기 증거](docs/evidence/M13.md),
 [M14 UI/UX 증거](docs/evidence/M14.md), [M15 소프트 삭제 증거](docs/evidence/M15.md),
-[M16 Sign in with Apple 증거](docs/evidence/M16.md).
+[M16 Sign in with Apple 증거](docs/evidence/M16.md), [M17 라운드 1 증거](docs/evidence/M17.md).
 
 ## 현재 범위
 
@@ -58,7 +58,8 @@ M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도�
 - M14: UI/UX 다듬기 — 완료 (2026-09-28 사용자 종료 승인). 라운드 1은 탭 구조와 그룹·주제 화면, 라운드 2는 로그인·계정·알림·대화방 네이티브 UI와 사진·동영상·음성 첨부
 - M15: 소프트 삭제 수용 — 완료 (2026-09-29 사용자 종료 승인). 메시지·주제 삭제와 삭제 표시, 계정 삭제 30일 유예·복구 안내, 서버 계약 v2(서버 task-14 1·2·3차 배포)
 - M16: Sign in with Apple — 완료 (2026-09-30 사용자 종료 승인). iOS 네이티브 Apple 로그인, Kakao/Google과 같은 세션 모델(TokenPair·refresh·로그아웃·계정 삭제), 계정 삭제 시 Apple 재인증·token revoke(서버 task-15 운영 배포, D17)
-- 다음: M17-M18(잔여 백로그·스토어 배포)은 `planned_unapproved`이며 각각 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
+- M17: 잔여 백로그 — 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인). 주제 공지 링크, 만료된 첨부 버리기, 음성·동영상 재생 조정, 알림 배지 실시간 갱신, 로그인 route 분리, 그룹 정보 재구성과 auth-controller 분리·lint 경고 0건. (A) 앱 출시 blocker는 2026-10-01 착수
+- 다음: M17의 (B)-(D)와 M18(스토어 배포)은 `planned_unapproved`이며 각각 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
 
 M10의 확정 범위와 순서는 [로드맵의 M10 계획](docs/roadmap.md#m10-주제태그)에 있다.
 계약·데이터 연결 → 주제·태그 화면 → M9 동기화 연결 → 자동 검증·양 플랫폼 수용 순서이며,
