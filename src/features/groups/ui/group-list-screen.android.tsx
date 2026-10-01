@@ -9,12 +9,9 @@ import { AndroidExtendedFab } from "@/shared/ui/android-extended-fab.android";
 import { Avatar } from "@/shared/ui/avatar";
 import { LoadSentinel } from "@/shared/ui/load-sentinel";
 import { NativeList } from "@/shared/ui/native-list";
-import {
-  AndroidSnackbarHost,
-  SNACKBAR_DEFAULT_RETRY_LABEL,
-} from "@/shared/ui/snackbar-host.android";
-import type { SnackbarHostRef } from "@/shared/ui/snackbar-host.android";
+import { SNACKBAR_DEFAULT_RETRY_LABEL } from "@/shared/ui/snackbar-host.android";
 import { StandardStateView } from "@/shared/ui/standard-state-view";
+import { useSystemFeedback } from "@/shared/ui/system-feedback";
 
 import type { GroupsErrorOutcome } from "../model/groups-error";
 import { useGroupsStore } from "../model/groups-provider";
@@ -27,10 +24,16 @@ const AVATAR_SIZE = 40;
  * Group list (G1-G4), Android: the same native list + standard states as
  * the default/iOS file, but the entry points are the Extended FAB
  * `그룹 추가` (G3 -- Android drops the header `+` for the FAB) instead of a
- * nav-bar menu. C1's "list has rows" error path is the Snackbar host here
- * (iOS's counterpart is `StandardStateViewErrorRow`, an inline top-of-list
- * row) -- it fires once per distinct error while rows are already showing,
- * and its `다시 시도` action re-runs `loadGroups`.
+ * nav-bar menu. C1's "list has rows" error path is a `SystemFeedbackHost`
+ * notice here (iOS's counterpart is `StandardStateViewErrorRow`, an inline
+ * top-of-list row) -- it fires once per distinct error while rows are
+ * already showing, and its `다시 시도` action re-runs `loadGroups`.
+ * F4/C17/GROUPS-AC7: the `(tabs)/groups` route already renders this screen
+ * inside a `SystemFeedbackHost` (for `AccountRestoreNotice`), so this reuses
+ * that single host via `useSystemFeedback()` instead of a second,
+ * separately-queued `AndroidSnackbarHost` that used to overlap it --
+ * `GroupListScreen`'s own props/structure stay exactly as the M14 route
+ * comment expects, only this internal notice mechanism changed.
  */
 export function GroupListScreen() {
   const { colors } = useAppTheme();
@@ -40,7 +43,7 @@ export function GroupListScreen() {
   } = useGroupsStore();
   const router = useRouter();
   const rowActions = useGroupRowActions();
-  const snackbarRef = useRef<SnackbarHostRef>(null);
+  const { showNotice } = useSystemFeedback();
   const lastShownError = useRef<GroupsErrorOutcome | null>(null);
 
   useFocusEffect(
@@ -64,15 +67,12 @@ export function GroupListScreen() {
     if (list.items.length === 0 || list.error === lastShownError.current)
       return;
     lastShownError.current = list.error;
-    void snackbarRef.current
-      ?.showSnackbar({
-        actionLabel: SNACKBAR_DEFAULT_RETRY_LABEL,
-        message: groupErrorMessage(list.error),
-      })
-      .then((result) => {
-        if (result === "actionPerformed") void actions.loadGroups();
-      });
-  }, [list.error, list.items.length, actions]);
+    showNotice({
+      actionLabel: SNACKBAR_DEFAULT_RETRY_LABEL,
+      message: groupErrorMessage(list.error),
+      onAction: () => void actions.loadGroups(),
+    });
+  }, [list.error, list.items.length, actions, showNotice]);
 
   return (
     <>
@@ -147,7 +147,6 @@ export function GroupListScreen() {
           </NativeList>
         )}
       </Host>
-      <AndroidSnackbarHost ref={snackbarRef} testID="group-list-snackbar" />
       <AndroidExtendedFab
         accessibilityLabel="그룹 추가"
         icon="groupAdd"
