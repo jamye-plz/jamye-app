@@ -119,8 +119,7 @@ function AuthScreenContent({ origin }: Readonly<{ origin: string }>) {
           }
         : { message },
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-announce only on a genuinely new message (tracked above), not on every render of the stable showNotice/retryOperation callbacks
-  }, [state.message]);
+  }, [retryAction, retryOperation, showNotice, state.message]);
 
   const startLogin = (provider: OAuthProvider) => {
     setPendingProvider(provider);
