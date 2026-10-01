@@ -3,12 +3,18 @@ import { render } from "@testing-library/react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 
 const mockUseLocalSearchParams = jest.fn();
+const mockStackScreen = jest.fn();
 jest.mock("expo-router", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factories can't use ES import
   const { View } = require("react-native");
   return {
     useLocalSearchParams: () => mockUseLocalSearchParams(),
-    Stack: { Screen: () => <View testID="group-gallery-stack-screen" /> },
+    Stack: {
+      Screen: (props: { options?: { title?: string } }) => {
+        mockStackScreen(props);
+        return <View testID="group-gallery-stack-screen" />;
+      },
+    },
   };
 });
 
@@ -63,6 +69,7 @@ function emptyGroupsState() {
 describe("E7d/GROUPS-AC5 group gallery route", () => {
   beforeEach(() => {
     mockChatroomMediaGridScreen.mockClear();
+    mockStackScreen.mockClear();
     mockUseGroupsStore.mockReset();
     mockUseGroupsStore.mockReturnValue(emptyGroupsState());
   });
@@ -79,6 +86,21 @@ describe("E7d/GROUPS-AC5 group gallery route", () => {
     );
     expect(mockChatroomMediaGridScreen).toHaveBeenCalledWith({
       chatroomId: mainChatroomId,
+    });
+  });
+
+  test("is titled 갤러리, the same as the topic gallery (M17 round 1 closure)", async () => {
+    mockUseLocalSearchParams.mockReturnValue({
+      groupId,
+      chatroomId: mainChatroomId,
+    });
+    await render(
+      <AppThemeProvider>
+        <GroupGalleryRoute />
+      </AppThemeProvider>,
+    );
+    expect(mockStackScreen).toHaveBeenCalledWith({
+      options: { title: "갤러리" },
     });
   });
 

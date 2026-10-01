@@ -15,6 +15,8 @@ import { StandardStateView } from "@/shared/ui/standard-state-view";
  * `GroupsProvider` already has open/listed for this group (no extra fetch:
  * the E7d contract explicitly accepts "실패 시 빈 state"), then shows the
  * same-shaped empty state `ChatroomMediaGridScreen`'s own error view uses.
+ * Titled "갤러리" like the topic gallery route (M17 round 1 closure); only
+ * the entry row keeps the "사진·동영상" label.
  */
 export default function GroupGalleryRoute() {
   const { groupId, chatroomId } = useLocalSearchParams<{
@@ -34,7 +36,7 @@ export default function GroupGalleryRoute() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "사진·동영상" }} />
+      <Stack.Screen options={{ title: "갤러리" }} />
       {resolvedChatroomId ? (
         <ChatroomMediaGridScreen chatroomId={resolvedChatroomId} />
       ) : (
