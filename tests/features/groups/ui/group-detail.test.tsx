@@ -1,5 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
+import type { ViewProps } from "react-native";
 import { Share } from "react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { GroupsApiError } from "@/features/groups/data/groups-api";
@@ -9,9 +10,11 @@ import type { AuthorizedGroupsRequest } from "@/features/groups/model/groups-sto
 import { GroupDetailScreen } from "@/features/groups/ui/group-detail-screen";
 import {
   code,
+  deferred,
   fakeGroupsApi,
   group,
   groupId,
+  invite,
   otherId,
   principal,
   userId,
@@ -30,13 +33,13 @@ jest.mock("@/core/providers/session-provider", () => ({
   }),
 }));
 
-// I3's rename dialog (`Alert` + `TextField`) and I4/I6's `ConfirmAlert`
-// (destructive confirmations) both render through `@expo/ui/swift-ui` (jest
-// always resolves "ios"). C1's `StandardStateView` also lives here. One
-// inline mock per the shared test rule.
+// I4/I6's `ConfirmAlert` (destructive confirmations) renders through
+// `@expo/ui/swift-ui` (jest always resolves "ios"). C1's `StandardStateView`
+// also lives here. I3's rename is a separate sheet route on iOS (M17/U11,
+// `group-rename-screen.test.tsx`). One inline mock per the shared test rule.
 jest.mock("@expo/ui/swift-ui", () => {
   const React = jest.requireActual<typeof import("react")>("react");
-  const { Pressable, Text, TextInput, View } =
+  const { Pressable, Text, View } =
     jest.requireActual<typeof import("react-native")>("react-native");
   const AnyPressable = Pressable as unknown as React.ComponentType<
     Record<string, unknown>
@@ -99,43 +102,58 @@ jest.mock("@expo/ui/swift-ui", () => {
       </View>
     );
   }
-  type MockObservableState = {
-    value: string;
-    get: () => string;
-    set: jest.Mock;
-  };
-  function useNativeState(initial: string): MockObservableState {
-    const ref = React.useRef<MockObservableState | null>(null);
-    if (!ref.current) {
-      const state: MockObservableState = {
-        value: initial,
-        get: () => state.value,
-        set: jest.fn((next: string) => {
-          state.value = next;
-        }),
-      };
-      ref.current = state;
-    }
-    return ref.current;
-  }
-  function TextField(props: Readonly<{ text?: MockObservableState }>) {
+  // M17/E7g: `group-detail-screen.ios.tsx` swaps `NativeList` for a native
+  // `Form`/`Section` list (account-screen.ios.tsx's pattern). `Form` keeps
+  // `onRefresh` on the host view, the same way the `NativeList`/`List` mock
+  // does, so `fireEvent(screen.getByTestId("group-detail-list"), "refresh")`
+  // (below) keeps working unmodified. `Section` renders its optional `title`
+  // as an accessible header, matching the real SwiftUI `Section` semantics.
+  function Form(
+    props: Readonly<{
+      children?: ReactNode;
+      modifiers?: readonly { $type?: string; value?: () => void }[];
+      testID?: string;
+    }>,
+  ) {
+    const handler = props.modifiers?.find(
+      (modifier) => modifier?.$type === "refreshable",
+    )?.value;
+    const refresh = { onRefresh: handler } as unknown as ViewProps;
     return (
-      <TextInput
-        defaultValue={props.text?.value}
-        onChangeText={props.text?.set}
-        testID="rename-field"
-      />
+      <View {...refresh} testID={props.testID}>
+        {props.children}
+      </View>
+    );
+  }
+  function Section({
+    children,
+    footer,
+    header,
+    title,
+  }: Readonly<{
+    children?: ReactNode;
+    footer?: ReactNode;
+    header?: ReactNode;
+    title?: string;
+  }>) {
+    return (
+      <View>
+        {header}
+        {title ? <Text accessibilityRole="header">{title}</Text> : null}
+        {children}
+        {footer}
+      </View>
     );
   }
   return {
     Alert,
     Button: AlertButton,
     ContentUnavailableView,
+    Form,
     ProgressView,
+    Section,
     Spacer,
     Text: MockText,
-    TextField,
-    useNativeState,
     VStack,
   };
 });
@@ -144,6 +162,11 @@ jest.mock("@expo/ui/swift-ui/modifiers", () => ({
   disabled: (value: boolean) => ({ $type: "disabled", value }),
   fixedSize: (value: unknown) => ({ $type: "fixedSize", value }),
   frame: (value: unknown) => ({ $type: "frame", value }),
+  foregroundStyle: (value: unknown) => ({ $type: "foregroundStyle", value }),
+  refreshable: (handler: () => Promise<void>) => ({
+    $type: "refreshable",
+    value: handler,
+  }),
 }));
 
 const mockReplace = jest.fn();
@@ -157,11 +180,21 @@ jest.mock("expo-router", () => ({
   useRouter: () => ({ replace: mockReplace, push: mockPush }),
   useFocusEffect: (callback: () => () => void) => {
     const React = jest.requireActual<typeof import("react")>("react");
-    React.useEffect(callback, [callback]);
+    const focused = mockFocused;
+    React.useEffect(
+      () => (focused ? callback() : undefined),
+      [callback, focused],
+    );
   },
   Stack: {
     Screen: (props: Readonly<{ options: { title?: string } }>) =>
       mockStackScreen(props),
+    // M17/U12: the owner's invite share is a header toolbar button.
+    ...jest
+      .requireActual<typeof import("../../../support/stack-toolbar-mock")>(
+        "../../../support/stack-toolbar-mock",
+      )
+      .createStackToolbarMock(),
   },
 }));
 const authorized: AuthorizedGroupsRequest = (execute, signal) =>
@@ -192,17 +225,56 @@ describe("I1-I6 group detail (info)", () => {
     return { api, store, screen };
   }
 
-  test("I2: owner sees the summary header, roster (I4) and owner-only 관리/삭제 rows", async () => {
+  test("I2: owner sees the summary header, roster (I4) and the owner-only rename name, header share and 삭제 row", async () => {
     const { screen } = await setup();
     expect(lastStackScreenTitle()).toBe("그룹 정보");
-    expect(screen.getAllByText("우리 그룹").length).toBeGreaterThan(0);
     expect(screen.getByText("멤버 2/10 · 소유자")).toBeTruthy();
     expect(screen.getByText("사용자 (나)")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "그룹 이름, 우리 그룹" }),
-    ).toBeTruthy();
+    // M17/U12: the header's name is the rename button (trailing pencil).
+    expect(screen.getByRole("button", { name: "우리 그룹" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "초대 링크 공유" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "그룹 삭제" })).toBeTruthy();
+  });
+
+  test("E7g/U12: 멤버 renders as an accessible section header, and no 관리 section is left", async () => {
+    const { screen } = await setup();
+    expect(screen.getByRole("header", { name: "멤버" })).toBeTruthy();
+    expect(screen.queryByRole("header", { name: "관리" })).toBeNull();
+    expect(screen.queryByText("관리")).toBeNull();
+  });
+
+  test("I5 (M17/U12): the header share button is disabled while the invite is being created", async () => {
+    const api = fakeGroupsApi();
+    const pending = deferred<typeof invite>();
+    api.createInvite.mockReturnValueOnce(pending.promise);
+    const share = jest
+      .spyOn(Share, "share")
+      .mockResolvedValue({ action: "dismissedAction" });
+    const { screen } = await setup(api);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "초대 링크 공유" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "초대 링크 공유" }),
+    ).toBeDisabled();
+    await act(async () => {
+      pending.resolve(invite);
+      await pending.promise;
+    });
+    await waitFor(() => expect(share).toHaveBeenCalled());
+    expect(
+      screen.getByRole("button", { name: "초대 링크 공유" }),
+    ).toBeEnabled();
+    share.mockRestore();
+  });
+
+  test("E7d/GROUPS-AC5: 사진·동영상 opens the group's main chatroom gallery", async () => {
+    const { screen } = await setup();
+    await fireEvent.press(screen.getByRole("button", { name: "사진·동영상" }));
+    expect(mockPush).toHaveBeenCalledWith({
+      params: { chatroomId: otherId, groupId },
+      pathname: "/groups/[groupId]/gallery",
+    });
   });
 
   test("keeps drawing the last detail once unfocused, so closeGroup during the pop does not rebuild the list", async () => {
@@ -217,34 +289,70 @@ describe("I1-I6 group detail (info)", () => {
     expect(screen.queryByTestId("group-detail-loading")).toBeNull();
   });
 
-  test("I4: a member sees 그룹 나가기 but no owner-only 관리/삭제 rows", async () => {
+  test("I4: a member sees 그룹 나가기 but no owner-only rename, share or 삭제", async () => {
     const api = fakeGroupsApi();
     api.getGroup.mockResolvedValue({ ...group, ownerId: otherId });
     const { screen } = await setup(api);
     expect(screen.getByRole("button", { name: "그룹 나가기" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "그룹 삭제" })).toBeNull();
     expect(screen.queryByRole("button", { name: "초대 링크 공유" })).toBeNull();
+    // The name stays plain text: no rename button, no pencil.
+    expect(screen.getAllByText("우리 그룹").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "우리 그룹" })).toBeNull();
+    expect(screen.queryByTestId("group-detail-rename")).toBeNull();
   });
 
-  test("I3: 그룹 이름 opens the rename dialog, prefilled with the current name; save renames", async () => {
-    const { screen, api } = await setup();
-    await fireEvent.press(
-      screen.getByRole("button", { name: "그룹 이름, 우리 그룹" }),
+  test("I3 (M17/U11/U12): tapping the header's group name presents the rename sheet route", async () => {
+    const { screen } = await setup();
+    await fireEvent.press(screen.getByRole("button", { name: "우리 그룹" }));
+    expect(mockPush).toHaveBeenCalledWith({
+      params: { groupId },
+      pathname: "/groups/[groupId]/rename",
+    });
+    expect(screen.queryByText("그룹 이름 변경")).toBeNull();
+  });
+
+  test("I3 (M17/U11): the blur from presenting the rename sheet hands the open detail over; the next blur closes it", async () => {
+    const api = fakeGroupsApi();
+    const store = createGroupsStore({ createApi: () => api });
+    const tree = () => (
+      <AppThemeProvider>
+        <GroupsProvider
+          origin={principal.origin}
+          principal={principal}
+          authorizedRequest={authorized}
+          createStore={() => store}
+        >
+          <GroupDetailScreen groupId={groupId} />
+        </GroupsProvider>
+      </AppThemeProvider>
     );
-    expect(screen.getByText("그룹 이름 변경")).toBeTruthy();
-    expect(screen.getByTestId("rename-field").props.defaultValue).toBe(
-      "우리 그룹",
-    );
-    await fireEvent.changeText(screen.getByTestId("rename-field"), "새 이름");
-    await fireEvent.press(screen.getByRole("button", { name: "저장" }));
-    await waitFor(() =>
-      expect(api.renameGroup).toHaveBeenCalledWith(
-        "fake",
-        groupId,
-        { name: "새 이름" },
-        expect.anything(),
-      ),
-    );
+    const screen = await render(tree());
+    await fireEvent.press(screen.getByRole("button", { name: "우리 그룹" }));
+    expect(mockPush).toHaveBeenCalledWith({
+      params: { groupId },
+      pathname: "/groups/[groupId]/rename",
+    });
+    // I3 on iOS (M17/U11): presenting the rename sheet blurs this one
+    // mounted screen. Toggling `mockFocused` and rerendering a fresh tree
+    // (the `useFocusEffect` mock above runs its cleanup/effect off that
+    // flag) reproduces the blur/refocus a real navigation does, on a single
+    // instance -- unlike remounting, this keeps `renameHandoff` the same
+    // ref across both blurs. The handoff `presentRename` set keeps the
+    // detail open through this first blur instead of closing it.
+    mockFocused = false;
+    await screen.rerender(tree());
+    expect(store.getState().detail.group?.name).toBe("우리 그룹");
+    // Refocusing re-opens (refreshes) the detail as usual.
+    mockFocused = true;
+    await screen.rerender(tree());
+    expect(api.getGroup).toHaveBeenCalledTimes(2);
+    // A later blur with no handoff pending (e.g. actually navigating away)
+    // closes the detail -- this fails if `renameHandoff.current` is not
+    // reset back to false after the first blur above consumes it.
+    mockFocused = false;
+    await screen.rerender(tree());
+    expect(store.getState().detail.group).toBeNull();
   });
 
   test("manual refresh keeps the detail visible and reloads on pull-to-refresh", async () => {
@@ -373,5 +481,79 @@ describe("I1-I6 group detail (info)", () => {
     const { screen, api } = await setup(fakeGroupsApi(), "not-a-uuid");
     expect(screen.getByText("올바르지 않은 그룹 주소입니다")).toBeTruthy();
     expect(api.getGroup).not.toHaveBeenCalled();
+  });
+});
+
+// Coverage follow-up (part 2a-2): jest-expo always resolves the bare
+// "@/features/groups/ui/group-detail-screen" specifier to `.ios.tsx` (see
+// the file-level mock comments above), so every test above only ever
+// exercises that file -- `group-detail-screen.tsx` (Android/default),
+// including its own copy of the E7d 사진·동영상 row, never runs. This block
+// force-loads the literal file, the same `jest.requireActual("@/…/file.tsx")`
+// technique `tests/shared/ui/avatar.test.tsx:7-15` uses for its own
+// default/web-fallback file. It reuses every mock declared above; only
+// `setup()` changes, to render this file's `GroupDetailScreen`.
+const { GroupDetailScreen: AndroidGroupDetailScreen } = jest.requireActual<{
+  GroupDetailScreen: (props: { groupId: string }) => ReactNode;
+}>("@/features/groups/ui/group-detail-screen.tsx");
+
+describe("I1-I6 group detail (Android/default file, coverage)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFocused = true;
+  });
+  async function setup(api = fakeGroupsApi(), id = groupId) {
+    const store = createGroupsStore({ createApi: () => api });
+    const screen = await render(
+      <AppThemeProvider>
+        <GroupsProvider
+          origin={principal.origin}
+          principal={principal}
+          authorizedRequest={authorized}
+          createStore={() => store}
+        >
+          <AndroidGroupDetailScreen groupId={id} />
+        </GroupsProvider>
+      </AppThemeProvider>,
+    );
+    return { api, store, screen };
+  }
+
+  test("owner sees the summary header and roster", async () => {
+    const { screen } = await setup();
+    expect(lastStackScreenTitle()).toBe("그룹 정보");
+    expect(screen.getAllByText("우리 그룹").length).toBeGreaterThan(0);
+    expect(screen.getByText("멤버 2/10 · 소유자")).toBeTruthy();
+    expect(screen.getByText("사용자 (나)")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "초대 링크 공유" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "그룹 삭제" })).toBeTruthy();
+    expect(screen.queryByText("관리")).toBeNull();
+  });
+
+  test("I3 (M17/U12): tapping the header's group name opens the rename dialog, prefilled", async () => {
+    const { screen } = await setup();
+    expect(screen.queryByText("그룹 이름 변경")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "우리 그룹" }));
+    expect(screen.getByText("그룹 이름 변경")).toBeTruthy();
+    expect(screen.getByDisplayValue("우리 그룹")).toBeTruthy();
+  });
+
+  test("E7d/GROUPS-AC5: 사진·동영상 opens the group's main chatroom gallery", async () => {
+    const { screen } = await setup();
+    await fireEvent.press(screen.getByRole("button", { name: "사진·동영상" }));
+    expect(mockPush).toHaveBeenCalledWith({
+      params: { chatroomId: group.mainChatroomId, groupId },
+      pathname: "/groups/[groupId]/gallery",
+    });
+  });
+
+  test("그룹 삭제 needs a centered confirmation before deleting", async () => {
+    const { screen, api } = await setup();
+    await fireEvent.press(screen.getByRole("button", { name: "그룹 삭제" }));
+    expect(screen.getAllByText("그룹 삭제").length).toBeGreaterThan(1);
+    expect(api.deleteGroup).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole("button", { name: "삭제" }));
+    await waitFor(() => expect(api.deleteGroup).toHaveBeenCalledTimes(1));
+    expect(mockReplace).toHaveBeenCalledWith("/");
   });
 });

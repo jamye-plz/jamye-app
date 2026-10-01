@@ -7,7 +7,8 @@ export type * from "./group-rename-dialog.types";
 
 /**
  * Fallback for platforms without a native alert-with-textfield affordance
- * (web). iOS/Android resolve to their own files.
+ * (web). Android resolves to its own file; iOS does not render this dialog
+ * (see `group-rename-dialog.types.ts`).
  */
 export function GroupRenameDialog({
   busy,

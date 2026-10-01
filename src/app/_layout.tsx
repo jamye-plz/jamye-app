@@ -52,6 +52,10 @@ function RootStack() {
           options={{ presentation: "modal", title: "새 주제" }}
         />
         <Stack.Screen
+          name="groups/[groupId]/rename"
+          options={{ presentation: "modal", title: "그룹 이름 변경" }}
+        />
+        <Stack.Screen
           name="account/nickname"
           options={{ presentation: "modal", title: "닉네임 변경" }}
         />

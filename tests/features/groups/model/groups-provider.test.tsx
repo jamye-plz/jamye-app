@@ -185,3 +185,108 @@ function OtherProbe() {
   const name = useGroupName(otherId);
   return <Text testID="other">{name ?? "(null)"}</Text>;
 }
+
+function flush() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function NameProbe({ id }: { id: string }) {
+  const name = useGroupName(id);
+  return <Text testID="ensure-name">{name ?? "(null)"}</Text>;
+}
+
+describe("E7b/C8 ensureGroup", () => {
+  test("fetches once on a cache miss, keeps the fallback while loading, and resolves to the fetched name", async () => {
+    const api = fakeGroupsApi();
+    // Held open so the loading fallback is observable: `await render` flushes
+    // an already-resolved fetch before it returns.
+    let resolveGroup!: (value: typeof group) => void;
+    api.getGroup.mockReturnValueOnce(
+      new Promise<typeof group>((resolve) => {
+        resolveGroup = resolve;
+      }),
+    );
+    const store = createGroupsStore({ createApi: () => api });
+    const screen = await render(
+      <GroupsProvider
+        authorizedRequest={authorize}
+        createGroupsApi={() => api}
+        createStore={() => store}
+        origin={principal.origin}
+        principal={principal}
+      >
+        <NameProbe id={groupId} />
+      </GroupsProvider>,
+    );
+    expect(screen.getByTestId("ensure-name").props.children).toBe("(null)");
+    expect(api.getGroup).toHaveBeenCalledTimes(1);
+    await act(async () => resolveGroup(group));
+    expect(api.getGroup).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("ensure-name").props.children).toBe(group.name);
+    await screen.unmount();
+  });
+
+  test("does not call getGroup again once the name is already ensured", async () => {
+    const api = fakeGroupsApi();
+    const store = createGroupsStore({ createApi: () => api });
+    const screen = await render(
+      <GroupsProvider
+        authorizedRequest={authorize}
+        createGroupsApi={() => api}
+        createStore={() => store}
+        origin={principal.origin}
+        principal={principal}
+      >
+        <NameProbe id={groupId} />
+      </GroupsProvider>,
+    );
+    await act(flush);
+    expect(api.getGroup).toHaveBeenCalledTimes(1);
+    await screen.rerender(
+      <GroupsProvider
+        authorizedRequest={authorize}
+        createGroupsApi={() => api}
+        createStore={() => store}
+        origin={principal.origin}
+        principal={principal}
+      >
+        <NameProbe id={groupId} />
+      </GroupsProvider>,
+    );
+    await act(flush);
+    expect(api.getGroup).toHaveBeenCalledTimes(1);
+    await screen.unmount();
+  });
+
+  test("keeps the fallback after a failed fetch and retries when a screen needs the name again", async () => {
+    const api = fakeGroupsApi();
+    api.getGroup.mockRejectedValueOnce(new Error("network"));
+    api.getGroup.mockResolvedValueOnce(group);
+    const store = createGroupsStore({ createApi: () => api });
+    const tree = (probeKey: string) => (
+      <GroupsProvider
+        authorizedRequest={authorize}
+        createGroupsApi={() => api}
+        createStore={() => store}
+        origin={principal.origin}
+        principal={principal}
+      >
+        <NameProbe key={probeKey} id={groupId} />
+      </GroupsProvider>
+    );
+    const screen = await render(tree("first"));
+    await act(flush);
+    expect(api.getGroup).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("ensure-name").props.children).toBe("(null)");
+    // A plain re-render does not refetch (no request storm while offline)...
+    await screen.rerender(tree("first"));
+    await act(flush);
+    expect(api.getGroup).toHaveBeenCalledTimes(1);
+    // ...the next consumer mount does.
+    await screen.rerender(tree("second"));
+    await act(flush);
+    expect(api.getGroup).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("ensure-name").props.children).toBe(group.name);
+    await screen.unmount();
+  });
+});

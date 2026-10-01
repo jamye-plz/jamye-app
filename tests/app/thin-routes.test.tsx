@@ -419,6 +419,7 @@ describe("M3-I3 actual thin Expo Router modules", () => {
       ["groups/create", "새 그룹"],
       ["groups/join", "초대 코드로 가입"],
       ["groups/[groupId]/topics/new", "새 주제"],
+      ["groups/[groupId]/rename", "그룹 이름 변경"],
     ] as const) {
       const route = screen.getByTestId(`screen-${name}`);
       expect(route.props.presentation).toBe("modal");

@@ -1,36 +1,31 @@
 import { Host, RNHostView, Text } from "@expo/ui";
-import { Stack, useFocusEffect, useIsFocused, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Share, useWindowDimensions, View } from "react-native";
-import { parsePublicApiOrigin } from "@/core/config/public-env";
-import type { Member } from "@/core/contracts/server";
-import { useSession } from "@/core/providers/session-provider";
+import { Stack, useRouter } from "expo-router";
+import { useWindowDimensions, View } from "react-native";
+
 import { useAppTheme, useAppThemeOrSystem } from "@/core/theme/theme-provider";
 import { androidThemeColors, appSpacing } from "@/core/theme/tokens";
 import { ActionListItem } from "@/shared/ui/action-list-item";
-import type { RowAction } from "@/shared/ui/action-list-item.types";
 import { AppSymbol } from "@/shared/ui/app-symbol";
 import { AppText } from "@/shared/ui/app-text";
 import { Avatar } from "@/shared/ui/avatar";
 import { ConfirmAlert } from "@/shared/ui/confirm-alert";
+import { HeaderActions } from "@/shared/ui/header-actions";
 import { LoadSentinel } from "@/shared/ui/load-sentinel";
 import { NativeList } from "@/shared/ui/native-list";
 import { StandardStateView } from "@/shared/ui/standard-state-view";
-import { isGroupIdentifier } from "../model/groups-input";
-import { useGroupsStore } from "../model/groups-provider";
-import { groupErrorMessage } from "./group-controls";
-import { GroupRenameDialog } from "./group-rename-dialog";
-import {
-  buildInviteShareMessage,
-  sevenDaysFromNowIso,
-} from "./group-row-actions";
 
-const HEADER_AVATAR_SIZE = 72;
-const ROW_AVATAR_SIZE = 40;
+import { groupErrorMessage } from "./group-controls";
+import {
+  HEADER_AVATAR_SIZE,
+  IOS_ROW_INSETS,
+  noop,
+  ROW_AVATAR_SIZE,
+  useGroupDetailScreen,
+} from "./group-detail-screen.shared";
+import { GroupNameHeading } from "./group-name-heading";
+import { GroupRenameDialog } from "./group-rename-dialog";
+
 const IS_ANDROID = process.env.EXPO_OS === "android";
-// Inset-grouped List: 16pt screen margin + 16pt row inset on each side.
-const IOS_ROW_INSETS = 64;
-function noop(): void {}
 
 /**
  * A text row inside the native list. On Android it is a Compose `Text`, not
@@ -80,109 +75,55 @@ function ListText({
 /**
  * Group info (I1-I6): a single native `List` (`NativeList`) holding the
  * centered summary header (I2), member rows (I4, `ActionListItem` with a
- * leading `Avatar`), the owner-only 관리 rows (I3 rename / I5 invite share),
- * and the destructive 나가기/삭제 row (I6). This deliberately does **not**
- * use the universal `FieldGroup` for the interactive sections: Android's
- * `FieldGroup.Section` wraps every child in its own non-interactive
- * `ListItem.HeadlineContent`, so a real `ListItem`/`ActionListItem` child
- * (needed here for I4's swipe/long-press member actions and leading
- * avatars) renders doubly-nested. `NativeList` + `ActionListItem` is the
- * same pattern the group list (G1-G4) already uses for the identical
- * problem shape, so this screen stays consistent with it and needs no
- * separate `.android.tsx` file. See the task result report for the
- * trade-off this records against I1's literal "universal FieldGroup"
- * wording.
+ * leading `Avatar`), the E7d "사진·동영상" gallery entry row, and the
+ * destructive 나가기/삭제 row (I6). The owner's tools have no rows
+ * (M17/U12): tapping the header's group name (a trailing pencil marks it)
+ * opens the I3 rename dialog, and I5 invite sharing is the top app bar's
+ * trailing share button. This deliberately does **not** use the universal `FieldGroup` for
+ * the interactive sections: Android's `FieldGroup.Section` wraps every
+ * child in its own non-interactive `ListItem.HeadlineContent`, so a real
+ * `ListItem`/`ActionListItem` child (needed here for I4's swipe/long-press
+ * member actions and leading avatars) renders doubly-nested. `NativeList` +
+ * `ActionListItem` is the same pattern the group list (G1-G4) already uses
+ * for the identical problem shape, so this screen stays consistent with it
+ * and needs no separate `.android.tsx` file. See the task result report for
+ * the trade-off this records against I1's literal "universal FieldGroup"
+ * wording. This file now covers Android and any non-iOS fallback only --
+ * iOS resolves `group-detail-screen.ios.tsx` (M17/E7g), which shares this
+ * screen's state/effects via `useGroupDetailScreen`
+ * (`group-detail-screen.shared.ts`).
  */
 export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
-  const { state, actions, getState } = useGroupsStore();
-  const { principal } = useSession();
+  const {
+    actions,
+    busy,
+    deleteConfirm,
+    detail,
+    error,
+    firstLoad,
+    group,
+    headerActions,
+    leaveConfirm,
+    me,
+    memberActionsFor,
+    owner,
+    removeTarget,
+    renameOpen,
+    setDeleteConfirm,
+    setLeaveConfirm,
+    setRemoveTarget,
+    setRenameOpen,
+    setShareFailed,
+    setTransferTarget,
+    shareFailed,
+    shareInvite,
+    state,
+    transferTarget,
+    valid,
+  } = useGroupDetailScreen(groupId);
   const { colors } = useAppTheme();
   const router = useRouter();
-  const lifetime = useRef<symbol | null>(null);
-  // Leaving the screen clears the store's detail (closeGroup) while the pop
-  // animation still shows it; keep drawing the last focused detail so the
-  // native list is not rebuilt mid-transition.
-  const focused = useIsFocused();
-  const [shownDetail, setShownDetail] = useState(state.detail);
-  if (focused && shownDetail !== state.detail) setShownDetail(state.detail);
-  const detail = focused ? state.detail : shownDetail;
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [shareBusy, setShareBusy] = useState(false);
-  const [shareFailed, setShareFailed] = useState(false);
-  const [transferTarget, setTransferTarget] = useState<Member | null>(null);
-  const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
-  const [leaveConfirm, setLeaveConfirm] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const valid = isGroupIdentifier(groupId);
   const { width: windowWidth } = useWindowDimensions();
-  useFocusEffect(
-    useCallback(() => {
-      lifetime.current = Symbol();
-      if (valid) void actions.openGroup(groupId);
-      return () => {
-        lifetime.current = null;
-        actions.closeGroup();
-      };
-    }, [actions, groupId, valid]),
-  );
-  const group = valid && detail.id === groupId ? detail.group : null;
-  const me = principal?.userId ?? null;
-  const owner = group?.ownerId === me;
-  const busy = state.management.status === "pending";
-  useEffect(() => {
-    if (detail.id === groupId && detail.accessLost && !busy && lifetime.current)
-      router.replace("/");
-  }, [detail.id, detail.accessLost, groupId, busy, router]);
-
-  async function shareInvite(): Promise<void> {
-    if (!group) return;
-    setShareBusy(true);
-    setShareFailed(false);
-    const ok = await actions.createInvite(
-      { expiresAt: sevenDaysFromNowIso(), maxUses: null },
-      true,
-    );
-    setShareBusy(false);
-    const invite = ok ? getState().invite : null;
-    if (!invite) {
-      setShareFailed(true);
-      return;
-    }
-    try {
-      await Share.share({
-        message: buildInviteShareMessage(
-          group.name,
-          parsePublicApiOrigin(process.env.EXPO_PUBLIC_API_ORIGIN),
-          invite.code,
-        ),
-      });
-    } catch {
-      // The user cancelling/dismissing the system share sheet is not an
-      // error (G5) -- the invite already exists and stays usable.
-    }
-  }
-
-  function memberActionsFor(member: Member): RowAction[] {
-    if (!owner || member.userId === me) return [];
-    return [
-      {
-        key: "transfer",
-        onPress: () => setTransferTarget(member),
-        symbol: "transfer",
-        title: "소유권 이전",
-      },
-      {
-        destructive: true,
-        key: "remove",
-        onPress: () => setRemoveTarget(member),
-        symbol: "removeMember",
-        title: "내보내기",
-      },
-    ];
-  }
-
-  const error = detail.id === groupId ? detail.error : null;
-  const firstLoad = valid && !group && !error;
   const summaryHeader = group ? (
     <View
       style={{
@@ -193,7 +134,10 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
       }}
     >
       <Avatar name={group.name} size={HEADER_AVATAR_SIZE} />
-      <AppText variant="title">{group.name}</AppText>
+      <GroupNameHeading
+        name={group.name}
+        onRename={owner ? () => setRenameOpen(true) : undefined}
+      />
       <AppText color={colors.textMuted}>
         {`멤버 ${group.memberCount}/${group.maxMembers} · ${owner ? "소유자" : "멤버"}`}
       </AppText>
@@ -202,6 +146,7 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
   return (
     <>
       <Stack.Screen options={{ title: "그룹 정보" }} />
+      <HeaderActions actions={headerActions} />
       <Host seedColor={colors.primary} style={{ flex: 1 }}>
         {!valid ? (
           <StandardStateView
@@ -244,6 +189,20 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
             ) : (
               <RNHostView matchContents>{summaryHeader}</RNHostView>
             )}
+            <ActionListItem
+              actions={[]}
+              leading={
+                <AppSymbol name="gallery" tintColor={colors.textMuted} />
+              }
+              onPress={() =>
+                router.push({
+                  params: { chatroomId: group.mainChatroomId, groupId },
+                  pathname: "/groups/[groupId]/gallery",
+                })
+              }
+              testID="group-detail-gallery-row"
+              title="사진·동영상"
+            />
             {state.management.status === "failed" ||
             state.management.status === "uncertain" ? (
               <ListText tone="error">
@@ -288,33 +247,6 @@ export function GroupDetailScreen({ groupId }: Readonly<{ groupId: string }>) {
                 onVisible={() => void actions.loadMoreMembers()}
                 testID="group-detail-members-load-more"
               />
-            ) : null}
-            {owner ? (
-              <>
-                <ListText kind="subheader">관리</ListText>
-                <ActionListItem
-                  disclosure={false}
-                  actions={[]}
-                  leading={
-                    <AppSymbol name="edit" tintColor={colors.textMuted} />
-                  }
-                  onPress={() => setRenameOpen(true)}
-                  supportingText={group.name}
-                  testID="group-detail-rename-row"
-                  title="그룹 이름"
-                />
-                <ActionListItem
-                  disclosure={false}
-                  actions={[]}
-                  leading={
-                    <AppSymbol name="share" tintColor={colors.textMuted} />
-                  }
-                  onPress={() => void shareInvite()}
-                  testID="group-detail-share-row"
-                  title="초대 링크 공유"
-                />
-                {shareBusy ? <ListText>초대 링크 만드는 중…</ListText> : null}
-              </>
             ) : null}
             <ActionListItem
               disclosure={false}

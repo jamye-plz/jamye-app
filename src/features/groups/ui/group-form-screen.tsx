@@ -105,7 +105,11 @@ export function GroupFormScreen({
       ? "이름은 1~128자입니다. 입력한 공백도 그대로 사용합니다."
       : "16~64자의 영문, 숫자, 밑줄, 하이픈으로 된 코드를 입력하세요.",
     initialValue: prefill,
-    onCancel: () => router.back(),
+    // An invite link, or the post-login redirect with a pending invite, opens
+    // the join screen as the only screen in the stack: with nothing to go
+    // back to, closing it lands on the group list instead of doing nothing.
+    onCancel: () =>
+      router.canGoBack() ? router.back() : router.replace("/groups"),
     onChangeValue: setInput,
     onSubmit: () => void submit(),
     placeholder: creating ? "그룹 이름" : "초대 코드",

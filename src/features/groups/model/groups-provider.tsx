@@ -1,8 +1,10 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -10,6 +12,8 @@ import type { PropsWithChildren } from "react";
 import { AppState } from "react-native";
 import { parsePublicApiOrigin } from "@/core/config/public-env";
 import type { SessionPrincipal } from "@/core/providers/session-provider";
+import { createGroupsApi as createDefaultGroupsApi } from "../data/groups-api";
+import type { GroupsApi } from "../data/groups-api";
 import type {
   AuthorizedGroupsRequest,
   GroupsStore,
@@ -28,6 +32,19 @@ type Value = Readonly<{
    * waiting for this provider's own next render.
    */
   getState: () => GroupsState;
+  /**
+   * E7b/C8: fetches the group by id and folds its name into a small
+   * ensure-cache, without touching the store's own `detail`/`list` state --
+   * `group-detail-screen.tsx`'s `openGroup`/`closeGroup` lifecycle owns
+   * `detail`, so reusing it here would race a concurrently-open detail
+   * screen. A no-op while a groupId is already cached or already in flight;
+   * failures are silent (the caller keeps its own fallback and this simply
+   * retries on the next miss, i.e. when a screen that needs the name mounts
+   * again -- a plain re-render does not refetch).
+   */
+  ensureGroup: (groupId: string) => void;
+  /** Names resolved by `ensureGroup`, keyed by groupId. */
+  ensuredNames: Readonly<Record<string, string>>;
 }>;
 type Props = PropsWithChildren<
   Readonly<{
@@ -35,6 +52,10 @@ type Props = PropsWithChildren<
     principal: SessionPrincipal | null;
     authorizedRequest: AuthorizedGroupsRequest;
     createStore: (origin: string) => GroupsStore;
+    /** Test seam for `ensureGroup`'s own group-detail fetch; defaults to the
+     * real N-layer API. Independent from `createStore`'s injected api since
+     * `GroupsStore` does not expose its internal client. */
+    createGroupsApi?: (origin: string) => GroupsApi;
   }>
 >;
 const Context = createContext<Value | undefined>(undefined);
@@ -53,6 +74,7 @@ function ScopedGroupsProvider({
   principal,
   authorizedRequest,
   createStore,
+  createGroupsApi = createDefaultGroupsApi,
   children,
 }: Props) {
   const [store] = useState(() => {
@@ -80,9 +102,46 @@ function ScopedGroupsProvider({
       store.dispose();
     };
   }, [store]);
+
+  const groupsApi = useMemo(
+    () => createGroupsApi(origin),
+    [createGroupsApi, origin],
+  );
+  // `GroupsProvider` remounts this component per identity (its `key`), so
+  // the ensure-cache and the in-flight set start empty for every account.
+  const [ensuredNames, setEnsuredNames] = useState<Record<string, string>>({});
+  const ensureInFlightRef = useRef(new Set<string>());
+  const ensureGroup = useCallback(
+    (groupId: string) => {
+      if (ensuredNames[groupId] !== undefined) return;
+      if (ensureInFlightRef.current.has(groupId)) return;
+      ensureInFlightRef.current.add(groupId);
+      void authorizedRequest((token, signal) =>
+        groupsApi.getGroup(token, groupId, signal),
+      )
+        .then((group) => {
+          setEnsuredNames((previous) => ({
+            ...previous,
+            [groupId]: group.name,
+          }));
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          ensureInFlightRef.current.delete(groupId);
+        });
+    },
+    [authorizedRequest, ensuredNames, groupsApi],
+  );
+
   const value = useMemo(
-    () => ({ state, actions: store.actions, getState: store.getState }),
-    [state, store],
+    () => ({
+      actions: store.actions,
+      ensureGroup,
+      ensuredNames,
+      getState: store.getState,
+      state,
+    }),
+    [ensureGroup, ensuredNames, state, store],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
@@ -96,13 +155,21 @@ export function useGroupsStore(): Value {
 
 /**
  * Display name of a group already known to this account's store (the open
- * detail first, then the cached list). `null` until a query has seen it, so
- * callers show a neutral fallback instead of a stale name.
+ * detail first, then the cached list, then the E7b/C8 ensure-cache). `null`
+ * until a query has seen it, so callers show a neutral fallback (`그룹`)
+ * instead of a stale name -- and this triggers exactly one `ensureGroup`
+ * fetch per miss, so `topics-screen.tsx` (group home) and
+ * `use-chatroom-title.ts` (chatroom title) both self-heal a cache miss
+ * without either file calling this provider directly.
  */
 export function useGroupName(groupId: string): string | null {
-  const { state } = useGroupsStore();
+  const { ensuredNames, ensureGroup, state } = useGroupsStore();
   const fromDetail =
     state.detail.id === groupId ? state.detail.group?.name : undefined;
   const fromList = state.list.items.find((item) => item.id === groupId)?.name;
-  return fromDetail ?? fromList ?? null;
+  const name = fromDetail ?? fromList ?? ensuredNames[groupId] ?? null;
+  useEffect(() => {
+    if (name === null) ensureGroup(groupId);
+  }, [ensureGroup, groupId, name]);
+  return name;
 }
