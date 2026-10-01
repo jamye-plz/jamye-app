@@ -1,6 +1,7 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
+import { SystemFeedbackHost } from "@/shared/ui/system-feedback";
 import { GroupsProvider } from "@/features/groups/model/groups-provider";
 import { createGroupsStore } from "@/features/groups/model/groups-store";
 import type { AuthorizedGroupsRequest } from "@/features/groups/model/groups-store";
@@ -47,31 +48,79 @@ jest.mock("@/shared/ui/android-extended-fab.android", () => {
     ),
   };
 });
-// `snackbar-host.android.tsx` has no iOS/default fallback file either
-// (its Compose SnackbarHost has no swift-ui counterpart) -- same reasoning
-// as `android-extended-fab.android` above. `mockShowSnackbar` is captured at
-// module scope so tests can drive the imperative `showSnackbar(...)` call
-// the screen makes through the forwarded ref.
-export const mockShowSnackbar = jest.fn<
-  Promise<"actionPerformed" | "dismissed">,
-  [{ actionLabel?: string; message: string }]
->();
-jest.mock("@/shared/ui/snackbar-host.android", () => {
-  const React = jest.requireActual<typeof import("react")>("react");
-  const { View } =
+// `snackbar-host.android.tsx` has no iOS/default fallback file either --
+// same reasoning as `android-extended-fab.android` above. F4/C17/GROUPS-AC7:
+// the screen no longer renders `AndroidSnackbarHost` itself (it reuses the
+// route's single `SystemFeedbackHost`, mocked below), so only the retry
+// label constant is still needed from this module.
+jest.mock("@/shared/ui/snackbar-host.android", () => ({
+  SNACKBAR_DEFAULT_RETRY_LABEL: "다시 시도",
+}));
+// jest always resolves an extensionless `@/shared/ui/system-feedback`
+// import as iOS (a SwiftUI `Alert`), even from inside this `.android.tsx`
+// screen loaded via `jest.requireActual`; mock the module itself with a
+// simple RN stand-in, mirroring
+// `notifications-inbox-screen.android.test.tsx`'s identical mock -- this
+// screen doesn't render `SystemFeedbackHost` itself (the `(tabs)/groups`
+// route does, for `AccountRestoreNotice`), so tests provide it directly.
+jest.mock("@/shared/ui/system-feedback", () => {
+  const ReactActual = jest.requireActual<typeof import("react")>("react");
+  const { Text, View } =
     jest.requireActual<typeof import("react-native")>("react-native");
-  return {
-    SNACKBAR_DEFAULT_RETRY_LABEL: "다시 시도",
-    AndroidSnackbarHost: React.forwardRef(function AndroidSnackbarHost(
-      props: { testID?: string },
-      ref: React.Ref<{ showSnackbar: typeof mockShowSnackbar }>,
-    ) {
-      React.useImperativeHandle(ref, () => ({
-        showSnackbar: mockShowSnackbar,
-      }));
-      return <View testID={props.testID} />;
-    }),
-  };
+  const Ctx = ReactActual.createContext<
+    | {
+        showNotice: (notice: {
+          message: string;
+          actionLabel?: string;
+          onAction?: () => void;
+        }) => void;
+      }
+    | undefined
+  >(undefined);
+  function SystemFeedbackHost({
+    children,
+  }: Readonly<{ children?: ReactNode }>) {
+    const [notice, setNotice] = ReactActual.useState<{
+      message: string;
+      actionLabel?: string;
+      onAction?: () => void;
+    } | null>(null);
+    return (
+      <Ctx.Provider value={{ showNotice: setNotice }}>
+        {children}
+        {notice ? (
+          <View testID="system-feedback-notice">
+            <Text>{notice.message}</Text>
+            {notice.actionLabel ? (
+              <Text
+                accessibilityRole="button"
+                onPress={() => {
+                  const onAction = notice.onAction;
+                  setNotice(null);
+                  onAction?.();
+                }}
+              >
+                {notice.actionLabel}
+              </Text>
+            ) : (
+              <Text accessibilityRole="button" onPress={() => setNotice(null)}>
+                확인
+              </Text>
+            )}
+          </View>
+        ) : null}
+      </Ctx.Provider>
+    );
+  }
+  function useSystemFeedback() {
+    const ctx = ReactActual.useContext(Ctx);
+    if (!ctx)
+      throw new Error(
+        "useSystemFeedback must be used inside SystemFeedbackHost.",
+      );
+    return ctx;
+  }
+  return { SystemFeedbackHost, useSystemFeedback };
 });
 jest.mock("@expo/ui/swift-ui", () => {
   const { Pressable, Text, View } =
@@ -174,14 +223,16 @@ describe("GroupListScreen (Android): G3 Extended FAB replaces the header +", () 
     const store = createGroupsStore({ createApi: () => api });
     const screen = await render(
       <AppThemeProvider>
-        <GroupsProvider
-          origin={principal.origin}
-          principal={principal}
-          authorizedRequest={authorized}
-          createStore={() => store}
-        >
-          <AndroidGroupListScreen />
-        </GroupsProvider>
+        <SystemFeedbackHost>
+          <GroupsProvider
+            origin={principal.origin}
+            principal={principal}
+            authorizedRequest={authorized}
+            createStore={() => store}
+          >
+            <AndroidGroupListScreen />
+          </GroupsProvider>
+        </SystemFeedbackHost>
       </AppThemeProvider>,
     );
     expect(screen.getByTestId("group-list-fab")).toBeTruthy();
@@ -196,8 +247,7 @@ describe("GroupListScreen (Android): G3 Extended FAB replaces the header +", () 
     expect(mockPush).toHaveBeenLastCalledWith("/groups/join");
   });
 
-  test("C1: a refresh error while rows are already showing raises the Snackbar, and its action retries", async () => {
-    mockShowSnackbar.mockResolvedValue("actionPerformed");
+  test("F4/C17/GROUPS-AC7: a refresh error while rows are already showing raises a single feedback notice, and its action retries", async () => {
     const AndroidGroupListScreen = loadAndroid();
     const api = fakeGroupsApi();
     api.listGroups.mockResolvedValueOnce({
@@ -215,26 +265,29 @@ describe("GroupListScreen (Android): G3 Extended FAB replaces the header +", () 
       nextCursor: null,
     });
     const store = createGroupsStore({ createApi: () => api });
-    await render(
+    const screen = await render(
       <AppThemeProvider>
-        <GroupsProvider
-          origin={principal.origin}
-          principal={principal}
-          authorizedRequest={authorized}
-          createStore={() => store}
-        >
-          <AndroidGroupListScreen />
-        </GroupsProvider>
+        <SystemFeedbackHost>
+          <GroupsProvider
+            origin={principal.origin}
+            principal={principal}
+            authorizedRequest={authorized}
+            createStore={() => store}
+          >
+            <AndroidGroupListScreen />
+          </GroupsProvider>
+        </SystemFeedbackHost>
       </AppThemeProvider>,
     );
-    expect(mockShowSnackbar).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("system-feedback-notice")).toBeNull();
     api.listGroups.mockRejectedValueOnce(new Error("network"));
     await act(async () => {
       await store.actions.loadGroups();
     });
-    expect(mockShowSnackbar).toHaveBeenCalledWith(
-      expect.objectContaining({ actionLabel: "다시 시도" }),
-    );
+    const notice = await screen.findByTestId("system-feedback-notice");
+    expect(screen.getByText("다시 시도")).toBeTruthy();
+    await fireEvent.press(screen.getByText("다시 시도"));
+    expect(notice).toBeTruthy();
     await Promise.resolve();
     expect(api.listGroups).toHaveBeenCalledTimes(3);
   });

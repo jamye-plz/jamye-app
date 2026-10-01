@@ -37,11 +37,7 @@ import { androidThemeColors } from "@/core/theme/tokens";
 import { formatJamyeTimeLabel } from "@/shared/datetime/relative-labels";
 import { LoadSentinel } from "@/shared/ui/load-sentinel";
 import { NativeList } from "@/shared/ui/native-list";
-import {
-  AndroidSnackbarHost,
-  SNACKBAR_DEFAULT_RETRY_LABEL,
-} from "@/shared/ui/snackbar-host.android";
-import type { SnackbarHostRef } from "@/shared/ui/snackbar-host.android";
+import { SNACKBAR_DEFAULT_RETRY_LABEL } from "@/shared/ui/snackbar-host.android";
 import { StandardStateView } from "@/shared/ui/standard-state-view";
 import {
   SystemFeedbackHost,
@@ -119,7 +115,6 @@ function NotificationsInboxScreenBody({
   const params = useLocalSearchParams<{ pushOpenFailure?: string }>();
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const shownPushFailureRef = useRef(false);
-  const snackbarRef = useRef<SnackbarHostRef>(null);
   const lastShownError = useRef<NotificationsErrorOutcome | null>(null);
 
   useFocusEffect(
@@ -183,8 +178,10 @@ function NotificationsInboxScreenBody({
     !firstLoad && state.error !== null && state.items.length === 0;
   const errorMessage = state.error ? ERROR_COPY[state.error] : "";
 
-  // C1: the Snackbar (not an inline row) is Android's "list has rows"
-  // error surface; fires once per distinct error while rows are showing.
+  // C1/F4/GROUPS-AC7: a single `SystemFeedbackHost` (shared with the
+  // push-failure notice above) is Android's "list has rows" error surface --
+  // a second, separately-queued `AndroidSnackbarHost` used to overlap it.
+  // Fires once per distinct error while rows are showing.
   useEffect(() => {
     if (!state.error) {
       lastShownError.current = null;
@@ -193,15 +190,12 @@ function NotificationsInboxScreenBody({
     if (state.items.length === 0 || state.error === lastShownError.current)
       return;
     lastShownError.current = state.error;
-    void snackbarRef.current
-      ?.showSnackbar({
-        actionLabel: SNACKBAR_DEFAULT_RETRY_LABEL,
-        message: ERROR_COPY[state.error],
-      })
-      .then((result) => {
-        if (result === "actionPerformed") void store.actions.refresh();
-      });
-  }, [state.error, state.items.length, store]);
+    showNotice({
+      actionLabel: SNACKBAR_DEFAULT_RETRY_LABEL,
+      message: ERROR_COPY[state.error],
+      onAction: () => void store.actions.refresh(),
+    });
+  }, [state.error, state.items.length, showNotice, store]);
 
   return (
     <>
@@ -257,7 +251,6 @@ function NotificationsInboxScreenBody({
           </NativeList>
         )}
       </Host>
-      <AndroidSnackbarHost ref={snackbarRef} testID="notifications-snackbar" />
     </>
   );
 }

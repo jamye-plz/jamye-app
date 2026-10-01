@@ -53,6 +53,10 @@ let mockChat: {
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
+  // E4/C4: connected-chat-screen.tsx's access-loss redirect focus guard.
+  // None of this file's cases exercise the unfocused branch itself, so a
+  // fixed "always focused" stand-in keeps existing renders unchanged.
+  useIsFocused: () => true,
   useFocusEffect: (callback: () => void | (() => void)) => {
     const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(callback, [callback]);
@@ -268,6 +272,7 @@ jest.mock("react-native-reanimated", () => {
 
 function actions(): ConnectedChatStoreActions {
   return {
+    applyAnnouncementTopicDeleted: jest.fn().mockResolvedValue(undefined),
     loadRooms: jest.fn().mockResolvedValue(undefined),
     loadMoreRooms: jest.fn().mockResolvedValue(undefined),
     closeRooms: jest.fn(),
@@ -678,7 +683,9 @@ test("thin routes use real params and reject malformed arrays; fixture and signe
       <></>
     </ChatRouteGuard>,
   );
-  expect(mockRedirect).toHaveBeenCalledWith("/");
+  // E7a/task-app-auth: signed-out now redirects to the split (auth)/sign-in
+  // route instead of "/".
+  expect(mockRedirect).toHaveBeenCalledWith("/sign-in");
   mockAppMode = "fixture";
   await screen.rerender(
     <ChatRouteGuard>

@@ -1,9 +1,8 @@
 /**
- * I3: rename the group from a centered dialog with a text field. iOS
- * resolves to `group-rename-dialog.ios.tsx` (swift-ui `Alert` + `TextField`
- * inside `Alert.Actions` -- unverified on a real device, see that file's
- * doc comment), Android to `.android.tsx` (`AlertDialog` +
- * `OutlinedTextField`).
+ * I3: rename the group from a centered dialog with a text field. Android
+ * resolves to `.android.tsx` (`AlertDialog` + `OutlinedTextField`). iOS
+ * renames through the `groups/[groupId]/rename` sheet instead
+ * (`group-rename-screen.tsx`, M17/U11), so it has no platform file here.
  */
 export type GroupRenameDialogProps = Readonly<{
   isPresented: boolean;

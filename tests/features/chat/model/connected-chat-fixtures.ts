@@ -111,6 +111,7 @@ export function fakeConnectedChatRepository(): jest.Mocked<ConnectedChatReposito
     listChatrooms: jest.fn(),
     listDirtyReconciliationScopes: jest.fn().mockResolvedValue([]),
     listMessagesWindow: jest.fn(),
+    markAnnouncementDeleted: jest.fn().mockResolvedValue(undefined),
     markMessageDeleted: jest.fn().mockResolvedValue(undefined),
     markSendFailed: jest.fn().mockResolvedValue(undefined),
     mergeCanonicalMessage: jest.fn(),

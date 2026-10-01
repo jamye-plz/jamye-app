@@ -75,12 +75,15 @@ async function main(): Promise<void> {
   `);
 
   await runMigrations(adapter, accountMigrations);
-  assert.equal(database.query("PRAGMA user_version").get().user_version, 6);
+  // task-app-chat (E2/C2/U2): the full registry's latest version is now 7
+  // (005 + 006 + 007) -- this "after all migrations" assertion tracks the
+  // registry's current length, not any one migration specifically.
+  assert.equal(database.query("PRAGMA user_version").get().user_version, 7);
   assert.deepEqual(database.query("SELECT * FROM scope_metadata").get(), {
     singleton: 1,
     origin: PRINCIPAL.origin,
     user_id: PRINCIPAL.userId,
-    schema_version: 6,
+    schema_version: 7,
   });
 
   let active = true;
@@ -699,6 +702,103 @@ async function main(): Promise<void> {
   );
   assert.equal(systemRow?.senderNickname, null);
   assert.equal(systemRow?.senderAvatarUrl, null);
+
+  // E1/C1/U4 (CHAT-AC2): a deleted topic's announcement is hidden entirely,
+  // in either arrival order. The server appends the announcement's own
+  // message.deleted before topic.deleted, so the usual ordered apply reaches
+  // markAnnouncementDeleted with an already-scrubbed user tombstone.
+  const ANNOUNCEMENT_A_SERVER_ID = "30303030-3030-4030-8030-303030303030";
+  const ANNOUNCEMENT_B_SERVER_ID = "31313131-3131-4131-8131-313131313131";
+  const ANNOUNCEMENT_AUTHOR_ID = "32323232-3232-4232-8232-323232323232";
+  const ANNOUNCEMENT_ROOM_ID = "34343434-3434-4434-8434-343434343434";
+  await repository.upsertChatrooms([
+    {
+      chatroomId: ANNOUNCEMENT_ROOM_ID,
+      createdAtRaw: "2026-09-10T01:00:00.000000000Z",
+      groupId: GROUP_ID,
+      kind: "main",
+      topicId: null,
+    },
+  ]);
+  function announcement(
+    localId: string,
+    serverMessageId: string,
+    minute: number,
+  ) {
+    return {
+      body: "새로운 주제를 올렸어요: [주제](/groups/g/topics/t/chat)",
+      chatroomId: ANNOUNCEMENT_ROOM_ID,
+      clientMsgId: null,
+      createdAtRaw: `2026-09-10T01:0${minute}:00.000000000Z`,
+      kind: "user",
+      localId,
+      media: [],
+      senderAvatarUrl: null,
+      senderId: ANNOUNCEMENT_AUTHOR_ID,
+      senderNickname: "작성자",
+      serverMessageId,
+    };
+  }
+  function storedAnnouncement(localId: string) {
+    return database
+      .query(
+        "SELECT kind, body, deleted_at_ms FROM connected_chat_messages WHERE local_id = ?",
+      )
+      .get(localId);
+  }
+  async function visibleInRoom(localId: string) {
+    const page = await repository.listMessagesWindow({
+      chatroomId: ANNOUNCEMENT_ROOM_ID,
+      limit: 50,
+    });
+    return page.items.some((row) => row.localId === localId);
+  }
+
+  // Server order: message.deleted first leaves a placeholder tombstone...
+  await repository.mergeHistoryMessages([
+    announcement("announcement-a", ANNOUNCEMENT_A_SERVER_ID, 1),
+  ]);
+  await repository.markMessageDeleted({
+    deletedAtMs: 1_757_470_000_000,
+    serverMessageId: ANNOUNCEMENT_A_SERVER_ID,
+  });
+  assert.equal(await visibleInRoom("announcement-a"), true);
+  // ...which topic.deleted then hides, keeping the first deletion time.
+  await repository.markAnnouncementDeleted({
+    deletedAtMs: 1_757_470_000_500,
+    serverMessageId: ANNOUNCEMENT_A_SERVER_ID,
+  });
+  assert.equal(await visibleInRoom("announcement-a"), false);
+  assert.deepEqual(storedAnnouncement("announcement-a"), {
+    kind: "system",
+    body: null,
+    deleted_at_ms: 1_757_470_000_000,
+  });
+
+  // Reverse order: topic.deleted first, then a replayed message.deleted.
+  await repository.mergeHistoryMessages([
+    announcement("announcement-b", ANNOUNCEMENT_B_SERVER_ID, 2),
+  ]);
+  await repository.markAnnouncementDeleted({
+    deletedAtMs: 1_757_470_001_000,
+    serverMessageId: ANNOUNCEMENT_B_SERVER_ID,
+  });
+  await repository.markMessageDeleted({
+    deletedAtMs: 1_757_470_002_000,
+    serverMessageId: ANNOUNCEMENT_B_SERVER_ID,
+  });
+  assert.equal(await visibleInRoom("announcement-b"), false);
+  assert.deepEqual(storedAnnouncement("announcement-b"), {
+    kind: "system",
+    body: null,
+    deleted_at_ms: 1_757_470_001_000,
+  });
+
+  // An announcement never received locally is a no-op.
+  await repository.markAnnouncementDeleted({
+    deletedAtMs: 1_757_470_003_000,
+    serverMessageId: "33333333-3333-4333-8333-333333333333",
+  });
 
   active = false;
   await assert.rejects(

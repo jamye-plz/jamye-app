@@ -584,8 +584,13 @@ Native 입력 변경이 없어 이번 세션은 clean prebuild·재빌드를 실
 송수신 E2E는 서버 배포 후로 미룬다. 서버가 배포되면 배포 commit 기준으로
 `bun tools/contracts/intake-server-contract.mjs`를 다시 실행해 `source_git_revision`을 배포 commit으로
 갱신하고 `bun tools/contracts/check-server-contract.mjs`를 통과시킨 뒤 E2E를 수행한다.
-`upstream_server_commit: "dirty"`는 서버의 `src/contract_generation/provenance.json`이 고정한 라벨이라
-그대로 남는다(2026-09-15 배포 commit `97d3d26`으로 재intake 완료).
+
+<!-- oma-docs:ignore-start -->
+
+`upstream_server_commit: "dirty"`는 서버 저장소의 `src/contract_generation/provenance.json`이
+고정한 라벨이라 그대로 남는다(2026-09-15 배포 commit `97d3d26`으로 재intake 완료).
+
+<!-- oma-docs:ignore-end -->
 
 ### realtime 발신자 표시·첨부 즉시 반영, Android 첨부 시트 오류 우회 — 2026-09-16
 
@@ -684,6 +689,31 @@ bun run android:gradle:stop
 bun run toolchain:check:native
 ```
 
+### 5.1 Quickboot 스냅샷 위생
+
+`android:avd:start`는 Android Emulator의 quickboot 스냅샷(`default_boot`)을 불러온다. 이
+스냅샷은 마지막으로 종료한 시점에 설치돼 있던 앱 상태를 그대로 되살리므로, 그 사이 dev
+client를 다시 설치했다면(native module 추가·제거 등) 스냅샷이 오래된 APK 상태를 되살려 현재
+JS 번들과 어긋날 수 있다. M16에서 `expo/modules/audio`가 없는 오래된 APK가 되살아나
+`Cannot find native module 'ExpoAudio'`로 이어진 사례가 있었다([M16 evidence](evidence/M16.md)). 이 점검은 상태를 바꾸지 않는 읽기 전용 확인이며 재설치나 cold boot를 자동으로
+수행하지 않는다.
+
+```sh
+bun run android:avd:start
+adb shell dumpsys package dev.local.jamyeapp | grep -E "lastUpdateTime|firstInstallTime"
+```
+
+- `lastUpdateTime`이 마지막으로 dev client를 설치·재설치한 시각과 같으면 스냅샷이 최신 상태를
+  되살린 것이다(stale 아님) — 추가 조치 없이 계속한다.
+- `lastUpdateTime`이 그보다 오래됐으면 스냅샷이 오래된 APK를 되살린 것이다. 이 경우 다시
+  설치(`bun run expo:run:android`) 또는 cold boot(스냅샷 없이 부팅)로 최신 상태를 확보한 뒤
+  계속한다.
+
+2026-09-30 M17 라운드 1 기기 검증 preflight에서 이 절차로 실제 확인했다. `lastUpdateTime`이
+직전 재빌드·설치 시각과 같아 stale이 아니었고, 추가 설치나 cold boot 없이 바로 기기 검증을
+진행했다. iOS Simulator는 quickboot 스냅샷이 없어 이 되살림 문제가 생기지 않는다 — 대신 아래
+"기기 검증 전 확인 단계"가 iOS dev client 설치 여부만 따로 확인한다.
+
 ## 6. Expo Development Build script
 
 | 명령                          | 분류        | 동작                                              |
@@ -727,6 +757,26 @@ bun run expo:start
 현재 화면을 각각 직접 확인해야 runtime smoke가 완료된다. Keyboard 관련 변경은 composer와
 latest message가 keyboard 진행률에 맞춰 함께 이동하는지, 전송 후 focus와 최신 committed
 message가 유지되는지도 두 플랫폼에서 따로 관찰한다.
+
+### 기기 검증 전 확인 단계 (F7/C20)
+
+JS-only 변경을 기존 dev client로 확인하는 세션(재빌드 없이 Metro만 새로 올리는 경우)은, 요구
+사항 §8 항목별 확인을 시작하기 전에 다음을 먼저 본다. 이 단계도 상태를 바꾸지 않는 읽기 전용
+점검이며 재설치나 재빌드를 자동으로 수행하지 않는다.
+
+1. Android: `android:avd:start` 뒤 5.1절의 절차로 되살아난 앱이 최신 설치인지 확인한다.
+2. iOS: 시뮬레이터에 dev client가 설치돼 있는지 확인한다(quickboot 스냅샷이 없어 되살림 문제는
+   없지만, 설치 자체가 지워졌는지는 따로 봐야 한다).
+   ```sh
+   xcrun simctl get_app_container <device udid> <bundle identifier>
+   ```
+3. `expo:start`로 Metro를 올린 뒤, 두 플랫폼 모두 현재 JS 번들이 적용됐는지(번들 module 수,
+   로그인 유지 상태의 그룹 목록처럼 이미 아는 화면이 보이는지)를 §8 확인에 들어가기 전에 먼저
+   본다.
+
+2026-09-30 M17 라운드 1에서 이 절차로 두 플랫폼 모두 현재 JS로 번들됐고(Android 2516 modules,
+iOS 2591 modules) 로그인 상태의 그룹 목록이 보이는 것을 preflight로 확인한 뒤 §8 항목별 확인에
+들어갔다.
 
 ### 6.1 Production release / rollback preflight — future gate
 

@@ -46,6 +46,12 @@ const SYNC_MODEL_FILES = [
   "src/features/sync/realtime/realtime-sync.ts",
 ];
 
+// E7c/C9/GROUPS-AC10: the only two files allowed to import `expo-haptics`.
+const HAPTICS_ALLOWED_FILES = [
+  "src/features/chat/platform/**",
+  "src/shared/platform/haptics.ios.ts",
+];
+
 const FORBIDDEN_TRANSPORT_GLOBALS = [
   {
     name: "fetch",
@@ -561,24 +567,40 @@ module.exports = defineConfig([
     },
   },
   {
-    // R3/V2 (task-app-media): `react-native-gesture-handler`'s
-    // `Gesture.Pinch()/.Pan()/.Tap()` builder methods (`.onStart`,
-    // `.onUpdate`, `.onEnd`) only ever invoke their callback later, from an
-    // async native gesture event -- never synchronously while the owning
-    // component is rendering. `react-hooks/refs`/`react-hooks/immutability`
-    // (React Compiler-oriented rules) cannot verify that for an arbitrary,
-    // non-React callback API and flag any `useRef`/hook-derived value
-    // reachable from one as if it were an unsafe render-time read/write.
-    // Scoped to exactly the two files with this genuine, confirmed-safe
-    // pattern (see each file's own comment at the `useRef` in question) --
-    // not a blanket disable.
-    files: [
-      "src/features/media/ui/media-viewer-screen.tsx",
-      "src/features/media/ui/voice-message-bubble.tsx",
-    ],
+    // task-app-groups (E7c/C9/GROUPS-AC10): a blanket `expo-haptics`
+    // restriction across every src file, independent of (and additive to)
+    // the `no-restricted-imports`/`local/no-restricted-transport-require`
+    // blocks above -- those are only keyed by file glob per rule name, and
+    // ESLint flat config resolves a shared rule key per file from whichever
+    // matching config is last in this array (a full replace, not a merge),
+    // so reusing either of those rule names here could silently discard a
+    // broader block's transport/persistence restrictions for any file this
+    // block also matches. `no-restricted-syntax` is not set by any other
+    // block in this file, so it always applies on top, regardless of
+    // ordering. Only `HAPTICS_ALLOWED_FILES` (the chat platform wrapper and
+    // the new shared platform haptics module) is exempt via `ignores`.
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    ignores: HAPTICS_ALLOWED_FILES,
     rules: {
-      "react-hooks/refs": "off",
-      "react-hooks/immutability": "off",
+      "no-restricted-syntax": [
+        "error",
+        {
+          message:
+            "expo-haptics may be imported only from src/features/chat/platform/** or src/shared/platform/haptics.ios.ts (E7c/C9/GROUPS-AC10).",
+          selector: 'ImportDeclaration[source.value="expo-haptics"]',
+        },
+        {
+          message:
+            "expo-haptics may be required only from src/features/chat/platform/** or src/shared/platform/haptics.ios.ts (E7c/C9/GROUPS-AC10).",
+          selector:
+            'CallExpression[callee.name="require"][arguments.0.value="expo-haptics"]',
+        },
+        {
+          message:
+            "expo-haptics may be dynamically imported only from src/features/chat/platform/** or src/shared/platform/haptics.ios.ts (E7c/C9/GROUPS-AC10).",
+          selector: 'ImportExpression[source.value="expo-haptics"]',
+        },
+      ],
     },
   },
 ]);

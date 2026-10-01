@@ -52,6 +52,11 @@ jest.mock("@expo/ui/swift-ui", () => {
   }
   return { Button, HStack, Host, ScrollView };
 });
+const mockSelectionAsync = jest.fn().mockResolvedValue(undefined);
+jest.mock("@/shared/platform/haptics", () => ({
+  selectionAsync: () => mockSelectionAsync(),
+}));
+
 jest.mock("@expo/ui/swift-ui/modifiers", () => ({
   buttonStyle: (style: string) => ({ $type: "buttonStyle", style }),
   defaultScrollAnchor: (anchor: string) => ({
@@ -163,5 +168,23 @@ describe("TopicDateChips (iOS)", () => {
     expect(onSelect).not.toHaveBeenCalled();
     await fireEvent.press(yesterday!);
     expect(onSelect).toHaveBeenCalledWith("2026-09-10");
+  });
+
+  test("C9/E7c/GROUPS-AC4: a tap that changes the selection fires the shared selection haptic; re-tapping the same date does not", async () => {
+    mockSelectionAsync.mockClear();
+    const onSelect = jest.fn();
+    const screen = await render(
+      <TopicDateChips
+        dates={["2026-09-10", "2026-09-11"]}
+        onSelect={onSelect}
+        selected="2026-09-11"
+        today="2026-09-11"
+      />,
+    );
+    const [yesterday, today] = screen.getAllByRole("button");
+    await fireEvent.press(today!);
+    expect(mockSelectionAsync).not.toHaveBeenCalled();
+    await fireEvent.press(yesterday!);
+    expect(mockSelectionAsync).toHaveBeenCalledTimes(1);
   });
 });

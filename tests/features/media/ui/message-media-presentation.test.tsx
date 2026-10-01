@@ -19,6 +19,8 @@ jest.mock("expo-router", () => ({
       .requireActual<typeof import("react")>("react")
       .useEffect(callback, [callback]),
   router: { push: jest.fn(), back: jest.fn(), canGoBack: () => false },
+  // M17 E1: ChatMessageRow reads the router for topic-announcement links.
+  useRouter: () => ({ push: jest.fn() }),
 }));
 jest.mock("@/features/media/ui/use-media-download", () => ({
   useMediaDownload: () => ({

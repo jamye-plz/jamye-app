@@ -5,6 +5,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useEffect, useRef } from "react";
+import { useRouter } from "expo-router";
 
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appChatLayout, appChatMessage, appSpacing } from "@/core/theme/tokens";
@@ -18,6 +19,7 @@ import { openMediaViewer } from "@/features/media/ui/media-viewer-store";
 
 import type { ChatMessage } from "../model/chat-message-window";
 import type { ChatMessageRowMeta } from "../model/chat-message-grouping";
+import { parseTopicAnnouncement } from "../model/topic-announcement";
 import { ChatDateSeparator } from "./chat-date-separator";
 import { ChatMessageMenu } from "./chat-message-menu";
 import type { ChatMessageMenuAction } from "./chat-message-menu.types";
@@ -36,6 +38,10 @@ const statusLabels = {
 
 /** E2: exact copy for a locally tombstoned row -- no attachments, no menu. */
 const DELETED_MESSAGE_LABEL = "삭제된 메시지입니다.";
+
+/** E2/C2/U2: exact copy for a media_expired failed row (plan
+ * api_contracts.E2_media_expired_failure.row_ui). */
+const MEDIA_EXPIRED_REASON = "첨부 업로드 시간이 지나 보낼 수 없습니다.";
 
 export function ChatMessageRow({
   rowMeta,
@@ -75,6 +81,7 @@ export function ChatMessageRow({
 }>) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
+  const router = useRouter();
   const previousStatusRef = useRef(message.status);
 
   useEffect(() => {
@@ -104,7 +111,20 @@ export function ChatMessageRow({
   // this is defense in depth against any other row source reaching here.
   if (isSystem && message.deletedAtMs != null) return null;
 
+  // E1/C1/U4: a deleted topic's announcement is normally already excluded at
+  // the SQLite layer (markAnnouncementDeleted turns it into a deleted system
+  // row). Like the isSystem check above, this is defense in depth: an
+  // announcement-shaped row that reaches here deleted renders nothing,
+  // never the generic "삭제된 메시지입니다." placeholder.
+  const announcement = !isSystem ? parseTopicAnnouncement(message.body) : null;
+  if (announcement && message.deletedAtMs != null) return null;
+
   const isDeleted = message.deletedAtMs != null;
+  // E2/C2/U2: a distinct terminal failure -- retry stays hidden, the row
+  // shows a fixed reason and 버리기 instead (plan
+  // api_contracts.E2_media_expired_failure.row_ui).
+  const isMediaExpired =
+    message.status === "failed" && message.errorCode === "media_expired";
 
   const retry = () => {
     if (!message.clientMsgId) return;
@@ -112,6 +132,11 @@ export function ChatMessageRow({
       clientMsgId: message.clientMsgId,
       conversationId: message.conversationId,
     });
+  };
+
+  const discardFailed = () => {
+    if (!message.clientMsgId) return;
+    onRequestDiscardFailedMessage({ clientMsgId: message.clientMsgId });
   };
 
   if (isSystem) {
@@ -157,7 +182,9 @@ export function ChatMessageRow({
   const statusCaptionText =
     message.status === "sent"
       ? `${timeLabel} · ${statusLabels.sent}`
-      : statusLabels[message.status];
+      : isMediaExpired
+        ? MEDIA_EXPIRED_REASON
+        : statusLabels[message.status];
   const bubbleAccessibilityLabel = isDeleted
     ? DELETED_MESSAGE_LABEL
     : message.body
@@ -190,7 +217,8 @@ export function ChatMessageRow({
     !isDeleted &&
     isOutgoing &&
     message.status === "failed" &&
-    message.clientMsgId
+    message.clientMsgId &&
+    !isMediaExpired
   ) {
     menuActions.push({
       key: "retry",
@@ -256,8 +284,12 @@ export function ChatMessageRow({
     </View>
   ) : message.body || pendingCaptions.length > 0 ? (
     <View
-      accessible
-      accessibilityLabel={bubbleAccessibilityLabel}
+      // Announcement bubble: `accessible` is intentionally omitted here so
+      // the nested link below keeps its own native accessibility focus stop
+      // (VoiceOver/TalkBack) -- an `accessible` ancestor would collapse the
+      // whole subtree into one non-activatable block and swallow the link.
+      accessible={announcement ? undefined : true}
+      accessibilityLabel={announcement ? undefined : bubbleAccessibilityLabel}
       style={{
         backgroundColor,
         borderBottomLeftRadius: isOutgoing
@@ -273,7 +305,27 @@ export function ChatMessageRow({
         paddingVertical: 10,
       }}
     >
-      {message.body ? (
+      {announcement ? (
+        <Text
+          style={{
+            color,
+            fontSize: appChatMessage.fontSize,
+            lineHeight: appChatMessage.lineHeight,
+          }}
+        >
+          {announcement.prefix}
+          <Text
+            accessibilityLabel={announcement.title}
+            accessibilityRole="link"
+            onPress={() => router.push(announcement.href)}
+            // Inherits the bubble's text color: my own bubble is itself
+            // colors.primary, so a primary-colored title vanished there.
+            style={{ textDecorationLine: "underline" }}
+          >
+            {announcement.title}
+          </Text>
+        </Text>
+      ) : message.body ? (
         <Text
           style={{
             color,
@@ -360,8 +412,8 @@ export function ChatMessageRow({
           // parent itself shrinks to the button and moves to my side.
           <View style={{ alignSelf: "flex-end" }}>
             <NativeButton
-              label="메시지 다시 보내기"
-              onPress={retry}
+              label={isMediaExpired ? "버리기" : "메시지 다시 보내기"}
+              onPress={isMediaExpired ? discardFailed : retry}
               variant="text"
             />
           </View>

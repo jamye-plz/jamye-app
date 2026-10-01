@@ -1,4 +1,4 @@
-import { render, within } from "@testing-library/react-native";
+import { fireEvent, render, within } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { StyleSheet } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
@@ -8,10 +8,17 @@ import type { ChatMessageRowMeta } from "@/features/chat/model/chat-message-grou
 import type { ChatMessage } from "@/features/chat/model/chat-message-window";
 import { ChatMessageRow } from "@/features/chat/ui/chat-message-row";
 
+// E1/CHAT-AC1: a stable spy `useRouter()` returns every render, so the
+// announcement-link tests below can assert on the exact push target.
+const mockRouterPush = jest.fn();
 jest.mock("expo-router", () => ({
   useFocusEffect: jest.fn(),
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: mockRouterPush }),
 }));
+
+beforeEach(() => {
+  mockRouterPush.mockClear();
+});
 
 // The attachment grid (and its reanimated viewer) has its own tests; here it
 // is a placeholder the layout assertions can find.
@@ -289,5 +296,115 @@ describe("ChatMessageRow M15 destructive menu action (AC3/AC5/AC6/E11)", () => {
       }),
     );
     expect(screen.toJSON()).toBeNull();
+  });
+});
+
+describe("ChatMessageRow E1 topic announcement link (CHAT-AC1/CHAT-AC2)", () => {
+  const announcementBody =
+    "새로운 주제를 올렸어요: [주말 등산](/groups/g-1/topics/t-1/chat)";
+
+  test("renders only the title as a link role that navigates to topic detail, not the raw markdown body", async () => {
+    const screen = await renderRow(
+      incomingMeta,
+      message({ body: announcementBody }),
+    );
+    const link = screen.getByRole("link", { name: "주말 등산" });
+    expect(screen.queryByText(announcementBody)).toBeNull();
+    await fireEvent.press(link);
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/groups/[groupId]/topics/[topicId]",
+      params: { groupId: "g-1", topicId: "t-1" },
+    });
+  });
+
+  test("in my own (primary) bubble the title stays readable: the link keeps the bubble's text color, underlined (device regression)", async () => {
+    const screen = await renderRow(
+      { ...incomingMeta, isOutgoing: true },
+      message({ body: announcementBody, senderId: "user-1" }),
+    );
+    const link = screen.getByRole("link", { name: "주말 등산" });
+    type Node = { parent: Node | null; props: { style?: unknown } };
+    const styleOf = (node: Node) =>
+      StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>) as
+        | (ViewStyle & { color?: unknown; textDecorationLine?: unknown })
+        | undefined;
+    let textColor: unknown;
+    for (let node: Node | null = link; node && !textColor; node = node.parent)
+      textColor = styleOf(node)?.color;
+    let background: unknown;
+    for (
+      let node: Node | null = link.parent;
+      node && !background;
+      node = node.parent
+    )
+      background = styleOf(node)?.backgroundColor;
+    expect(background).toBeDefined();
+    expect(textColor).not.toEqual(background);
+    expect(styleOf(link)?.textDecorationLine).toBe("underline");
+  });
+
+  test("a body that does not match the exact server shape stays plain text, no link (deceptive-link guard)", async () => {
+    const screen = await renderRow(
+      incomingMeta,
+      message({ body: "새로운 주제를 올렸어요: 그냥 텍스트" }),
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(
+      screen.getByText("새로운 주제를 올렸어요: 그냥 텍스트"),
+    ).toBeTruthy();
+  });
+
+  test("once its topic is deleted, the announcement row renders nothing at all -- unlike a regular deleted message (CHAT-AC2)", async () => {
+    const screen = await renderRow(
+      incomingMeta,
+      message({ body: announcementBody, deletedAtMs: 1_700_000_000_000 }),
+    );
+    expect(screen.toJSON()).toBeNull();
+  });
+});
+
+describe("ChatMessageRow E2 media-expired failure (CHAT-AC3)", () => {
+  test("shows the fixed reason and 버리기 instead of 전송 실패/다시 보내기, and hides the retry menu item", async () => {
+    const onRequestDiscardFailedMessage = jest.fn();
+    const screen = await renderRow(
+      { ...incomingMeta, isOutgoing: true },
+      message({
+        body: "사진 보낼게요",
+        clientMsgId: "client-expired",
+        errorCode: "media_expired",
+        status: "failed",
+      }),
+      { onRequestDiscardFailedMessage },
+    );
+    expect(
+      screen.getByText("첨부 업로드 시간이 지나 보낼 수 없습니다."),
+    ).toBeTruthy();
+    expect(screen.queryByText("전송 실패")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "메시지 다시 보내기" }),
+    ).toBeNull();
+    expect(lastMenuActions().some((action) => action.key === "retry")).toBe(
+      false,
+    );
+
+    const discard = screen.getByRole("button", { name: "버리기" });
+    await fireEvent.press(discard);
+    expect(onRequestDiscardFailedMessage).toHaveBeenCalledWith({
+      clientMsgId: "client-expired",
+    });
+  });
+
+  test("a generic failed message (no media_expired errorCode) keeps the existing 전송 실패/다시 보내기 behavior", async () => {
+    const screen = await renderRow(
+      { ...incomingMeta, isOutgoing: true },
+      message({ body: "보냄", status: "failed" }),
+    );
+    expect(screen.getByText("전송 실패")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "메시지 다시 보내기" }),
+    ).toBeTruthy();
+    expect(lastMenuActions().some((action) => action.key === "retry")).toBe(
+      true,
+    );
   });
 });

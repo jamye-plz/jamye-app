@@ -5,10 +5,7 @@ import { AppThemeProvider } from "@/core/theme/theme-provider";
 import type { Notification, NotificationPage } from "@/core/contracts/server";
 import { NotificationApiError } from "@/features/notifications/data/notifications-api";
 import type { NotificationsApi } from "@/features/notifications/data/notifications-api";
-import type {
-  NotificationDestination,
-  NotificationDestinationResolver,
-} from "@/features/notifications/data/notification-destination-resolver";
+import type { NotificationDestinationResolver } from "@/features/notifications/data/notification-destination-resolver";
 import { createNotificationsStore } from "@/features/notifications/model/notifications-store";
 import type { AuthorizedNotificationsRequest } from "@/features/notifications/model/notifications-store";
 import { NotificationsInboxScreen } from "@/features/notifications/ui/notifications-inbox-screen";

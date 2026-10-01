@@ -93,7 +93,13 @@ export function ChatroomMediaGridScreen({
       }
       renderItem={({ item }: { item: ChatroomMediaItem }) => (
         <View style={{ height: cellSize, width: cellSize }}>
-          <ChatroomMediaThumbnail item={item} size={cellSize} />
+          {/* E7f: razor-edge grid tiles (photo-app convention); the 2px gap
+              between tiles already comes from GRID_GAP above. */}
+          <ChatroomMediaThumbnail
+            cornerStyle={{ borderRadius: 0 }}
+            item={item}
+            size={cellSize}
+          />
         </View>
       )}
       testID="chatroom-media-grid-list"

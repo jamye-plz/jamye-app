@@ -17,7 +17,7 @@ import { AndroidSnackbarHost } from "@/shared/ui/snackbar-host.android";
 import type { SnackbarHostRef } from "@/shared/ui/snackbar-host.android";
 import { StandardStateView } from "@/shared/ui/standard-state-view";
 
-import { TOPICS_ERROR_MESSAGES } from "./topic-controls";
+import { TOPICS_READ_ERROR_MESSAGES } from "./topic-controls";
 import { TopicDateChips } from "./topic-date-chips";
 import { TopicList } from "./topic-list";
 import { useTopicScreen } from "./use-topic-screen";
@@ -78,7 +78,7 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
     void snackbarRef.current
       ?.showSnackbar({
         actionLabel: "다시 시도",
-        message: TOPICS_ERROR_MESSAGES[state.error],
+        message: TOPICS_READ_ERROR_MESSAGES[state.error],
       })
       .then((result) => {
         if (result === "actionPerformed") void store?.actions.refresh();
@@ -142,7 +142,7 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
             },
           ]}
           description={
-            state.error ? TOPICS_ERROR_MESSAGES[state.error] : undefined
+            state.error ? TOPICS_READ_ERROR_MESSAGES[state.error] : undefined
           }
           kind="error"
           systemImage="error"
@@ -179,7 +179,7 @@ export function TopicsScreen({ groupId }: Readonly<{ groupId: string }>) {
           topError={
             !IS_ANDROID && state.status === "error" && state.error
               ? {
-                  message: TOPICS_ERROR_MESSAGES[state.error],
+                  message: TOPICS_READ_ERROR_MESSAGES[state.error],
                   onRetry: () => void store?.actions.refresh(),
                 }
               : null

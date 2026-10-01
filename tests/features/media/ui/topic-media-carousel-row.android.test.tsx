@@ -66,7 +66,7 @@ function item(id: string) {
 describe("TopicMediaCarouselRow (android/default direct require)", () => {
   test("renders one thumbnail per item inside the Compose HorizontalMultiBrowseCarousel", async () => {
     const { TopicMediaCarouselRow } = jest.requireActual(
-      "@/features/media/ui/topic-media-carousel-row.tsx",
+      "@/features/media/ui/topic-media-carousel-row.android.tsx",
     );
     const { getByTestId } = await render(
       <TopicMediaCarouselRow
@@ -82,7 +82,7 @@ describe("TopicMediaCarouselRow (android/default direct require)", () => {
 
   test("hosts the carousel at the row width: a horizontal matchContents measures the pager unbounded and crashes Compose", async () => {
     const { TopicMediaCarouselRow } = jest.requireActual(
-      "@/features/media/ui/topic-media-carousel-row.tsx",
+      "@/features/media/ui/topic-media-carousel-row.android.tsx",
     );
     const { getAllByTestId } = await render(
       <TopicMediaCarouselRow items={[item("a")]} onOpenAll={jest.fn()} />,
@@ -95,7 +95,7 @@ describe("TopicMediaCarouselRow (android/default direct require)", () => {
 
   test("모두 보기 opens the grid", async () => {
     const { TopicMediaCarouselRow } = jest.requireActual(
-      "@/features/media/ui/topic-media-carousel-row.tsx",
+      "@/features/media/ui/topic-media-carousel-row.android.tsx",
     );
     const onOpenAll = jest.fn();
     const { getByText } = await render(

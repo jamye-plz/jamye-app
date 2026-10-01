@@ -52,9 +52,7 @@ export function withAlpha(hex: string, opacity: number): string {
  * round-2 result report for source URLs and guideline notes.
  */
 export const BRAND_LOGO_SOURCES: Record<OAuthProvider, number> = {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- RN/Metro static asset resolution requires a literal require()
   kakao: require("../../../../assets/brand/kakao/kakao-symbol.png"),
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- RN/Metro static asset resolution requires a literal require()
   google: require("../../../../assets/brand/google/google-logo.png"),
 };
 

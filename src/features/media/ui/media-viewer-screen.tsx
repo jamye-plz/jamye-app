@@ -8,8 +8,9 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { useSharedValue } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { appSpacing } from "@/core/theme/tokens";
@@ -35,11 +36,45 @@ const WHITE = "#FFFFFF";
 const DISMISS_DISTANCE_THRESHOLD = 120;
 const DISMISS_VELOCITY_THRESHOLD = 800;
 
+/** E4/C4: recorded so a device run can tell which defense actually closed
+ * the viewer. Test-only/evidence debug reason -- never shown to the user. */
+type MediaViewerCloseReason = "empty" | "stale-session";
+
 function isVideoType(type: string): boolean {
   return type === "video/mp4";
 }
 function isViewableType(type: string): boolean {
   return type.startsWith("image/") || isVideoType(type);
+}
+
+// E4/C4: fixed approximation of the native video player's own control
+// layout (top share/close row, bottom playback control bar, center
+// play/pause hit zone) -- the player renders these natively, so there is no
+// measured layout to read from JS. Values match the plan's
+// `E4_viewer_defense.dismiss_exclusion` contract exactly.
+const VIDEO_CONTROL_TOP_BAND = 64;
+const VIDEO_CONTROL_BOTTOM_BAND = 120;
+const VIDEO_CONTROL_CENTER_HIT_ZONE = 96;
+
+/** Whether a touch at `(touch.x, touch.y)` (in the dismiss-pan view's own
+ * coordinate space, i.e. `0,0` at its top-left) falls inside a video's
+ * control area and must not start the dismiss pan. Always `false` when the
+ * current page is not a video. Exported for direct unit coverage (E4/C4) --
+ * pure geometry, no gesture-handler or platform dependency. */
+export function isDismissPanStartExcluded(
+  isCurrentVideo: boolean,
+  touch: Readonly<{ x: number; y: number }>,
+  width: number,
+  height: number,
+): boolean {
+  if (!isCurrentVideo) return false;
+  if (touch.y <= VIDEO_CONTROL_TOP_BAND) return true;
+  if (touch.y >= height - VIDEO_CONTROL_BOTTOM_BAND) return true;
+  const half = VIDEO_CONTROL_CENTER_HIT_ZONE / 2;
+  return (
+    Math.abs(touch.x - width / 2) <= half &&
+    Math.abs(touch.y - height / 2) <= half
+  );
 }
 
 /**
@@ -68,24 +103,24 @@ function ViewerImagePage({
   const label = item.filename?.trim() || "사진";
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  // `startScaleRef` snapshots `scale` once per pinch gesture (`.onStart`)
-  // and is read on every subsequent `.onUpdate` of that *same* gesture --
+  // `startScale` snapshots `scale` once per pinch gesture (`.onStart`) and
+  // is read on every subsequent `.onUpdate` of that *same* gesture --
   // `event.scale` from `react-native-gesture-handler` is cumulative from
-  // gesture start, not incremental, so this is the standard ref pattern for
-  // "value at gesture start" (see the eslint override for
-  // `src/features/media/ui/{media-viewer-screen,voice-message-bubble}.tsx`
-  // in `eslint.config.js` for why `react-hooks/refs` is off here: these
-  // gesture callbacks are genuinely deferred, native-event-driven handlers,
-  // never invoked synchronously during this component's render, which the
-  // rule cannot verify for a non-React gesture library).
-  const startScaleRef = useRef(1);
+  // gesture start, not incremental, so this holds "value at gesture start".
+  // A Reanimated shared value, not a plain `useRef`, matching
+  // `media-image-viewer.tsx`'s own `startScale`/`startX`/`startY`: its
+  // `.get()`/`.set()` (not `.current` assignment) is the mutation API
+  // `react-hooks/refs`/`react-hooks/immutability` recognize as safe from a
+  // gesture-builder callback, a non-React, deferred callback API those
+  // rules otherwise cannot verify.
+  const startScale = useSharedValue(1);
   const pinch = Gesture.Pinch()
     .runOnJS(true)
     .onStart(() => {
-      startScaleRef.current = scale;
+      startScale.set(scale);
     })
     .onUpdate((event) => {
-      const next = clampImageZoom(startScaleRef.current * event.scale);
+      const next = clampImageZoom(startScale.get() * event.scale);
       setScale(next);
       setOffset((current) => ({
         x: clampImageOffset(current.x, width, next),
@@ -218,8 +253,10 @@ function ViewerVideoPage({
  * wrapping the whole screen, axis-locked (`activeOffsetY`/`failOffsetX`) so
  * a mostly-horizontal drag yields to the ScrollView instead of fighting it.
  * Both this gesture and `ViewerImagePage`'s pinch/double-tap run with
- * `.runOnJS(true)` against plain React state (no Reanimated shared values)
- * -- bounded, non-per-frame interactions, not a continuous animation loop.
+ * `.runOnJS(true)` against plain React state -- bounded, non-per-frame
+ * interactions, not a continuous animation loop. The two Reanimated shared
+ * values in this file (`startScale`, `closed`) hold gesture-callback-mutated
+ * bookkeeping only (never drive `useAnimatedStyle`/a UI-thread render).
  */
 export function MediaViewerScreen() {
   const params = useMediaViewerParams();
@@ -240,18 +277,48 @@ export function MediaViewerScreen() {
   // horizontal pager has nothing to scroll vertically.
   const [pagerHeight, setPagerHeight] = useState(0);
   const pageHeight = pagerHeight > 0 ? pagerHeight : windowHeight;
-  const closedRef = useRef(false);
-  const close = useCallback(() => {
-    if (closedRef.current) return;
-    closedRef.current = true;
-    closeMediaViewer();
-  }, []);
+  // A Reanimated shared value, not a plain `useRef` -- `close` runs from
+  // `dismissPan.onEnd` (a gesture-builder callback) as well as from
+  // ordinary JSX `onPress` handlers, and only `.get()`/`.set()` is the
+  // mutation API the hooks lint rules recognize as safe from both (see
+  // `startScale` above).
+  const closed = useSharedValue(false);
+  const close = useCallback(
+    (reason?: MediaViewerCloseReason) => {
+      if (closed.get()) return;
+      closed.set(true);
+      if (__DEV__ && reason) {
+        // Test-only/evidence debug reason (E4) -- no user-visible copy.
+        console.debug(`[media-viewer] close reason: ${reason}`);
+      }
+      closeMediaViewer();
+    },
+    [closed],
+  );
+
+  // E4/C4: the route's own `sessionId` param must match the store's current
+  // session -- a mismatch means this route instance is stale (e.g. it lost
+  // a race with a newer `openMediaViewer` call) and must not render.
+  const routeParams = useLocalSearchParams<{ sessionId?: string }>();
+  const staleSession =
+    typeof routeParams.sessionId === "string" &&
+    params !== null &&
+    params.sessionId !== routeParams.sessionId;
 
   useEffect(() => {
-    if (!params || attachments.length === 0) close();
-  }, [params, attachments.length, close]);
+    if (!params || attachments.length === 0) close("empty");
+    else if (staleSession) close("stale-session");
+  }, [params, attachments.length, staleSession, close]);
 
-  useEffect(() => clearMediaViewer, []);
+  // Clears only the session this screen instance actually rendered (E4) --
+  // a stale unmount must not wipe a newer session that has since replaced
+  // it in the store. Re-subscribes whenever the session id itself changes,
+  // so the cleanup that fires on true unmount always closes over the
+  // latest one.
+  useEffect(() => {
+    const sessionId = params?.sessionId ?? "";
+    return () => clearMediaViewer(sessionId);
+  }, [params?.sessionId]);
 
   useEffect(() => {
     if (attachments.length === 0) return;
@@ -260,10 +327,30 @@ export function MediaViewerScreen() {
     );
   }, [index, attachments.length]);
 
+  // E4/C4: on a video page, a dismiss pan that *starts* inside the native
+  // player's own control areas must not begin at all, so dragging a control
+  // (play/pause, seek, the share/close row) never also drags the viewer
+  // closed. `attachments.length === 0` is handled by the guard clause below
+  // -- reading index 0 of an empty array here is safe (`undefined`)
+  // precisely because `isVideoType` never runs against it: `&&`
+  // short-circuits on the `attachments.length > 0` check first.
+  const currentIsVideo =
+    attachments.length > 0 &&
+    isVideoType(attachments[Math.min(index, attachments.length - 1)].type);
+
   const dismissPan = Gesture.Pan()
     .runOnJS(true)
     .activeOffsetY([-14, 14])
     .failOffsetX([-12, 12])
+    .onTouchesDown((event, stateManager) => {
+      const touch = event.changedTouches[0];
+      if (
+        touch &&
+        isDismissPanStartExcluded(currentIsVideo, touch, width, windowHeight)
+      ) {
+        stateManager.fail();
+      }
+    })
     .onUpdate((event) => {
       setDragY(event.translationY);
     })

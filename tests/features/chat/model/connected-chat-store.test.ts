@@ -1,3 +1,4 @@
+import type { TopicDeletedEvent } from "@/core/contracts/server";
 import { ChatApiError } from "@/features/chat/data/chat-api";
 import { createConnectedChatStore } from "@/features/chat/model/connected-chat-store";
 import type {
@@ -1264,5 +1265,90 @@ describe("M15 deleteMessage/discardFailedMessage store actions (SHIP quality rev
     ).resolves.toBeUndefined();
 
     expect(repository.discardFailedMessage).not.toHaveBeenCalled();
+  });
+});
+
+// E1/C1/U4 (CHAT-AC2): the store side of the topic.deleted announcement hide.
+// The SQLite effect (either arrival order) is pinned in
+// connected-chat-repository.bun.ts, the row fallback in
+// chat-message-row.test.tsx.
+describe("M17 applyAnnouncementTopicDeleted (CHAT-AC2)", () => {
+  function setup() {
+    const repository = fakeConnectedChatRepository();
+    const clock = fakeClock();
+    const sync = fakeConnectedSync();
+    const store: ConnectedChatStore = createConnectedChatStore({
+      clock,
+      createApi: jest.fn(() => fakeChatApi()),
+      messageIdentity: fakeMessageIdentity(),
+      createSync: sync.create,
+    });
+    store.setPrincipal(PRINCIPAL, repository, authorized);
+    return { clock, repository, store };
+  }
+
+  function topicDeleted(
+    announcementMessageId: string | null,
+  ): TopicDeletedEvent {
+    return {
+      conversation_id: CHATROOM_ID,
+      cursor: "cursor-1",
+      data: {
+        announcement_message_id: announcementMessageId,
+        deleted_at: "2026-09-30T00:00:00Z",
+        deleted_by: PRINCIPAL.userId,
+        group_id: GROUP_ID,
+        topic_chatroom_id: OTHER_CHATROOM_ID,
+        topic_id: "77777777-7777-4777-8777-777777777777",
+      },
+      event_id: "66666666-6666-4666-8666-666666666666",
+      occurred_at: "2026-09-30T00:00:00Z",
+      type: "topic.deleted",
+      version: 1,
+    };
+  }
+
+  test("hides the announcement with the clock's time, then refreshes the open room from the repository", async () => {
+    const { clock, repository, store } = setup();
+    repository.listMessagesWindow.mockResolvedValue({
+      hasMore: false,
+      items: [repositoryHistoryRow()],
+      nextBefore: null,
+    });
+    await store.actions.openRoom(CHATROOM_ID);
+    repository.listMessagesWindow.mockResolvedValueOnce(emptyMessageWindow());
+
+    await store.actions.applyAnnouncementTopicDeleted(
+      topicDeleted(SERVER_MESSAGE_ID),
+    );
+
+    expect(repository.markAnnouncementDeleted).toHaveBeenCalledWith({
+      deletedAtMs: clock.nowMs(),
+      serverMessageId: SERVER_MESSAGE_ID,
+    });
+    expect(repository.listMessagesWindow).toHaveBeenCalledTimes(2);
+    expect(
+      repository.markAnnouncementDeleted.mock.invocationCallOrder[0],
+    ).toBeLessThan(repository.listMessagesWindow.mock.invocationCallOrder[1]!);
+    expect(store.getState().history.items).toEqual([]);
+  });
+
+  test("with no open room, the announcement is still hidden but nothing is re-read", async () => {
+    const { repository, store } = setup();
+
+    await store.actions.applyAnnouncementTopicDeleted(
+      topicDeleted(SERVER_MESSAGE_ID),
+    );
+
+    expect(repository.markAnnouncementDeleted).toHaveBeenCalledTimes(1);
+    expect(repository.listMessagesWindow).not.toHaveBeenCalled();
+  });
+
+  test("a topic.deleted without an announcement id is a no-op", async () => {
+    const { repository, store } = setup();
+
+    await store.actions.applyAnnouncementTopicDeleted(topicDeleted(null));
+
+    expect(repository.markAnnouncementDeleted).not.toHaveBeenCalled();
   });
 });

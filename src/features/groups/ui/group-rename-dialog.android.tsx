@@ -6,19 +6,42 @@ import {
   TextButton,
   useNativeState,
 } from "@expo/ui/jetpack-compose";
+import { useEffect } from "react";
 
 import { useAppThemeOrSystem } from "@/core/theme/theme-provider";
 import { androidThemeColors } from "@/core/theme/tokens";
 
-import { useResyncOnPresent } from "./group-rename-dialog.shared";
 import type { GroupRenameDialogProps } from "./group-rename-dialog.types";
 
 export type * from "./group-rename-dialog.types";
 
+type NativeStringState = Readonly<{
+  set: (value: string) => void;
+}>;
+
+/**
+ * I3: re-seeds the native text field with the current name every time the
+ * dialog opens; the native state otherwise keeps the last typed (possibly
+ * cancelled) value from the previous presentation.
+ *
+ * R5 (REFINE): inlined from the former `group-rename-dialog.shared.ts` --
+ * since U11 moved iOS's I3 rename to the `groups/[groupId]/rename` sheet,
+ * this file is its only caller.
+ */
+function useResyncOnPresent(
+  boundValue: NativeStringState,
+  value: string,
+  isPresented: boolean,
+) {
+  useEffect(() => {
+    if (isPresented) boundValue.set(value);
+  }, [boundValue, isPresented, value]);
+}
+
 /**
  * I3 on Android: Compose `AlertDialog` with an `OutlinedTextField` in the
  * text slot. `useNativeState` seeds the field with `currentName` and
- * re-syncs whenever the dialog re-opens, mirroring the iOS file.
+ * re-syncs whenever the dialog re-opens (`useResyncOnPresent`).
  */
 export function GroupRenameDialog({
   busy,

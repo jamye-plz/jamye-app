@@ -10,6 +10,7 @@ import type { PropsWithChildren } from "react";
 import { AppState } from "react-native";
 import type { AccountPrincipal } from "@/core/database/account/types";
 import type { ConnectedChatRepository } from "@/core/database/account/connected-chat-types";
+import { registerTopicDeletedHandler } from "@/features/sync/realtime/topic-deleted-dispatch";
 import type {
   AuthorizedChatRequest,
   ConnectedChatStore,
@@ -79,6 +80,16 @@ function ScopedChatProvider({
       subscription?.remove();
       store.dispose();
     };
+  }, [store]);
+  useEffect(() => {
+    // E1/C1/U4: mirrors topics-provider.tsx's own registration of this same
+    // narrow S1/WebSocket -> feature dispatch seam (plan
+    // api_contracts.app_sync_apply.interface) -- this store instance is the
+    // one task-app-chat owns for tombstoning a deleted topic's own
+    // announcement message.
+    return registerTopicDeletedHandler(
+      (event) => void store.actions.applyAnnouncementTopicDeleted(event),
+    );
   }, [store]);
   const value = useMemo(
     () => ({

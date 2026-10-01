@@ -1,6 +1,9 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
+import type { ComponentProps } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
+import { AppThemeProvider } from "@/core/theme/theme-provider";
+import { VoiceMessageBubble } from "@/features/media/ui/voice-message-bubble";
 
 let mockFocused = true;
 jest.mock("expo-router", () => ({
@@ -75,10 +78,6 @@ jest.mock("@/features/media/model/audio-playback-coordinator", () => ({
   registerActivePlayback: (...args: unknown[]) =>
     mockRegisterActivePlayback(...args),
 }));
-
-import { AppThemeProvider } from "@/core/theme/theme-provider";
-import { VoiceMessageBubble } from "@/features/media/ui/voice-message-bubble";
-import type { ComponentProps } from "react";
 
 function renderBubble(
   props: Partial<ComponentProps<typeof VoiceMessageBubble>> = {},

@@ -5,7 +5,8 @@ import type { AppSymbolName } from "@/shared/ui/app-symbol";
  * SF Symbol (iOS bar button) and a Material vector drawable (Android Compose
  * icon button, see `header-actions.android.tsx`).
  */
-export type HeaderToolbarSymbol = "add" | "chat" | "info" | "more" | "refresh";
+export type HeaderToolbarSymbol =
+  "add" | "chat" | "info" | "more" | "refresh" | "share";
 
 export type HeaderMenuItem = Readonly<{
   key: string;

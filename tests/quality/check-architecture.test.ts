@@ -429,6 +429,26 @@ const M16_TEST_PATHS = [
   "tests/features/auth/apple-login-button.ios.test.tsx",
   "tests/features/auth/apple-login-button.android.test.tsx",
 ];
+// M17 round 1 (task-app-auth, task-app-groups): mirrors
+// tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+const M17_TEST_PATHS = [
+  "tests/app/sign-in-route.test.tsx",
+  "tests/support/native-input-shell-mock.test.tsx",
+  // task-app-chat (E1/E2/E6a, CHAT-AC1/AC2/AC3/AC4/AC6): mirrors
+  // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+  "tests/features/chat/model/topic-announcement.test.ts",
+  "tests/features/chat/ui/connected-chat-screen.test.tsx",
+  "tests/core/database/account/migrations.test.ts",
+  // task-app-groups (E5/C5/U3/GROUPS-AC1): mirrors
+  // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+  "tests/features/notifications/ui/notifications-realtime-refresh-bridge.test.tsx",
+  // task-app-groups (E7d/U6/GROUPS-AC5): mirrors
+  // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+  "tests/app/group-gallery-route.test.tsx",
+  // M17 device follow-up (U11): mirrors
+  // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+  "tests/features/groups/ui/group-rename-screen.test.tsx",
+];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",
   "tests/core/public-media-env.test.ts",
@@ -494,6 +514,7 @@ const ACTIVE_MEANINGFUL_TEST_PATHS = [
   ...M14_ROUND2_TEST_PATHS,
   ...M15_TEST_PATHS,
   ...M16_TEST_PATHS,
+  ...M17_TEST_PATHS,
   "tests/quality/dependency-security.test.ts",
   "tests/quality/image-size-security.test.ts",
   "tests/core/theme/tokens.test.ts",
@@ -734,6 +755,18 @@ const COVERAGE_OUT_OF_DENOMINATOR_RATIONALE = [
   },
 ];
 
+// E7c/C9/GROUPS-AC10: mirrors tools/quality/check-architecture.cjs's
+// expo-haptics import scope.
+const HAPTICS_ALLOWED_FILES = [
+  "src/features/chat/platform/**",
+  "src/shared/platform/haptics.ios.ts",
+];
+const HAPTICS_RESTRICTED_FILES_GLOBS = ["src/**/*.ts", "src/**/*.tsx"];
+const HAPTICS_RESTRICTED_SELECTORS = [
+  'ImportDeclaration[source.value="expo-haptics"]',
+  'CallExpression[callee.name="require"][arguments.0.value="expo-haptics"]',
+  'ImportExpression[source.value="expo-haptics"]',
+];
 const REQUIRED_SCREEN_FILES_GLOBS = [
   "src/features/**/ui/**/*.ts",
   "src/features/**/ui/**/*.tsx",
@@ -774,6 +807,7 @@ const ACTIVE_DATABASE_SOURCE_FILES = [
   "src/core/database/account/migrations/004-topics-cache.ts",
   "src/core/database/account/migrations/005-connected-chat-media.ts",
   "src/core/database/account/migrations/006-connected-chat-deletions.ts",
+  "src/core/database/account/migrations/007-media-expired-error-code.ts",
   "src/core/database/account/topics-types.ts",
   "src/core/database/account/topics-repository.ts",
 ];
@@ -1045,6 +1079,13 @@ function buildValidRepositorySnapshot() {
           ...clone(M5_FEATURE_DATA_DATABASE_PATTERNS),
         ],
         allowedDatabaseImportPatterns: [M5_REPOSITORY_PORT_PATTERN],
+      },
+      hapticsRestriction: {
+        entryCount: 1,
+        files: clone(HAPTICS_RESTRICTED_FILES_GLOBS),
+        ignores: clone(HAPTICS_ALLOWED_FILES),
+        severity: "error",
+        selectors: clone(HAPTICS_RESTRICTED_SELECTORS),
       },
     },
     expoBase: {
@@ -1594,6 +1635,55 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     );
   });
 
+  test("accepts the exact expo-haptics import scope (haptics-import-scope)", () => {
+    const result: CheckResult = checkArchitecture(
+      buildValidRepositorySnapshot(),
+    );
+
+    expect(result.violations.map((v) => v.category)).not.toContain(
+      "haptics-import-scope",
+    );
+  });
+
+  test("denies an expo-haptics exemption outside the two sanctioned files (haptics-import-scope)", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.hapticsRestriction.ignores = [
+      ...HAPTICS_ALLOWED_FILES,
+      "src/features/topics/ui/**",
+    ];
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "haptics-import-scope",
+    );
+  });
+
+  test("denies an expo-haptics restriction missing the dynamic-import selector (haptics-import-scope)", () => {
+    const snapshot = buildValidRepositorySnapshot();
+    snapshot.eslintConfig.hapticsRestriction.selectors =
+      HAPTICS_RESTRICTED_SELECTORS.slice(0, 2);
+
+    const result: CheckResult = checkArchitecture(snapshot);
+
+    expect(result.violations.map((v) => v.category)).toContain(
+      "haptics-import-scope",
+    );
+  });
+
+  test("denies a warn-only or shadowed expo-haptics restriction (haptics-import-scope)", () => {
+    const warnOnly = buildValidRepositorySnapshot();
+    warnOnly.eslintConfig.hapticsRestriction.severity = "warn";
+    const shadowed = buildValidRepositorySnapshot();
+    shadowed.eslintConfig.hapticsRestriction.entryCount = 2;
+
+    for (const snapshot of [warnOnly, shadowed]) {
+      expect(
+        checkArchitecture(snapshot).violations.map((v) => v.category),
+      ).toContain("haptics-import-scope");
+    }
+  });
+
   test("denies a dropped preserved Expo base field (expo-base-preservation)", () => {
     const snapshot = buildValidRepositorySnapshot();
     delete (
@@ -1810,7 +1900,8 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     expect(isAuthorizedWorkingTreePath("docs/evidence/M14.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M15.md")).toBe(true);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M16.md")).toBe(true);
-    expect(isAuthorizedWorkingTreePath("docs/evidence/M17.md")).toBe(false);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M17.md")).toBe(true);
+    expect(isAuthorizedWorkingTreePath("docs/evidence/M18.md")).toBe(false);
     expect(isAuthorizedWorkingTreePath("docs/evidence/M10-private.md")).toBe(
       false,
     );

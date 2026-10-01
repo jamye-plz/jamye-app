@@ -5,6 +5,8 @@ import { useChatroomTitle } from "@/features/chat/model/use-chatroom-title";
 const groupId = "11111111-1111-4111-8111-111111111111";
 const chatroomId = "22222222-2222-4222-8222-222222222222";
 const topicId = "33333333-3333-4333-8333-333333333333";
+const otherGroupId = "44444444-4444-4444-8444-444444444444";
+const otherTopicId = "55555555-5555-4555-8555-555555555555";
 
 let mockChat: {
   ready: boolean;
@@ -53,13 +55,13 @@ beforeEach(() => {
 
 describe("useChatroomTitle (D7/E4/E11)", () => {
   test("requests the group's rooms itself instead of trusting a stale/cleared rooms slice", async () => {
-    await renderHook(() => useChatroomTitle(groupId, chatroomId));
+    await renderHook(() => useChatroomTitle(groupId, chatroomId, true));
     expect(mockChat.actions.loadRooms).toHaveBeenCalledWith(groupId);
   });
 
   test("unresolved (neutral title, no tap target data) while the room is not yet found", async () => {
     const { result } = await renderHook(() =>
-      useChatroomTitle(groupId, chatroomId),
+      useChatroomTitle(groupId, chatroomId, true),
     );
     expect(result.current).toEqual({
       kind: "unresolved",
@@ -68,13 +70,87 @@ describe("useChatroomTitle (D7/E4/E11)", () => {
     });
   });
 
-  test("does not re-request rooms once this group's rooms are already loading/loaded", async () => {
+  test("does not re-request rooms while this group's rooms are loading, or once they hold this room", async () => {
+    mockChat.state = {
+      groupId,
+      rooms: { items: [], status: "loading" },
+    };
+    await renderHook(() => useChatroomTitle(groupId, chatroomId, true));
+    mockChat.state = {
+      groupId,
+      rooms: {
+        items: [{ chatroomId, kind: "main", topicId: null }],
+        status: "ready",
+      },
+    };
+    await renderHook(() => useChatroomTitle(groupId, chatroomId, true));
+    expect(mockChat.actions.loadRooms).not.toHaveBeenCalled();
+  });
+
+  test("reloads once when a loaded list lacks this room -- another member's topic created after the load (device round)", async () => {
     mockChat.state = {
       groupId,
       rooms: { items: [], status: "ready" },
     };
-    await renderHook(() => useChatroomTitle(groupId, chatroomId));
+    const { rerender } = await renderHook(() =>
+      useChatroomTitle(groupId, chatroomId, true),
+    );
+    expect(mockChat.actions.loadRooms).toHaveBeenCalledTimes(1);
+    expect(mockChat.actions.loadRooms).toHaveBeenCalledWith(groupId);
+    // Still missing after that reload (e.g. the topic is already gone):
+    // no request loop.
+    mockChat.state = {
+      groupId,
+      rooms: { items: [], status: "ready" },
+    };
+    await rerender({});
+    expect(mockChat.actions.loadRooms).toHaveBeenCalledTimes(1);
+  });
+
+  test("an unfocused screen requests nothing, so a chat left mounted underneath cannot cancel the focused chat's rooms load (device round)", async () => {
+    // The shared rooms slice holds the focused chat's group; this screen is
+    // another group's chat still mounted in the stack.
+    mockChat.state = {
+      groupId: otherGroupId,
+      rooms: { items: [], status: "ready" },
+    };
+    const { rerender } = await renderHook(
+      ({ focused }: { focused: boolean }) =>
+        useChatroomTitle(groupId, chatroomId, focused),
+      { initialProps: { focused: false } },
+    );
     expect(mockChat.actions.loadRooms).not.toHaveBeenCalled();
+    await rerender({ focused: true });
+    expect(mockChat.actions.loadRooms).toHaveBeenCalledTimes(1);
+    expect(mockChat.actions.loadRooms).toHaveBeenCalledWith(groupId);
+  });
+
+  test("an unfocused topic room does not take over the shared topic detail; it opens its topic once focused", async () => {
+    mockChat.state = {
+      groupId,
+      rooms: {
+        items: [{ chatroomId, kind: "topic", topicId }],
+        status: "ready",
+      },
+    };
+    mockTopics.state = {
+      detail: {
+        id: otherTopicId,
+        status: "ready",
+        topic: { title: "다른 주제" },
+      },
+    };
+    const { rerender } = await renderHook(
+      ({ focused }: { focused: boolean }) =>
+        useChatroomTitle(groupId, chatroomId, focused),
+      { initialProps: { focused: false } },
+    );
+    expect(mockTopics.store?.actions.openTopic).not.toHaveBeenCalled();
+    await rerender({ focused: true });
+    expect(mockTopics.store?.actions.openTopic).toHaveBeenCalledWith(
+      groupId,
+      topicId,
+    );
   });
 
   test("main room resolves to the group name and no topic id (E4 main_room)", async () => {
@@ -86,7 +162,7 @@ describe("useChatroomTitle (D7/E4/E11)", () => {
       },
     };
     const { result } = await renderHook(() =>
-      useChatroomTitle(groupId, chatroomId),
+      useChatroomTitle(groupId, chatroomId, true),
     );
     expect(result.current).toEqual({
       kind: "main",
@@ -104,7 +180,7 @@ describe("useChatroomTitle (D7/E4/E11)", () => {
       },
     };
     const { result } = await renderHook(() =>
-      useChatroomTitle(groupId, chatroomId),
+      useChatroomTitle(groupId, chatroomId, true),
     );
     expect(result.current).toEqual({
       kind: "unresolved",
@@ -129,7 +205,7 @@ describe("useChatroomTitle (D7/E4/E11)", () => {
       detail: { id: topicId, status: "loading", topic: null },
     };
     const { rerender } = await renderHook(() =>
-      useChatroomTitle(groupId, chatroomId),
+      useChatroomTitle(groupId, chatroomId, true),
     );
     expect(mockTopics.store!.actions.openTopic).not.toHaveBeenCalled();
     // The group home's blur aborted the read (topics-store `interrupt`).
@@ -153,7 +229,7 @@ describe("useChatroomTitle (D7/E4/E11)", () => {
       detail: { id: topicId, status: "ready", topic: { title: "주제 제목" } },
     };
     const { result } = await renderHook(() =>
-      useChatroomTitle(groupId, chatroomId),
+      useChatroomTitle(groupId, chatroomId, true),
     );
     expect(result.current).toEqual({
       kind: "topic",

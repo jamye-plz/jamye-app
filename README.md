@@ -263,7 +263,8 @@ nix develop .
 ```
 
 devShell 진입 뒤 사용하는 정식 Bun script, 상태 변경 범위와 표준 검증 순서는
-[`docs/development-workflow.md`](docs/development-workflow.md)에 있다.
+[`docs/development-workflow.md`](docs/development-workflow.md)에 있다. 기기에서 확인하기 전
+Android quickboot 스냅샷 점검과 공통 확인 단계는 같은 문서 §5.1·§6을 따른다.
 
 에이전트는 app과 server의 devShell 세션을 각각 한 번 열어 후속 명령에 재사용한다. 명령마다
 새 환경을 만들거나 `path:.`로 로컬 산출물까지 가져오지 않는다. 상세 규칙은

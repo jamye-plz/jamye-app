@@ -29,6 +29,7 @@ import { GroupsProvider } from "@/features/groups/model/groups-provider";
 import { createChatApi } from "@/features/chat/data/chat-api";
 import { MediaProvider } from "@/features/media/ui/media-provider";
 import { PushTapHandoffListener } from "@/features/notifications/ui/push-tap-handoff-listener";
+import { NotificationsRealtimeRefreshBridge } from "@/features/notifications/ui/notifications-realtime-refresh-bridge";
 import { PushLifecycleProvider } from "@/features/notifications/model/push-lifecycle-provider";
 import { notificationsStore } from "@/features/notifications/model/notifications-store";
 import {
@@ -362,16 +363,26 @@ function TopicsStoreBridge({ children }: PropsWithChildren) {
   const { state } = useAccountScope();
   const chat = useConnectedChat();
   return (
-    <TopicsProvider
-      principal={principal}
-      repository={state?.status === "ready" ? state.topicsRepository : null}
-      authorize={authorizedRequest}
-      createStore={createDefaultTopicsStore}
-      watchGroup={chat.actions.loadRooms}
-      subscribeSync={chat.subscribeSync}
-    >
-      {children}
-    </TopicsProvider>
+    <>
+      {/* E5/C5/U3/GROUPS-AC1: the realtime message.created/topic.created and
+       * read-marker-success badge-refresh triggers. Reuses this bridge's
+       * existing `useConnectedChat()` read (already held for `watchGroup`/
+       * `subscribeSync` below) instead of adding a second consumer. */}
+      <NotificationsRealtimeRefreshBridge
+        readMarker={chat.state.read.marker}
+        subscribeSync={chat.subscribeSync}
+      />
+      <TopicsProvider
+        principal={principal}
+        repository={state?.status === "ready" ? state.topicsRepository : null}
+        authorize={authorizedRequest}
+        createStore={createDefaultTopicsStore}
+        watchGroup={chat.actions.loadRooms}
+        subscribeSync={chat.subscribeSync}
+      >
+        {children}
+      </TopicsProvider>
+    </>
   );
 }
 

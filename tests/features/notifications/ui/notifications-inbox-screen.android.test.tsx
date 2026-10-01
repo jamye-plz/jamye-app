@@ -6,13 +6,12 @@ import { AppThemeProvider } from "@/core/theme/theme-provider";
 import type { Notification, NotificationPage } from "@/core/contracts/server";
 import { NotificationApiError } from "@/features/notifications/data/notifications-api";
 import type { NotificationsApi } from "@/features/notifications/data/notifications-api";
-import type {
-  NotificationDestination,
-  NotificationDestinationResolver,
-} from "@/features/notifications/data/notification-destination-resolver";
+import type { NotificationDestinationResolver } from "@/features/notifications/data/notification-destination-resolver";
 import { createNotificationsStore } from "@/features/notifications/model/notifications-store";
-import type { AuthorizedNotificationsRequest } from "@/features/notifications/model/notifications-store";
-import type { NotificationsStore } from "@/features/notifications/model/notifications-store";
+import type {
+  AuthorizedNotificationsRequest,
+  NotificationsStore,
+} from "@/features/notifications/model/notifications-store";
 
 // Row-level jetpack-compose primitives this row uses directly, mirroring the
 // proven mock in `tests/shared/ui/action-list-item.android.test.tsx`.
@@ -569,7 +568,7 @@ describe("NotificationsInboxScreen (Android)", () => {
     ).toBeTruthy();
   });
 
-  test("a resolver/network error while rows already exist shows the C1 Snackbar with a retry", async () => {
+  test("F4/GROUPS-AC7: a resolver/network error while rows already exist shows a single feedback notice with a retry", async () => {
     const api = fakeApi();
     api.listNotifications
       .mockResolvedValueOnce(page())
@@ -580,10 +579,14 @@ describe("NotificationsInboxScreen (Android)", () => {
     await act(async () => {
       await store.actions.refresh();
     });
-    expect(mockShowSnackbar).toHaveBeenCalledWith({
-      actionLabel: "다시 시도",
-      message: "서버를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
-    });
+    const notice = await screen.findByTestId("system-feedback-notice");
+    expect(
+      within(notice).getByText(
+        "서버를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      ),
+    ).toBeTruthy();
+    expect(within(notice).getByText("다시 시도")).toBeTruthy();
+    expect(mockShowSnackbar).not.toHaveBeenCalled();
   });
 
   test("shows the auto-load sentinel when a next cursor exists", async () => {

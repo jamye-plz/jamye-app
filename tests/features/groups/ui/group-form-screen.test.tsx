@@ -102,6 +102,7 @@ jest.mock("@expo/ui/swift-ui/modifiers", () => ({
 const mockReplace = jest.fn();
 const mockDismissTo = jest.fn();
 const mockBack = jest.fn();
+const mockCanGoBack = jest.fn(() => true);
 const mockStackScreen = jest.fn(
   (
     _props: Readonly<{
@@ -141,6 +142,7 @@ jest.mock("expo-router", () => {
   return {
     useRouter: () => ({
       back: mockBack,
+      canGoBack: mockCanGoBack,
       dismissTo: mockDismissTo,
       replace: mockReplace,
     }),
@@ -165,6 +167,7 @@ const authorized: AuthorizedGroupsRequest = (execute, signal) =>
 describe("T3/C3 group form screen (kit NativeInputSheet)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCanGoBack.mockReturnValue(true);
     pendingInviteStore.clear();
   });
   async function setup(mode: "create" | "join", api = fakeGroupsApi()) {
@@ -202,6 +205,14 @@ describe("T3/C3 group form screen (kit NativeInputSheet)", () => {
     expect(screen.getByPlaceholderText("초대 코드")).toBeTruthy();
     expect(screen.getByText(/16~64자의 영문, 숫자, 밑줄, 하이픈/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "가입" })).toBeTruthy();
+  });
+
+  test("closing a join screen that opened as the first screen (invite link, or the post-login redirect) lands on the group list instead of a dead end (device round)", async () => {
+    mockCanGoBack.mockReturnValue(false);
+    const { screen } = await setup("join");
+    await fireEvent.press(screen.getByRole("button", { name: "취소" }));
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith("/groups");
   });
 
   test("join prefills the pending-invite code on focus (after reset) but never auto-joins", async () => {

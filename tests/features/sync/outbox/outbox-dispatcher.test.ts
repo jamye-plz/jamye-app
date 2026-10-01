@@ -371,6 +371,8 @@ describe("persistent outbox dispatcher", () => {
     ["not_found", "forbidden"],
     ["conflict", "conflict"],
     ["validation", "validation"],
+    // E2/C2/U2 (plan api_contracts.E2_media_expired_failure.mapping).
+    ["media_not_available", "media_expired"],
   ])(
     "%s failures become a stable failed state",
     async (kind, expectedErrorCode) => {

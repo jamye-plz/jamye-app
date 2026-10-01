@@ -61,6 +61,16 @@ export type AuthorizedNotificationsRequest = <T>(
 
 export type NotificationsStoreActions = Readonly<{
   refresh: () => Promise<void>;
+  /**
+   * E5/C5/U3/GROUPS-AC1: the scheduled entry point for the unread-badge
+   * refresh triggers that fire often or in bursts (AppState activation, the
+   * foreground 60s interval) -- debounces 500ms and never runs a second
+   * `refresh()` while one is already in flight (queues one more run after
+   * it settles instead). Fire-and-forget by design (callers are effects,
+   * not awaited flows); `refresh()` itself is untouched for the existing
+   * pull-to-refresh/retry/explicit callers.
+   */
+  scheduleRefresh: () => void;
   loadMore: () => Promise<void>;
   markRead: (notificationId: string) => Promise<void>;
   resolveDestination: (
@@ -134,6 +144,38 @@ export function createNotificationsStore(
   let state = initialNotificationsState();
   const listeners = new Set<() => void>();
   const requests = new Map<string, AbortController>();
+  const REFRESH_DEBOUNCE_MS = 500;
+  let debounceHandle: ReturnType<typeof setTimeout> | null = null;
+  let scheduledInFlight = false;
+  let scheduledPending = false;
+
+  function clearSchedule(): void {
+    if (debounceHandle !== null) clearTimeout(debounceHandle);
+    debounceHandle = null;
+    scheduledInFlight = false;
+    scheduledPending = false;
+  }
+  function runScheduled(): void {
+    if (scheduledInFlight) {
+      scheduledPending = true;
+      return;
+    }
+    scheduledInFlight = true;
+    void refresh().finally(() => {
+      scheduledInFlight = false;
+      if (scheduledPending) {
+        scheduledPending = false;
+        runScheduled();
+      }
+    });
+  }
+  function scheduleRefresh(): void {
+    if (debounceHandle !== null) clearTimeout(debounceHandle);
+    debounceHandle = setTimeout(() => {
+      debounceHandle = null;
+      runScheduled();
+    }, REFRESH_DEBOUNCE_MS);
+  }
 
   function publish(next: NotificationsState): void {
     state = next;
@@ -183,6 +225,7 @@ export function createNotificationsStore(
     authorize = valid ? executor : null;
     if (key === identity) return;
     cancelAll();
+    clearSchedule();
     identity = key;
     api = valid ? deps.createApi(origin) : null;
     // A fresh cache per identity (never a cross-account leak, same
@@ -329,8 +372,10 @@ export function createNotificationsStore(
       markRead,
       refresh,
       resolveDestination,
+      scheduleRefresh,
     },
     dispose() {
+      clearSchedule();
       setPrincipal(null, null);
       listeners.clear();
     },

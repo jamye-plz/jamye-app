@@ -4,6 +4,7 @@ import type { ColorValue } from "react-native";
 import { requireOptionalNativeModule } from "expo";
 import type { VideoPlayer } from "expo-video";
 import { useAppTheme } from "@/core/theme/theme-provider";
+import { registerActivePlayback } from "@/features/media/model/audio-playback-coordinator";
 import { AppText } from "@/shared/ui/app-text";
 import { isOwnedDownloadFile, retainDownloadedFile } from "./media-downloads";
 
@@ -37,7 +38,9 @@ export function NativeVideoPlayer({
     let player: VideoPlayer | null = null;
     let releaseFile: (() => void) | undefined;
     let statusSubscription: { remove: () => void } | undefined;
+    let playingSubscription: { remove: () => void } | undefined;
     let appSubscription: { remove: () => void } | undefined;
+    let unregisterPlayback: (() => void) | undefined;
     const fail = () => {
       if (alive) {
         alive = false;
@@ -49,7 +52,9 @@ export function NativeVideoPlayer({
       // A torn-down native object must not prevent the remaining cleanup.
       for (const cleanup of [
         () => statusSubscription?.remove(),
+        () => playingSubscription?.remove(),
         () => appSubscription?.remove(),
+        () => unregisterPlayback?.(),
         () => player?.pause(),
         () => player?.release(),
         () => releaseFile?.(),
@@ -92,6 +97,30 @@ export function NativeVideoPlayer({
           // back over the finished video.
           else if (status === "loading") setLoading(true);
           else if (status === "readyToPlay") setLoading(false);
+        },
+      );
+      // E3/C3: one voice message or video plays at a time, app-wide. This
+      // mirrors voice-message-bubble.tsx's own registration -- register the
+      // moment playback actually starts (not on mount), unregister the
+      // moment it stops for any reason (pause/end/dispose), so a voice
+      // bubble starting playback stops this video exactly like it would
+      // stop another voice bubble, and vice versa.
+      playingSubscription = instance.addListener(
+        "playingChange",
+        ({ isPlaying }) => {
+          if (!alive) return;
+          if (isPlaying) {
+            unregisterPlayback = registerActivePlayback(`video:${uri}`, () => {
+              try {
+                instance.pause();
+              } catch {
+                // Already released/paused by the time eviction runs.
+              }
+            });
+          } else {
+            unregisterPlayback?.();
+            unregisterPlayback = undefined;
+          }
         },
       );
       appSubscription = AppState.addEventListener("change", (state) => {

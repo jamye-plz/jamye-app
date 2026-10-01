@@ -23,6 +23,7 @@ const mockLoginWithApple = jest.fn();
 const mockLogout = jest.fn();
 const mockRetryProfile = jest.fn();
 const mockRestore = jest.fn();
+const mockShowNoticeSpy = jest.fn();
 let mockState: AuthState = {
   status: "signed-out",
   profile: null,
@@ -35,17 +36,43 @@ jest.mock("expo-auth-session", () => ({
 jest.mock("expo-router", () => ({
   Stack: { Screen: () => null },
 }));
+// AUTH-AC8 (C14): `restore`/`retryProfile` are recreated on every real
+// session publish (session-provider.tsx's `value` useMemo), so each
+// `useSession()` call here returns freshly-wrapped functions too -- a stable
+// `retryOperation` reference would never exercise the "deps changed but the
+// message didn't" regression the new test below checks.
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: jest.fn(() => ({
     state: mockState,
     principal: null,
     login: mockLogin,
     loginWithApple: mockLoginWithApple,
-    logout: mockLogout,
-    restore: mockRestore,
-    retryProfile: mockRetryProfile,
+    logout: (signal?: AbortSignal) => mockLogout(signal),
+    restore: (signal?: AbortSignal) => mockRestore(signal),
+    retryProfile: (signal?: AbortSignal) => mockRetryProfile(signal),
   })),
 }));
+// AUTH-AC8: spies on the real `showNotice` (never a replacement) so the new
+// regression test below can count announcements while every existing test's
+// rendered Alert/button behavior stays driven by the actual implementation.
+jest.mock("@/shared/ui/system-feedback", () => {
+  const actual = jest.requireActual<
+    typeof import("../../../src/shared/ui/system-feedback")
+  >("../../../src/shared/ui/system-feedback");
+  return {
+    ...actual,
+    useSystemFeedback: () => {
+      const real = actual.useSystemFeedback();
+      return {
+        ...real,
+        showNotice: (...args: Parameters<typeof real.showNotice>) => {
+          mockShowNoticeSpy(...args);
+          return real.showNotice(...args);
+        },
+      };
+    },
+  };
+});
 jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
   __esModule: true,
   default: jest.fn(() => "light"),
@@ -295,6 +322,33 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
     expect(
       screen.getByRole("button", { name: "카카오로 계속하기" }),
     ).toBeEnabled();
+  });
+
+  // C14/AUTH-AC8: added before the effect's deps were filled in (`retryAction`,
+  // `retryOperation`, `showNotice`) so it pins the existing `lastAnnounced`
+  // ref-guard behavior (auth-screen.tsx) both before and after that change --
+  // a re-render must never repeat the same announcement, even when
+  // `retryOperation`'s identity changes underneath it (see the
+  // `session-provider` mock above).
+  test("does not repeat the same announcement across a re-render (AUTH-AC8)", async () => {
+    mockState = {
+      status: "error",
+      profile: null,
+      message: "저장소 오류",
+      retryAction: "restore",
+    };
+    const screen = await render(
+      <AppThemeProvider>
+        <AuthScreen />
+      </AppThemeProvider>,
+    );
+    expect(mockShowNoticeSpy).toHaveBeenCalledTimes(1);
+    await screen.rerender(
+      <AppThemeProvider>
+        <AuthScreen />
+      </AppThemeProvider>,
+    );
+    expect(mockShowNoticeSpy).toHaveBeenCalledTimes(1);
   });
 
   test.each([

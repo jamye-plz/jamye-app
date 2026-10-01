@@ -46,6 +46,9 @@ const MATERIAL_ICONS: Record<
   more: require("../../../assets/icons/material/more_vert.xml") as ImageSourcePropType,
   refresh:
     require("../../../assets/icons/material/refresh.xml") as ImageSourcePropType,
+  // M17/U12: the group info header's invite-link share button.
+  share:
+    require("../../../assets/icons/material/share.xml") as ImageSourcePropType,
 };
 
 const ICON_SIZE = 24;

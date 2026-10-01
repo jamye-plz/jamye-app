@@ -1,5 +1,4 @@
 import { act, render } from "@testing-library/react-native";
-import { AppState } from "react-native";
 
 import type { PushTapHandoff } from "@/features/notifications/platform/push-notifications-adapter";
 import { PushTapHandoffListener } from "@/features/notifications/ui/push-tap-handoff-listener";
@@ -9,19 +8,6 @@ const mockPush = jest.fn();
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
-
-// Spying on the real singleton's method (rather than `jest.mock("react-native",
-// ...)`, which breaks jest-expo's own setup -- it needs the real module
-// identity, not a re-spread copy) keeps every other RN internal untouched.
-let appStateListener: ((state: string) => void) | null = null;
-const mockAppStateAddEventListener = jest
-  .spyOn(AppState, "addEventListener")
-  .mockImplementation((_event, listener) => {
-    appStateListener = listener as (state: string) => void;
-    return { remove: jest.fn() } as ReturnType<
-      typeof AppState.addEventListener
-    >;
-  });
 
 let mockPrincipal: { userId: string } | null = null;
 const mockAuthorizedRequest = jest.fn();
@@ -90,7 +76,6 @@ function listenerHarness() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockPrincipal = null;
-  appStateListener = null;
 });
 
 describe("PushTapHandoffListener", () => {
@@ -287,28 +272,6 @@ describe("PushTapHandoffListener", () => {
       params: { chatroomId: "conv-1", groupId: "group-1" },
       pathname: "/groups/[groupId]/chatrooms/[chatroomId]",
     });
-  });
-
-  test("badge foreground refresh: an AppState transition to 'active' refreshes the store", async () => {
-    const harness = listenerHarness();
-    const store = fakeStore();
-    await render(
-      <PushTapHandoffListener
-        getLastNotificationResponse={jest.fn().mockResolvedValue(null)}
-        onNotificationReceived={harness.onNotificationReceived}
-        onNotificationResponse={harness.onNotificationResponse}
-        store={store as unknown as NotificationsStore}
-      />,
-    );
-    expect(mockAppStateAddEventListener).toHaveBeenCalledWith(
-      "change",
-      expect.any(Function),
-    );
-    store.actions.refresh.mockClear();
-    await act(async () => appStateListener?.("active"));
-    expect(store.actions.refresh).toHaveBeenCalledTimes(1);
-    await act(async () => appStateListener?.("background"));
-    expect(store.actions.refresh).toHaveBeenCalledTimes(1);
   });
 
   test("a malformed/missing cold-start response is ignored without crashing", async () => {

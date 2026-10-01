@@ -26,6 +26,9 @@ export type OutboxSendFailureKind =
   | "not_found"
   | "conflict"
   | "validation"
+  /** E2/C2/U2: 422 media_not_available -- distinct from the generic
+   * "validation" 422 (plan api_contracts.E2_media_expired_failure.mapping). */
+  | "media_not_available"
   | "unauthorized"
   | "upgrade_required";
 
@@ -76,6 +79,7 @@ const SEND_FAILURE_KINDS: ReadonlySet<OutboxSendFailureKind> = new Set([
   "not_found",
   "conflict",
   "validation",
+  "media_not_available",
   "unauthorized",
   "upgrade_required",
 ]);
@@ -134,6 +138,8 @@ function classifySendFailure(error: unknown): SendClassification {
       return { bucket: "terminal", errorCode: "conflict" };
     case "validation":
       return { bucket: "terminal", errorCode: "validation" };
+    case "media_not_available":
+      return { bucket: "terminal", errorCode: "media_expired" };
     case "unauthorized":
       return { bucket: "pause", reason: "unauthorized" };
     case "upgrade_required":

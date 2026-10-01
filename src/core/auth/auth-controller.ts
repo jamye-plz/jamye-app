@@ -1,33 +1,27 @@
-import { anySignal } from "@/core/http/http-client";
-import { pendingAccountRestoreStore } from "@/features/auth/model/pending-account-restore-store";
-
-import { parseOAuthCallback } from "./callback";
 import { AuthApiError } from "./auth-api";
 import type { AuthApi } from "./auth-api";
 import type { AppleAuthenticationPort } from "./apple-authentication.shared";
+import { createAppleSignIn } from "./apple-sign-in";
+import { createGenerationGuard } from "./auth-generation";
+import { createOAuthSignIn } from "./oauth-sign-in";
+import type { BrowserResult } from "./oauth-sign-in";
+import {
+  createRefresh,
+  isUnauthorized,
+  tokenExpired,
+} from "./refresh-single-flight";
+import {
+  createSessionPersistence,
+  SESSION_CLEAR_FAILED_STATE,
+} from "./session-persistence";
 import type { SessionStore } from "./secure-session-store";
-import type { OAuthProvider, TokenPair, UserProfile } from "./types";
+import type { TokenPair, UserProfile } from "./types";
 
 export type AuthState = Readonly<{
   status: "loading" | "signed-out" | "signing-in" | "signed-in" | "error";
   profile: UserProfile | null;
   message: string | null;
   retryAction?: "restore" | "retryProfile" | "logout";
-}>;
-type BrowserResult =
-  | Readonly<{ type: "success"; url: string }>
-  | Readonly<{ type: "cancel" | "dismiss" | "locked" }>;
-type PendingAttempt = Readonly<{
-  provider: OAuthProvider;
-  state: string;
-  verifier: string;
-  redirectUri: string;
-  expiresAtMs: number;
-  generation: number;
-}>;
-type RefreshFlight = Readonly<{
-  generation: number;
-  promise: Promise<TokenPair | null>;
 }>;
 
 type FullAuthController = ReturnType<typeof createAuthController>;
@@ -43,10 +37,18 @@ type FullAuthController = ReturnType<typeof createAuthController>;
 export type AuthController = Omit<FullAuthController, "signInWithApple"> &
   Readonly<{ signInWithApple?: FullAuthController["signInWithApple"] }>;
 
-// Native I/O already in progress cannot be cancelled. All controllers sharing
-// one secure record must drain it before a later owner reads or writes that record.
-const storageQueues = new WeakMap<SessionStore, Promise<unknown>>();
-
+/**
+ * F6/AUTH-AC5: this file is now the `AuthController`/`createAuthController`
+ * public API wrapper and composition root only. The generation/epoch guard,
+ * secure-storage persistence, the refresh single-flight, and the two sign-in
+ * orchestrations each moved to their own module (`auth-generation.ts`,
+ * `session-persistence.ts`, `refresh-single-flight.ts`, `oauth-sign-in.ts`,
+ * `apple-sign-in.ts`, `apple-full-name.ts`) with identical behavior --
+ * `restore`/`logout`/`authorizedRequest`/`applyProfile`/`retryProfile` stay
+ * here since they are not shared by more than one entry point. Every
+ * `this.refresh()` call site was replaced with a direct reference to the
+ * local `refresh` const per AUTH-AC5.
+ */
 export function createAuthController(
   deps: Readonly<{
     origin: string;
@@ -68,11 +70,7 @@ export function createAuthController(
 ) {
   let state: AuthState = { status: "loading", profile: null, message: null };
   let tokens: TokenPair | null = null;
-  let pending: PendingAttempt | null = null;
-  let generation = 0;
   let disposed = false;
-  let fence: AbortController | null = null;
-  let refreshFlight: RefreshFlight | null = null;
   let profileRetryFlight: Readonly<{
     generation: number;
     promise: Promise<void>;
@@ -82,101 +80,66 @@ export function createAuthController(
     state = next;
     listeners.forEach((listener) => listener(state));
   };
-  const expired = (attempt: PendingAttempt) =>
-    (deps.nowMs?.() ?? Date.now()) > attempt.expiresAtMs;
-  const tokenExpired = (value: string) => {
-    const timestamp = Date.parse(value);
-    return (
-      !Number.isFinite(timestamp) || timestamp <= (deps.nowMs?.() ?? Date.now())
-    );
-  };
-  const active = (value: number) => generation === value;
 
-  /**
-   * Fences everything the previous generation had in flight (aborts its
-   * requests) and starts a new one. Every public entry point that begins a
-   * new session epoch (restore/signIn/logout/dispose) goes through this so a
-   * superseded generation can never publish state or mutate storage again.
-   */
-  const beginGeneration = () => {
-    fence?.abort();
-    fence = new AbortController();
-    return ++generation;
-  };
-  const requestSignal = (callerSignal?: AbortSignal) =>
-    anySignal([fence?.signal, callerSignal]);
+  const generationGuard = createGenerationGuard();
+  const { active, beginGeneration, requestSignal } = generationGuard;
 
-  /** Queued secure-storage writes re-check the epoch at execution time, not just at enqueue time. */
-  const serializeStorage = <T>(
-    expectedGeneration: number,
-    operation: () => Promise<T>,
-  ) => {
-    const run = () => (active(expectedGeneration) ? operation() : undefined);
-    const queued = (storageQueues.get(deps.store) ?? Promise.resolve()).then(
-      run,
-      run,
-    );
-    storageQueues.set(
-      deps.store,
-      queued.then(
-        () => undefined,
-        () => undefined,
-      ),
-    );
-    return queued;
+  const getTokens = () => tokens;
+  const setTokens = (value: TokenPair | null) => {
+    tokens = value;
   };
-  async function persistThenProfile(
-    pair: TokenPair,
-    expectedGeneration: number,
-    signal?: AbortSignal,
-  ) {
-    if (!active(expectedGeneration)) return false;
-    try {
-      await serializeStorage(expectedGeneration, () =>
-        deps.store.save(deps.origin, pair),
-      );
-    } catch {
-      if (active(expectedGeneration)) {
-        await clearSessionAndPublish(
-          expectedGeneration,
-          "세션을 안전하게 저장할 수 없습니다. 다시 로그인해 주세요.",
-        );
-      }
-      return false;
-    }
-    if (!active(expectedGeneration)) return false;
-    tokens = pair;
-    const profile = await deps.api.profile(pair.accessToken, signal);
-    if (!active(expectedGeneration)) return false;
-    publish({ status: "signed-in", profile, message: null });
-    return true;
-  }
 
-  async function clearSessionAndPublish(
-    expectedGeneration: number,
-    message: string,
-  ) {
-    tokens = null;
-    try {
-      await serializeStorage(expectedGeneration, () => deps.store.clear());
-      if (active(expectedGeneration))
-        publish({ status: "signed-out", profile: null, message });
-    } catch {
-      if (active(expectedGeneration))
-        publish({
-          status: "error",
-          profile: null,
-          message:
-            "보안 저장소에서 세션을 지울 수 없습니다. 다시 시도해 주세요.",
-          retryAction: "logout",
-        });
-    }
-  }
+  const { persistThenProfile, clearSessionAndPublish, serializeStorage } =
+    createSessionPersistence({
+      origin: deps.origin,
+      api: deps.api,
+      store: deps.store,
+      publish,
+      active,
+      getTokens,
+      setTokens,
+    });
+
+  const refresh = createRefresh({
+    api: deps.api,
+    nowMs: deps.nowMs,
+    publish,
+    active,
+    requestSignal,
+    getGeneration: () => generationGuard.generation,
+    getTokens,
+    persistThenProfile,
+    clearSessionAndPublish,
+  });
+
+  const { signIn, resetPending: resetPendingOAuthAttempt } = createOAuthSignIn({
+    api: deps.api,
+    createPkce: deps.createPkce,
+    openBrowser: deps.openBrowser,
+    nowMs: deps.nowMs,
+    publish,
+    active,
+    beginGeneration,
+    requestSignal,
+    getTokens,
+    persistThenProfile,
+  });
+
+  const signInWithApple = createAppleSignIn({
+    api: deps.api,
+    applePort: deps.applePort,
+    createAppleNonce: deps.createAppleNonce,
+    publish,
+    active,
+    beginGeneration,
+    requestSignal,
+    persistThenProfile,
+  });
 
   return {
     getState: () => state,
     /** The current session epoch; a fresh SessionPrincipal is only valid alongside the epoch it was read at. */
-    getGeneration: () => generation,
+    getGeneration: () => generationGuard.generation,
     subscribe(listener: (value: AuthState) => void) {
       listeners.add(listener);
       return () => {
@@ -185,9 +148,7 @@ export function createAuthController(
     },
     /** Fences all in-flight work owned by this controller instance without touching secure storage. */
     dispose() {
-      fence?.abort();
-      fence = null;
-      generation++;
+      generationGuard.fenceForDispose();
       disposed = true;
     },
     async restore(callerSignal?: AbortSignal) {
@@ -205,15 +166,15 @@ export function createAuthController(
           return;
         }
         tokens = stored;
-        if (tokenExpired(stored.accessTokenExpiresAt)) {
-          await this.refresh();
+        if (tokenExpired(stored.accessTokenExpiresAt, deps.nowMs)) {
+          await refresh();
           return;
         }
         try {
           await persistThenProfile(stored, current, signal);
         } catch (error) {
           if (!active(current)) return;
-          if (isUnauthorized(error)) await this.refresh();
+          if (isUnauthorized(error)) await refresh();
           else
             publish({
               status: "error",
@@ -232,257 +193,20 @@ export function createAuthController(
           });
       }
     },
-    async signIn(
-      provider: OAuthProvider,
-      providerRedirectUri: string,
-      appReturnUri: string,
-      callerSignal?: AbortSignal,
-    ) {
-      const current = beginGeneration();
-      const signal = requestSignal(callerSignal);
-      pending = null;
-      let exchangedPair: TokenPair | null = null;
-      publish({ status: "signing-in", profile: null, message: null });
-      try {
-        const pkce = await deps.createPkce();
-        if (!active(current)) return;
-        const authorization = await deps.api.authorize(
-          provider,
-          { redirectUri: providerRedirectUri, challenge: pkce.challenge },
-          signal,
-        );
-        if (!active(current)) return;
-        pending = {
-          provider,
-          state: authorization.state,
-          verifier: pkce.verifier,
-          redirectUri: providerRedirectUri,
-          expiresAtMs:
-            (deps.nowMs?.() ?? Date.now()) +
-            authorization.expiresInSeconds * 1000,
-          generation: current,
-        };
-        const browser = await deps.openBrowser(
-          authorization.authorizationUrl,
-          appReturnUri,
-        );
-        if (!active(current)) return;
-        if (browser.type !== "success") {
-          pending = null;
-          publish({
-            status: "signed-out",
-            profile: null,
-            message: "로그인이 취소되었습니다.",
-          });
-          return;
-        }
-        const attempt = pending;
-        pending = null;
-        if (!attempt || expired(attempt)) throw new Error("expired");
-        const callback = parseOAuthCallback(browser.url, provider);
-        if (callback.state !== attempt.state) throw new Error("state");
-        if (callback.kind === "error") {
-          publish({
-            status: "signed-out",
-            profile: null,
-            message:
-              callback.error === "access_denied"
-                ? "로그인이 취소되었습니다."
-                : "로그인을 완료할 수 없습니다.",
-          });
-          return;
-        }
-        // M15/task-14 phase 1 (G2/E13): the one-shot restore notice reads
-        // `accountRestored` here and hands it to `pendingAccountRestoreStore`;
-        // the persisted pair below stays the closed TokenPair shape (see
-        // src/core/auth/auth-api.ts's exchange()).
-        const { accountRestored, ...pair } = await deps.api.exchange(
-          provider,
-          {
-            authorizationCode: callback.code,
-            state: callback.state,
-            verifier: attempt.verifier,
-            redirectUri: attempt.redirectUri,
-          },
-          signal,
-        );
-        exchangedPair = pair;
-        if (!active(current)) return;
-        if (accountRestored) pendingAccountRestoreStore.set();
-        await persistThenProfile(pair, current, signal);
-      } catch {
-        if (active(current)) {
-          pending = null;
-          publish({
-            status: "error",
-            profile: null,
-            message: "로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
-            retryAction:
-              exchangedPair && tokens === exchangedPair
-                ? "retryProfile"
-                : undefined,
-          });
-        }
-      }
-    },
-    /**
-     * Apple auth interface slot (E14/E15/AC3/AC4, plan
-     * `api_contracts.app.login_flow_E15`): orchestrates the native Apple
-     * sheet exactly like `signIn` orchestrates the browser -- publishing
-     * "signing-in" before it (so the shared busy/disabled state spans the
-     * whole native interaction, not just a network call), a silent
-     * `signed-out` on `AppleSignInResult.type === "cancel"` (U3/E14: cancel
-     * never shows a notice), and `error` otherwise. APPCON-AC3/AC4: a
-     * successful native credential calls A6 (`deps.api.exchangeApple`) with
-     * the *raw* nonce (Apple only ever saw its sha256 hex hash) and the
-     * port-formatted `fullName` gated through `sendableFullName` (E15/U6:
-     * omit rather than send an empty/too-long/control-character name so the
-     * server's `Apple{6}` fallback nickname applies instead of a 400 --
-     * login is never blocked by a bad name). Any `AuthApiError` from A6 (422
-     * apple_identity_token_invalid, 404 oauth_provider_not_supported, 503
-     * provider_unavailable) or a network failure falls into the same
-     * catch-all below as `signIn`'s own OAuth exchange failure -- one
-     * generic retryable message, no per-code UI.
-     */
-    async signInWithApple(callerSignal?: AbortSignal) {
-      const current = beginGeneration();
-      if (!deps.applePort || !deps.createAppleNonce) {
-        if (active(current))
-          publish({
-            status: "error",
-            profile: null,
-            message: "Apple 로그인을 사용할 수 없습니다.",
-          });
-        return;
-      }
-      const signal = requestSignal(callerSignal);
-      publish({ status: "signing-in", profile: null, message: null });
-      try {
-        const nonce = await deps.createAppleNonce();
-        if (!active(current) || signal.aborted) return;
-        const result = await deps.applePort.signIn({
-          nonce: nonce.hashed,
-          requestedScopes: ["fullName"],
-        });
-        if (!active(current) || signal.aborted) return;
-        if (result.type === "cancel") {
-          publish({ status: "signed-out", profile: null, message: null });
-          return;
-        }
-        if (result.type === "error") {
-          publish({
-            status: "error",
-            profile: null,
-            message: "Apple 로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
-          });
-          return;
-        }
-        const { accountRestored, ...pair } = await deps.api.exchangeApple(
-          {
-            identityToken: result.identityToken,
-            rawNonce: nonce.raw,
-            fullName: sendableFullName(result.fullName),
-          },
-          signal,
-        );
-        if (!active(current) || signal.aborted) return;
-        if (accountRestored) pendingAccountRestoreStore.set();
-        await persistThenProfile(pair, current, signal);
-      } catch {
-        if (active(current))
-          publish({
-            status: "error",
-            profile: null,
-            message: "Apple 로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
-          });
-      }
-    },
-    async refresh() {
-      const current = generation;
-      if (refreshFlight && refreshFlight.generation === current)
-        return refreshFlight.promise;
-      if (!tokens) return null;
-      const signal = requestSignal();
-      const entry: { generation: number; promise: Promise<TokenPair | null> } =
-        {
-          generation: current,
-          promise: undefined as unknown as Promise<TokenPair | null>,
-        };
-      entry.promise = (async (): Promise<TokenPair | null> => {
-        const activeTokens = tokens;
-        if (!activeTokens) return null;
-        if (tokenExpired(activeTokens.refreshTokenExpiresAt)) {
-          await clearSessionAndPublish(
-            current,
-            "세션이 만료되었습니다. 다시 로그인해 주세요.",
-          );
-          return null;
-        }
-        let pair: TokenPair;
-        try {
-          pair = await deps.api.refresh(activeTokens.refreshToken, signal);
-        } catch (error) {
-          if (!active(current)) return null;
-          if (isUnauthorized(error)) {
-            await clearSessionAndPublish(
-              current,
-              "세션이 만료되었습니다. 다시 로그인해 주세요.",
-            );
-          } else {
-            // A transport, proxy or server error cannot prove rotation did not
-            // commit. Never replay a potentially consumed refresh token.
-            await clearSessionAndPublish(
-              current,
-              "세션 상태를 확인할 수 없습니다. 다시 로그인해 주세요.",
-            );
-          }
-          return null;
-        }
-        if (!active(current)) return null;
-        try {
-          const persisted = await persistThenProfile(pair, current, signal);
-          return persisted ? pair : null;
-        } catch (error) {
-          if (!active(current)) return null;
-          if (isUnauthorized(error)) {
-            await clearSessionAndPublish(
-              current,
-              "세션이 만료되었습니다. 다시 로그인해 주세요.",
-            );
-          } else {
-            publish({
-              status: "error",
-              profile: null,
-              message: "세션을 갱신할 수 없습니다. 다시 시도해 주세요.",
-              retryAction: "retryProfile",
-            });
-          }
-          return null;
-        }
-      })().finally(() => {
-        if (refreshFlight === entry) refreshFlight = null;
-      });
-      refreshFlight = entry;
-      return entry.promise;
-    },
+    signIn,
+    signInWithApple,
+    refresh,
     async logout(callerSignal?: AbortSignal) {
       const current = beginGeneration();
       const signal = requestSignal(callerSignal);
-      pending = null;
+      resetPendingOAuthAttempt();
       const previous = tokens;
       tokens = null;
       publish({ status: "signed-out", profile: null, message: null });
       try {
         await serializeStorage(current, () => deps.store.clear());
       } catch {
-        if (active(current))
-          publish({
-            status: "error",
-            profile: null,
-            message:
-              "보안 저장소에서 세션을 지울 수 없습니다. 다시 시도해 주세요.",
-            retryAction: "logout",
-          });
+        if (active(current)) publish(SESSION_CLEAR_FAILED_STATE);
         return;
       }
       if (previous)
@@ -504,7 +228,7 @@ export function createAuthController(
       callerSignal?: AbortSignal,
     ): Promise<T> {
       if (!tokens) throw new AuthApiError(401, "not_authenticated");
-      const current = generation;
+      const current = generationGuard.generation;
       const signal = requestSignal(callerSignal);
       const ensureActiveRequest = () => {
         if (!active(current) || signal.aborted)
@@ -528,7 +252,7 @@ export function createAuthController(
         if (error instanceof AuthApiError && error.code === "request_cancelled")
           throw error;
         if (!isUnauthorized(error)) throw error;
-        const refreshed = await this.refresh();
+        const refreshed = await refresh();
         ensureActiveRequest();
         if (!refreshed) throw error;
         return await runOnce(refreshed.accessToken);
@@ -548,7 +272,7 @@ export function createAuthController(
       publish({ status: "signed-in", profile, message: null });
     },
     async retryProfile(callerSignal?: AbortSignal) {
-      const current = generation;
+      const current = generationGuard.generation;
       if (!tokens || callerSignal?.aborted) return;
       if (profileRetryFlight?.generation === current)
         return profileRetryFlight.promise;
@@ -576,8 +300,7 @@ export function createAuthController(
               else publish({ status: "signed-in", profile, message: null });
             } catch (error) {
               if (!active(current)) return;
-              if (!signal.aborted && isUnauthorized(error))
-                await this.refresh();
+              if (!signal.aborted && isUnauthorized(error)) await refresh();
               else retryableError();
             }
           })
@@ -589,34 +312,4 @@ export function createAuthController(
       return entry.promise;
     },
   };
-}
-
-const APPLE_FULL_NAME_MAX_LENGTH = 256;
-// Matches the control characters (Unicode Cc: C0, DEL, C1) that the server's
-// A6 validation rejects in full_name (Rust `char::is_control`), so the app
-// omits such a name instead of failing the whole login with 422.
-const APPLE_FULL_NAME_CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
-
-/**
- * APPCON-AC3: gates the Apple port's already-trimmed `fullName` (see
- * `apple-authentication-port.ios.ts`'s `formatName()`) against A6's
- * `full_name` wire contract (trim, 1..256 chars, no control characters)
- * before it is ever sent. `undefined` in either direction means "omit the
- * field" -- the server then assigns `Apple{6}` (E4/U6), never a 400.
- */
-function sendableFullName(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined;
-  const trimmed = value.trim();
-  if (trimmed.length === 0 || trimmed.length > APPLE_FULL_NAME_MAX_LENGTH)
-    return undefined;
-  return APPLE_FULL_NAME_CONTROL_CHARS.test(trimmed) ? undefined : trimmed;
-}
-
-function isUnauthorized(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "status" in error &&
-    (error as AuthApiError).status === 401
-  );
 }

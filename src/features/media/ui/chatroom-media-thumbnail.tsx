@@ -9,7 +9,7 @@ import { AppSymbol } from "@/shared/ui/app-symbol";
 import { AppText } from "@/shared/ui/app-text";
 import { NativeButton } from "@/shared/ui/native-button";
 
-import { MediaImage } from "./media-image";
+import { MediaImage, type MediaImageCornerStyle } from "./media-image";
 import { MediaViewerModal } from "./media-viewer-modal";
 import { useMediaVideo } from "./use-media-video";
 import { useMediaVideoThumbnail } from "./use-media-video-thumbnail";
@@ -36,10 +36,18 @@ function formatVideoLabel(seconds: number | null): string {
  * consumer of those hooks rather than a wrapper around that card.
  */
 export function ChatroomMediaThumbnail({
+  cornerStyle,
   fill = false,
   item,
   size,
 }: Readonly<{
+  /** E7f: overrides the default `appRadii.medium` rounding -- the 3-column
+   * gallery grid (`chatroom-media-grid-screen.tsx`) passes
+   * `{ borderRadius: 0 }` for razor-edge tiles (photo-app convention, kept
+   * with the grid's existing 2px gap). The Android carousel keeps the
+   * default and clips at its own wrapper instead (E7e,
+   * `topic-media-carousel-row.android.tsx`). */
+  cornerStyle?: MediaImageCornerStyle;
   /** Fill the container (Android carousel items) instead of a `size` square. */
   fill?: boolean;
   item: ChatroomMediaItem;
@@ -48,6 +56,7 @@ export function ChatroomMediaThumbnail({
   if (!item.contentType.startsWith("video/")) {
     return (
       <MediaImage
+        cornerStyle={cornerStyle}
         fill={fill}
         filename={item.filename}
         label="사진"
@@ -56,14 +65,23 @@ export function ChatroomMediaThumbnail({
       />
     );
   }
-  return <ChatroomVideoThumbnail fill={fill} item={item} size={size} />;
+  return (
+    <ChatroomVideoThumbnail
+      cornerStyle={cornerStyle}
+      fill={fill}
+      item={item}
+      size={size}
+    />
+  );
 }
 
 function ChatroomVideoThumbnail({
+  cornerStyle,
   fill,
   item,
   size,
 }: Readonly<{
+  cornerStyle?: MediaImageCornerStyle;
   fill: boolean;
   item: ChatroomMediaItem;
   size: number;
@@ -93,7 +111,7 @@ function ChatroomVideoThumbnail({
             alignItems: "center",
             backgroundColor: colors.fill,
             borderCurve: "continuous",
-            borderRadius: appRadii.medium,
+            borderRadius: cornerStyle?.borderRadius ?? appRadii.medium,
             justifyContent: "center",
             overflow: "hidden",
             ...box,

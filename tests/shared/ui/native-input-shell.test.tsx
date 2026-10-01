@@ -2,6 +2,7 @@ import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 import type { ReactNode } from "react";
 
+import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { NativeInputSheet } from "@/shared/ui/native-input-sheet";
 import {
   isNativeInputShellSubmitDisabled,
@@ -18,6 +19,7 @@ jest.mock("expo-router", () => {
       children?: ReactNode;
       disabled?: boolean;
       onPress?: () => void;
+      tintColor?: string;
       variant?: string;
     }>,
   ) {
@@ -28,6 +30,7 @@ jest.mock("expo-router", () => {
         accessibilityState={{ disabled: Boolean(props.disabled) }}
         disabled={props.disabled}
         onPress={props.onPress}
+        {...{ tintColor: props.tintColor }}
       >
         <Text>{props.children}</Text>
       </Pressable>
@@ -183,10 +186,20 @@ describe("NativeInputShell shared fallback helpers", () => {
 describe("NativeInputSheet (iOS)", () => {
   test("취소/submit toolbar actions call the right handler; typing forwards to onChangeValue", async () => {
     const { onCancel, onChangeValue, onSubmit, props } = baseProps();
-    const screen = await render(<NativeInputSheet {...props} />);
+    const screen = await render(
+      <AppThemeProvider>
+        <NativeInputSheet {...props} />
+      </AppThemeProvider>,
+    );
     expect(screen.getByTestId("screen-options").props.accessibilityLabel).toBe(
       "새 그룹",
     );
+    // E7h/C12: the submit action carries the Berry `colors.primary` tint --
+    // sourced from `useAppTheme()`, which requires the real
+    // `AppThemeProvider` above (not a mock), matching production.
+    expect(
+      screen.getByRole("button", { name: "만들기" }).props.tintColor,
+    ).toEqual(expect.any(String));
     await fireEvent.press(screen.getByRole("button", { name: "취소" }));
     expect(onCancel).toHaveBeenCalledTimes(1);
     await fireEvent.changeText(screen.getByTestId("text-field"), "우리 그룹");
@@ -197,7 +210,11 @@ describe("NativeInputSheet (iOS)", () => {
 
   test("busy disables the field and both toolbar actions", async () => {
     const { onSubmit, props } = baseProps({ busy: true });
-    const screen = await render(<NativeInputSheet {...props} />);
+    const screen = await render(
+      <AppThemeProvider>
+        <NativeInputSheet {...props} />
+      </AppThemeProvider>,
+    );
     expect(
       screen.getByRole("button", { name: "만들기" }).props.accessibilityState,
     ).toEqual({ disabled: true });
@@ -211,7 +228,11 @@ describe("NativeInputSheet (iOS)", () => {
 
   test("submitDisabled alone disables submit without disabling the field", async () => {
     const { props } = baseProps({ submitDisabled: true });
-    const screen = await render(<NativeInputSheet {...props} />);
+    const screen = await render(
+      <AppThemeProvider>
+        <NativeInputSheet {...props} />
+      </AppThemeProvider>,
+    );
     expect(
       screen.getByRole("button", { name: "만들기" }).props.accessibilityState,
     ).toEqual({ disabled: true });
@@ -223,25 +244,39 @@ describe("NativeInputSheet (iOS)", () => {
       errorText: "이름을 입력해주세요",
       helperText: "그룹 이름을 정해주세요",
     });
-    const screen = await render(<NativeInputSheet {...props} />);
+    const screen = await render(
+      <AppThemeProvider>
+        <NativeInputSheet {...props} />
+      </AppThemeProvider>,
+    );
     expect(screen.getByText("이름을 입력해주세요")).toBeTruthy();
     expect(screen.queryByText("그룹 이름을 정해주세요")).toBeNull();
   });
 
   test("with no error or helper text, the footer is empty", async () => {
     const { props } = baseProps();
-    const screen = await render(<NativeInputSheet {...props} />);
+    const screen = await render(
+      <AppThemeProvider>
+        <NativeInputSheet {...props} />
+      </AppThemeProvider>,
+    );
     expect(screen.getByTestId("text-field")).toBeTruthy();
   });
 
   test("a later initialValue (e.g. a pending-invite code consumed on focus) is pushed into the native field state", async () => {
     mockIosNativeStates.length = 0;
     const { props } = baseProps();
-    const screen = await render(<NativeInputSheet {...props} />);
+    const screen = await render(
+      <AppThemeProvider>
+        <NativeInputSheet {...props} />
+      </AppThemeProvider>,
+    );
     expect(mockIosNativeStates).toHaveLength(1);
     expect(mockIosNativeStates[0]!.set).not.toHaveBeenCalled();
     await screen.rerender(
-      <NativeInputSheet {...props} initialValue={"a".repeat(20)} />,
+      <AppThemeProvider>
+        <NativeInputSheet {...props} initialValue={"a".repeat(20)} />
+      </AppThemeProvider>,
     );
     expect(mockIosNativeStates[0]!.set).toHaveBeenCalledWith("a".repeat(20));
   });

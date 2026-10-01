@@ -1,4 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
+import { MessageAttachmentsView } from "@/features/media/ui/message-attachments-view";
+import type { MessageAttachmentMedia } from "@/features/media/ui/message-attachments-view";
 
 const mockMediaImage = jest.fn();
 jest.mock("@/features/media/ui/media-image", () => {
@@ -62,9 +64,6 @@ jest.mock("@/features/media/ui/voice-message-bubble", () => {
     },
   };
 });
-
-import { MessageAttachmentsView } from "@/features/media/ui/message-attachments-view";
-import type { MessageAttachmentMedia } from "@/features/media/ui/message-attachments-view";
 
 function image(
   overrides: Partial<MessageAttachmentMedia> = {},

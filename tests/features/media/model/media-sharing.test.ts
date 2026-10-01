@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react-native";
+import { useMediaSharing } from "@/features/media/model/media-sharing";
 
 let mockFocused = true;
 jest.mock("expo-router", () => ({
@@ -47,8 +48,6 @@ const mockShare = jest.fn();
 jest.mock("@/features/media/platform/media-share", () => ({
   shareOrSaveLocalFile: (...args: unknown[]) => mockShare(...args),
 }));
-
-import { useMediaSharing } from "@/features/media/model/media-sharing";
 
 const attachment = { id: "media-1", filename: "photo.jpg", type: "image/jpeg" };
 

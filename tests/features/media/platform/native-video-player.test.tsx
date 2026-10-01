@@ -2,6 +2,10 @@ import React from "react";
 import { act, render } from "@testing-library/react-native";
 import { AppState } from "react-native";
 import type { AppStateStatus } from "react-native";
+import {
+  registerActivePlayback,
+  resetAudioPlaybackCoordinatorForTests,
+} from "@/features/media/model/audio-playback-coordinator";
 import { NativeVideoPlayer } from "@/features/media/platform/native-video-player";
 
 const mockAvailable = jest.fn();
@@ -109,6 +113,33 @@ test("local playback uses native controls, disables background/PiP/casting, and 
       releaseFile.mock.invocationCallOrder[0],
     );
   }
+});
+
+// E3/C3: the video joins the app-wide one-at-a-time playback registry only
+// while it is actually playing.
+test("a playing video is paused when a voice message starts, and a paused one is left alone", async () => {
+  resetAudioPlaybackCoordinatorForTests();
+  const instance = player();
+  mockCreate.mockReturnValue(instance);
+  const screen = await render(
+    <NativeVideoPlayer uri={uri} onError={jest.fn()} onClose={jest.fn()} />,
+  );
+  await flush();
+  const playing = instance.addListener.mock.calls.find(
+    ([name]) => name === "playingChange",
+  ) as unknown as [string, (payload: { isPlaying: boolean }) => void];
+
+  await act(() => playing[1]({ isPlaying: true }));
+  registerActivePlayback("voice-1", jest.fn());
+  expect(instance.pause).toHaveBeenCalledTimes(1);
+
+  await act(() => playing[1]({ isPlaying: true }));
+  await act(() => playing[1]({ isPlaying: false }));
+  registerActivePlayback("voice-2", jest.fn());
+  expect(instance.pause).toHaveBeenCalledTimes(1);
+
+  await screen.unmount();
+  resetAudioPlaybackCoordinatorForTests();
 });
 
 test.each([

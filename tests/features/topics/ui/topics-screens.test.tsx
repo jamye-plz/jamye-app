@@ -51,6 +51,8 @@ jest.mock("expo-router", () => ({
       .createStackToolbarMock(),
   },
   useLocalSearchParams: () => mockParams,
+  // M17/U13: topic detail reads the root stack; none is mounted here.
+  useNavigation: () => ({ getState: () => undefined, reset: jest.fn() }),
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
   useFocusEffect: (callback: () => void | (() => void)) => {
     const React = jest.requireActual<typeof import("react")>("react");
@@ -391,6 +393,17 @@ describe("M10/M14 topic views with real controller and fake API", () => {
       pathname: "/groups/[groupId]/topics/new",
       params: { groupId },
     });
+  });
+  test("E6c/C7/GROUPS-AC2: a network failure on first load shows the read-specific copy", async () => {
+    const fixture = topicsHarness();
+    fixture.api.listTopics.mockRejectedValue(
+      new TopicsApiError(0, "network_unavailable"),
+    );
+    const f = await setup(<TopicsScreen groupId={groupId} />, fixture);
+    await f.screen.findByText(
+      "주제를 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.",
+    );
+    expect(f.screen.getByTestId("topics-error")).toBeTruthy();
   });
   test("opens on today (T1 order) and reloads only when a different date is picked", async () => {
     const fixture = topicsHarness();
