@@ -409,9 +409,9 @@ the following interop rules:
   presentation): swiping left or right pages through that message's attachments, swiping down
   dismisses, and share/save buttons reuse the existing MD5-download-then-system-share-sheet path.
 - A chatroom's 사진·동영상 gallery — opened from a topic's gallery link, or from M17 a group's
-  그룹 정보 사진·동영상 row for its main chatroom — lists that chatroom's attachments as a fixed
-  3-column grid of square, razor-edge tiles (radius 0, unlike the rounded tiles above) with a 2dp
-  gap between them, the photo-app convention.
+  그룹 정보 사진·동영상 row for its main chatroom — is titled 갤러리 from either entry and
+  lists that chatroom's attachments as a fixed 3-column grid of square, razor-edge tiles (radius
+  0, unlike the rounded tiles above) with a 2dp gap between them, the photo-app convention.
 - Android's topic gallery also shows a horizontal Material 3 `HorizontalMultiBrowseCarousel`
   preview; its React Native thumbnail content gets a fixed 12dp corner radius and clip, so a
   fully visible item matches the carousel's rounded item mask. The carousel's own item mask does
