@@ -96,6 +96,11 @@ const PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN = [
   { mode: "production" },
 ] as const;
 
+// F-8/A18: iOS 27 SDK builds do not launch on iOS 27 without the UIScene
+// life cycle. Both variants apply this local backport of the SDK 58
+// template's scene setup; remove it with the SDK 58 upgrade.
+const IOS_SCENE_LIFECYCLE_PLUGIN = "./tools/expo/with-ios-scene-lifecycle.cjs";
+
 function parseAppVariant(value: string | undefined): AppVariant {
   if (!value) {
     throw new Error(
@@ -170,6 +175,7 @@ export default function resolveExpoConfig() {
       isProduction
         ? PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN
         : PUSH_NOTIFICATIONS_PLUGIN,
+      IOS_SCENE_LIFECYCLE_PLUGIN,
     ],
   };
 }

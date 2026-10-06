@@ -108,6 +108,9 @@ const PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN = [
   "expo-notifications",
   { mode: "production" },
 ];
+// F-8/A18: iOS 27 SDK builds must adopt the UIScene life cycle to launch on
+// iOS 27; both variants apply the local SDK 58 template backport plugin.
+const IOS_SCENE_LIFECYCLE_PLUGIN = "./tools/expo/with-ios-scene-lifecycle.cjs";
 const EAS_OWNER = "jamye-plz";
 const EAS_PROJECT_ID = "6a27e581-0093-4e75-bd88-01be99fcdab5";
 const ANDROID_GOOGLE_SERVICES_FILE = "./google-services.json";
@@ -296,6 +299,7 @@ describe("M3-I1 Expo configuration contract", () => {
         MEDIA_PICKER_PLUGIN,
         AUDIO_PLUGIN,
         PUSH_NOTIFICATIONS_PLUGIN,
+        IOS_SCENE_LIFECYCLE_PLUGIN,
       ],
     });
     expect(resolved).toMatchObject({
@@ -320,6 +324,7 @@ describe("M3-I1 Expo configuration contract", () => {
       MEDIA_PICKER_PLUGIN,
       AUDIO_PLUGIN,
       PUSH_NOTIFICATIONS_PLUGIN,
+      IOS_SCENE_LIFECYCLE_PLUGIN,
     ]);
   });
 
@@ -384,6 +389,7 @@ describe("M3-I1 Expo configuration contract", () => {
         MEDIA_PICKER_PLUGIN,
         AUDIO_PLUGIN,
         PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN,
+        IOS_SCENE_LIFECYCLE_PLUGIN,
       ],
     });
     expect(resolved).toMatchObject({
@@ -408,6 +414,7 @@ describe("M3-I1 Expo configuration contract", () => {
       MEDIA_PICKER_PLUGIN,
       AUDIO_PLUGIN,
       PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN,
+      IOS_SCENE_LIFECYCLE_PLUGIN,
     ]);
     // C17a: the plain development dev-client plugin (addGeneratedScheme:
     // true) must not appear, and the scheme-disabled production entry must.
