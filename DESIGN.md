@@ -58,7 +58,9 @@ Font family: React Native platform system font with Korean-capable platform fall
 | Control label       | Platform system | 14px equivalent |    600 |        20px |              0 | Normal                          | Retry and send controls     |
 | Timestamp and state | Platform system | 13px equivalent |    500 |        19px |              0 | Tabular numerals when available | Never below 13px equivalent |
 
-Korean body, message, input, and control copy use natural tracking. Font scaling remains enabled. The 120px composer growth cap must not clip scaled text; internal scrolling begins only after the measured content exceeds the cap.
+Korean body, message, input, and control copy use natural tracking. Font scaling remains enabled. The 120px composer growth cap must not clip scaled text; internal scrolling begins only after the measured content exceeds the cap (iOS derives the visible line count from the font scale; see Composer).
+
+Glyphs scale with the system font size too, so they are sized explicitly. On Android, `AppSymbol` draws a Material Symbols glyph as scalable text inside a fixed box, so at 200% it would outgrow and clip the box. `symbolViewSizing` therefore hands `SymbolView` `size / fontScale` (the text scaling brings it back to the nominal `size`) and pins the box to the nominal `size`; layout is unchanged. iOS SF Symbols do not scale this way and keep their nominal `size`.
 
 ## 4. Component Stylings
 
@@ -116,8 +118,9 @@ the following interop rules:
   the Compose trigger.
 - An always-mounted full-screen Compose host blocks React Native hit-testing underneath it even when
   its RN wrapper sets `pointerEvents="box-none"`; mount such a host only while it is actually showing
-  content, and size it to the band it needs (for example a bottom snackbar band), not the full
-  screen.
+  content, and size it to the band it needs, not the full screen. The Android snackbar band is
+  160dp at 1x font scale and grows to 160dp × max(1, font scale), so a larger system font size never
+  clips a multi-line message against a fixed band.
 - A `BadgedBox` with no `BadgedBox.Badge` child still draws a default badge, so render `BadgedBox`
   only when there is a badge to show; and a `Host`'s `onLayoutContent` fires only after the first
   Compose layout, so an imperative Compose host (for example `SnackbarHost`) rejects calls made
@@ -152,6 +155,17 @@ the following interop rules:
 - The top-level destinations are a three-item tab bar: 그룹 (`person.2` / `group`), 알림 (`bell` / `notifications`), 계정 (`person.crop.circle` / `account_circle`) via Expo Router `NativeTabs` (ADR 0009, ADR 0010): a `UITabBarController` in Liquid Glass on iOS 26 and a Material 3 navigation bar on Android. The active tab icon and label use Conversation Berry or Petal Berry. On iOS every other color, the indicator, and the minimize behavior stay the platform default; on Android the bar sits on `surface`, the active pill is `accentContainer`, and inactive icons and labels are `textMuted` (ADR 0011 D4). The notifications tab shows the unread count as a native badge, hidden at zero and capped at `99+`. Each tab owns its own native Stack so the rules above apply unchanged inside a tab.
 - The chat screen and the create/join/new-topic modals live on the root Stack, so the tab bar is hidden while they are open.
 - The group home is the topic list titled with the group name. The group list header keeps only the `+` menu. On the group home the title itself is a button (`HeaderTitleButton`: the group name plus a muted trailing chevron, rendered through `headerTitle` inside the native bar) that opens 그룹 정보; the bar actions are, left to right, 그룹 대화방 (`bubble.left.and.bubble.right` / `forum`) and 새 주제 (`plus` / `add`). There is no info icon, no in-content row for the group chatroom and no "서울 날짜" caption.
+- `HeaderTitleButton` (the group-home title button and the chat header's title and sync subtitle) caps
+  Dynamic Type on iOS only. The native iOS bar is a fixed 44pt and never grows with text size, but a
+  custom `headerTitle` view would, and a larger one slides under the message list. The title scales
+  up to 2.0x (22pt headline × 2 fills the 44pt button row exactly) and the subtitle up to 1.2x on a
+  single line (about 5pt over its default height). Android keeps uncapped system font scaling.
+- The iOS back button of a screen pushed over the tabs (for example a chatroom) reads `이전 화면`: the
+  root `(tabs)` screen is titled that, and stays `headerShown: false`, so VoiceOver does not read the
+  route group name `(tabs)` as the back label (F-7). When the previous title does not fit, UIKit
+  shortens the back label to its system string, which follows the device's first language: `뒤로` on
+  a Korean-first device, `Back` on an English-first one such as the default simulator. The app
+  adds no localization override for it (F-7b, checked in M17 round 2).
 - 그룹 정보 (M17) is a native list — `Form`/`Section` on iOS, a single `NativeList` on Android —
   holding, in order, a centered summary header (avatar, group name, member count), a 사진·동영상
   row that opens the group's main chatroom in the 3-column media grid (see Media Attachments
@@ -196,7 +210,7 @@ the following interop rules:
   reverse-layout Compose `LazyRow` of Material 3 `FilterChip`s, because `@expo/ui` 57 does not
   expose reverse layout or initial trailing index control. Labels are 오늘 / 어제 / localized dates,
   and the row contains 주제가 있는 날짜 plus today.
-- The heading focus rule now targets the header title, or on the chat screen the header subtitle: it receives initial accessibility focus once on route entry.
+- The heading focus rule now targets the header title, or on the chat screen the header subtitle: it receives initial accessibility focus once on route entry. On the chat screen this is iOS only: the visually hidden duplicate heading and its first-focus request render only where `supportsMainHeadingFocus(os)` is true. On Android, TalkBack announced that duplicate twice and ignores a programmatic focus request on a non-input view, so the chat screen renders neither and TalkBack's default order applies (Navigate up, header title, messages, composer) (F-4).
 
 ### Native Header, Buttons, Sheets, Rows
 
@@ -363,8 +377,11 @@ the following interop rules:
   `ContextMenu` (an `@expo/ui` `Host` + swift-ui `ContextMenu` whose trigger wraps the bubble in
   `RNHostView matchContents`); Android anchors a Compose M3 `DropdownMenu` to the bubble, opened by a
   plain React Native long press on the bubble itself (a bubble hosted inside the Compose trigger
-  received no touches on device). Items are conditional on the message: `복사` for text,
-  `저장·공유` for a photo/video/voice attachment (the system share sheet), `다시 보내기` for a
+  received no touches on device). A long press on a photo, video, or voice attachment opens the same
+  menu and nothing else — no direct share sheet, no viewer or playback (F-10). On Android the
+  attachment's own press handler opens it, since the attachment owns that touch. Items are
+  conditional on the message: `복사` for text,
+  `공유` for a photo/video/voice attachment (the system share sheet), `다시 보내기` for a
   failed message, and (M15) a destructive `삭제` as the last item for a message I sent that is
   still live, or a failed message of mine I want to discard from this device only — never shown for
   another person's message or a still-pending send. The per-attachment share icon this replaced no
@@ -432,7 +449,10 @@ the following interop rules:
   in-progress recording or an unsent preview.
 - A voice message renders as its own bubble: play/pause, a draggable seek bar, and a duration label
   (the server-reported duration, or elapsed time while playing). Only one voice message or video
-  plays at a time app-wide, and playback continues in iOS silent mode.
+  plays at a time app-wide, and playback continues in iOS silent mode. Tapping play on a clip that
+  has finished (its position within 0.05s of the end) replays it from the start instead of ending
+  again at once; this holds for a message bubble and for the composer's preview bar, on both
+  platforms (F-11).
 - `expo-audio` provides recording and playback; `expo-haptics` adds iOS-only haptics on record
   start/stop/send (Android does not use haptics here).
 
@@ -455,7 +475,10 @@ the following interop rules:
   `TextInput` shell used before M14 round 2 if on-device verification ever finds a native-field
   regression a mocked test cannot catch.
 - Minimum height is 48px. Growth cap is roughly 5 lines (about 120px equivalent), adjusted safely
-  for font scaling.
+  for font scaling. On iOS the SwiftUI field's line limit comes from `composerMaxLines(fontScale)`,
+  which is `clamp(floor(120 / (22 × fontScale)), 1, 5)` (22pt is the Body line height): 5 lines at
+  1x, 2 at about 2.14x, 1 at about 3.57x. Text beyond the limit scrolls inside the field, never over
+  the list above the capsule. Android's Compose field keeps its fixed 5-line limit.
 - Enter or Return inserts a newline. `onSubmitEditing`, key press, and composition events never
   send; only the trailing send control does.
 - Draft text remains intact during Korean IME composition and after a failed database write. A
@@ -571,12 +594,12 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 ### Accessibility and Platform Adaptation
 
 - Support 200% text without hiding status or controls.
-- VoiceOver and TalkBack order is heading, notice, messages, composer, send action.
-- Keep state meaning when reduced motion is enabled.
+- VoiceOver order is heading, notice, messages, composer, send action. TalkBack on the chat screen follows its own default order (Navigate up, header title, messages, composer) with no hidden heading (F-4; see Screen and Main Heading).
+- Keep state meaning when reduced motion is enabled. The system setting is read live, including a mid-session toggle (`useReduceMotionEnabled`), and only the motion is dropped: the chat auto-scroll reveal jumps to its offset instead of animating, the full-screen media viewer opens without its slide, and image loads (photo, video thumbnail, gallery thumbnail) skip their 150ms fade through the shared `useImageFadeTransition` (`IMAGE_FADE_MS`).
 - Verify system status-bar content remains legible against the active light or dark canvas on both platforms.
 - Shared components own copy, semantics, tokens, and the lower-boundary anchor rule. Platform wrappers expose native keyboard progress and normalize settled safe-area overlap.
 - Native acceptance on both platforms is required for keyboard, IME, anchor, dark mode, large text, and screen-reader behavior.
-- The M5 Simulator/Emulator acceptance recorded so far covers keyboard, IME, anchor, and light/dark behavior. VoiceOver/TalkBack, 200% text, reduced motion, and physical-device checks remain `NOT RUN` for M8 or a separately approved device-acceptance gate.
+- Device acceptance (M17 round 2) covered 200% text on the Android emulator, accessibility Dynamic Type sizes on the iOS simulator, and on a physical iPhone 200% text, reduced motion, haptics, voice recording and playback, and call interruption. TalkBack ran on the Android emulator: node order and labels were checked, but swipe-gesture navigation was not, since automation could not send TalkBack gestures. On the physical iPhone, VoiceOver was only partly checked (back, title, then messages) and was then deferred as not required.
 
 ## 9. Agent Prompt Guide
 

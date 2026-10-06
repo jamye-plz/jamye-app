@@ -1,16 +1,19 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15 소프트 삭제 수용 완료 (2026-09-29 M15 사용자 종료 승인), M16 Sign in with Apple 완료 (2026-09-30 M16 사용자 종료 승인), M17 잔여 백로그 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인)·(A) 진행 중, M18 스토어 배포 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15 소프트 삭제 수용 완료 (2026-09-29 M15 사용자 종료 승인), M16 Sign in with Apple 완료 (2026-09-30 M16 사용자 종료 승인), M17 잔여 백로그 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인)·라운드 2 (A) 구현·기기 수용 완료 (2026-10-06, 리뷰·종료 승인 대기, 미커밋), M18 스토어 배포 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
 - 현재 frontier: M17(A) 앱 출시 blocker — 2026-10-01 사용자 착수 승인("다음 착수 범위는 A를
-  진행할게"). 직전 M17 라운드 1 (E)·(F)는 2026-10-01 사용자 종료 승인으로 닫았다(PR #6 merge
-  `589c5e0`, [M17 evidence](evidence/M17.md)). M18 스토어 배포는 M14 만족 선언과 M16 종료 조건을
-  충족했고 M17(A)·release 범위 확정과 별도 승인이 남아 있다. 파괴적 로컬 정리는 여전히 별도 승인
-  대상(M17-B).
-- 앱 출시 판정: NOT READY — 원본 감사의 image-size High 2건·Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용과 배포 binding이 남아 있음
+  진행할게"). 2026-10-06 (A)의 구현과 기기 수용을 마쳤다(의존성 정렬·감사 0건, 접근성 수정,
+  production identity 경로, Maestro E2E iOS·Android PASS, ANR 분석, 기기 수용 결함 수정; 상세는 M17
+  절 "(A) 결과"). ultrawork 리뷰 단계(VERIFY/REFINE/SHIP)가 남아 있고 아직 아무것도 커밋하지
+  않았다(작업 트리, 브랜치 `feature/m17-release-blockers`). 직전 M17 라운드 1 (E)·(F)는 2026-10-01
+  사용자 종료 승인으로 닫았다(PR #6 merge `589c5e0`, [M17 evidence](evidence/M17.md)). M18 스토어
+  배포는 M14 만족 선언과 M16 종료 조건을 충족했고 M17(A) 종료·release 범위 확정과 별도 승인이 남아
+  있다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
+- 앱 출시 판정: NOT READY — (A)가 다룬 image-size High 2건(트리에서 제거, 10-01 `bun audit` 0건, 10-06 재감사 뒤 dev 도구 수정판 없는 2건만 남음)·Android 시작 ANR 분석·E2E·실기기 수용은 닫았다. release build의 cold start 측정, 아이콘·서명·빌드 파이프라인, push·OAuth production 설정과 서버 AASA/assetlinks·배포 binding(M18)이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-10-01
+- 최종 수정일: 2026-10-06
 
 ## 1. 이 문서가 답하는 것
 
@@ -201,8 +204,8 @@ M13 completed (2026-09-22)
 M14 UI/UX 다듬기 completed (2026-09-28, round 1·2)
   ├─→ M15 소프트 삭제 수용 completed (2026-09-29) ← server task-14
   ├─→ M16 Sign in with Apple completed (2026-09-30) ← server task-15
-  └─→ M17 잔여 백로그 (라운드 1 (E)·(F) completed 2026-10-01, (A) 진행 중) ← server task-16 (일부)
-M14 만족 선언 (충족) + release 범위 확정 ─→ M18 스토어 배포
+  └─→ M17 잔여 백로그 (라운드 1 (E)·(F) completed 2026-10-01, (A) 구현·기기 수용 completed 2026-10-06 — 리뷰·종료 승인 대기) ← server task-16 (일부)
+M14 만족 선언 (충족) + M17(A) 종료 + release 범위 확정 ─→ M18 스토어 배포
 
 selected completed scopes ─→ common release acceptance
 ```
@@ -215,8 +218,8 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 M14-M18은 2026-09-22 사용자 결정으로 등록했다. M14는 라운드 1·2를 거쳐 2026-09-28 사용자 만족
 선언과 종료 승인으로 완료했고, M15는 2026-09-29 사용자 종료 승인으로 완료했다. M16은 2026-09-30
 사용자 종료 승인으로 완료했다. M17은 2026-10-01 라운드 1 (E)·(F)를 사용자 종료 승인으로 닫았고
-같은 날 (A) 착수를 승인했다. M17의 나머지 묶음과 M18은 `planned_unapproved`로 남아 각각 별도
-승인으로 착수한다.
+같은 날 (A) 착수를 승인했고, (A)는 2026-10-06 구현과 기기 수용을 마쳤다(리뷰 단계·종료 승인 대기).
+M17의 나머지 묶음과 M18은 `planned_unapproved`로 남아 각각 별도 승인으로 착수한다.
 M18은 M14 만족 선언(충족)과 release 범위 확정 뒤에만 시작하며, 10.2절의 공통 release acceptance를
 실제 선택한 범위에 적용한다. 서버 측 작업(task-14-16)은 jamye-server 저장소의 로드맵 문서가 소유한다.
 
@@ -640,7 +643,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 실기기 증거 (완료):
 
 - 2026-09-20 사용자 승인으로 clean prebuild + `expo run:android`(에뮬레이터, Play 이미지) +
-  `expo run:ios`(시뮬레이터) + `expo run:ios --device heimdall`(iPhone 15 Pro) 재빌드·설치.
+  `expo run:ios`(시뮬레이터) + `expo run:ios --device <device-name>`(iPhone 15 Pro) 재빌드·설치.
 - Android 에뮬레이터: 알림함 실데이터, 탭 → 대화방 이동, 권한 프롬프트, 실제 Expo 토큰 발급·P2
   등록 확인. 에뮬레이터에서 드러난 Android 13+ 권한 매핑과 토큰 회전 루프 결함을 수정.
 - iPhone 실기기: 등록, 백그라운드·포그라운드 수신, warm/cold 탭 → 대화방 직행, 미리보기 off
@@ -888,7 +891,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
   `media_not_available`로 거부됨)을 해제해, 계약이 이미 지원하던 최대 4개까지 받도록 수정. 커밋
   `9a6cba1`+`fd07187` → PR #10 → merge `c7f71a8` → homelab 배포. 상세는 jamye-server
   `.agents/results/deploy-20260927-120934.md` §10.
-- 기기 검증과 결함 수정: iOS 시뮬레이터(`13042A23-6898-4477-B2DF-76803E4616F9`)와 Android
+- 기기 검증과 결함 수정: iOS 시뮬레이터(iPhone 17 Pro)와 Android
   에뮬레이터(`jamye_pixel_9_api_36`)에서 배포된 운영 서버 기준으로 검증했다. 발견한 결함 24건(Host
   밖 렌더, Compose `LazyColumn` 안 RN 콘텐츠 측정 무한 루프, Compose 슬롯의 bare 문자열/RN 뷰,
   상시 마운트된 전체 화면 Compose host의 RN hit-test 차단, `BadgedBox`·`onLayoutContent` 오사용,
@@ -1169,8 +1172,9 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
   후에 머지해")으로 PR #6(merge `589c5e0`)을 머지했고, 같은 날 사용자가 라운드 1 종료를
   승인했다("라운드 1 종료 승인할게"). 종료와 함께 그룹 갤러리 화면 제목을 주제 갤러리와 같은
   `갤러리`로 통일했다(사용자 결정). 같은 날 사용자가 (A) 착수를 승인했다("다음 착수 범위는 A를
-  진행할게"). (B)-(D)와 라운드 1이 남긴 후속 항목은 개별 승인 전까지 `planned_unapproved`로
-  남는다.
+  진행할게"). 2026-10-06 (A)의 구현과 양 플랫폼·실기기 수용을 마쳤다(아래 "(A) 결과"). ultrawork
+  리뷰 단계(VERIFY/REFINE/SHIP)가 남아 있고 작업 트리는 아직 커밋하지 않았다. (B)-(D)와 라운드 1이
+  남긴 후속 항목은 개별 승인 전까지 `planned_unapproved`로 남는다.
 - 선행: 항목별 상이(아래 묶음별 목록)
 - 결정(2026-09-22): 각 항목은 개별 승인으로 착수하고, M18 release에 포함할지도 개별로 결정한다. 서버
   계약이 필요한 항목은 서버 task-16(또는 별도 task)을 선행한다.
@@ -1201,6 +1205,67 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
   항목은 V2 iPhone 무음 모드 재생, V3 iOS 햅틱, iOS 전화 수신 중단 뒤 미리듣기 유지(M14)와 계정 삭제
   중 Apple 재인증 취소, 앱 수준 Apple 로그인 오류 안내(M16 미검증)다.
 - production identity·서명 준비(등록)
+
+(A) 결과 (2026-10-06 구현·기기 수용 완료, 리뷰·커밋·종료 승인 대기; 상세는
+[M17 evidence](evidence/M17.md)와 [개발 workflow](development-workflow.md)):
+
+- 의존성: Expo SDK 57 patch 22개를 `expo install --check` 기준으로 정렬했다(`expo` 57.0.26,
+  `expo-router` 57.0.24 등). expo-audio의 필수 peer인 `expo-asset ~57.0.18`은 이미 설치된 패키지를
+  직접 선언만 했다(새 코드 없음). devDependency `@react-native/metro-config`를 `0.86.3`으로
+  고정해 중첩 metro 0.87과 image-size가 트리에서 빠졌고, image-size 로컬 패치는 삭제했다.
+  expo-router 패치는 새 버전 키(57.0.24)로 유지한다. fast-uri·brace-expansion은 override 없이
+  lock 갱신으로 같은 메이저의 수정판을 받았다. `bun audit` 14건 → 0건, `bun run check:expo`
+  (expo-doctor 21/21) 통과.
+- 접근성: 대화 화면 첫 포커스용 숨긴 heading은 iOS에서만 렌더한다(F-4: Android TalkBack은 포커스
+  요청을 반영하지 않고 같은 문구를 두 번 읽음). Android composer 입력란·알림 설정 스위치 접근성
+  이름, 음성 탐색 막대 accessibilityActions, 44×44 미만 터치 영역, iOS 날짜 칩 selected, Apple 로그인
+  오류 알림(제목과 `다시 시도`)을 고쳤다. reduce motion이면 자동 스크롤 애니메이션·동영상 modal
+  slide·이미지 fade를 끈다. 200% 텍스트·font scale에서 재현된 항목은 고쳤다: 대화 헤더 제목·부제
+  배율 상한(iOS), iOS composer 줄 수 cap, Android snackbar 높이 `160dp × fontScale`, Android
+  `AppSymbol`의 `size / fontScale` 보정(그룹 정보 연필 잘림, F-3).
+- production identity: `APP_VARIANT=production` 경로를 구현했다. 이름 `잼얘좀`, iOS bundle id·Android
+  package `com.ridewithmin.jamyeapp`, associatedDomains의 `?mode=developer` 제거, `aps-environment`
+  production, `expo-dev-client`는 `addGeneratedScheme: false`로 개발 scheme `exp+jamye-app` 0건이다.
+  native 폴더 없는 임시 사본의 `expo config --type introspect`(읽기 전용)로 확인했다. 빌드·prebuild·
+  서명은 하지 않았다. production prebuild의 iOS 프로젝트 이름은 비ASCII 앱 이름 때문에 `app`이 된다.
+- 자동 E2E: Maestro 2.8.0(nix devShell)으로 `e2e/maestro/dev-client-journeys.yaml`의 7개 여정을
+  로그인된 dev client에서 `bun run e2e:ios`·`bun run e2e:android`로 실행한다. iOS 시뮬레이터·Android
+  에뮬레이터 모두 PASS. 운영 쓰기는 테스트 그룹의 텍스트 메시지로 한정했다.
+- Android 시작 ANR: dev build cold start를 세 실행 방식으로 11회 반복 재현했고 ANR은 재현되지
+  않았다. main thread `Choreographer: Skipped` 경고(약 530-600ms)는 JS가 실행되지 않는 실행에서도
+  나와 expo-dev-launcher debug 경로(release에는 컴파일되지 않는 소스셋)로 판정했다. MediaProvider
+  temp sweep은 1-9ms라 원인에서 배제했고 앱 동작은 바꾸지 않았다. `__DEV__` 전용 `[startup-timing]`
+  계측(첫 화면까지, 세션 복원, temp sweep)을 더했다. 에뮬레이터 세션 복원은 2.3-3.7초라 3초 splash
+  안전 시간을 넘길 수 있다. 한계: 세션 중 dev-client 딥링크 처리 맥락에서 크래시 2건과 ANR 1건을 관찰했으나
+  재현되지 않았고(모두 debug dev-launcher 경로), release build cold start는 측정하지 않았다(새 승인 필요).
+- 기기 수용(iOS 실기기 iOS 27.0.x, iOS 시뮬레이터, Android 에뮬레이터): C16 항목은 PASS 또는 결함
+  수정이다. 수정한 결함(회귀 테스트 RED → GREEN): F-1 iOS 이미지 뷰어 상단 버튼, F-3 Android 200%
+  그룹 정보 연필 잘림, F-4 Android TalkBack 숨긴 heading 중복·포커스 무시, F-7 iOS 뒤로 버튼
+  VoiceOver 이름(`(tabs)` → `이전 화면`), F-8 iOS 27 실기기 실행 즉시 종료(iOS 27 SDK는 UIScene
+  life cycle 필수; SDK 57을 유지하고 로컬 config plugin `tools/expo/with-ios-scene-lifecycle.cjs`로
+  SDK 58 템플릿의 scene 구성을 이식), F-10 첨부 길게 누르기가 공유 시트와 메뉴를 함께 열던 문제
+  (메뉴의 `공유`·본인 `삭제`만 열림), F-11 끝까지 재생한 음성을 다시 누르면 재생되지 않던 문제.
+  F-2(iOS 실기기 음성이 Android에서 즉시 끝 위치로 감)는 시뮬레이터 마이크의 무음 파일과 F-11의 영향이었고
+  Android 재생 경로 결함이 아니라 PASS로 판정했다. F-9(iOS 실기기 녹음이 거의 빈 파일)는 사용자가
+  재확인해 해결로 판정했고 원인은 미확정이다. VoiceOver 실기기 확인은 사용자 결정으로 넘겼다(iOS 숨긴
+  heading은 현재대로 유지). 계정 삭제 중 Apple 재인증 취소와 삭제·복구는 사용자가 직접 확인했다.
+
+(A)에서 M18로 넘긴 항목:
+
+- 스토어 출시 작업(M18 핵심 작업과 겹치는 부분): 아이콘·스플래시 교체, 서명, 빌드 파이프라인과
+  production/release 빌드(이번 라운드는 production prebuild·빌드를 하지 않았다), push production
+  credential(APNs·FCM)과 OAuth 콘솔 production 등록(Kakao/Google/Apple), 서버 AASA/assetlinks 기본값
+  (지금은 `dev.local.jamyeapp`)과 Apple audience를 production id로 바꾸는 서버 변경, Firebase production
+  client 추가(`googleServicesFile` 경로는 그대로, 사용자 작업), release build cold start 측정.
+- SDK 58 업그레이드 후속: 58이 stable(`latest`)이 되면 올리고 로컬 iOS scene life cycle plugin
+  (`tools/expo/with-ios-scene-lifecycle.cjs`)을 지운다. iOS 27 SDK 빌드는 UIScene 채택이 필수라
+  release 빌드도 같은 이유로 막힌다.
+- 후속 과제(각각 별도 결정): F-5 iOS 최대 텍스트 크기(약 357%)에서 로그인 소개 문구와 버튼이 겹침
+  (M18 후보, 200% 기준 밖), F-6 오프라인·불안정한 네트워크로 앱을 처음 열 때 fail-closed refresh가
+  로그아웃시킴(M18 후보, 의도된 설계라 이번 라운드는 바꾸지 않음. 2026-10-06 정상 유휴 뒤에도 두 번
+  관찰돼 우선순위를 올림), Android 200%에서 snackbar가 화면 하단보다
+  조금 위에 뜸, Android 스택 header 제목이 글자 크기를 따라 커지지 않음, composer가 4줄로 커질 때
+  마지막 메시지가 가려짐, iOS 알림함 행의 본문 열이 좁음, 계정의 dev 전용 개발자 섹션 문구 겹침.
 
 (B) 보류된 앱 기능:
 
@@ -1313,11 +1378,15 @@ M18로 보낸 항목: production bundle id의 App ID capability와 .p8 키 Sign 
 - 항목별 evidence(자동 검사, 실기기 수용, 운영 확인)
 - 라운드 1 (E)·(F): [M17 evidence](evidence/M17.md) — 자동 검사(`bun run check:code`, 246
   suites / 2353 tests, architecture 위반 0건)와 요구사항 §8 1-15 기기 검증.
+- 라운드 2 (A): 구현·기기 수용 기록은 [M17 evidence](evidence/M17.md) 라운드 2 절과
+  [개발 workflow](development-workflow.md)에 둔다. 격리 리뷰(VERIFY/REFINE/SHIP)와 사용자 종료
+  승인은 아직 없다.
 
 미검증 / 별도 승인 필요:
 
-- (B)-(D) 항목의 착수 승인. (A)는 2026-10-01 착수를 승인했고, 그 안의 Expo SDK patch 갱신(의존성)은
-  별도 의존성 승인이다. (B) 파괴적 로컬 정리, (C) 계약 변경, (D) Apple 서버 간 알림도 각각 별도
+- (B)-(D) 항목의 착수 승인. (A)는 2026-10-01 착수를 승인했고(그 안의 Expo SDK patch 갱신은 별도
+  의존성 승인) 2026-10-06 구현·기기 수용을 마쳤다. (A)의 리뷰 단계·커밋·종료 승인과 release build
+  cold start 측정은 남아 있다. (B) 파괴적 로컬 정리, (C) 계약 변경, (D) Apple 서버 간 알림도 각각 별도
   승인이다.
 - 라운드 1이 남긴 후속 항목(쓰기 연결 FK 강제, 과거 공지 소급 숨김 불가 등 — 위 (E) 목록 참고)은
   각각 별도 결정이 필요하다.
@@ -1326,7 +1395,7 @@ M18로 보낸 항목: production bundle id의 App ID capability와 .p8 키 Sign 
 
 - 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 M14 만족 선언(2026-09-28
   충족) 이후 별도 승인
-- 선행: M14 만족 선언(2026-09-28 충족); M16(Guideline 4.8, 2026-09-30 충족); M17(A) blocker 해소; release에 포함할 M15/M17 범위 확정
+- 선행: M14 만족 선언(2026-09-28 충족); M16(Guideline 4.8, 2026-09-30 충족); M17(A) blocker 해소(2026-10-06 구현·기기 수용 완료, 리뷰·종료 승인 대기); release에 포함할 M15/M17 범위 확정
 - 결정(2026-09-22): iOS App Store와 Google Play 양 스토어에 출시한다. legacy jamye-plz 데이터는
   이관하지 않고 새 서버에서 신규 출발한다. 서버는 이미 homelab(midgard)에 배포되어 있으므로 release 시
   배포 revision과 contract binding을 고정한다.
@@ -1335,11 +1404,20 @@ M18로 보낸 항목: production bundle id의 App ID capability와 .p8 키 Sign 
 
 핵심 작업:
 
-- production identity(bundle id/package, 앱 이름, 아이콘, 스플래시)와 `app.config.ts`의
-  `APP_VARIANT=production` 경로 구현(현재 throw)
+- production identity의 남은 부분: 아이콘·스플래시. bundle id/package(`com.ridewithmin.jamyeapp`)·앱 이름·
+  `app.config.ts`의 `APP_VARIANT=production` 경로는 M17(A)에서 구현했다(빌드·서명은 하지 않음)
 - 서명(Apple Distribution/Provisioning, Android keystore) — 사용자가 직접 수행
 - 빌드 파이프라인 결정(EAS Build vs 로컬 Xcode/Gradle) — M18 PLAN에서 결정
-- Expo push production credential(APNs key, FCM), OAuth 콘솔 production 등록(Kakao/Google/Apple)
+- Expo push production credential(APNs key, FCM), OAuth 콘솔 production 등록(Kakao/Google/Apple),
+  Firebase production client 추가(사용자 작업)
+- 서버 AASA/assetlinks 기본값(`DEFAULT_AASA_APP_IDS`·`DEFAULT_ANDROID_PACKAGE`, 지금은
+  `dev.local.jamyeapp`)과 Apple audience를 production id로 바꾸는 서버 변경(M17(A)는 서버를 바꾸지 않음)
+- release build cold start 측정(M17(A) ANR 분석의 후속, 새 승인 항목)과 SDK 58 업그레이드 시 로컬 iOS
+  scene life cycle plugin(`tools/expo/with-ios-scene-lifecycle.cjs`) 제거(iOS 27 SDK는 UIScene 필수)
+- M17(A)가 남긴 후속 과제 중 release에 포함할 것을 정한다: F-5 로그인 화면 최대 텍스트 크기 겹침,
+  F-6 fail-closed refresh 로그아웃(정상 유휴 뒤에도 관찰), Android snackbar 하단
+  정렬·header 제목 글자 크기·composer가 마지막 메시지를 가림·알림함 좁은 본문 열·dev 섹션 겹침(M17
+  "(A)에서 M18로 넘긴 항목")
 - production bundle id의 Sign in with Apple 설정: App ID capability와 서버 .p8 키의 Sign in with
   Apple service를 둘 다 켠다(M16 기기 검증에서 둘 다 빠져 막혔다, 요구사항 E21). 점검 순서(App ID
   capability → 키 Services → 기기 목록)를 문서로 남긴다.
@@ -1517,11 +1595,12 @@ evidence](evidence/M17.md)). 같은 날 그룹 갤러리 제목을 `갤러리`�
 승인했다. 남은 후보별 선행 조건은 다음과 같다.
 
 - M17 잔여 백로그: 항목별 개별 승인. 2026-09-30에 M14–M16의 후속 후보를 모아 여섯 묶음((A)-(F))으로
-  정리했다. (E)·(F)는 라운드 1로 닫았고 (A)는 2026-10-01 착수했다. 서버 계약 변경은 (C),
+  정리했다. (E)·(F)는 라운드 1로 닫았고 (A)는 2026-10-01 착수해 2026-10-06 구현·기기 수용을 마쳤다
+  (리뷰·종료 승인 대기). 서버 계약 변경은 (C),
   서버·homelab 작업은 (D)이고, (B)의 파괴적 로컬 정리는 별도 명시 승인 뒤에만 한다. M18로 가는
   선행은 (A)다.
-- M18 스토어 배포: M14 만족 선언과 M16 종료(Guideline 4.8)는 충족했다. M17(A) blocker 해소와 release에
-  포함할 범위 확정이 남아 있고, production bundle identifier와 그 App ID·key Sign in with Apple 설정도
-  이때 정한다.
+- M18 스토어 배포: M14 만족 선언과 M16 종료(Guideline 4.8)는 충족했다. M17(A) 종료(리뷰·사용자
+  승인)와 release에 포함할 범위 확정이 남아 있다. production bundle identifier는 M17(A)에서
+  `com.ridewithmin.jamyeapp`으로 정했고, 그 App ID·key Sign in with Apple 설정은 M18에서 한다.
 
 M14 종료 뒤 남은 개선 후보는 M14 절의 "M14 종료 후 후속 후보"에 모았다.
