@@ -232,7 +232,15 @@ function DraftCard({
         <Pressable
           accessibilityLabel={`${name} 빼기`}
           accessibilityRole="button"
-          hitSlop={8}
+          // A11YF-AC5: 20pt visual badge + 8pt uniform hitSlop was only
+          // 36x36 (below the 44x44 minimum). Grown asymmetrically instead of
+          // uniformly to 12+: the badge sits at the card's top-right corner,
+          // 2pt from each edge, with only an 8pt gap to the next thumbnail in
+          // this horizontal row -- right/top stay small enough to avoid
+          // reaching past that gap into the next card's own hit area, and the
+          // shortfall is made up on left/bottom, which have nothing beside
+          // them but this card's own thumbnail.
+          hitSlop={{ top: 12, right: 8, bottom: 12, left: 16 }}
           onPress={() =>
             cancellable ? onCancel(item.localId) : onRemove(item.localId)
           }

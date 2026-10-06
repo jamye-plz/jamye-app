@@ -224,6 +224,102 @@ test("every part of the bubble has a definite width that fits its max width (dev
   expect(content).toBeLessThanOrEqual(Number(bubble.maxWidth));
 });
 
+test("A11YF-AC4: the seek bar exposes increment/decrement accessibility actions and reaches the 44x44 minimum touch target", async () => {
+  const screen = await renderBubble();
+  await flush();
+  const seekBar = screen.getByLabelText("voice.m4a 재생 위치");
+
+  const actionNames = (
+    (seekBar.props.accessibilityActions ?? []) as { name: string }[]
+  ).map((action) => action.name);
+  expect(actionNames).toEqual(
+    expect.arrayContaining(["increment", "decrement"]),
+  );
+  expect(seekBar.props.accessibilityActions).toEqual([
+    { name: "increment", label: "5초 앞으로" },
+    { name: "decrement", label: "5초 뒤로" },
+  ]);
+  expect(typeof seekBar.props.onAccessibilityAction).toBe("function");
+
+  // The visual track stays `THUMB_SIZE` (14pt) tall -- the *touchable*
+  // bounds (layout size plus any `hitSlop`) must still clear 44x44.
+  const style = StyleSheet.flatten(seekBar.props.style) ?? {};
+  const rawHitSlop = seekBar.props.hitSlop;
+  const hitSlop =
+    typeof rawHitSlop === "number"
+      ? {
+          top: rawHitSlop,
+          bottom: rawHitSlop,
+          left: rawHitSlop,
+          right: rawHitSlop,
+        }
+      : (rawHitSlop ?? {});
+  const touchHeight =
+    Number(style.height ?? style.minHeight ?? 0) +
+    (Number(hitSlop.top) || 0) +
+    (Number(hitSlop.bottom) || 0);
+  const touchWidth =
+    Number(style.width ?? style.minWidth ?? 0) +
+    (Number(hitSlop.left) || 0) +
+    (Number(hitSlop.right) || 0);
+  expect(touchHeight).toBeGreaterThanOrEqual(44);
+  expect(touchWidth).toBeGreaterThanOrEqual(44);
+});
+
+// A11YF-AC4 behavior (SHIP review gap): the screen-reader seek steps by 5s
+// from the elapsed time, clamped to [0, total], and does nothing without a
+// known duration.
+describe("A11YF-AC4 seek bar accessibility actions", () => {
+  async function seekBarWith(
+    session: Partial<typeof mockSession>,
+    props: Partial<ComponentProps<typeof VoiceMessageBubble>> = {},
+  ) {
+    mockSession = { ...mockSession, isLoaded: true, ...session };
+    mockUseVoicePlaybackSession.mockImplementation(() => mockSession);
+    const screen = await renderBubble(props);
+    await flush();
+    return screen.getByLabelText("voice.m4a 재생 위치");
+  }
+
+  test("increment seeks 5s forward and decrement 5s back from the elapsed time", async () => {
+    const seekBar = await seekBarWith({ currentTime: 3, duration: 12 });
+
+    await fireEvent(seekBar, "accessibilityAction", {
+      nativeEvent: { actionName: "increment" },
+    });
+    expect(mockSeekTo).toHaveBeenLastCalledWith(8);
+
+    await fireEvent(seekBar, "accessibilityAction", {
+      nativeEvent: { actionName: "decrement" },
+    });
+    expect(mockSeekTo).toHaveBeenLastCalledWith(0);
+  });
+
+  test("clamps the step to the clip's total length", async () => {
+    const seekBar = await seekBarWith({ currentTime: 10, duration: 12 });
+
+    await fireEvent(seekBar, "accessibilityAction", {
+      nativeEvent: { actionName: "increment" },
+    });
+    expect(mockSeekTo).toHaveBeenLastCalledWith(12);
+  });
+
+  test("does nothing while the clip length is unknown", async () => {
+    const seekBar = await seekBarWith(
+      { currentTime: 0, duration: 0 },
+      { duration: null },
+    );
+
+    await fireEvent(seekBar, "accessibilityAction", {
+      nativeEvent: { actionName: "increment" },
+    });
+    await fireEvent(seekBar, "accessibilityAction", {
+      nativeEvent: { actionName: "decrement" },
+    });
+    expect(mockSeekTo).not.toHaveBeenCalled();
+  });
+});
+
 // Kept last in the file: its retry flow (error -> press "다시 시도" -> a
 // second, this time successful, download) settles its last `setState` late
 // enough that it was observed to intermittently pollute the very next

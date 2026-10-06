@@ -1,5 +1,5 @@
 import { Stack } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { appReturnUri, providerRedirectUri } from "@/core/auth/app-return-uri";
@@ -36,6 +36,15 @@ const RETRY_LABELS = {
  * here.
  */
 const CANCELLED_LOGIN_MESSAGE = "로그인이 취소되었습니다.";
+
+/** A11YM-AC3/C14: DESIGN.md "Login Screen" asks every non-cancel failure to carry a
+ * 다시 시도 action; the Apple-only failure path (`apple-sign-in.ts`, outside
+ * this task's `src/features/auth/**` scope) never sets `retryAction`, so
+ * it's the one path that otherwise falls to the plain, title-less notice
+ * (see `appleRetryable` below). Literal here instead of joining
+ * `RETRY_LABELS` since the copy is exactly "다시 시도", not "~ 다시 시도". */
+const APPLE_SIGN_IN_ALERT_TITLE = "로그인 실패";
+const APPLE_RETRY_LABEL = "다시 시도";
 
 /** Keeps the brand buttons at a readable width on tablets and landscape. */
 const BUTTONS_MAX_WIDTH = 440;
@@ -99,6 +108,30 @@ function AuthScreenContent({ origin }: Readonly<{ origin: string }>) {
           ? session.retryProfile
           : undefined;
 
+  const startLogin = (provider: OAuthProvider) => {
+    setPendingProvider(provider);
+    void session.login(
+      provider,
+      providerRedirectUri(origin, provider),
+      appReturnUri(provider),
+    );
+  };
+  // useCallback (not a plain closure) so the announce effect below can list
+  // it as a dependency without re-running on every unrelated render -- it
+  // only changes identity when `session` itself does (an actual auth state
+  // publish), and `lastAnnounced` already de-dupes same-message re-announces
+  // on top of that (auth-screen.test.tsx's AUTH-AC8 regression test).
+  const startLoginApple = useCallback(() => {
+    setPendingProvider("apple");
+    void session.loginWithApple();
+  }, [session]);
+
+  // A11YM-AC3: gated on `pendingProvider === "apple"` (set only by pressing
+  // the Apple button above) so Kakao/Google's existing title-less, action-less
+  // notice is unaffected -- this never fires for their failures.
+  const appleRetryable =
+    state.status === "error" && !retryAction && pendingProvider === "apple";
+
   // Announces every new error message exactly once (via the null message
   // every operation publishes before it starts -- see auth-controller.ts --
   // so a repeated identical error still re-announces). cancel/dismiss/
@@ -117,22 +150,23 @@ function AuthScreenContent({ origin }: Readonly<{ origin: string }>) {
             message,
             onAction: () => void retryOperation(),
           }
-        : { message },
+        : appleRetryable
+          ? {
+              actionLabel: APPLE_RETRY_LABEL,
+              message,
+              onAction: () => startLoginApple(),
+              title: APPLE_SIGN_IN_ALERT_TITLE,
+            }
+          : { message },
     );
-  }, [retryAction, retryOperation, showNotice, state.message]);
-
-  const startLogin = (provider: OAuthProvider) => {
-    setPendingProvider(provider);
-    void session.login(
-      provider,
-      providerRedirectUri(origin, provider),
-      appReturnUri(provider),
-    );
-  };
-  const startLoginApple = () => {
-    setPendingProvider("apple");
-    void session.loginWithApple();
-  };
+  }, [
+    appleRetryable,
+    retryAction,
+    retryOperation,
+    showNotice,
+    startLoginApple,
+    state.message,
+  ]);
 
   const introText = authIntroText(process.env.EXPO_OS);
 

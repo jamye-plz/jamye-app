@@ -245,8 +245,43 @@ export function BottomSheet({
   return <View testID={testID ?? "bottom-sheet"}>{children}</View>;
 }
 
-export function Switch({ value, onValueChange, ...rest }: SwitchProps) {
-  return <RNSwitch onValueChange={onValueChange} value={value} {...rest} />;
+/**
+ * A11YF-AC3: reads an accessible name off either the real SwiftUI
+ * `accessibilityLabel(label)` modifier (`{$type:"accessibilityLabel",
+ * label}`) or the real Jetpack Compose `semantics({contentDescription})`
+ * modifier (`{$type:"semantics", contentDescription}`) -- whichever the
+ * consuming `.ios.tsx`/`.android.tsx` file used -- the universal `Switch`
+ * has no direct accessibility-name prop, only this platform-modifier escape
+ * hatch (`node_modules/@expo/ui/src/universal/Switch/types.ts`).
+ */
+function accessibleNameFromModifiers(
+  modifiers: readonly unknown[] | undefined,
+): string | undefined {
+  for (const modifier of modifiers ?? []) {
+    if (typeof modifier !== "object" || modifier === null) continue;
+    const record = modifier as Record<string, unknown>;
+    if (typeof record.label === "string") return record.label;
+    if (typeof record.contentDescription === "string") {
+      return record.contentDescription;
+    }
+  }
+  return undefined;
+}
+
+export function Switch({
+  value,
+  onValueChange,
+  modifiers,
+  ...rest
+}: SwitchProps & Readonly<{ modifiers?: readonly unknown[] }>) {
+  return (
+    <RNSwitch
+      accessibilityLabel={accessibleNameFromModifiers(modifiers)}
+      onValueChange={onValueChange}
+      value={value}
+      {...rest}
+    />
+  );
 }
 
 export function useNativeState<T>(value: T): { value: T } {

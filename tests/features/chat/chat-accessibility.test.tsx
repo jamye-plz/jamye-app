@@ -208,7 +208,10 @@ type AppProvidersProps = Readonly<{
     next: () => Readonly<{ clientMsgId: string; localId: string }>;
   }>;
 }>;
-type ChatScreenModule = { ChatScreen?: unknown };
+type ChatScreenModule = {
+  ChatScreen?: unknown;
+  ChatConversationScreen?: unknown;
+};
 type ChatMessageRowModule = { ChatMessageRow?: unknown };
 type ChatMessageListModule = {
   ChatMessageList?: unknown;
@@ -247,6 +250,20 @@ type M5ChatTokens = Readonly<{
 }>;
 type ChatScreen = (
   props: Readonly<{
+    focusMainHeading?: (target: unknown) => void;
+  }>,
+) => React.JSX.Element;
+/** A11YF-AC1 once-guard test only: a loose contract covering just the props
+ * that test needs (`subtitle`), not the component's full real prop surface. */
+type ChatConversationScreen = (
+  props: Readonly<{
+    title: string;
+    subtitle?: string;
+    conversation: unknown;
+    controller: unknown;
+    onRetryFailedMessage: (input: unknown) => void;
+    onDeleteMessage: (input: unknown) => void;
+    onDiscardFailedMessage: (input: unknown) => void;
     focusMainHeading?: (target: unknown) => void;
   }>,
 ) => React.JSX.Element;
@@ -386,6 +403,46 @@ function loadChatScreenContract(): {
   return {
     AppProviders: providers.AppProviders as ComponentType<AppProvidersProps>,
     ChatScreen: chat.ChatScreen as ChatScreen,
+  };
+}
+
+/** A11YF-AC1 once-guard test only: `ChatConversationScreen` directly, so the
+ * test can control `subtitle` (unlike the fixed-title `ChatScreen` wrapper). */
+function loadChatConversationScreenContract(): {
+  AppProviders: ComponentType<AppProvidersProps>;
+  ChatConversationScreen: ChatConversationScreen;
+} {
+  let chat: ChatScreenModule;
+  let providers: ProvidersModule;
+  try {
+    chat = jest.requireActual<ChatScreenModule>(
+      "../../../src/features/chat/ui/chat-screen",
+    );
+    providers = jest.requireActual<ProvidersModule>(
+      "../../../src/core/providers/app-providers",
+    );
+  } catch (error) {
+    if (isMissingModuleError(error)) {
+      throw new Error(
+        "M5-UI-1 implementation missing: ChatConversationScreen and AppProviders runtime composition must exist before accessibility GREEN.",
+      );
+    }
+    throw error;
+  }
+  if (typeof chat.ChatConversationScreen !== "function") {
+    throw new Error(
+      "A11YF-AC1 contract is incomplete: chat-screen.tsx must export ChatConversationScreen.",
+    );
+  }
+  if (typeof providers.AppProviders !== "function") {
+    throw new Error(
+      "M5-UI-1 chat accessibility contract is incomplete: app-providers.tsx must export AppProviders.",
+    );
+  }
+  return {
+    AppProviders: providers.AppProviders as ComponentType<AppProvidersProps>,
+    ChatConversationScreen:
+      chat.ChatConversationScreen as ChatConversationScreen,
   };
 }
 
@@ -728,6 +785,171 @@ describe("M5-UI-1 accessible local chat screen", () => {
     // bubble) while the status remains available to screen readers.
     expect(screen.queryByText("전송됨")).toBeNull();
     expect(screen.getByLabelText("sent body, 전송됨")).toBeTruthy();
+  });
+
+  test("A11YF-AC1: the real default focusMainHeading sends a Fabric 'focus' accessibility event to the mounted header element once on mount", async () => {
+    const { AppProviders, ChatScreen } = loadChatScreenContract();
+    const repository = createRepository();
+    // Unlike every other test above, this one does not inject a
+    // `focusMainHeading` stand-in -- it exercises the screen's own default
+    // implementation, which must resolve `headingRef` to a real mounted
+    // element before `AccessibilityInfo.sendAccessibilityEvent` can fire.
+    // `setAccessibilityFocus`/`findNodeHandle` resolve through RN's
+    // pre-Fabric legacy path and return `null` for a Fabric host instance
+    // (this app has `newArchEnabled=true`) -- `sendAccessibilityEvent`
+    // takes the mounted `HostInstance` directly instead.
+    const sendAccessibilityEventSpy = jest
+      .spyOn(AccessibilityInfo, "sendAccessibilityEvent")
+      .mockImplementation(() => undefined);
+
+    try {
+      await render(
+        <AppProviders
+          clockFactory={() => ({ nowMs: () => 1000 })}
+          databaseFactory={async () => ({
+            close: async () => undefined,
+            repository,
+          })}
+          messageIdentityFactory={() => ({
+            next: () => ({
+              clientMsgId: "next-client",
+              localId: "next-local",
+            }),
+          })}
+        >
+          <ChatScreen />
+        </AppProviders>,
+      );
+
+      expect(sendAccessibilityEventSpy).toHaveBeenCalledTimes(1);
+      const [handle, eventType] = sendAccessibilityEventSpy.mock.calls[0] ?? [];
+      expect(eventType).toBe("focus");
+      expect(handle).not.toBeNull();
+    } finally {
+      sendAccessibilityEventSpy.mockRestore();
+    }
+  });
+
+  test("A11YF-AC1 (once guard): a header-subtitle change after mount does not refocus the heading a second time", async () => {
+    const { AppProviders, ChatConversationScreen } =
+      loadChatConversationScreenContract();
+    const repository = createRepository();
+    const clockFactory = () => ({ nowMs: () => 1000 });
+    const databaseFactory = async () => ({
+      close: async () => undefined,
+      repository,
+    });
+    const messageIdentityFactory = () => ({
+      next: () => ({ clientMsgId: "next-client", localId: "next-local" }),
+    });
+    const conversation = {
+      hasMore: false,
+      initialPageStatus: "ready" as const,
+      items: [],
+      loadOlder: async () => undefined,
+      olderPageStatus: "idle" as const,
+      retryInitialPage: async () => undefined,
+    };
+    const controller = { send: async () => ({ outcome: "empty" as const }) };
+    const noop = () => undefined;
+    const sendAccessibilityEventSpy = jest
+      .spyOn(AccessibilityInfo, "sendAccessibilityEvent")
+      .mockImplementation(() => undefined);
+
+    try {
+      const screen = await render(
+        <AppProviders
+          clockFactory={clockFactory}
+          databaseFactory={databaseFactory}
+          messageIdentityFactory={messageIdentityFactory}
+        >
+          <ChatConversationScreen
+            conversation={conversation}
+            controller={controller}
+            onDeleteMessage={noop}
+            onDiscardFailedMessage={noop}
+            onRetryFailedMessage={noop}
+            title="그룹 대화방"
+          />
+        </AppProviders>,
+      );
+      expect(sendAccessibilityEventSpy).toHaveBeenCalledTimes(1);
+
+      // DESIGN.md:199's "once on route entry" would otherwise be violated:
+      // `headingTarget` (and so the focus effect's dependency) is recomputed
+      // whenever `subtitle` changes, e.g. the chat's own sync-status text.
+      await screen.rerender(
+        <AppProviders
+          clockFactory={clockFactory}
+          databaseFactory={databaseFactory}
+          messageIdentityFactory={messageIdentityFactory}
+        >
+          <ChatConversationScreen
+            conversation={conversation}
+            controller={controller}
+            onDeleteMessage={noop}
+            onDiscardFailedMessage={noop}
+            onRetryFailedMessage={noop}
+            subtitle="동기화 중"
+            title="그룹 대화방"
+          />
+        </AppProviders>,
+      );
+
+      expect(sendAccessibilityEventSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      sendAccessibilityEventSpy.mockRestore();
+    }
+  });
+
+  // A13 (user decision, round 2 device acceptance, F-4): real Android
+  // TalkBack 16.0/API 36 hears this hidden heading as a same-text duplicate
+  // of the header subtitle/title, and the focus request
+  // (`sendAccessibilityEvent(node, "focus")`) is a no-op there
+  // (TYPE_VIEW_FOCUSED is ignored by TalkBack for a non-input view) -- so
+  // both the heading and the initial focus call become iOS-only.
+  //
+  // jest-expo's babel caller always inlines `process.env.EXPO_OS` to the
+  // literal "ios" (see tokens.ts's `resolveThemeColorForOs` doc comment and
+  // auth-screen.tsx's `authIntroText`, which exist for this identical
+  // reason), so no render in this suite can ever observe an Android branch
+  // of a `process.env.EXPO_OS` check -- unlike a `*.android.test.tsx` file
+  // for a real `Component.android.tsx`, mutating that env var here and
+  // reloading modules cannot work and would never reach GREEN after the
+  // fix. `supportsMainHeadingFocus` is exported as a plain function of an
+  // explicit `os` argument instead, the same testability seam as those two.
+  describe("A13: main-heading focus is iOS-only (Android TalkBack hears a duplicate and the focus call is a no-op there)", () => {
+    test("supportsMainHeadingFocus resolves true only for ios, never for android", () => {
+      const chat = jest.requireActual<
+        ChatScreenModule & {
+          supportsMainHeadingFocus?: (os: string | undefined) => boolean;
+        }
+      >("../../../src/features/chat/ui/chat-screen");
+      if (typeof chat.supportsMainHeadingFocus !== "function") {
+        throw new Error(
+          "A13 implementation missing: chat-screen.tsx must export supportsMainHeadingFocus(os) to gate the hidden heading and its initial focus call to iOS only.",
+        );
+      }
+      expect(chat.supportsMainHeadingFocus("ios")).toBe(true);
+      expect(chat.supportsMainHeadingFocus("android")).toBe(false);
+    });
+
+    test("wires supportsMainHeadingFocus around both the hidden heading JSX and the initial focus effect (not just an unused export)", () => {
+      const filesystem = jest.requireActual<FileSystemModule>("node:fs");
+      const screenSource = filesystem.readFileSync(
+        `${process.cwd()}/src/features/chat/ui/chat-screen.tsx`,
+        "utf8",
+      );
+      expect(screenSource).toMatch(
+        /supportsMainHeadingFocus\(\s*process\.env\.EXPO_OS\s*\)/,
+      );
+      expect(screenSource).toMatch(
+        /\{\s*\w+\s*&&\s*\(?\s*<Text\s+ref=\{headingRef\}|\{\s*\w+\s*\?\s*\(\s*<Text\s+ref=\{headingRef\}/,
+      );
+      expect(screenSource).toMatch(
+        /useEffect\(\(\)\s*=>\s*\{\s*if\s*\(!\w+\)\s*return;[\s\S]{0,300}focusMainHeading\(headingTarget\)/,
+      );
+    });
   });
 
   test.each([

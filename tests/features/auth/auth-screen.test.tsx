@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { fireEvent, render, within } from "@testing-library/react-native";
 import React, { type ReactNode } from "react";
 import { StyleSheet } from "react-native";
 
@@ -277,6 +277,45 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
     );
     expect(mockLogin).toHaveBeenCalledTimes(1);
     expect(mockRetryProfile).not.toHaveBeenCalled();
+  });
+
+  // A11YM-AC3/C14: the Apple-only failure path (apple-sign-in.ts) never sets
+  // `retryAction`, so it fell through to the generic no-action branch tested
+  // above (empty title, single 확인 -- DESIGN.md:236-240 asks for a 다시 시도
+  // action on every other failure). Gated on `pendingProvider === "apple"`
+  // (set by pressing the Apple button) so the plain Kakao/Google no-action
+  // alert above is unaffected.
+  test("Apple sign-in failure shows a non-empty title and a 다시 시도 action that retries Apple sign-in", async () => {
+    const screen = await render(
+      <AppThemeProvider>
+        <AuthScreen />
+      </AppThemeProvider>,
+    );
+    const apple = await screen.findByRole("button", {
+      name: "Apple로 로그인",
+    });
+    await fireEvent.press(apple);
+    expect(mockLoginWithApple).toHaveBeenCalledTimes(1);
+
+    mockState = {
+      status: "error",
+      profile: null,
+      message: "Apple 로그인을 완료할 수 없습니다. 다시 시도해 주세요.",
+    };
+    await screen.rerender(
+      <AppThemeProvider>
+        <AuthScreen />
+      </AppThemeProvider>,
+    );
+
+    const alert = screen.getByTestId("alert");
+    const title = within(alert).getByRole("header").props.children;
+    expect(typeof title).toBe("string");
+    expect(title).not.toBe("");
+    await fireEvent.press(
+      within(alert).getByRole("button", { name: "다시 시도" }),
+    );
+    expect(mockLoginWithApple).toHaveBeenCalledTimes(2);
   });
 
   test.each(["loading", "signing-in"] as const)(
