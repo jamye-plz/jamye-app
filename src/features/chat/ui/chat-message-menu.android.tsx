@@ -5,7 +5,7 @@ import {
   DropdownMenuItem,
   Text as ComposeText,
 } from "@expo/ui/jetpack-compose";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { useAppThemeOrSystem } from "@/core/theme/theme-provider";
@@ -30,11 +30,20 @@ export function ChatMessageMenu({
   actions,
   alignEnd,
   children,
+  openRef,
 }: ChatMessageMenuProps) {
   const { colorScheme } = useAppThemeOrSystem();
   const hex = androidThemeColors(colorScheme);
   const [expanded, setExpanded] = useState(false);
-  if (actions.length === 0) return <>{children}</>;
+  const hasActions = actions.length > 0;
+  useEffect(() => {
+    if (!openRef || !hasActions) return undefined;
+    openRef.current = () => setExpanded(true);
+    return () => {
+      openRef.current = null;
+    };
+  }, [openRef, hasActions]);
+  if (!hasActions) return <>{children}</>;
   return (
     <View style={{ alignSelf: alignEnd ? "flex-end" : "flex-start" }}>
       <Pressable

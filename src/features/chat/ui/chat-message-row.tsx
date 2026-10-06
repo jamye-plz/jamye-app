@@ -61,9 +61,9 @@ export function ChatMessageRow({
       conversationId: string;
     }>,
   ) => void;
-  /** R2 저장·공유 / R3 per-attachment long-press: forwarded down from a
-   * single screen-level `useMediaSharing()` call (its own `useFocusEffect`
-   * must not be re-subscribed once per row). */
+  /** R2 공유 menu action and the voice bubble's inline share button:
+   * forwarded down from a single screen-level `useMediaSharing()` call (its
+   * own `useFocusEffect` must not be re-subscribed once per row). */
   onShareAttachment: (attachment: MessageAttachmentMedia) => void;
   /** AC3/E11: own server-backed, non-pending, not-yet-deleted message only.
    * This is a *request* -- the screen owns showing `ConfirmAlert`
@@ -83,6 +83,7 @@ export function ChatMessageRow({
   const { width } = useWindowDimensions();
   const router = useRouter();
   const previousStatusRef = useRef(message.status);
+  const menuOpenRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
@@ -193,6 +194,11 @@ export function ChatMessageRow({
         ? statusCaptionText
         : statusLabels[message.status];
 
+  // F-10/A20: a long-press on a photo, video or voice attachment opens this
+  // row's menu (공유, 삭제) instead of sharing at once. On iOS the native
+  // menu opens by itself and `openRef` stays empty; the attachment still
+  // takes the long-press so it does not also play or open the viewer.
+  const openMenuFromAttachment = () => menuOpenRef.current?.();
   const menuActions: ChatMessageMenuAction[] = [];
   if (!isDeleted && message.body) {
     menuActions.push({
@@ -204,8 +210,8 @@ export function ChatMessageRow({
   }
   if (!isDeleted && hasAttachments) {
     menuActions.push({
-      key: "save-share",
-      label: "저장·공유",
+      key: "share",
+      label: "공유",
       systemImage: "square.and.arrow.up",
       onPress: () => {
         const first = [...media].sort((a, b) => a.position - b.position)[0];
@@ -357,7 +363,7 @@ export function ChatMessageRow({
         <MessageAttachmentsView
           attachments={media}
           mine={isOutgoing}
-          onLongPressAttachment={onShareAttachment}
+          onLongPressAttachment={openMenuFromAttachment}
           onOpenViewer={(startIndex) =>
             openMediaViewer({
               attachments: media,
@@ -374,7 +380,11 @@ export function ChatMessageRow({
   );
 
   const menuWrapped = (
-    <ChatMessageMenu actions={menuActions} alignEnd={isOutgoing}>
+    <ChatMessageMenu
+      actions={menuActions}
+      alignEnd={isOutgoing}
+      openRef={menuOpenRef}
+    >
       {bubble}
     </ChatMessageMenu>
   );

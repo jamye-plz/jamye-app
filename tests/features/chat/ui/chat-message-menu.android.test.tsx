@@ -1,4 +1,4 @@
-import { fireEvent, render, within } from "@testing-library/react-native";
+import { act, fireEvent, render, within } from "@testing-library/react-native";
 import React from "react";
 import type { ReactNode } from "react";
 import { Text } from "react-native";
@@ -83,7 +83,7 @@ describe("ChatMessageMenu (Android, R2)", () => {
 
   test("opens the anchored DropdownMenu on a long press of the bubble and runs the tapped action", async () => {
     const { ChatMessageMenu } = loadAndroidChatMessageMenu();
-    const save = action({ key: "save-share", label: "저장·공유" });
+    const save = action({ key: "share", label: "공유" });
     const screen = await render(
       <AppThemeProvider>
         <ChatMessageMenu actions={[save]} alignEnd={false}>
@@ -107,8 +107,47 @@ describe("ChatMessageMenu (Android, R2)", () => {
       ),
     ).toBeNull();
 
-    await fireEvent.press(screen.getByRole("menuitem", { name: "저장·공유" }));
+    await fireEvent.press(screen.getByRole("menuitem", { name: "공유" }));
     expect(save.onPress).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("dropdown-menu")).toBeNull();
+  });
+
+  // F-10/A20: an attachment's own Pressable owns its touch, so the bubble's
+  // long-press never fires there; the row opens the menu through openRef.
+  test("exposes an opener through openRef so a nested attachment long-press opens the menu", async () => {
+    const { ChatMessageMenu } = loadAndroidChatMessageMenu();
+    const openRef: { current: (() => void) | null } = { current: null };
+    const screen = await render(
+      <AppThemeProvider>
+        <ChatMessageMenu
+          actions={[action({ key: "share", label: "공유" })]}
+          alignEnd={false}
+          openRef={openRef}
+        >
+          <Text>bubble</Text>
+        </ChatMessageMenu>
+      </AppThemeProvider>,
+    );
+
+    expect(screen.queryByTestId("dropdown-menu")).toBeNull();
+    expect(typeof openRef.current).toBe("function");
+    await act(async () => openRef.current?.());
+    expect(
+      screen.getByTestId("dropdown-menu").props.accessibilityState.expanded,
+    ).toBe(true);
+  });
+
+  test("leaves openRef empty when the row has no menu actions", async () => {
+    const { ChatMessageMenu } = loadAndroidChatMessageMenu();
+    const openRef: { current: (() => void) | null } = { current: null };
+    await render(
+      <AppThemeProvider>
+        <ChatMessageMenu actions={[]} alignEnd={false} openRef={openRef}>
+          <Text>bubble</Text>
+        </ChatMessageMenu>
+      </AppThemeProvider>,
+    );
+
+    expect(openRef.current).toBeNull();
   });
 });

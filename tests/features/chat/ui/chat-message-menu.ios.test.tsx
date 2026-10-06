@@ -75,7 +75,7 @@ describe("ChatMessageMenu (iOS, R2)", () => {
 
   test("wraps the bubble in a ContextMenu.Trigger and lists every action as a swift-ui Button", async () => {
     const copy = action({ key: "copy", label: "복사" });
-    const share = action({ key: "save-share", label: "저장·공유" });
+    const share = action({ key: "share", label: "공유" });
     const retry = action({ key: "retry", label: "다시 보내기" });
     const screen = await render(
       <ChatMessageMenu actions={[copy, share, retry]} alignEnd>
@@ -91,7 +91,7 @@ describe("ChatMessageMenu (iOS, R2)", () => {
     expect(copy.onPress).toHaveBeenCalledTimes(1);
     expect(share.onPress).not.toHaveBeenCalled();
 
-    await fireEvent.press(items.getByRole("button", { name: "저장·공유" }));
+    await fireEvent.press(items.getByRole("button", { name: "공유" }));
     expect(share.onPress).toHaveBeenCalledTimes(1);
 
     await fireEvent.press(items.getByRole("button", { name: "다시 보내기" }));

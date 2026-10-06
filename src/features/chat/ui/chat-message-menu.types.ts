@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, RefObject } from "react";
 import type { SFSymbol } from "sf-symbols-typescript";
 
 /**
@@ -6,7 +6,7 @@ import type { SFSymbol } from "sf-symbols-typescript";
  * both platform shells (`chat-message-menu.ios.tsx` / `.android.tsx`), which
  * only differ in the native chrome (SwiftUI `ContextMenu` vs. an anchored M3
  * `DropdownMenu`). `chat-message-row.tsx` builds this list per row (복사 when
- * there is body text, 저장·공유 when there are attachments, 다시 보내기 when
+ * there is body text, 공유 when there are attachments, 다시 보내기 when
  * the send failed).
  */
 export type ChatMessageMenuAction = Readonly<{
@@ -30,4 +30,10 @@ export type ChatMessageMenuProps = Readonly<{
   /** Always the row's single bubble `View` -- `RNHostView`'s own type
    * (iOS) requires exactly one `ReactElement`, not an arbitrary `ReactNode`. */
   children: ReactElement;
+  /** F-10/A20: lets a nested attachment open this menu on long-press.
+   * Android sets it while the menu has actions: an attachment's own
+   * `Pressable` owns the touch, so the bubble's long-press never fires
+   * there. iOS leaves it empty -- the native `ContextMenu` opens on any
+   * long-press inside the bubble by itself. */
+  openRef?: RefObject<(() => void) | null>;
 }>;
