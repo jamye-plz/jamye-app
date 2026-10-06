@@ -1,5 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
-import { Dimensions } from "react-native";
+import { Dimensions, StyleSheet } from "react-native";
+import type { StyleProp, ViewStyle } from "react-native";
 import { MediaViewerScreen } from "@/features/media/ui/media-viewer-screen";
 
 // Focus reaches the viewer after its first render, as on device: callbacks
@@ -21,9 +22,20 @@ jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ sessionId: mockRouteSessionId }),
 }));
 
+// F-1: configurable per test so the regression test below can simulate a
+// device that reports a non-zero top inset (status bar / Dynamic Island)
+// without depending on react-native-safe-area-context's own native module,
+// which jsdom/jest has no bridge for.
+let mockSafeAreaInsets: {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+} = { top: 0, bottom: 0, left: 0, right: 0 };
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView:
     jest.requireActual<typeof import("react-native")>("react-native").View,
+  useSafeAreaInsets: () => mockSafeAreaInsets,
 }));
 
 const mockCloseMediaViewer = jest.fn();
@@ -176,6 +188,7 @@ const video = {
 
 beforeEach(() => {
   mockRouteSessionId = undefined;
+  mockSafeAreaInsets = { top: 0, bottom: 0, left: 0, right: 0 };
   mockCloseMediaViewer.mockReset();
   mockClearMediaViewer.mockReset();
   mockShareAttachment.mockReset();
@@ -487,4 +500,57 @@ test("the dismiss pan still starts and closes elsewhere on a video page (E4/C4)"
     });
   });
   expect(mockCloseMediaViewer).toHaveBeenCalledTimes(1);
+});
+
+// F-1 (iOS device regression): inside the route's `fullScreenModal`
+// presentation, `react-native-screens` presents the screen as a separate,
+// modally-presented view controller. `SafeAreaView`'s native component
+// measures insets by walking its own native superview chain for the nearest
+// `SafeAreaProvider` and falls back to measuring itself when none is found
+// across that boundary -- on device this settles at a top inset of 0, so the
+// 닫기/공유 row renders under the status bar / Dynamic Island and swallows the
+// first tap (Maestro-measured `닫기` bounds `[16,0][60,44]`). `useSafeAreaInsets()`
+// instead reads the same insets through plain React context, which is not
+// severed by that native boundary. The regression contract below locates the
+// drag-to-dismiss container by its surviving `translateY` transform (kept
+// unchanged by the fix) and asserts it carries the reported top inset as
+// explicit padding.
+function findDragContainerStyle(node: unknown): ViewStyle | null {
+  if (node == null) return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findDragContainerStyle(child);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (typeof node !== "object") return null;
+  const { props, children } = node as {
+    props: { style?: StyleProp<ViewStyle> };
+    children: unknown;
+  };
+  // `StyleSheet.flatten` is typed as returning a bare `ViewStyle`, but at
+  // runtime it returns `undefined` for a node with no `style` prop at all
+  // (most nodes in this tree -- ScrollView's text children, StatusBar,
+  // etc. -- have none), so that must be checked before reading `.transform`.
+  const flattened: ViewStyle | undefined = StyleSheet.flatten(props.style);
+  if (
+    flattened &&
+    Array.isArray(flattened.transform) &&
+    flattened.transform.some(
+      (entry) =>
+        typeof entry === "object" && entry !== null && "translateY" in entry,
+    )
+  ) {
+    return flattened;
+  }
+  return findDragContainerStyle(children);
+}
+
+test("pushes the header below the top safe-area inset inside the iOS fullScreenModal (F-1 device regression: 닫기/공유 hidden under the status bar)", async () => {
+  mockSafeAreaInsets = { top: 59, bottom: 34, left: 0, right: 0 };
+  const screen = await render(<MediaViewerScreen />);
+  const dragContainerStyle = findDragContainerStyle(screen.toJSON());
+  expect(dragContainerStyle).not.toBeNull();
+  expect(dragContainerStyle?.paddingTop ?? 0).toBeGreaterThanOrEqual(59);
 });
