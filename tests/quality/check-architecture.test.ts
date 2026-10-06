@@ -448,6 +448,16 @@ const M17_TEST_PATHS = [
   // M17 device follow-up (U11): mirrors
   // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
   "tests/features/groups/ui/group-rename-screen.test.tsx",
+  // task-coord-device-acceptance (C15): mirrors
+  // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+  "tests/features/chat/composer-max-lines.test.ts",
+  "tests/features/chat/chat-composer-field.ios.test.tsx",
+  // task-coord-device-acceptance (F-8/A18): mirrors
+  // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+  "tests/config/ios-scene-lifecycle-plugin.test.ts",
+  // M17 REFINE (task-refine): mirrors
+  // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+  "tests/shared/platform/use-reduce-motion-enabled.test.tsx",
 ];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",
@@ -591,35 +601,36 @@ const M3_AUTHORED_FILES = [
 ];
 
 const APPROVED_DEPENDENCIES = {
-  "@expo/ui": "57.0.17",
+  "@expo/ui": "~57.0.21",
   ajv: "8.20.0",
-  expo: "~57.0.21",
+  expo: "~57.0.26",
   "expo-apple-authentication": "~57.0.2",
+  "expo-asset": "~57.0.18",
   "expo-audio": "~57.0.5",
-  "expo-auth-session": "~57.0.11",
+  "expo-auth-session": "~57.0.13",
   "expo-clipboard": "~57.0.2",
-  "expo-constants": "~57.0.17",
-  "expo-crypto": "~57.0.2",
-  "expo-dev-client": "~57.0.18",
+  "expo-constants": "~57.0.20",
+  "expo-crypto": "~57.0.3",
+  "expo-dev-client": "~57.0.19",
   "expo-device": "~57.0.2",
-  "expo-file-system": "~57.0.6",
-  "expo-glass-effect": "57.0.2",
+  "expo-file-system": "~57.0.7",
+  "expo-glass-effect": "~57.0.4",
   "expo-haptics": "~57.0.3",
   "expo-image": "~57.0.5",
-  "expo-image-picker": "~57.0.16",
-  "expo-sharing": "~57.0.18",
-  "expo-font": "~57.0.3",
-  "expo-image-manipulator": "~57.0.16",
-  "expo-linking": "~57.0.9",
-  "expo-notifications": "~57.0.20",
-  "expo-router": "~57.0.20",
-  "expo-secure-store": "~57.0.3",
-  "expo-splash-screen": "~57.0.8",
-  "expo-sqlite": "~57.0.2",
-  "expo-symbols": "57.0.2",
-  "expo-system-ui": "~57.0.3",
-  "expo-video": "~57.0.3",
-  "expo-web-browser": "~57.0.2",
+  "expo-image-picker": "~57.0.20",
+  "expo-sharing": "~57.0.22",
+  "expo-font": "~57.0.4",
+  "expo-image-manipulator": "~57.0.20",
+  "expo-linking": "~57.0.11",
+  "expo-notifications": "~57.0.21",
+  "expo-router": "~57.0.24",
+  "expo-secure-store": "~57.0.4",
+  "expo-splash-screen": "~57.0.9",
+  "expo-sqlite": "~57.0.3",
+  "expo-symbols": "~57.0.3",
+  "expo-system-ui": "~57.0.4",
+  "expo-video": "~57.0.5",
+  "expo-web-browser": "~57.0.3",
   react: "19.2.3",
   "react-dom": "19.2.3",
   "react-native": "0.86.3",
@@ -633,6 +644,7 @@ const APPROVED_DEPENDENCIES = {
 };
 
 const APPROVED_DEV_DEPENDENCIES = {
+  "@react-native/metro-config": "0.86.3",
   "@testing-library/react-native": "^14.0.1",
   "@types/jest": "29.5.14",
   "@types/react": "~19.2.2",
@@ -652,8 +664,10 @@ const APPROVED_DEPENDENCY_OVERRIDES = {
   uuid: "11.1.1",
 };
 
+// A22 (2026-10-06): compression 1.8.1 -> 1.8.2 and source-map-js 1.2.1 ->
+// 1.2.2 (bun audit advisories); braces and node-forge have no patched release.
 const APPROVED_BUN_LOCK_SHA256 =
-  "1099d00796e41d2f804dd030d2a7c1cfb86b40b1c529faa1b3f849b870f79873";
+  "2393f74510429f5151207c4de144d536b72fccc380be0e7dc8bcf7f225abde7b";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -883,6 +897,8 @@ function buildValidRepositorySnapshot() {
       },
     ],
     "expo-notifications",
+    // F-8/A18: mirrors APPROVED_IOS_SCENE_LIFECYCLE_PLUGIN.
+    "./tools/expo/with-ios-scene-lifecycle.cjs",
   ];
   (resolvedDevelopment.android as Record<string, unknown>).googleServicesFile =
     "./google-services.json";
@@ -934,6 +950,10 @@ function buildValidRepositorySnapshot() {
         "expo:prebuild:clean": "expo prebuild --clean",
         "expo:run:ios": "expo run:ios --no-bundler",
         "expo:run:android": "expo run:android --no-bundler",
+        "e2e:ios":
+          'maestro test -p ios ${MAESTRO_DEVICE:+--device "$MAESTRO_DEVICE"} --test-output-dir .maestro-output/ios -e "MAESTRO_METRO_URL=$MAESTRO_METRO_URL" -e "MAESTRO_TEST_GROUP_NAME=$MAESTRO_TEST_GROUP_NAME" -e "MAESTRO_TEST_TOPIC_TITLE=$MAESTRO_TEST_TOPIC_TITLE" -e "MAESTRO_E2E_MESSAGE=$MAESTRO_E2E_MESSAGE" e2e/maestro',
+        "e2e:android":
+          'maestro test -p android ${MAESTRO_DEVICE:+--device "$MAESTRO_DEVICE"} --test-output-dir .maestro-output/android -e "MAESTRO_METRO_URL=$MAESTRO_METRO_URL" -e "MAESTRO_TEST_GROUP_NAME=$MAESTRO_TEST_GROUP_NAME" -e "MAESTRO_TEST_TOPIC_TITLE=$MAESTRO_TEST_TOPIC_TITLE" -e "MAESTRO_E2E_MESSAGE=$MAESTRO_E2E_MESSAGE" e2e/maestro',
         check:
           "bun run check:code && bun run check:expo && bun run check:toolchain",
       },
@@ -1775,15 +1795,12 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
 
   test("allows only the exact hash-bound approved recovery paths in the working-tree overlay", () => {
     expect(APPROVED_PATCHED_DEPENDENCIES).toEqual({
-      "expo-router@57.0.20": "patches/expo-router@57.0.20.patch",
-      "image-size@1.2.1": "patches/image-size@1.2.1.patch",
+      "expo-router@57.0.24": "patches/expo-router@57.0.24.patch",
       "query-string@7.1.3": "patches/query-string@7.1.3.patch",
     });
     expect(APPROVED_DEPENDENCY_PATCH_FILE_SHA256).toEqual({
-      "patches/expo-router@57.0.20.patch":
-        "ffa1618df41558ac3b01d8f3c430927676e751fd36251f89571d64347846b3e5",
-      "patches/image-size@1.2.1.patch":
-        "7961f99b36d1e0bc332c92e852d6ffcd386a08abe240e9d61ef603c4c5a12823",
+      "patches/expo-router@57.0.24.patch":
+        "db7a1721b05c69b0e57471dc2c8c7eea1f17428cf136ff268724b3319aae1287",
       "patches/query-string@7.1.3.patch":
         "3501a7e3d4d32cdf00e245e581c66bdf46ed9358b6295571952aec2d5ad0e162",
     });
@@ -1799,11 +1816,11 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
       "nix/android-sdk.nix":
         "3b93574941b8cb3b1445a187c0cb1f2b65d80174eff94151d70fbd46f0224d58",
       "nix/dev-shell.nix":
-        "27b22586b36e90e2cc35695ac29bcde55b018c1c73005eb9ef9962780536883a",
+        "e8cc046904be9b2f1109ad61533e108c5faaddd6c475d52d0410cf6b17fc6643",
       "nix/toolchain-versions.nix":
-        "a274f777e185929711a1dee2acbd665c538a494490246ebfbfaa1a5fba1b1d5c",
+        "3549e7791bc53af08d3c7f100c6ac18de7fcaf6d91635f40f6dbec8515f15a48",
       "tools/diagnostics/toolchain-check.sh":
-        "ade2efe2b149d926d83a91dbca5725280bd5e72a84f7a27a7bd0b9d1c20bbc7d",
+        "ad0122cf7fabf9a047a94afb780b6e23383f9c30aea5487fa174d4fb93590626",
     });
 
     for (const path of [
@@ -1816,7 +1833,7 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
 
     expect(isAuthorizedWorkingTreePath("tsconfig.recovery.json")).toBe(false);
     expect(
-      isAuthorizedWorkingTreePath("patches/expo-router@57.0.21.patch"),
+      isAuthorizedWorkingTreePath("patches/expo-router@57.0.23.patch"),
     ).toBe(false);
     expect(isAuthorizedWorkingTreePath("nix/dev-shell.cc.nix")).toBe(false);
     expect(
@@ -1952,6 +1969,37 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     ];
     for (const path of taskAppAccountAuthoredFiles)
       expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+  });
+
+  test("authorizes the task-mobile-e2e-setup Maestro E2E flow file", () => {
+    expect(
+      isAuthorizedWorkingTreePath("e2e/maestro/dev-client-journeys.yaml"),
+    ).toBe(true);
+    expect(
+      isAuthorizedWorkingTreePath("e2e/maestro/unregistered-flow.yaml"),
+    ).toBe(false);
+  });
+
+  test("authorizes the task-coord-device-acceptance C15 iOS composer cap files", () => {
+    const c15ComposerCapFiles = [
+      "src/features/chat/ui/composer-max-lines.ts",
+      "tests/features/chat/composer-max-lines.test.ts",
+      "tests/features/chat/chat-composer-field.ios.test.tsx",
+    ];
+    for (const path of c15ComposerCapFiles)
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+  });
+
+  test("authorizes the task-coord-device-acceptance F-8 iOS scene life cycle plugin files", () => {
+    const f8SceneLifecycleFiles = [
+      "tools/expo/with-ios-scene-lifecycle.cjs",
+      "tests/config/ios-scene-lifecycle-plugin.test.ts",
+    ];
+    for (const path of f8SceneLifecycleFiles)
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    expect(
+      isAuthorizedWorkingTreePath("tools/expo/unregistered-plugin.ts"),
+    ).toBe(false);
   });
 
   test("denies a missing M5 authored inventory path", () => {

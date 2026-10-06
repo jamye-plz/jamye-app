@@ -47,6 +47,10 @@ const EXACT_PACKAGE_SCRIPTS = Object.freeze({
   "expo:prebuild:clean": "expo prebuild --clean",
   "expo:run:ios": "expo run:ios --no-bundler",
   "expo:run:android": "expo run:android --no-bundler",
+  "e2e:ios":
+    'maestro test -p ios ${MAESTRO_DEVICE:+--device "$MAESTRO_DEVICE"} --test-output-dir .maestro-output/ios -e "MAESTRO_METRO_URL=$MAESTRO_METRO_URL" -e "MAESTRO_TEST_GROUP_NAME=$MAESTRO_TEST_GROUP_NAME" -e "MAESTRO_TEST_TOPIC_TITLE=$MAESTRO_TEST_TOPIC_TITLE" -e "MAESTRO_E2E_MESSAGE=$MAESTRO_E2E_MESSAGE" e2e/maestro',
+  "e2e:android":
+    'maestro test -p android ${MAESTRO_DEVICE:+--device "$MAESTRO_DEVICE"} --test-output-dir .maestro-output/android -e "MAESTRO_METRO_URL=$MAESTRO_METRO_URL" -e "MAESTRO_TEST_GROUP_NAME=$MAESTRO_TEST_GROUP_NAME" -e "MAESTRO_TEST_TOPIC_TITLE=$MAESTRO_TEST_TOPIC_TITLE" -e "MAESTRO_E2E_MESSAGE=$MAESTRO_E2E_MESSAGE" e2e/maestro',
   check: "bun run check:code && bun run check:expo && bun run check:toolchain",
 });
 
@@ -899,6 +903,17 @@ const M17_TEST_PATHS = Object.freeze([
   "tests/app/group-gallery-route.test.tsx",
   // M17 device follow-up (U11): the iOS I3 rename sheet screen.
   "tests/features/groups/ui/group-rename-screen.test.tsx",
+  // task-coord-device-acceptance (C15, run 8447a0dd-3b1d-48cd-875a-797dde29aa9b):
+  // iOS composer 120pt cap -- the fontScale-aware max-lines pure function
+  // test and the iOS field's Dynamic Type wiring test.
+  "tests/features/chat/composer-max-lines.test.ts",
+  "tests/features/chat/chat-composer-field.ios.test.tsx",
+  // task-coord-device-acceptance (F-8/A18): the iOS scene life cycle config
+  // plugin's transform and mod-registration test.
+  "tests/config/ios-scene-lifecycle-plugin.test.ts",
+  // M17 REFINE (task-refine): direct unit test of the shared reduce-motion
+  // hook and its image fade-transition wrapper.
+  "tests/shared/platform/use-reduce-motion-enabled.test.tsx",
 ]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
   ...new Set([
@@ -1001,37 +1016,42 @@ const AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS = Object.freeze([
 ]);
 
 const APPROVED_DEPENDENCIES = Object.freeze({
-  "@expo/ui": "57.0.17",
+  "@expo/ui": "~57.0.21",
   ajv: "8.20.0",
-  expo: "~57.0.21",
+  expo: "~57.0.26",
   // M16/E13: coordinator-installed via `bunx expo install
   // expo-apple-authentication` (bun add expo-apple-authentication@~57.0.2).
   "expo-apple-authentication": "~57.0.2",
+  // M17 round 2: declared directly because expo-doctor requires the
+  // expo-audio native peer dependency to be installed directly (C1a). Same
+  // 57.0.18 was already installed and autolinked via `expo`, so the tree and
+  // bundle are unchanged.
+  "expo-asset": "~57.0.18",
   "expo-audio": "~57.0.5",
-  "expo-auth-session": "~57.0.11",
+  "expo-auth-session": "~57.0.13",
   "expo-clipboard": "~57.0.2",
-  "expo-constants": "~57.0.17",
-  "expo-crypto": "~57.0.2",
-  "expo-dev-client": "~57.0.18",
+  "expo-constants": "~57.0.20",
+  "expo-crypto": "~57.0.3",
+  "expo-dev-client": "~57.0.19",
   "expo-device": "~57.0.2",
-  "expo-file-system": "~57.0.6",
-  "expo-font": "~57.0.3",
-  "expo-glass-effect": "57.0.2",
+  "expo-file-system": "~57.0.7",
+  "expo-font": "~57.0.4",
+  "expo-glass-effect": "~57.0.4",
   "expo-haptics": "~57.0.3",
   "expo-image": "~57.0.5",
-  "expo-image-manipulator": "~57.0.16",
-  "expo-image-picker": "~57.0.16",
-  "expo-linking": "~57.0.9",
-  "expo-notifications": "~57.0.20",
-  "expo-router": "~57.0.20",
-  "expo-secure-store": "~57.0.3",
-  "expo-sharing": "~57.0.18",
-  "expo-splash-screen": "~57.0.8",
-  "expo-sqlite": "~57.0.2",
-  "expo-symbols": "57.0.2",
-  "expo-system-ui": "~57.0.3",
-  "expo-video": "~57.0.3",
-  "expo-web-browser": "~57.0.2",
+  "expo-image-manipulator": "~57.0.20",
+  "expo-image-picker": "~57.0.20",
+  "expo-linking": "~57.0.11",
+  "expo-notifications": "~57.0.21",
+  "expo-router": "~57.0.24",
+  "expo-secure-store": "~57.0.4",
+  "expo-sharing": "~57.0.22",
+  "expo-splash-screen": "~57.0.9",
+  "expo-sqlite": "~57.0.3",
+  "expo-symbols": "~57.0.3",
+  "expo-system-ui": "~57.0.4",
+  "expo-video": "~57.0.5",
+  "expo-web-browser": "~57.0.3",
   react: "19.2.3",
   "react-dom": "19.2.3",
   "react-native": "0.86.3",
@@ -1045,6 +1065,11 @@ const APPROVED_DEPENDENCIES = Object.freeze({
 });
 
 const APPROVED_DEV_DEPENDENCIES = Object.freeze({
+  // M17 round 2 (C4): pins @react-native/metro-config to React Native's own
+  // 0.86.3, which resolves react-native-worklets' metro-config peer (`*`) to
+  // the same metro 0.84.5 lineage Expo bundles, so the nested metro 0.87.0 +
+  // image-size copy drops out of the tree.
+  "@react-native/metro-config": "0.86.3",
   "@testing-library/react-native": "^14.0.1",
   "@types/jest": "29.5.14",
   "@types/react": "~19.2.2",
@@ -1071,15 +1096,12 @@ const APPROVED_DEPENDENCY_OVERRIDES = Object.freeze({
   uuid: "11.1.1",
 });
 const APPROVED_PATCHED_DEPENDENCIES = Object.freeze({
-  "expo-router@57.0.20": "patches/expo-router@57.0.20.patch",
-  "image-size@1.2.1": "patches/image-size@1.2.1.patch",
+  "expo-router@57.0.24": "patches/expo-router@57.0.24.patch",
   "query-string@7.1.3": "patches/query-string@7.1.3.patch",
 });
 const APPROVED_DEPENDENCY_PATCH_FILE_SHA256 = Object.freeze({
-  "patches/expo-router@57.0.20.patch":
-    "ffa1618df41558ac3b01d8f3c430927676e751fd36251f89571d64347846b3e5",
-  "patches/image-size@1.2.1.patch":
-    "7961f99b36d1e0bc332c92e852d6ffcd386a08abe240e9d61ef603c4c5a12823",
+  "patches/expo-router@57.0.24.patch":
+    "db7a1721b05c69b0e57471dc2c8c7eea1f17428cf136ff268724b3319aae1287",
   "patches/query-string@7.1.3.patch":
     "3501a7e3d4d32cdf00e245e581c66bdf46ed9358b6295571952aec2d5ad0e162",
 });
@@ -1096,8 +1118,10 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
   "patchedDependencies",
 ]);
 
+// A22 (2026-10-06): compression 1.8.1 -> 1.8.2 and source-map-js 1.2.1 ->
+// 1.2.2 (bun audit advisories); braces and node-forge have no patched release.
 const APPROVED_BUN_LOCK_SHA256 =
-  "1099d00796e41d2f804dd030d2a7c1cfb86b40b1c529faa1b3f849b870f79873";
+  "2393f74510429f5151207c4de144d536b72fccc380be0e7dc8bcf7f225abde7b";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -1117,6 +1141,10 @@ const APPROVED_OAUTH_NATIVE_PLUGINS = Object.freeze([
 // M12: Expo push. The plugin wires the APNs entitlement and Android channel
 // defaults; google-services.json holds public Firebase identifiers only.
 const APPROVED_PUSH_NOTIFICATIONS_PLUGIN = "expo-notifications";
+// F-8/A18: local backport of the SDK 58 template's UIScene setup -- iOS 27
+// SDK builds crash at launch on iOS 27 without it. Removed with SDK 58.
+const APPROVED_IOS_SCENE_LIFECYCLE_PLUGIN =
+  "./tools/expo/with-ios-scene-lifecycle.cjs";
 const APPROVED_ANDROID_GOOGLE_SERVICES_FILE = "./google-services.json";
 const APPROVED_FIREBASE_ANDROID_CONFIG = "google-services.json";
 const APPROVED_MEDIA_PICKER_PLUGIN = Object.freeze([
@@ -1439,14 +1467,14 @@ const APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256 = Object.freeze({
   "nix/android-sdk.nix":
     "3b93574941b8cb3b1445a187c0cb1f2b65d80174eff94151d70fbd46f0224d58",
   "nix/dev-shell.nix":
-    "27b22586b36e90e2cc35695ac29bcde55b018c1c73005eb9ef9962780536883a",
+    "e8cc046904be9b2f1109ad61533e108c5faaddd6c475d52d0410cf6b17fc6643",
   "nix/toolchain-versions.nix":
-    "a274f777e185929711a1dee2acbd665c538a494490246ebfbfaa1a5fba1b1d5c",
+    "3549e7791bc53af08d3c7f100c6ac18de7fcaf6d91635f40f6dbec8515f15a48",
   "tools/diagnostics/toolchain-check.sh":
-    "ade2efe2b149d926d83a91dbca5725280bd5e72a84f7a27a7bd0b9d1c20bbc7d",
+    "ad0122cf7fabf9a047a94afb780b6e23383f9c30aea5487fa174d4fb93590626",
 });
 const APPROVED_GITIGNORE_SHA256 =
-  "40197561ee38a83d8256c572897bdfcad019f48d57eff69f60fbd8b3b226c3b3";
+  "d0edde78ed8896e0b1195afc22fb76ff8dda9f530e47482fc7e91cd6add9f8ec";
 const REQUIRED_GITIGNORE_ENTRIES = Object.freeze([
   "/coverage/",
   "/ios",
@@ -1455,6 +1483,7 @@ const REQUIRED_GITIGNORE_ENTRIES = Object.freeze([
   "expo-env.d.ts",
   "node_modules/",
   "docs/generated/",
+  "/.maestro-output/",
 ]);
 const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   "node_modules/",
@@ -1465,6 +1494,7 @@ const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   "ios/",
   "coverage/",
   "expo-env.d.ts",
+  ".maestro-output/",
   ".agents/",
   ".claude/",
   ".github/",
@@ -2033,6 +2063,23 @@ const M17_AUTHORED_FILES = Object.freeze([
   "src/features/topics/ui/use-topic-chat-beneath.ts",
   // task-docs (DOCS-AC4): the M17 round 1 evidence record.
   "docs/evidence/M17.md",
+  // M17 round 2 (C14/A11YM-AC1/AC2, task-mobile-a11y-motion): the shared
+  // reduce-motion hook -- subscribes to RN AccessibilityInfo's reduce-motion
+  // setting, used to gate chat auto-scroll animation, the video viewer modal
+  // slide and image fade behind the system setting.
+  "src/shared/platform/use-reduce-motion-enabled.ts",
+  // M17 round 2 (C10-C13, task-mobile-e2e-setup): the Maestro E2E flow --
+  // covers C11's seven dev-client journeys (app start -> group list, test
+  // group home, one composer send, topic detail/back, group info/gallery,
+  // inbox, account tab, all in a single flow file).
+  "e2e/maestro/dev-client-journeys.yaml",
+  // task-coord-device-acceptance (C15, run 8447a0dd-3b1d-48cd-875a-797dde29aa9b):
+  // iOS composer 120pt cap -- fontScale-aware max-lines pure function.
+  "src/features/chat/ui/composer-max-lines.ts",
+  // task-coord-device-acceptance (F-8/A18): iOS 27 SDK builds crash at launch
+  // on iOS 27 without the UIScene life cycle -- the local config plugin that
+  // backports the SDK 58 template's scene setup (removed with SDK 58).
+  "tools/expo/with-ios-scene-lifecycle.cjs",
   ...M17_TEST_PATHS,
 ]);
 
@@ -2277,6 +2324,16 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
   // group-rename-dialog.shared.ts's useResyncOnPresent had one caller left,
   // group-rename-dialog.android.tsx, so it was inlined there.
   "src/features/groups/ui/group-rename-dialog.shared.ts",
+  // M17 round 2 (C2/C4, task-mobile-deps-sync): expo-router 57.0.24 still
+  // leaves the initial-link unhandled-until-mount race, so the local patch
+  // was rewritten against the new installed file (expo-router@57.0.24.patch)
+  // and the superseded 57.0.20 patch file was deleted. image-size dropped
+  // out of the tree entirely once @react-native/metro-config@0.86.3 resolved
+  // react-native-worklets' metro-config peer onto Expo's own metro 0.84.5
+  // lineage (no image-size dependent left), so the local image-size patch
+  // was deleted with no replacement.
+  "patches/expo-router@57.0.20.patch",
+  "patches/image-size@1.2.1.patch",
 ]);
 
 const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
@@ -3211,12 +3268,13 @@ function checkExpoBasePreservation(snapshot, violations) {
     APPROVED_MEDIA_PICKER_PLUGIN,
     APPROVED_AUDIO_PLUGIN,
     APPROVED_PUSH_NOTIFICATIONS_PLUGIN,
+    APPROVED_IOS_SCENE_LIFECYCLE_PLUGIN,
   ];
   if (!deepEqual(plugins, expectedPlugins)) {
     pushViolation(
       violations,
       "expo-base-preservation",
-      "Development config plugins must equal the preserved base plugins followed by the fixed dev client, OAuth, selection-only media, voice-recording microphone, and push notification plugins.",
+      "Development config plugins must equal the preserved base plugins followed by the fixed dev client, OAuth, selection-only media, voice-recording microphone, push notification, and iOS scene life cycle plugins.",
     );
   }
 
