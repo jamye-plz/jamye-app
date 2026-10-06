@@ -222,6 +222,10 @@ describe("M5-UI-1 explicit-send Korean IME composer", () => {
 
     expect(input.props.multiline).toBe(true);
     expect(input.props.placeholder).toBe("메시지");
+    // M17 E2E (task-mobile-e2e-setup, C12): pins the iOS composer field's
+    // testID so Maestro can find it without relying on focus/placeholder
+    // state. Android already carries the same id (chat-composer.android.tsx).
+    expect(screen.getByTestId("chat-composer-input")).toBeTruthy();
     expect(send.props.accessibilityState).toEqual(
       expect.objectContaining({ disabled: true }),
     );
