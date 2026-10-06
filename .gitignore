@@ -55,6 +55,9 @@ example
 /android
 /coverage/
 
+# Maestro E2E test output
+/.maestro-output/
+
 # oma docs generated artifacts
 docs/generated/
 

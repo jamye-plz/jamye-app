@@ -6,6 +6,7 @@ in
   node = "22.23.2";
   java = "17.0.19";
   cocoapods = "1.16.2";
+  maestro = "2.8.0";
   xcodeDeveloperDir = "/Applications/Xcode.app/Contents/Developer";
 
   android = {

@@ -15,6 +15,7 @@ assert pkgs.bun.version == versions.bun;
 assert pkgs.nodejs_22.version == versions.node;
 assert pkgs.zulu17.version == versions.java;
 assert pkgs.cocoapods.version == versions.cocoapods;
+assert pkgs.maestro.version == versions.maestro;
 # Native Apple builds must use Xcode's clang, libc++, SDK, and linker. Keep the
 # pinned Nix runtimes below without importing the Darwin stdenv compiler wrapper.
 pkgs.mkShellNoCC {
@@ -23,17 +24,22 @@ pkgs.mkShellNoCC {
     pkgs.nodejs_22
     pkgs.zulu17
     pkgs.cocoapods
+    pkgs.maestro
     androidSdkPackage
   ];
 
   JAVA_HOME = "${pkgs.zulu17.home}";
   ANDROID_HOME = androidSdkRoot;
   ANDROID_SDK_ROOT = androidSdkRoot;
+  # Maestro CLI analytics is off by default for this project; the project
+  # never opts the user into anonymous usage reporting.
+  MAESTRO_CLI_NO_ANALYTICS = "1";
   JAMYE_ANDROID_AVD_SPEC = ./android-avd-spec.json;
   JAMYE_EXPECTED_BUN = versions.bun;
   JAMYE_EXPECTED_NODE = versions.node;
   JAMYE_EXPECTED_JAVA = versions.java;
   JAMYE_EXPECTED_COCOAPODS = versions.cocoapods;
+  JAMYE_EXPECTED_MAESTRO = versions.maestro;
   JAMYE_EXPECTED_CMDLINE_TOOLS = androidVersions.commandLineTools;
   JAMYE_EXPECTED_PLATFORM_TOOLS = androidVersions.platformTools;
   JAMYE_EXPECTED_ANDROID_API = androidVersions.api;
