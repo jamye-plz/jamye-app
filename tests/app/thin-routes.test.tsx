@@ -232,7 +232,10 @@ jest.mock("expo-router", () => {
       <Text
         accessibilityRole="header"
         testID={name ? `screen-${name}` : undefined}
-        {...{ presentation: options.presentation }}
+        {...{
+          headerShown: options?.headerShown,
+          presentation: options.presentation,
+        }}
       >
         {options.title}
       </Text>
@@ -436,6 +439,29 @@ describe("M3-I3 actual thin Expo Router modules", () => {
     expect(screen.getByTestId("route-index").props.headerShown).toBe(false);
   });
 
+  // F-7 (task-coord-device-acceptance run 8447a0dd, user decision A17):
+  // device VoiceOver read the native back button on every screen pushed on
+  // the root stack over the chat screen ((tabs) -> chat) as "(tabs), Back
+  // button" -- an unlabeled back button's accessibility text falls back to
+  // the *previous* screen's route name, and "(tabs)" never set its own
+  // `title` (only `headerShown: false`, since the tab bar draws its own
+  // chrome). A chat can be pushed from any tab, so a single static Korean
+  // phrase (not a tab-specific title) is used here, deliberately worded to
+  // avoid duplicating the back button's own "뒤로가기" trait/label.
+  test("gives the root (tabs) screen a Korean back-button label instead of exposing its route name (F-7)", async () => {
+    const RootLayout = loadActualRoute(
+      "../../src/app/_layout",
+      "src/app/_layout.tsx",
+    );
+    const screen = await render(<RootLayout />);
+    const route = screen.getByTestId("screen-(tabs)");
+    expect(route.props.children).toBe("이전 화면");
+    // The tab bar still draws its own header chrome -- this title must stay
+    // invisible everywhere, exactly like the pre-existing index assertion
+    // above.
+    expect(route.props.headerShown).toBe(false);
+  });
+
   test("hands react-navigation a dark theme when the system scheme is dark (iOS header follows dark mode)", async () => {
     const useColorSchemeMock = jest.requireMock<{ default: jest.Mock }>(
       "react-native/Libraries/Utilities/useColorScheme",
@@ -549,7 +575,22 @@ describe("M3-I3 actual thin Expo Router modules", () => {
     );
 
     expect(await screen.findByText(REQUIRED_NOTICE)).toBeTruthy();
-    expect(screen.getByRole("header", { name: "로컬 대화" })).toBeTruthy();
+    // C14a: the screen intentionally renders two same-named "header"s here --
+    // this suite's `Stack.Screen` mock surfaces the native header title (no
+    // `style`, the pre-existing contract below), and chat-screen.tsx also
+    // renders its own visually hidden content heading (has `style`) that
+    // `headingRef` attaches to, since a ref can't reach the native title
+    // while fixture/title resolution is pending. Device acceptance (C16)
+    // confirms whether the duplicate VoiceOver announcement is audible; C15
+    // would switch to focusing the native header directly if so.
+    const headings = screen.getAllByRole("header", { name: "로컬 대화" });
+    expect(headings).toHaveLength(2);
+    expect(
+      headings.filter((heading) => heading.props.style == null),
+    ).toHaveLength(1); // native Stack.Screen header title mock
+    expect(
+      headings.filter((heading) => heading.props.style != null),
+    ).toHaveLength(1); // chat-screen.tsx's hidden content heading
     expect(repository.listMessagesPage).toHaveBeenCalledWith(
       expect.objectContaining({
         before: null,
