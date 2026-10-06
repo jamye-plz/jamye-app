@@ -21,6 +21,7 @@ import { createPkcePair } from "@/core/auth/pkce";
 import { secureSessionStore } from "@/core/auth/secure-session-store";
 import { parsePublicApiOrigin } from "@/core/config/public-env";
 import type { OAuthProvider, UserProfile } from "@/core/auth/types";
+import { consoleLoggerSink, createLogger } from "@/core/logging/logger";
 import { createProfileRecovery } from "@/features/sync/model/profile-recovery";
 
 /**
@@ -37,6 +38,27 @@ import { createProfileRecovery } from "@/features/sync/model/profile-recovery";
 void SplashScreen.preventAutoHideAsync();
 /** Safety fallback (E12) so a stuck restore never leaves the splash on screen. */
 const SPLASH_SAFETY_TIMEOUT_MS = 3000;
+
+/**
+ * C9 (M17 ANR round 2, DEBUG-AC3): dev-only startup timing. `moduleLoadTimeMs`
+ * is the earliest marker available in this task's file scope -- this module
+ * is evaluated at process start regardless of app mode (see the comment
+ * above). `startupTimingLogger` reuses the shared structured logger; every
+ * call below is gated by `__DEV__` and its metadata carries only numeric
+ * durations or fixed enum labels, never tokens/ids/profile fields. The fixed
+ * `[startup-timing]` event prefix is grep-able in logcat/Metro output.
+ */
+const moduleLoadTimeMs = __DEV__ ? Date.now() : 0;
+const startupTimingLogger = createLogger(consoleLoggerSink);
+
+/** Logs `start_to_first_screen` once, for whichever splash-hide trigger wins. */
+function logStartToFirstScreen(trigger: "timeout" | "restore"): void {
+  if (!__DEV__) return;
+  startupTimingLogger.log("[startup-timing] start_to_first_screen", "debug", {
+    durationMs: Date.now() - moduleLoadTimeMs,
+    trigger,
+  });
+}
 
 export type SessionPrincipal = Readonly<{
   origin: string;
@@ -147,7 +169,15 @@ export function SessionProvider({
     const appStateSubscription = AppState.addEventListener("change", (next) => {
       recovery.setForeground(next === "active");
     });
-    void controller.restore();
+    const restorePromise = controller.restore();
+    if (__DEV__) {
+      const restoreStartMs = Date.now();
+      void restorePromise.finally(() => {
+        startupTimingLogger.log("[startup-timing] session_restore", "debug", {
+          durationMs: Date.now() - restoreStartMs,
+        });
+      });
+    }
     return () => {
       appStateSubscription?.remove();
       recovery.dispose();
@@ -166,6 +196,7 @@ export function SessionProvider({
     const timer = setTimeout(() => {
       if (hiddenSplash.current) return;
       hiddenSplash.current = true;
+      logStartToFirstScreen("timeout");
       void SplashScreen.hideAsync();
     }, SPLASH_SAFETY_TIMEOUT_MS);
     return () => clearTimeout(timer);
@@ -173,6 +204,7 @@ export function SessionProvider({
   useEffect(() => {
     if (state.status === "loading" || hiddenSplash.current) return;
     hiddenSplash.current = true;
+    logStartToFirstScreen("restore");
     void SplashScreen.hideAsync();
   }, [state.status]);
 

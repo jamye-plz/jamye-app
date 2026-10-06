@@ -3,6 +3,7 @@ import type { PropsWithChildren } from "react";
 import { AppState } from "react-native";
 
 import { getPublicEnv } from "@/core/config/public-env";
+import { consoleLoggerSink, createLogger } from "@/core/logging/logger";
 import { useSession } from "@/core/providers/session-provider";
 import { createMediaApi } from "@/features/media/data/media-api";
 import {
@@ -37,7 +38,16 @@ function createLifetimeSlot(accountKey: string) {
   };
 }
 
-function sweepOwnedTempFiles(): void {
+/**
+ * C9 (M17 ANR round 2, DEBUG-AC3): dev-only sweep timing, gated by `__DEV__`.
+ * Reuses the shared structured logger; metadata carries only a numeric
+ * duration and a fixed trigger label, never a file path or account value.
+ * The `[startup-timing]` event prefix is grep-able in logcat/Metro output.
+ */
+const sweepTimingLogger = createLogger(consoleLoggerSink);
+
+function sweepOwnedTempFiles(trigger: "startup" | "teardown"): void {
+  const sweepStartMs = __DEV__ ? Date.now() : 0;
   // A failed cache cleanup must not prevent authentication or text chat.
   try {
     cleanupAllStagedFiles();
@@ -48,6 +58,12 @@ function sweepOwnedTempFiles(): void {
     cleanupAllDownloadedFiles();
   } catch {
     /* retried next account/startup */
+  }
+  if (__DEV__) {
+    sweepTimingLogger.log("[startup-timing] temp_sweep", "debug", {
+      durationMs: Date.now() - sweepStartMs,
+      trigger,
+    });
   }
 }
 
@@ -79,7 +95,7 @@ export function MediaProvider({ children }: PropsWithChildren) {
     const nextLifetime = createMediaLifetime(
       AppState.currentState !== "background",
     );
-    sweepOwnedTempFiles();
+    sweepOwnedTempFiles("startup");
     const subscription = AppState.addEventListener("change", (state) => {
       // System picker/share dialogs may be inactive without being background.
       if (state === "background") nextLifetime.setForeground(false);
@@ -92,7 +108,7 @@ export function MediaProvider({ children }: PropsWithChildren) {
       // share sheet, that operation retains its file until the sheet returns.
       nextLifetime.dispose();
       slot.replace(null);
-      sweepOwnedTempFiles();
+      sweepOwnedTempFiles("teardown");
     };
   }, [slot]);
 
