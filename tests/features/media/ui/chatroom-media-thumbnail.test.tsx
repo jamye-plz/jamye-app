@@ -1,4 +1,5 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
+import { AccessibilityInfo } from "react-native";
 
 import type { ChatroomMediaItem } from "@/core/contracts/server/media";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
@@ -69,10 +70,19 @@ jest.mock("expo-image", () => {
     Image: ({
       onError,
       source,
+      transition,
     }: {
       onError?: (event: unknown) => void;
       source: { uri: string };
-    }) => <RNImage onError={onError} source={source} testID="poster-image" />,
+      transition?: number | null;
+    }) => (
+      <RNImage
+        onError={onError}
+        source={source}
+        testID="poster-image"
+        transition={transition}
+      />
+    ),
   };
 });
 
@@ -187,6 +197,9 @@ async function renderThumbnail(
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (AccessibilityInfo.isReduceMotionEnabled as jest.Mock)
+    .mockReset()
+    .mockResolvedValue(false);
 });
 
 describe("ChatroomMediaThumbnail", () => {
@@ -283,6 +296,28 @@ describe("ChatroomVideoThumbnail", () => {
     await fireEvent(poster, "error", { nativeEvent: { error: "decode" } });
     expect(imageFailed).toHaveBeenCalledTimes(1);
   });
+
+  test.each([
+    [true, null],
+    [false, 150],
+  ] as const)(
+    "A11YM-AC2: reduce motion enabled=%s sets the poster thumbnail's fade transition to %s",
+    async (reduceMotionEnabled, expectedTransition) => {
+      (AccessibilityInfo.isReduceMotionEnabled as jest.Mock).mockResolvedValue(
+        reduceMotionEnabled,
+      );
+      setVideoHook();
+      setThumbnailHook({
+        state: { status: "ready", uri: "file:///owned/poster.jpg" },
+      });
+      const screen = await renderThumbnail({
+        item: item({ contentType: "video/mp4" }),
+      });
+      expect(screen.getByTestId("poster-image").props.transition).toBe(
+        expectedTransition,
+      );
+    },
+  );
 
   test("a loading poster thumbnail does not render the cached image yet", async () => {
     setVideoHook();

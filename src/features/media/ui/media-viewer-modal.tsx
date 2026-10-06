@@ -4,6 +4,7 @@ import { Modal, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appSpacing } from "@/core/theme/tokens";
+import { useReduceMotionEnabled } from "@/shared/platform/use-reduce-motion-enabled";
 import { AppText } from "@/shared/ui/app-text";
 import { HeaderIconButton } from "@/shared/ui/header-icon-button";
 
@@ -26,11 +27,14 @@ export function MediaViewerModal({
   const background = backgroundColor ?? colors.background;
   const foreground = backgroundColor ? "#FFFFFF" : colors.text;
   const iconTint = backgroundColor ? "#FFFFFF" : colors.text;
+  // A11YM-AC2: reduce-motion drops the slide-in, the modal still opens
+  // instantly (DESIGN.md §8 reduced motion keeps the state-change feedback itself).
+  const reduceMotionEnabled = useReduceMotionEnabled();
   return (
     <Modal
       testID="media-viewer-modal"
       visible
-      animationType="slide"
+      animationType={reduceMotionEnabled ? "none" : "slide"}
       presentationStyle="fullScreen"
       supportedOrientations={["portrait", "landscape"]}
       onRequestClose={onClose}

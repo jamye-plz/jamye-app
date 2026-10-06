@@ -1,6 +1,6 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 import type { ReactNode } from "react";
-import { FlatList } from "react-native";
+import { AccessibilityInfo, FlatList } from "react-native";
 
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import type { ChatMessage } from "@/features/chat/model/chat-message-window";
@@ -185,6 +185,83 @@ describe("ChatMessageList bottom pin (device regression: landed short of the lat
       getPinnedBottomFollowOffset({ ...base, restingViewportHeight: 0 }),
     ).toBeNull();
   });
+});
+
+describe("ChatMessageList reduce motion (A11YM-AC1: system reduce-motion disables the auto-scroll animation)", () => {
+  // `mockReset()` (an earlier revision) also clears the jest-expo RN
+  // preset's baked-in default implementation (`() => Promise.resolve(false)`),
+  // leaving a bare `jest.fn()` that returns `undefined` -- this crashed the
+  // unrelated "keyboard drag" describe below (`.then` of `undefined`) by the
+  // time it ran (coordinator CHECK REQUEST regression). `jest.spyOn` +
+  // `restoreAllMocks` puts the original default back, matching the "bottom
+  // pin" describe above's own `afterEach(() => jest.restoreAllMocks())`.
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test.each([
+    [true, false],
+    [false, true],
+  ] as const)(
+    "reduce motion enabled=%s: a later auto-scroll reveal (new message, already revealed once) is animated=%s",
+    async (reduceMotionEnabled, expectedAnimated) => {
+      jest
+        .spyOn(AccessibilityInfo, "isReduceMotionEnabled")
+        .mockResolvedValue(reduceMotionEnabled);
+      const scrollToOffset = jest
+        .spyOn(FlatList.prototype, "scrollToOffset")
+        .mockImplementation(() => undefined);
+      const renderProps = {
+        onRetryFailedMessage: jest.fn(),
+        onShareAttachment: jest.fn(),
+        onRequestDeleteMessage: jest.fn(),
+        onRequestDiscardFailedMessage: jest.fn(),
+      };
+      const screen = await render(
+        <AppThemeProvider>
+          <ChatMessageList
+            conversation={conversation}
+            latestMessageRevealTarget="m3"
+            {...renderProps}
+          />
+        </AppThemeProvider>,
+      );
+      // Lets the reduce-motion hook's `isReduceMotionEnabled()` promise
+      // settle before the list's first reveal.
+      await act(async () => {
+        await Promise.resolve();
+      });
+      const list = screen.getByTestId("chat-message-list");
+
+      await fireEvent(list, "layout", layout);
+      await fireEvent(list, "contentSizeChange", 0, 600);
+      expect(scrollToOffset).toHaveBeenLastCalledWith({
+        animated: false,
+        offset: 300,
+      });
+
+      // A new message arrives while already revealed once (`hasRevealedRef`
+      // is now true) -- this is the one path that would otherwise animate.
+      const nextConversation = {
+        ...conversation,
+        items: [...conversation.items, message("m4", 4_000)],
+      } as unknown as ChatConversation;
+      await screen.rerender(
+        <AppThemeProvider>
+          <ChatMessageList
+            conversation={nextConversation}
+            latestMessageRevealTarget={null}
+            {...renderProps}
+          />
+        </AppThemeProvider>,
+      );
+      await fireEvent(list, "contentSizeChange", 0, 900);
+      expect(scrollToOffset).toHaveBeenLastCalledWith({
+        animated: expectedAnimated,
+        offset: 600,
+      });
+    },
+  );
 });
 
 describe("ChatMessageList keyboard drag (R4, device regression: dragging the list never moved the iOS keyboard)", () => {

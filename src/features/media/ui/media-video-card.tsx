@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, View } from "react-native";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appRadii, appSpacing } from "@/core/theme/tokens";
 import { NativeVideoPlayer } from "@/features/media/platform/native-video-player";
+import { useImageFadeTransition } from "@/shared/platform/use-reduce-motion-enabled";
 import { AppSymbol } from "@/shared/ui/app-symbol";
 import { AppText } from "@/shared/ui/app-text";
 import { NativeButton } from "@/shared/ui/native-button";
@@ -65,6 +66,9 @@ export function MediaVideoCard({
     thumbnailEnabled,
     posterMediaId,
   );
+  // A11YM-AC2: reduce-motion drops the poster's cross-dissolve fade-in
+  // (DESIGN.md §8 reduced motion keeps the state-change feedback itself).
+  const imageFadeTransition = useImageFadeTransition();
   const width = dimensions?.width ?? DEFAULT_WIDTH;
   const height = dimensions?.height ?? DEFAULT_HEIGHT;
   const radius: MediaImageCornerStyle = cornerStyle ?? {
@@ -113,7 +117,7 @@ export function MediaVideoCard({
               recyclingKey={mediaId}
               source={{ uri: thumbnail.state.uri }}
               style={{ height: "100%", width: "100%" }}
-              transition={150}
+              transition={imageFadeTransition}
             />
           ) : thumbnail.state?.status === "loading" ? (
             <ActivityIndicator
