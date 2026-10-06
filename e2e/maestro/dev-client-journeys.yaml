@@ -1,0 +1,295 @@
+appId: dev.local.jamyeapp
+---
+# M17 round 2 (A3/C11) -- critical-journey smoke flow for the jamye-app dev
+# client. One ordered bundle (not 7 separate files, task-mobile-e2e-setup
+# part A): journeys 2-7 each depend on the screen the previous journey left
+# active, and `maestro test` auto-discovers every *.yaml file under the
+# target directory as its own standalone flow, so splitting this into
+# per-journey files would also run each of them alone, out of context.
+#
+# Preconditions (A2, discovery D3):
+#   - A dev client is already installed (iOS simulator or Android emulator)
+#     and its Metro bundler is reachable at ${MAESTRO_METRO_URL}.
+#   - That dev client already has a logged-in session (SecureStore
+#     `jamye.auth.session.v1`). A user logs in by hand once, beforehand --
+#     this flow never fills in credentials. If it is not logged in,
+#     journey 1's group-list wait below times out instead, with a `label:`
+#     naming a missing/expired session as the likely cause (see that step
+#     for why there is no separate up-front login-screen check).
+#   - The signed-in account is a member of exactly one throwaway "test
+#     group" whose name is passed in as ${MAESTRO_TEST_GROUP_NAME}, every
+#     production write below stays inside it, and it already has a topic
+#     named ${MAESTRO_TEST_TOPIC_TITLE} whose `새로운 주제를 올렸어요: …`
+#     announcement is still visible in the group's main chat history. Topic
+#     create/delete and group management are out of scope here (C11) --
+#     only the message send in journey 3 writes anything.
+#   - The dev menu's "Tools button" toggle (the floating gear) is off on that
+#     dev client. The gear floats over the right edge of every screen, and a
+#     tap aimed at a row underneath it opens the dev menu instead (seen on
+#     Android in tier 4, over the topic link in journey 4).
+#
+# Env var names keep the MAESTRO_ prefix (not plain METRO_URL/
+# TEST_GROUP_NAME/…) for naming consistency with the package scripts below,
+# but it is naming only -- Maestro 2.8.0 does **not** auto-inject
+# MAESTRO_-prefixed shell variables into a flow (verified against this exact
+# file on a real tier 4 run: `MAESTRO_TEST_GROUP_NAME=… maestro test …` left
+# `${MAESTRO_TEST_GROUP_NAME}` unsubstituted and the flow failed). Every
+# value below has to arrive via an explicit `-e` flag, one way or another:
+#
+#   1) direct maestro invocation, explicit `-e` flags (confirmed working,
+#      Android emulator, all 7 journeys):
+#        maestro test -p android \
+#          -e MAESTRO_METRO_URL=http%3A%2F%2F10.0.2.2%3A8081 \
+#          -e MAESTRO_TEST_GROUP_NAME='<test group name>' \
+#          -e MAESTRO_TEST_TOPIC_TITLE='<existing topic title in that group>' \
+#          -e MAESTRO_E2E_MESSAGE='<throwaway message body>' \
+#          e2e/maestro
+#
+#   2) through the plan's tier 4 package script (`bun run e2e:ios` /
+#      `e2e:android`, package.json, part B): export the same-named shell
+#      variables first, then run the script with no further flags. This
+#      works because the script itself reads these shell variables and
+#      passes each one on to `maestro test` as its own `-e` flag -- not
+#      because Maestro auto-injects MAESTRO_-prefixed shell vars (it does
+#      not; see above):
+#        export MAESTRO_METRO_URL=http%3A%2F%2F10.0.2.2%3A8081 \
+#          MAESTRO_TEST_GROUP_NAME='<test group name>' \
+#          MAESTRO_TEST_TOPIC_TITLE='<existing topic title in that group>' \
+#          MAESTRO_E2E_MESSAGE='<throwaway message body>'
+#        bun run e2e:android
+#      (optional: also export MAESTRO_DEVICE to target a specific
+#      device/emulator -- the script reads it the same way.)
+#
+#   Swap `-p android`/MAESTRO_METRO_URL for `-p ios` and the iOS
+#   simulator's Metro origin (usually http://localhost:8081) to run the
+#   same flow against the iOS simulator dev client.
+#
+#   MAESTRO_METRO_URL must already be URL-encoded: it is substituted
+#   straight into this flow's `openLink` query string below
+#   (`?url=${MAESTRO_METRO_URL}`), and a raw origin's own `://` and `:`
+#   would corrupt that query parameter. http://localhost:8081 encodes to
+#   http%3A%2F%2Flocalhost%3A8081 (Android emulator: http://10.0.2.2:8081
+#   -> http%3A%2F%2F10.0.2.2%3A8081).
+#
+# ===== Connect to the dev client =====
+# D3: every deep link other than the invite App Link and the initial-launch
+# OAuth callback resolves to "/", so this flow cannot jump straight into a
+# group/chat/topic route -- every journey below navigates through the UI
+# from the group list.
+#
+# Alternative (not used by default): if a dev client is already connected to
+# this exact bundle (e.g. re-running this flow back-to-back without
+# reinstalling), `launchApp` alone reopens the last-loaded bundle and skips
+# re-resolving the deep link:
+#   - launchApp
+#
+# `stopApp` first so the dev-client link always cold-starts the app: during
+# tier 4 a long-running dev process crashed shortly after receiving this link
+# (anr-confirm-log, debug-only expo-dev-launcher path), so the flow never
+# hands the link to an already-running process.
+- stopApp
+- openLink: "exp+jamye-app://expo-development-client/?url=${MAESTRO_METRO_URL}"
+
+# ===== Journey 1: start -> group list =====
+# No separate up-front login-screen check. session-provider.tsx's splash
+# hides at a flat ~3s (SPLASH_SAFETY_TIMEOUT_MS) regardless of whether
+# restore (6-60s on an emulator) has actually finished, so a dev client
+# that *is* logged in can still show the sign-in screen (auth-brand)
+# transiently while restore keeps running underneath it -- a point-in-time
+# "is auth-brand visible right now" check races that transition and is
+# flaky in both directions. (A real tier 4 run hit exactly this: the
+# conditional `auth-brand` assert this flow used to have fired and merely
+# happened to pass -- timing luck, not a real guarantee -- so it was
+# removed rather than kept as a false sense of safety.) Waiting once for
+# the actual target state sidesteps the race: if the dev client is not
+# logged in at all (A2/C11 -- this flow never logs in itself), the group
+# list never appears and this step's own timeout is the failure, with
+# `label:` naming the likely cause directly in the report.
+- extendedWaitUntil:
+    visible:
+      text: "${MAESTRO_TEST_GROUP_NAME}"
+    timeout: 60000
+    label: "그룹 목록 대기 — 로그인된 dev client 필요, 세션 복원 최대 60초"
+
+# ===== Journey 2: test group home (topic list) =====
+# D2: Android's `@expo/ui` universal `ListItem` drops testID, so the row is
+# found by its title text (group-list-screen.tsx `title={item.name}`), not
+# an id. The group-home header action's "그룹 대화방" label also confirms
+# the topic list screen loaded (topics-screen.tsx headerActions).
+- tapOn:
+    text: "${MAESTRO_TEST_GROUP_NAME}"
+- extendedWaitUntil:
+    visible:
+      text: "그룹 대화방"
+    timeout: 20000
+
+# ===== Journey 3: send one text message in the group chat (live write) =====
+# Production write, scoped to the test group only (A2/C11).
+# The header action can be on screen while the push transition is still
+# settling; a tap then is dropped (seen once on Android in tier 4). Wait for
+# animations, and retry the open-and-check pair once more if it still
+# missed.
+- waitForAnimationToEnd
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          text: "그룹 대화방"
+      - extendedWaitUntil:
+          visible:
+            id: "chat-composer-input"
+          timeout: 10000
+# A run-unique suffix keeps the visibility check honest: the iOS and Android
+# runs share one MAESTRO_E2E_MESSAGE, so without it the second platform could
+# match the first platform's message even if its own send failed. Keep the
+# message free of regex metacharacters -- `text:` is matched as a regex.
+- evalScript: ${output.e2eMessage = MAESTRO_E2E_MESSAGE + ' ' + Date.now()}
+- tapOn:
+    id: "chat-composer-input"
+- inputText: "${output.e2eMessage}"
+- tapOn:
+    text: "메시지 보내기"
+# The row's accessible label is the body plus its status (e.g. ", 전송됨");
+# iOS exposes only that combined element, so match it as a prefix.
+- extendedWaitUntil:
+    visible:
+      text: "${output.e2eMessage}.*"
+    timeout: 15000
+# The composer keeps focus after sending, so the first tap on the list below
+# would only dismiss the keyboard (seen on iOS in tier 4). Dismiss it here.
+# iOS only: Maestro's Android hideKeyboard is a plain BACK key press, which
+# leaves the screen whenever the keyboard is already down.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - hideKeyboard
+
+# ===== Journey 4: topic detail + back order (U13) =====
+# chat-message-row.tsx renders the topic announcement's title as a tappable
+# link (`accessibilityRole="link"`, visible text == the topic's own title);
+# it may sit above the message journey 3 just sent, hence the scroll. The
+# list reveals its latest rows asynchronously after the room opens; waiting
+# for the link first keeps the scroll below from starting before that reveal
+# and scrolling the newest announcement out of view (seen on iOS in tier 4).
+- extendedWaitUntil:
+    visible:
+      text: "${MAESTRO_TEST_TOPIC_TITLE}"
+    timeout: 10000
+    optional: true
+# iOS lets the list scroll under its translucent navigation bar, and Maestro
+# counts a row there as fully visible; tapping it hits the header title and
+# opens group info instead (seen on iOS in tier 4, link at y 59-84).
+# `centerElement` keeps scrolling until the link sits below the upper ~30% of
+# the screen, clear of the bar.
+- scrollUntilVisible:
+    direction: UP
+    element:
+      text: "${MAESTRO_TEST_TOPIC_TITLE}"
+    centerElement: true
+    timeout: 15000
+# A tap can still be dropped while the list settles after the keyboard or
+# the scroll; retry the tap-and-check pair rather than assume the first tap
+# reaches the link.
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          text: "${MAESTRO_TEST_TOPIC_TITLE}"
+      - extendedWaitUntil:
+          visible:
+            id: "topic-article"
+          timeout: 8000
+# Back #1: topic-detail-screen.tsx's `useTopicChatBeneath` has already
+# swapped the route directly beneath this screen for the topic's own
+# chatroom (M17 U13 device feedback), so back lands there, not on the
+# group's main chat -- confirmed by the topic's own title in the chat
+# header (use-chatroom-title.ts, kind "topic"). The composer is checked as
+# well: the topic detail screen also shows the title, so the title alone
+# would pass even if back never left the detail screen.
+#
+# `back` is Android-only in Maestro (a no-op on iOS); iOS taps the native
+# stack's back button, exposed with the accessibility id "BackButton".
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: "BackButton"
+- extendedWaitUntil:
+    visible:
+      id: "chat-composer-input"
+    timeout: 15000
+- assertVisible:
+    text: "${MAESTRO_TEST_TOPIC_TITLE}"
+# Back #2: pops the topic's chatroom, landing on the group home (topic
+# list), still underneath on the "groups" tab's own stack.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: "BackButton"
+- extendedWaitUntil:
+    visible:
+      text: "그룹 대화방"
+    timeout: 15000
+
+# ===== Journey 5: group info -> gallery (title 갤러리) =====
+# topics-screen.tsx's header title button (same text as the group row,
+# accessibilityHint "그룹 정보를 엽니다") opens group info; its
+# "사진·동영상" row (group-detail-screen.tsx) opens the gallery, titled
+# "갤러리" (gallery.tsx, M17 round 1 closure).
+- tapOn:
+    text: "${MAESTRO_TEST_GROUP_NAME}"
+- extendedWaitUntil:
+    visible:
+      text: "사진·동영상"
+    timeout: 15000
+- tapOn:
+    text: "사진·동영상"
+- extendedWaitUntil:
+    visible:
+      text: "갤러리"
+    timeout: 15000
+# Gallery is a root-stack route (outside the tabs navigator) and covers the
+# tab bar; back out of it before switching tabs below.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: "BackButton"
+
+# ===== Journey 6: notifications inbox (tab 알림) =====
+- tapOn:
+    text: "알림"
+- extendedWaitUntil:
+    visible:
+      text: "알림함"
+    timeout: 15000
+
+# ===== Journey 7: account tab, read-only =====
+# Never taps 로그아웃 or 계정 삭제 -- "닉네임" alone confirms the screen
+# loaded.
+- tapOn:
+    text: "계정"
+- extendedWaitUntil:
+    visible:
+      text: "닉네임"
+    timeout: 15000

@@ -34,7 +34,16 @@ function RootStack() {
             manifest alongside every other route this file already lists. */}
         <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
         <Stack.Screen name="local-fixture" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        {/* F-7: the root-stack back label for any screen pushed over the
+            tabs (e.g. chat). A static Korean phrase is used because a chat
+            can be pushed from any tab, so no single tab's title is always
+            correct here; without it, VoiceOver reads this screen's route
+            name "(tabs)" as the back label instead. Still headerShown:
+            false, so this title is never shown anywhere visually. */}
+        <Stack.Screen
+          name="(tabs)"
+          options={{ headerShown: false, title: "이전 화면" }}
+        />
         {/* C3 input screens. Declared here, not only from inside the
             screens: options a screen sets on itself never reach a route
             opened by a link (an invite link lands on groups/join), which

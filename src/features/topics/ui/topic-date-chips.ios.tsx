@@ -1,5 +1,6 @@
 import { Button, HStack, Host, ScrollView } from "@expo/ui/swift-ui";
 import {
+  accessibilityAddTraits,
   buttonStyle,
   defaultScrollAnchor,
   defaultScrollAnchorForRole,
@@ -62,6 +63,11 @@ export function TopicDateChips({
                         ? "glass"
                         : "bordered",
                   ),
+                  // A11YF-AC5: VoiceOver otherwise never announces which chip
+                  // is the current selection.
+                  ...(isSelected
+                    ? [accessibilityAddTraits(["isSelected"])]
+                    : []),
                 ]}
                 onPress={() => {
                   if (!isSelected) {

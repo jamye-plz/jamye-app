@@ -72,6 +72,25 @@ async function renderSection() {
   return render(<NotificationSettingsSection />);
 }
 
+type FileSystemModule = Readonly<{
+  readFileSync: (path: string, encoding: "utf8") => string;
+}>;
+
+/** Returns the full `<ListItem ...>` opening-tag source for the row whose
+ * `testID` matches, regardless of attribute order -- used to check that a
+ * `modifiers` prop sits on the *same* row rather than merely appearing
+ * somewhere in the file. */
+function extractListItemOpenTag(source: string, testId: string): string {
+  const marker = `testID="${testId}"`;
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex === -1) {
+    throw new Error(`fixture error: testID not found in source: ${testId}`);
+  }
+  const tagStart = source.lastIndexOf("<ListItem", markerIndex);
+  const tagEnd = source.indexOf(">", markerIndex);
+  return source.slice(tagStart, tagEnd + 1);
+}
+
 describe("notification settings section (ios)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -169,5 +188,40 @@ describe("notification settings section (ios)", () => {
     const screen = await renderSection();
     expect(screen.queryByText("설정에서 알림을 허용해 주세요.")).toBeNull();
     expect(screen.queryByText("설정 열기")).toBeNull();
+  });
+
+  test("A11YF-AC3: the push and preview switches carry Korean accessibility names", async () => {
+    setLifecycleValue({
+      state: { installation: fakeInstallation(), status: "registered" },
+    });
+    const screen = await renderSection();
+    expect(
+      screen.getByTestId("push-notifications-switch").props.accessibilityLabel,
+    ).toBe("푸시 알림");
+    expect(
+      screen.getByTestId("message-preview-switch").props.accessibilityLabel,
+    ).toBe("메시지 미리보기");
+  });
+
+  test("A11YF-AC3: rows without their own action strip the vendor-forced button trait (@expo/ui's iOS ListItem always wraps a SwiftUI Button)", () => {
+    const filesystem = jest.requireActual<FileSystemModule>("node:fs");
+    const source = filesystem.readFileSync(
+      `${process.cwd()}/src/features/notifications/ui/notification-settings-section.ios.tsx`,
+      "utf8",
+    );
+    expect(source).toContain("accessibilityRemoveTraits");
+    for (const rowTestId of [
+      "push-notifications-row",
+      "push-permission-denied-row",
+      "message-preview-row",
+    ]) {
+      expect(extractListItemOpenTag(source, rowTestId)).toMatch(
+        /accessibilityRemoveTraits\(\s*\[\s*["']isButton["']\s*\]\s*\)/,
+      );
+    }
+    // "open-settings-row" has a real `onPress` and should keep reading as a button.
+    expect(extractListItemOpenTag(source, "open-settings-row")).not.toMatch(
+      /accessibilityRemoveTraits/,
+    );
   });
 });

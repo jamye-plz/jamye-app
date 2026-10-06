@@ -18,7 +18,7 @@ require_expected_environment() {
 
   for variable in \
     JAMYE_EXPECTED_BUN JAMYE_EXPECTED_NODE JAMYE_EXPECTED_JAVA \
-    JAMYE_EXPECTED_COCOAPODS JAMYE_EXPECTED_CMDLINE_TOOLS \
+    JAMYE_EXPECTED_COCOAPODS JAMYE_EXPECTED_MAESTRO JAMYE_EXPECTED_CMDLINE_TOOLS \
     JAMYE_EXPECTED_PLATFORM_TOOLS JAMYE_EXPECTED_ANDROID_API \
     JAMYE_EXPECTED_BUILD_TOOLS JAMYE_EXPECTED_AGP_DEFAULT_BUILD_TOOLS \
     JAMYE_EXPECTED_ANDROID_CMAKE \
@@ -845,6 +845,8 @@ main() {
   check_java
   check_exact_version_command 'CocoaPods' pod "$JAMYE_EXPECTED_COCOAPODS" \
     'Exit and re-enter `nix develop path:.`; report the pinned CocoaPods mismatch instead of installing a gem globally.'
+  check_exact_version_command 'Maestro' maestro "$JAMYE_EXPECTED_MAESTRO" \
+    'Exit and re-enter `nix develop path:.`; report the pinned Maestro mismatch instead of installing another version.'
 
   check_android_environment
   if [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -d "$ANDROID_SDK_ROOT" ]; then

@@ -6,6 +6,7 @@ import {
   render,
   renderHook,
 } from "@testing-library/react-native";
+import { AccessibilityInfo } from "react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import {
   createMediaLifetime,
@@ -20,6 +21,7 @@ import { invalidateMediaObjectCache } from "@/features/media/platform/media-obje
 const mockDownload = jest.fn();
 const mockRemove = jest.fn();
 const mockAllocate = jest.fn();
+const mockUseMediaVideoThumbnail = jest.fn();
 let mockFocused = true;
 jest.mock("expo-router", () => ({
   useFocusEffect: (callback: () => (() => void) | void) => {
@@ -39,6 +41,16 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 jest.mock("@/features/media/platform/native-video-thumbnail", () => ({
   createNativeVideoThumbnail: jest.fn(),
+}));
+// A11YM-AC2: the thumbnail hook is mocked directly (mirroring
+// chatroom-media-thumbnail.test.tsx) so a reduce-motion test can drive its
+// poster straight to "ready" without the real access/download/decode
+// pipeline; every other test here keeps the hook's "disabled" shape (see
+// `beforeEach`), matching what the real hook returns when `thumbnailEnabled`
+// is left at its default `false`.
+jest.mock("@/features/media/ui/use-media-video-thumbnail", () => ({
+  useMediaVideoThumbnail: (...args: unknown[]) =>
+    mockUseMediaVideoThumbnail(...args),
 }));
 jest.mock("@/features/media/platform/media-object-transfer", () => ({
   downloadToFile: (...args: unknown[]) => mockDownload(...args),
@@ -100,6 +112,15 @@ beforeEach(() => {
   mockAllocate.mockReset().mockImplementation(() => ({
     uri: `file:///owned/${++sequence}-video.mp4`,
   }));
+  mockUseMediaVideoThumbnail.mockReset().mockReturnValue({
+    state: null,
+    retry: jest.fn(),
+    canRetry: false,
+    imageFailed: jest.fn(),
+  });
+  (AccessibilityInfo.isReduceMotionEnabled as jest.Mock)
+    .mockReset()
+    .mockResolvedValue(false);
 });
 
 test("a named video card downloads only on play and passes only the local file to the player", async () => {
@@ -348,4 +369,63 @@ test("without a signed-in runtime the video card is visible but unavailable", as
     screen.getByRole("button", { name: "첨부 동영상 재생" }),
   ).toBeDisabled();
   expect(mockDownload).not.toHaveBeenCalled();
+});
+
+describe("A11YM-AC2: reduce motion", () => {
+  test.each([
+    [true, "none"],
+    [false, "slide"],
+  ] as const)(
+    "reduce motion enabled=%s sets the video viewer modal's animationType to %s",
+    async (reduceMotionEnabled, expectedAnimationType) => {
+      (AccessibilityInfo.isReduceMotionEnabled as jest.Mock).mockResolvedValue(
+        reduceMotionEnabled,
+      );
+      const { Wrapper } = setup();
+      const screen = await render(
+        <Wrapper>
+          <MediaVideoCard mediaId={id} filename="clip.mov" />
+        </Wrapper>,
+      );
+      await fireEvent.press(
+        screen.getByRole("button", { name: "clip.mov 재생" }),
+      );
+      await flush();
+      expect(screen.getByTestId("media-viewer-modal").props.animationType).toBe(
+        expectedAnimationType,
+      );
+    },
+  );
+
+  // expo-image's real <Image> (not mocked in this file) resolves a plain
+  // number through `resolveTransition` into `{ duration }` before it reaches
+  // the host `ExpoImage` -- `null` passes through unresolved (both confirmed
+  // against node_modules/expo-image/src/utils.ts's `resolveTransition`).
+  test.each([
+    [true, null],
+    [false, { duration: 150 }],
+  ] as const)(
+    "reduce motion enabled=%s sets the poster thumbnail's fade transition to %s",
+    async (reduceMotionEnabled, expectedTransition) => {
+      (AccessibilityInfo.isReduceMotionEnabled as jest.Mock).mockResolvedValue(
+        reduceMotionEnabled,
+      );
+      mockUseMediaVideoThumbnail.mockReturnValue({
+        state: { status: "ready", uri: "file:///owned/poster.jpg" },
+        retry: jest.fn(),
+        canRetry: false,
+        imageFailed: jest.fn(),
+      });
+      const { Wrapper } = setup();
+      const screen = await render(
+        <Wrapper>
+          <MediaVideoCard mediaId={id} filename="clip.mov" thumbnailEnabled />
+        </Wrapper>,
+      );
+      await flush();
+      expect(
+        screen.getByLabelText("clip.mov 영상 미리보기").props.transition,
+      ).toEqual(expectedTransition);
+    },
+  );
 });

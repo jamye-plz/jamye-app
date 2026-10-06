@@ -11,7 +11,7 @@ import { Image } from "expo-image";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSharedValue } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { appSpacing } from "@/core/theme/tokens";
 import {
@@ -261,6 +261,15 @@ function ViewerVideoPage({
 export function MediaViewerScreen() {
   const params = useMediaViewerParams();
   const { width, height: windowHeight } = useWindowDimensions();
+  // F-1: read insets through context instead of `SafeAreaView` -- that
+  // component's native half measures its *own* superview chain for the
+  // nearest SafeAreaProvider, which this route's `fullScreenModal`
+  // presentation (a separately presented view controller) severs from the
+  // app-root provider, so it fell back to a top inset of 0 and let the
+  // header render under the status bar / Dynamic Island. This hook instead
+  // reads the same insets purely through React context, unaffected by that
+  // native boundary.
+  const insets = useSafeAreaInsets();
   const attachments = (params?.attachments ?? []).filter((item) =>
     isViewableType(item.type),
   );
@@ -372,8 +381,17 @@ export function MediaViewerScreen() {
     <View style={styles.root}>
       <StatusBar barStyle="light-content" />
       <GestureDetector gesture={dismissPan}>
-        <SafeAreaView
-          style={[styles.root, { transform: [{ translateY: dragY }] }]}
+        <View
+          style={[
+            styles.root,
+            {
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+              paddingLeft: insets.left,
+              paddingRight: insets.right,
+              transform: [{ translateY: dragY }],
+            },
+          ]}
         >
           <View style={styles.header}>
             <HeaderIconButton
@@ -436,7 +454,7 @@ export function MediaViewerScreen() {
               ),
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </GestureDetector>
     </View>
   );

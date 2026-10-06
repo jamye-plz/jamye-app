@@ -21,6 +21,7 @@ import Animated, {
 import type { SharedValue } from "react-native-reanimated";
 
 import { appChatLayout, appChatMessage } from "@/core/theme/tokens";
+import { useReduceMotionEnabled } from "@/shared/platform/use-reduce-motion-enabled";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { InlineMessage } from "@/shared/ui/inline-message";
 import { NativeButton } from "@/shared/ui/native-button";
@@ -332,6 +333,10 @@ export function ChatMessageList({
   // opening a room shows the latest messages without a scroll animation.
   const pinnedToBottom = useSharedValue(false);
   const hasRevealedRef = useRef(false);
+  // A11YM-AC1: reduce-motion keeps the reveal (offset still lands in the
+  // right place) but drops the native scroll animation -- DESIGN.md §8 reduced motion
+  // keeps state-change feedback, just not the motion carrying it.
+  const reduceMotionEnabled = useReduceMotionEnabled();
   const runScrollCommand = useCallback(
     (command: ChatMessageListScrollCommand | null): boolean => {
       if (command === null) return false;
@@ -346,7 +351,8 @@ export function ChatMessageList({
             })
           : command.offset;
       listRef.current?.scrollToOffset({
-        animated: hasRevealedRef.current && command.animated,
+        animated:
+          hasRevealedRef.current && command.animated && !reduceMotionEnabled,
         offset,
       });
       hasRevealedRef.current = true;
@@ -358,6 +364,7 @@ export function ChatMessageList({
       contentHeight,
       listRef,
       pinnedToBottom,
+      reduceMotionEnabled,
       restingViewportHeight,
     ],
   );

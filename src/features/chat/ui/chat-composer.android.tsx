@@ -191,6 +191,7 @@ export function ChatComposer({
             onFocus={() => composer.setIsFocused(true)}
             placeholder="메시지"
             ref={fieldRef}
+            testID="chat-composer-input"
             value={composer.draftText}
           />
           {composer.showMic ? (

@@ -4,6 +4,30 @@ import {
   useAudioPlayer,
   useAudioPlayerStatus,
 } from "expo-audio";
+import type { AudioPlayer } from "expo-audio";
+
+/**
+ * F-11: expo-audio leaves a finished clip parked at its end on both
+ * platforms, so a bare `play()` ends again at once (seen on the iOS
+ * simulator and the Android emulator with a real voice message). A clip
+ * within this many seconds of its end replays from the start instead.
+ */
+const END_OF_CLIP_SECONDS = 0.05;
+
+function playFromStartIfFinished(
+  player: AudioPlayer,
+  currentTime: number,
+  duration: number,
+): void {
+  if (duration > 0 && currentTime >= duration - END_OF_CLIP_SECONDS) {
+    void player.seekTo(0).then(
+      () => unlessReleased(() => player.play()),
+      () => undefined,
+    );
+    return;
+  }
+  player.play();
+}
 
 /**
  * Minimal single-clip playback for the composer's own just-recorded preview
@@ -37,8 +61,8 @@ export function useVoicePreviewPlayer(uri: string | null): VoicePreviewPlayer {
   const toggle = useCallback(() => {
     if (!uri) return;
     if (player.playing) player.pause();
-    else player.play();
-  }, [player, uri]);
+    else playFromStartIfFinished(player, status.currentTime, status.duration);
+  }, [player, uri, status.currentTime, status.duration]);
 
   return {
     isPlaying: player.playing,
@@ -123,7 +147,10 @@ export function useVoicePlaybackSession(
       currentTime: status.currentTime,
       duration: status.duration,
       isLoaded: status.isLoaded,
-      play: () => unlessReleased(() => player.play()),
+      play: () =>
+        unlessReleased(() =>
+          playFromStartIfFinished(player, status.currentTime, status.duration),
+        ),
       pause: () => unlessReleased(() => player.pause()),
       seekTo: async (seconds: number) => {
         try {

@@ -2,7 +2,10 @@ import { act, renderHook } from "@testing-library/react-native";
 import * as ExpoAudio from "expo-audio";
 import { setAudioModeAsync } from "expo-audio";
 
-import { useVoicePlaybackSession } from "@/features/media/platform/player";
+import {
+  useVoicePlaybackSession,
+  useVoicePreviewPlayer,
+} from "@/features/media/platform/player";
 
 // `__set*`/`__resetExpoAudioMock` are test-only helpers the manual mock adds
 // on top of `expo-audio`'s real public surface (see
@@ -109,3 +112,51 @@ test.each([
     await expect(result.current.seekTo(5)).resolves.toBeUndefined();
   },
 );
+
+// F-11: expo-audio leaves a finished clip parked at its end on both
+// platforms, so a bare play() ends again at once -- reproduced with a real
+// voice message on the iOS simulator and the Android emulator.
+function recordCalls(): string[] {
+  const calls: string[] = [];
+  audioMock.__setPlayer({
+    play: jest.fn(() => {
+      calls.push("play");
+    }),
+    seekTo: jest.fn(async (seconds: number) => {
+      calls.push(`seek:${seconds}`);
+    }),
+  });
+  return calls;
+}
+
+test("play() on a clip parked at its end rewinds to the start before playing", async () => {
+  const calls = recordCalls();
+  audioMock.__setPlayerStatus({ currentTime: 7.78, duration: 7.78 });
+  const { result } = await renderHook(() => useVoicePlaybackSession(null));
+  await act(async () => {
+    result.current.play();
+  });
+  expect(calls).toEqual(["seek:0", "play"]);
+});
+
+test("play() mid-clip resumes in place without rewinding", async () => {
+  const calls = recordCalls();
+  audioMock.__setPlayerStatus({ currentTime: 3, duration: 12 });
+  const { result } = await renderHook(() => useVoicePlaybackSession(null));
+  await act(async () => {
+    result.current.play();
+  });
+  expect(calls).toEqual(["play"]);
+});
+
+test("the composer preview replays a finished take from the start", async () => {
+  const calls = recordCalls();
+  audioMock.__setPlayerStatus({ currentTime: 4.2, duration: 4.2 });
+  const { result } = await renderHook(() =>
+    useVoicePreviewPlayer("file:///tmp/take.m4a"),
+  );
+  await act(async () => {
+    result.current.toggle();
+  });
+  expect(calls).toEqual(["seek:0", "play"]);
+});

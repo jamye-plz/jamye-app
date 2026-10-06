@@ -1,7 +1,7 @@
 import type { AndroidSymbol, SFSymbol, SymbolWeight } from "expo-symbols";
 import { SymbolView } from "expo-symbols";
 import type { ColorValue, StyleProp, ViewStyle } from "react-native";
-import { View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 
 import { useAppThemeOrSystem } from "@/core/theme/theme-provider";
 
@@ -108,6 +108,33 @@ export const APP_SYMBOLS: Record<
   scrollDown: { ios: "arrow.down", android: "arrow_downward" },
 };
 
+/**
+ * expo-symbols' Android `SymbolView` draws the Material Symbols glyph with a
+ * plain RN `<Text fontSize={size} lineHeight={size}>` that keeps the
+ * default `allowFontScaling`, while the surrounding box stays a fixed
+ * `{size, size}` View (see expo-symbols' SymbolView.js) -- at large system
+ * font scales (e.g. 200%) the glyph outgrows that box and clips, as seen on
+ * the group-name rename pencil. Asking SymbolView for `size / fontScale`
+ * makes RN scale the glyph back up to the nominal size; pinning the box's
+ * own style to the nominal size keeps layout unchanged. iOS's native SF
+ * Symbols aren't affected, so `os !== "android"` is always a no-op.
+ *
+ * Exported as a pure function taking `os` explicitly (same shape as
+ * `resolveThemeColorForOs` in core/theme/tokens.ts) because jest-expo's
+ * babel transform inlines `process.env.EXPO_OS` to the literal "ios" for
+ * the whole test bundle, so the "android" branch can never be observed by
+ * rendering under jest -- this lets the Android math be unit-tested
+ * directly (see tests/shared/ui/app-symbol.test.tsx).
+ */
+export function symbolViewSizing(
+  os: string | undefined,
+  size: number,
+  fontScale: number,
+): { size: number; style: StyleProp<ViewStyle> } {
+  if (os !== "android") return { size, style: null };
+  return { size: size / fontScale, style: { height: size, width: size } };
+}
+
 export function AppSymbol({
   name,
   size = 24,
@@ -124,7 +151,9 @@ export function AppSymbol({
   accessibilityLabel?: string;
 }>) {
   const { colors } = useAppThemeOrSystem();
+  const { fontScale } = useWindowDimensions();
   const accessible = !!accessibilityLabel;
+  const sizing = symbolViewSizing(process.env.EXPO_OS, size, fontScale);
   return (
     <SymbolView
       accessibilityElementsHidden={!accessible}
@@ -134,8 +163,8 @@ export function AppSymbol({
       importantForAccessibility={accessible ? "auto" : "no"}
       name={APP_SYMBOLS[name]}
       resizeMode="scaleAspectFit"
-      size={size}
-      style={style}
+      size={sizing.size}
+      style={sizing.style ? [sizing.style, style] : style}
       tintColor={tintColor ?? colors.text}
       weight={weight}
     />

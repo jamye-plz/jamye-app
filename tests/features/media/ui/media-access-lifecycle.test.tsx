@@ -6,6 +6,7 @@ import {
   render,
   renderHook,
 } from "@testing-library/react-native";
+import { AccessibilityInfo } from "react-native";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import {
   createMediaLifetime,
@@ -144,6 +145,9 @@ beforeEach(() => {
   mockStage
     .mockReset()
     .mockResolvedValue({ uri: "file:///owned/staged/a.jpg", byteSize: 10 });
+  (AccessibilityInfo.isReduceMotionEnabled as jest.Mock)
+    .mockReset()
+    .mockResolvedValue(false);
 });
 
 function emptyAttachmentController(
@@ -405,6 +409,35 @@ test("recycling an image closes detail; its late error cannot close the next det
   expect(screen.queryByTestId("photo-viewer")).toBeNull();
   expect(screen.getByText("이미지를 불러오지 못했습니다.")).toBeTruthy();
 });
+
+describe("A11YM-AC2: reduce motion", () => {
+  // expo-image's real <Image> (not mocked in this file) resolves a plain
+  // number through `resolveTransition` into `{ duration }` before it reaches
+  // the host `ExpoImage` -- `null` passes through unresolved (both confirmed
+  // against node_modules/expo-image/src/utils.ts's `resolveTransition`).
+  test.each([
+    [true, null],
+    [false, { duration: 150 }],
+  ] as const)(
+    "reduce motion enabled=%s sets the image's fade transition to %s",
+    async (reduceMotionEnabled, expectedTransition) => {
+      (AccessibilityInfo.isReduceMotionEnabled as jest.Mock).mockResolvedValue(
+        reduceMotionEnabled,
+      );
+      const { Wrapper } = setup();
+      const screen = await render(
+        <Wrapper>
+          <MediaImage mediaId={mediaId} filename="image.jpg" />
+        </Wrapper>,
+      );
+      await flush();
+      expect(screen.getByRole("image").props.transition).toEqual(
+        expectedTransition,
+      );
+    },
+  );
+});
+
 test("MD5 download passes a local file to OS sharing then cleans it", async () => {
   const { Wrapper, getDownloadLocation } = setup();
   const hook = await renderHook(() => useMediaDownload(), { wrapper: Wrapper });

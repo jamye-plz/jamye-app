@@ -22,11 +22,17 @@ beforeEach(() => {
 
 // The attachment grid (and its reanimated viewer) has its own tests; here it
 // is a placeholder the layout assertions can find.
+// mockAttachmentsProps records the props each render passes, so the F-10
+// long-press tests below can invoke `onLongPressAttachment` directly.
+const mockAttachmentsProps = jest.fn();
 jest.mock("@/features/media/ui/message-attachments-view", () => {
   const { View } =
     jest.requireActual<typeof import("react-native")>("react-native");
   return {
-    MessageAttachmentsView: () => <View testID="message-attachments" />,
+    MessageAttachmentsView: (props: unknown) => {
+      mockAttachmentsProps(props);
+      return <View testID="message-attachments" />;
+    },
   };
 });
 
@@ -35,12 +41,19 @@ jest.mock("@/features/media/ui/message-attachments-view", () => {
 // array each render passes, so the M15 delete/discard menu-visibility tests
 // below can assert on it without a real native menu host.
 const mockMessageMenuActions = jest.fn();
+const mockMessageMenuOpenRef = jest.fn();
 jest.mock("@/features/chat/ui/chat-message-menu", () => ({
   ChatMessageMenu: ({
     actions,
     children,
-  }: Readonly<{ actions: unknown; children?: ReactNode }>) => {
+    openRef,
+  }: Readonly<{
+    actions: unknown;
+    children?: ReactNode;
+    openRef?: unknown;
+  }>) => {
     mockMessageMenuActions(actions);
+    mockMessageMenuOpenRef(openRef);
     return children;
   },
 }));
@@ -75,6 +88,7 @@ async function renderRow(
   meta: ChatMessageRowMeta,
   row: ChatMessage,
   overrides: Partial<{
+    onShareAttachment: (attachment: unknown) => void;
     onRequestDeleteMessage: (
       input: Readonly<{ chatroomId: string; serverMessageId: string }>,
     ) => void;
@@ -88,7 +102,7 @@ async function renderRow(
       <ChatMessageRow
         message={row}
         onRetryFailedMessage={jest.fn()}
-        onShareAttachment={jest.fn()}
+        onShareAttachment={overrides.onShareAttachment ?? jest.fn()}
         onRequestDeleteMessage={overrides.onRequestDeleteMessage ?? jest.fn()}
         onRequestDiscardFailedMessage={
           overrides.onRequestDiscardFailedMessage ?? jest.fn()
@@ -406,5 +420,76 @@ describe("ChatMessageRow E2 media-expired failure (CHAT-AC3)", () => {
     expect(lastMenuActions().some((action) => action.key === "retry")).toBe(
       true,
     );
+  });
+});
+
+describe("ChatMessageRow F-10 attachment long-press (A20)", () => {
+  const photo = {
+    duration: null,
+    filename: "b.png",
+    height: 400,
+    id: "media-2",
+    position: 1,
+    posterMediaId: null,
+    type: "image/png",
+    width: 600,
+  };
+  const voice = {
+    duration: 8,
+    filename: "voice.m4a",
+    height: null,
+    id: "media-1",
+    position: 0,
+    posterMediaId: null,
+    type: "audio/mp4",
+    width: null,
+  };
+  const withMedia = () =>
+    message({
+      body: "",
+      media: [photo, voice] as unknown as ChatMessage["media"],
+      serverMessageId: "server-1",
+    });
+
+  test("the attachment menu action is 공유 (not 저장·공유) and shares the first attachment", async () => {
+    const onShareAttachment = jest.fn();
+    await renderRow({ ...incomingMeta, isOutgoing: true }, withMedia(), {
+      onShareAttachment,
+    });
+    const actions = lastMenuActions();
+    expect(actions.map((action) => action.label)).toEqual(["공유", "삭제"]);
+    actions[0]!.onPress();
+    expect(onShareAttachment).toHaveBeenCalledWith(voice);
+  });
+
+  test("long-pressing an attachment opens the message menu instead of sharing it", async () => {
+    const onShareAttachment = jest.fn();
+    await renderRow({ ...incomingMeta, isOutgoing: true }, withMedia(), {
+      onShareAttachment,
+    });
+    const openRef = mockMessageMenuOpenRef.mock.calls.at(-1)?.[0] as {
+      current: (() => void) | null;
+    };
+    const openMenu = jest.fn();
+    openRef.current = openMenu;
+    const { onLongPressAttachment } = mockAttachmentsProps.mock.calls.at(
+      -1,
+    )?.[0] as { onLongPressAttachment: (attachment: unknown) => void };
+
+    onLongPressAttachment(photo);
+
+    expect(openMenu).toHaveBeenCalledTimes(1);
+    expect(onShareAttachment).not.toHaveBeenCalled();
+  });
+
+  test("an attachment long-press is a no-op where the menu opens natively (iOS leaves openRef empty)", async () => {
+    const onShareAttachment = jest.fn();
+    await renderRow(incomingMeta, withMedia(), { onShareAttachment });
+    const { onLongPressAttachment } = mockAttachmentsProps.mock.calls.at(
+      -1,
+    )?.[0] as { onLongPressAttachment: (attachment: unknown) => void };
+
+    expect(() => onLongPressAttachment(photo)).not.toThrow();
+    expect(onShareAttachment).not.toHaveBeenCalled();
   });
 });

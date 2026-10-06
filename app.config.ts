@@ -9,9 +9,27 @@ const DEVELOPMENT_IDENTITY = {
   androidPackage: "dev.local.jamyeapp",
 } as const;
 
+// A5/C17: APP_VARIANT=production identity. slug stays "jamye-app" (same EAS
+// project as development); only the bundle id/package and display name
+// change.
+const PRODUCTION_IDENTITY = {
+  name: "잼얘좀",
+  slug: "jamye-app",
+  iosBundleIdentifier: "com.ridewithmin.jamyeapp",
+  androidPackage: "com.ridewithmin.jamyeapp",
+} as const;
+
 const DEV_CLIENT_PLUGIN = [
   "expo-dev-client",
   { addGeneratedScheme: true },
+] as const;
+// C17a: prebuild's legacy auto-plugin always applies the installed
+// expo-dev-client package (never skipped), and that auto-applied plugin
+// defaults addGeneratedScheme to true -- so production keeps the plugin
+// explicit with the scheme generator off instead of omitting it.
+const PRODUCTION_DEV_CLIENT_PLUGIN = [
+  "expo-dev-client",
+  { addGeneratedScheme: false },
 ] as const;
 
 const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"] as const;
@@ -49,6 +67,10 @@ const IOS_ASSOCIATED_DOMAINS = [
   "applinks:jamye-api.ridewithmin.com",
   "applinks:jamye-api.ridewithmin.com?mode=developer",
 ] as const;
+// A5/C17: production drops the `?mode=developer` development-signing entry.
+const PRODUCTION_IOS_ASSOCIATED_DOMAINS = [
+  "applinks:jamye-api.ridewithmin.com",
+] as const;
 const ANDROID_INTENT_FILTERS = [
   {
     action: "VIEW",
@@ -66,6 +88,18 @@ const ANDROID_INTENT_FILTERS = [
 
 // Expo push: APNs entitlement on iOS, notification channel defaults on Android.
 const PUSH_NOTIFICATIONS_PLUGIN = "expo-notifications" as const;
+// A5/C17: production pins the iOS aps-environment to production (the bare
+// plugin above defaults to development, per expo-notifications'
+// NotificationsPluginProps `mode` default).
+const PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN = [
+  "expo-notifications",
+  { mode: "production" },
+] as const;
+
+// F-8/A18: iOS 27 SDK builds do not launch on iOS 27 without the UIScene
+// life cycle. Both variants apply this local backport of the SDK 58
+// template's scene setup; remove it with the SDK 58 upgrade.
+const IOS_SCENE_LIFECYCLE_PLUGIN = "./tools/expo/with-ios-scene-lifecycle.cjs";
 
 function parseAppVariant(value: string | undefined): AppVariant {
   if (!value) {
@@ -82,32 +116,34 @@ function parseAppVariant(value: string | undefined): AppVariant {
     );
   }
 
-  if (value === "production") {
-    throw new Error(
-      "APP_VARIANT=production is not configured. No development identity fallback is available.",
-    );
-  }
+  if (value === "production") return value;
 
   throw new Error(
-    `Unsupported APP_VARIANT ${JSON.stringify(value)}. Use development; preview and production are not configured.`,
+    `Unsupported APP_VARIANT ${JSON.stringify(value)}. Use development or production; preview is not configured.`,
   );
 }
 
 export default function resolveExpoConfig() {
-  parseAppVariant(process.env.APP_VARIANT);
+  // A5/C17: the parsed variant now selects the identity/plugin branch below
+  // instead of being discarded after validation.
+  const variant = parseAppVariant(process.env.APP_VARIANT);
+  const isProduction = variant === "production";
+  const identity = isProduction ? PRODUCTION_IDENTITY : DEVELOPMENT_IDENTITY;
 
   return {
     ...baseConfig,
-    name: DEVELOPMENT_IDENTITY.name,
-    slug: DEVELOPMENT_IDENTITY.slug,
+    name: identity.name,
+    slug: identity.slug,
     // EAS project owner (expo.dev account that holds the project id below).
     owner: "jamye-plz",
     scheme: "jamye",
     ios: {
       ...baseConfig.ios,
-      bundleIdentifier: DEVELOPMENT_IDENTITY.iosBundleIdentifier,
+      bundleIdentifier: identity.iosBundleIdentifier,
       appleTeamId: IOS_APPLE_TEAM_ID,
-      associatedDomains: IOS_ASSOCIATED_DOMAINS,
+      associatedDomains: isProduction
+        ? PRODUCTION_IOS_ASSOCIATED_DOMAINS
+        : IOS_ASSOCIATED_DOMAINS,
       // M16/E13/U3: Sign in with Apple entitlement (plan
       // dependencies_and_config_E13.entitlement -- a direct Expo config
       // option, no separate config plugin).
@@ -115,7 +151,7 @@ export default function resolveExpoConfig() {
     },
     android: {
       ...baseConfig.android,
-      package: DEVELOPMENT_IDENTITY.androidPackage,
+      package: identity.androidPackage,
       // Firebase Android app for Expo push (FCM V1); public identifiers only.
       googleServicesFile: "./google-services.json",
       intentFilters: ANDROID_INTENT_FILTERS,
@@ -128,15 +164,18 @@ export default function resolveExpoConfig() {
       // [r2] Runtime environment source for the push installation lifecycle
       // (push-lifecycle-provider.tsx): a JS manifest field, not a native
       // rebuild trigger.
-      appVariant: process.env.APP_VARIANT,
+      appVariant: variant,
     },
     plugins: [
       ...baseConfig.plugins,
-      DEV_CLIENT_PLUGIN,
+      isProduction ? PRODUCTION_DEV_CLIENT_PLUGIN : DEV_CLIENT_PLUGIN,
       ...OAUTH_NATIVE_PLUGINS,
       MEDIA_PICKER_PLUGIN,
       AUDIO_PLUGIN,
-      PUSH_NOTIFICATIONS_PLUGIN,
+      isProduction
+        ? PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN
+        : PUSH_NOTIFICATIONS_PLUGIN,
+      IOS_SCENE_LIFECYCLE_PLUGIN,
     ],
   };
 }

@@ -123,4 +123,17 @@ describe("notification settings section (android)", () => {
     const screen = await renderSection();
     expect(screen.getByText("알림에 메시지 내용을 보여 줍니다.")).toBeTruthy();
   });
+
+  test("A11YF-AC3: the push and preview switches carry Korean accessibility names", async () => {
+    setLifecycleValue({
+      state: { installation: fakeInstallation(), status: "registered" },
+    });
+    const screen = await renderSection();
+    expect(
+      screen.getByTestId("push-notifications-switch").props.accessibilityLabel,
+    ).toBe("푸시 알림");
+    expect(
+      screen.getByTestId("message-preview-switch").props.accessibilityLabel,
+    ).toBe("메시지 미리보기");
+  });
 });

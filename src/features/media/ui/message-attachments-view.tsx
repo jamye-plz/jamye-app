@@ -133,6 +133,8 @@ export function MessageAttachmentsView({
   /** Voice attachments have no full-screen viewer to host a share button,
    * so `VoiceMessageBubble` renders one inline that calls this directly. */
   onShareAttachment: (attachment: MessageAttachmentMedia) => void;
+  /** F-10/A20: the chat row opens its message menu (공유, 삭제) here; a
+   * long-press never shares directly. */
   onLongPressAttachment: (attachment: MessageAttachmentMedia) => void;
 }>) {
   const sorted = [...attachments].sort((a, b) => a.position - b.position);

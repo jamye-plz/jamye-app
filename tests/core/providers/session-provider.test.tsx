@@ -426,4 +426,184 @@ describe("SessionProvider / useSession", () => {
     expect(second?.applyProfile).toBe(first?.applyProfile);
     expect(second?.authorizedRequest).toBe(first?.authorizedRequest);
   });
+
+  // C9/DEBUG-AC3 (M17 ANR round 2): dev-only startup timing. RED until
+  // session-provider.tsx logs `[startup-timing] session_restore` and
+  // `[startup-timing] start_to_first_screen` via the shared logger.
+  test("C9/DEBUG-AC3: dev build logs session-restore and start-to-first-screen timing under the startup-timing tag with no personal values", async () => {
+    const debugSpy = jest.spyOn(console, "debug").mockImplementation(() => {});
+    try {
+      const controller = fakeController();
+      const screen = await render(
+        <SessionProvider
+          origin="https://api.example"
+          createController={() => controller}
+        >
+          <Probe />
+        </SessionProvider>,
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        controller.publish({
+          status: "signed-out",
+          profile: null,
+          message: null,
+        });
+      });
+      await screen.unmount();
+
+      const timingRecords = debugSpy.mock.calls
+        .map(
+          ([record]) =>
+            record as { event: string; metadata: Record<string, unknown> },
+        )
+        .filter((record) => record.event.startsWith("[startup-timing]"));
+      const events = timingRecords.map((record) => record.event);
+      expect(events).toContain("[startup-timing] session_restore");
+      expect(events).toContain("[startup-timing] start_to_first_screen");
+      for (const record of timingRecords) {
+        expect(typeof record.metadata.durationMs).toBe("number");
+        expect(JSON.stringify(record.metadata)).not.toMatch(
+          /token|email|nickname|kakao|userid|avatar|3f0a3f1e/i,
+        );
+      }
+    } finally {
+      debugSpy.mockRestore();
+    }
+  });
+
+  function firstScreenRecords(debugSpy: jest.SpyInstance) {
+    return debugSpy.mock.calls
+      .map(
+        ([record]) =>
+          record as {
+            event: string;
+            severity?: string;
+            metadata: Record<string, unknown>;
+          },
+      )
+      .filter(
+        (record) => record.event === "[startup-timing] start_to_first_screen",
+      );
+  }
+
+  test("C9/DEBUG-AC3: start_to_first_screen logs once with trigger=restore when restore settles before the safety timeout", async () => {
+    jest.useFakeTimers();
+    const debugSpy = jest.spyOn(console, "debug").mockImplementation(() => {});
+    try {
+      const controller = fakeController();
+      const screen = await render(
+        <SessionProvider
+          origin="https://api.example"
+          createController={() => controller}
+        >
+          <Probe />
+        </SessionProvider>,
+      );
+      await act(async () => {
+        controller.publish({
+          status: "signed-out",
+          profile: null,
+          message: null,
+        });
+      });
+      // The fenced 3s safety timeout must not log a second record.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(5000);
+      });
+
+      const records = firstScreenRecords(debugSpy);
+      expect(records).toHaveLength(1);
+      expect(Object.keys(records[0]?.metadata ?? {}).sort()).toEqual([
+        "durationMs",
+        "trigger",
+      ]);
+      expect(records[0]?.metadata.trigger).toBe("restore");
+      expect(typeof records[0]?.metadata.durationMs).toBe("number");
+      await screen.unmount();
+    } finally {
+      jest.useRealTimers();
+      debugSpy.mockRestore();
+    }
+  });
+
+  test("C9/DEBUG-AC3: start_to_first_screen logs once with trigger=timeout when restore is still loading at the safety timeout", async () => {
+    jest.useFakeTimers();
+    const debugSpy = jest.spyOn(console, "debug").mockImplementation(() => {});
+    try {
+      const controller = fakeController();
+      const screen = await render(
+        <SessionProvider
+          origin="https://api.example"
+          createController={() => controller}
+        >
+          <Probe />
+        </SessionProvider>,
+      );
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(3000);
+      });
+      // A later restore settle must not log a second record.
+      await act(async () => {
+        controller.publish({
+          status: "signed-out",
+          profile: null,
+          message: null,
+        });
+      });
+
+      const records = firstScreenRecords(debugSpy);
+      expect(records).toHaveLength(1);
+      expect(Object.keys(records[0]?.metadata ?? {}).sort()).toEqual([
+        "durationMs",
+        "trigger",
+      ]);
+      expect(records[0]?.metadata.trigger).toBe("timeout");
+      expect(typeof records[0]?.metadata.durationMs).toBe("number");
+      await screen.unmount();
+    } finally {
+      jest.useRealTimers();
+      debugSpy.mockRestore();
+    }
+  });
+
+  test("C9/DEBUG-AC3: startup timing is not logged outside __DEV__", async () => {
+    const originalDev = __DEV__;
+    (globalThis as unknown as { __DEV__: boolean }).__DEV__ = false;
+    const debugSpy = jest.spyOn(console, "debug").mockImplementation(() => {});
+    try {
+      const controller = fakeController();
+      const screen = await render(
+        <SessionProvider
+          origin="https://api.example"
+          createController={() => controller}
+        >
+          <Probe />
+        </SessionProvider>,
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        controller.publish({
+          status: "signed-out",
+          profile: null,
+          message: null,
+        });
+      });
+      await screen.unmount();
+
+      const timingCalls = debugSpy.mock.calls.filter(([record]) =>
+        (record as { event?: string } | undefined)?.event?.startsWith(
+          "[startup-timing]",
+        ),
+      );
+      expect(timingCalls).toHaveLength(0);
+    } finally {
+      (globalThis as unknown as { __DEV__: boolean }).__DEV__ = originalDev;
+      debugSpy.mockRestore();
+    }
+  });
 });

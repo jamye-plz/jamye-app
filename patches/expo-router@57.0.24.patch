@@ -1,5 +1,4 @@
 diff --git a/build/fork/NavigationContainer.js b/build/fork/NavigationContainer.js
-index 3db5ea4f3106bff3b3bd5799e41914be47ae5052..bcd7df744abdc568b96d123468f467ecdc9be5a6 100644
 --- a/build/fork/NavigationContainer.js
 +++ b/build/fork/NavigationContainer.js
 @@ -41,11 +41,32 @@ function NavigationContainerInner({ direction = react_native_1.I18nManager.getCo

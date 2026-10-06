@@ -71,6 +71,32 @@ jest.mock("@expo/ui/jetpack-compose", () => {
     });
     return found;
   }
+  // A11YF-AC2: mirrors the real `semantics({ contentDescription })` /
+  // `testID(...)` modifier shapes (see the factory-local mock above) so the
+  // field's Korean accessibility name and stable testID are observable the
+  // same way they would be on the real native `TextField`.
+  function extractModifierContentDescription(
+    modifiers?: readonly unknown[],
+  ): string | undefined {
+    const found = modifiers?.find(
+      (modifier): modifier is { $type: string; contentDescription?: string } =>
+        typeof modifier === "object" &&
+        modifier !== null &&
+        (modifier as { $type?: unknown }).$type === "semantics",
+    );
+    return found?.contentDescription;
+  }
+  function extractModifierTestId(
+    modifiers?: readonly unknown[],
+  ): string | undefined {
+    const found = modifiers?.find(
+      (modifier): modifier is { $type: string; value?: string } =>
+        typeof modifier === "object" &&
+        modifier !== null &&
+        (modifier as { $type?: unknown }).$type === "testID",
+    );
+    return found?.value;
+  }
   // `Object.assign` (not a post-hoc `as unknown as {...}` cast with an
   // inline call-signature type) lets TypeScript infer the combined shape,
   // which keeps this factory free of type-literal call signatures --
@@ -80,6 +106,9 @@ jest.mock("@expo/ui/jetpack-compose", () => {
     React.forwardRef(function MockComposeTextField(
       props: {
         children?: React.ReactNode;
+        maxLines?: number;
+        minLines?: number;
+        modifiers?: readonly unknown[];
         onFocusChanged?: (focused: boolean) => void;
         onValueChange?: (text: string) => void;
       },
@@ -92,6 +121,12 @@ jest.mock("@expo/ui/jetpack-compose", () => {
       }));
       return (
         <TextInput
+          accessibilityLabel={extractModifierContentDescription(
+            props.modifiers,
+          )}
+          // Inert extra props (not part of RN's `TextInputProps`): surface the
+          // Compose `TextField`'s line range so it is assertable below.
+          {...{ maxLines: props.maxLines, minLines: props.minLines }}
           multiline
           onBlur={() => props.onFocusChanged?.(false)}
           onChangeText={(next: string) => {
@@ -100,6 +135,7 @@ jest.mock("@expo/ui/jetpack-compose", () => {
           }}
           onFocus={() => props.onFocusChanged?.(true)}
           placeholder={extractPlaceholder(props.children)}
+          testID={extractModifierTestId(props.modifiers)}
           value={text}
         />
       );
@@ -121,6 +157,16 @@ jest.mock("@expo/ui/jetpack-compose", () => {
   return { FilledIconButton, Icon, IconButton, Row, Shape, Text, TextField };
 });
 jest.mock("@expo/ui/jetpack-compose/modifiers", () => ({
+  // A11YF-AC2: the real modifiers forward a Korean accessibility name via
+  // `semantics({ contentDescription })` and a stable id via `testID(...)`;
+  // the mock below reproduces the same `$type` shape so the field's own
+  // `modifiers` prop can be inspected the same way the real native one
+  // would be.
+  semantics: (params: { contentDescription?: string }) => ({
+    $type: "semantics",
+    ...params,
+  }),
+  testID: (tag: string) => ({ $type: "testID", value: tag }),
   weight: (value: number) => ({ $type: "weight", value }),
 }));
 
@@ -198,5 +244,39 @@ describe("ChatComposer (Android, M3)", () => {
     });
     expect(send).not.toHaveBeenCalled();
     expect(field.props.value).toBe("한 줄\n다음 줄");
+  });
+
+  test("A11YF-AC2: the field carries the Korean accessibility name and a stable testID for E2E", async () => {
+    const ChatComposer = loadAndroidComposer();
+    const send = jest.fn(async () => ({ outcome: "empty" as const }));
+    const attachment = fakeAttachmentController();
+    const screen = await render(
+      <AppThemeProvider>
+        <ChatComposer attachmentController={attachment} controller={{ send }} />
+      </AppThemeProvider>,
+    );
+
+    // A11YF-AC2 (public contract, consumed by task-mobile-e2e-setup):
+    // testID "chat-composer-input" identifies the Android composer's text
+    // field, whose accessibility name must read "메시지 입력".
+    const field = screen.getByTestId("chat-composer-input");
+    expect(field.props.accessibilityLabel).toBe("메시지 입력");
+  });
+
+  test("C15: the field is capped at 5 visible lines (min 1), matching the iOS field's ceiling", async () => {
+    const ChatComposer = loadAndroidComposer();
+    const send = jest.fn(async () => ({ outcome: "empty" as const }));
+    const screen = await render(
+      <AppThemeProvider>
+        <ChatComposer
+          attachmentController={fakeAttachmentController()}
+          controller={{ send }}
+        />
+      </AppThemeProvider>,
+    );
+
+    const field = screen.getByTestId("chat-composer-input");
+    expect(field.props.maxLines).toBe(5);
+    expect(field.props.minLines).toBe(1);
   });
 });

@@ -30,6 +30,8 @@ const EXPECTED_SCRIPT_NAMES = [
   "expo:prebuild:clean",
   "expo:run:ios",
   "expo:run:android",
+  "e2e:ios",
+  "e2e:android",
   "check",
 ] as const;
 
@@ -184,6 +186,7 @@ describe("development workflow contract", () => {
         ".codex/",
         ".expo/",
         ".github/",
+        ".maestro-output/",
         ".mcp.json",
         ".migration-backup/",
         ".qwen/",

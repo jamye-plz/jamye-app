@@ -58,6 +58,13 @@ jest.mock("@/shared/platform/haptics", () => ({
 }));
 
 jest.mock("@expo/ui/swift-ui/modifiers", () => ({
+  // A11YF-AC5: mirrors the real `accessibilityAddTraits` modifier shape so
+  // the selected chip's `isSelected` trait is observable the same way it
+  // would be on the real native `Button`.
+  accessibilityAddTraits: (traits: string[]) => ({
+    $type: "accessibilityAddTraits",
+    traits,
+  }),
   buttonStyle: (style: string) => ({ $type: "buttonStyle", style }),
   defaultScrollAnchor: (anchor: string) => ({
     $type: "defaultScrollAnchor",
@@ -186,5 +193,23 @@ describe("TopicDateChips (iOS)", () => {
     expect(mockSelectionAsync).not.toHaveBeenCalled();
     await fireEvent.press(yesterday!);
     expect(mockSelectionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test("A11YF-AC5: the selected chip exposes a selected accessibility state", async () => {
+    const screen = await render(
+      <TopicDateChips
+        dates={["2026-09-10", "2026-09-11"]}
+        onSelect={jest.fn()}
+        selected="2026-09-11"
+        today="2026-09-11"
+      />,
+    );
+    const [yesterday, today] = screen.getAllByRole("button");
+    expect(
+      findModifier(today!.props.modifiers, "accessibilityAddTraits")?.traits,
+    ).toEqual(["isSelected"]);
+    expect(
+      findModifier(yesterday!.props.modifiers, "accessibilityAddTraits"),
+    ).toBeUndefined();
   });
 });

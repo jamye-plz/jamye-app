@@ -7,6 +7,7 @@ android/
 ios/
 coverage/
 expo-env.d.ts
+.maestro-output/
 
 # Embedded agent/runtime assets are not jamye-app source
 .agents/

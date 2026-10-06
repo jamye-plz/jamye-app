@@ -4,7 +4,6 @@ import {
   StatusBar,
   Text,
   View,
-  findNodeHandle,
   useWindowDimensions,
 } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -51,6 +50,34 @@ const ChatKeyboardFrame =
  * own space, so no extra inset is added there. */
 const FLOATING_COMPOSER_INSET_PLATFORM = process.env.EXPO_OS === "ios";
 
+/** A11YF-AC1/A13: visually hidden (1x1, clipped, transparent text) but still
+ * in the accessibility tree -- the real mounted element `headingRef`
+ * attaches to so `AccessibilityInfo.sendAccessibilityEvent` has a
+ * HostInstance to target. `opacity: 0` is deliberately avoided: iOS
+ * accessibility can treat an alpha-0 view as hidden and skip it entirely,
+ * which would make VoiceOver unable to reach this element at all. `color:
+ * "transparent"` keeps the text itself invisible without hiding the element
+ * from accessibility. The native `Stack.Screen` header (rendered through
+ * `HeaderTitleButton`) stays the visible title; this duplicate announces the
+ * same heading content for initial VoiceOver focus on route entry
+ * (DESIGN.md "Screen and Main Heading", C16 VoiceOver order heading -> notice -> messages ->
+ * composer -> send).
+ *
+ * iOS only (`supportsMainHeadingFocus`, A13): real-device TalkBack 16.0/API
+ * 36 confirmed the double-reading this file's own C16 comment once flagged
+ * only as a risk -- TalkBack's node tree surfaced this hidden heading with
+ * the same text as the visible header title/subtitle, so it announced the
+ * heading twice on route entry. Android now renders neither this element nor
+ * the focus request below, so TalkBack's default order applies (Navigate up
+ * -> header title -> messages -> composer) with no duplicate. */
+const HIDDEN_HEADING_STYLE = {
+  color: "transparent" as const,
+  height: 1,
+  overflow: "hidden" as const,
+  position: "absolute" as const,
+  width: 1,
+} as const;
+
 type MainHeadingTarget = Readonly<{
   nativeRef: RefObject<Text | null>;
   props: Readonly<{
@@ -59,10 +86,36 @@ type MainHeadingTarget = Readonly<{
   }>;
 }>;
 
+/** A13: gates both the hidden heading (`HIDDEN_HEADING_STYLE`) and its
+ * initial focus call to iOS. Exported as a plain function of an explicit
+ * `os` argument (mirrors `resolveThemeColorForOs` in core/theme/tokens.ts
+ * and `authIntroText` in features/auth/ui/auth-screen.tsx) because
+ * jest-expo's babel caller always inlines `process.env.EXPO_OS` to the
+ * literal "ios" (`jest-expo/src/resolveBabelOptions.js`), so no render in
+ * this app's test suite can ever observe the Android branch -- this
+ * function is the directly-testable seam for it instead. */
+export function supportsMainHeadingFocus(os: string | undefined): boolean {
+  return os === "ios";
+}
+
+/** A11YF-AC1: `sendAccessibilityEvent(handle, "focus")` is the Fabric-era
+ * replacement for the deprecated `setAccessibilityFocus(reactTag)` --
+ * `findNodeHandle` resolves through the pre-Fabric legacy path
+ * (`legacySendAccessibilityEvent`,
+ * `node_modules/react-native/Libraries/Components/AccessibilityInfo/AccessibilityInfo.js:444-467`)
+ * and returns `null` for a Fabric host instance (this app has
+ * `newArchEnabled=true`), so `setAccessibilityFocus` never actually fired.
+ * `sendAccessibilityEvent` takes the mounted `HostInstance` directly.
+ *
+ * A13: only called on iOS (`supportsMainHeadingFocus`) -- RN Fabric maps
+ * "focus" to `AccessibilityEvent.TYPE_VIEW_FOCUSED`
+ * (`FabricUIManager.sendAccessibilityEventFromJS`), which TalkBack ignores
+ * for a non-input view, so this call was already a no-op on Android before
+ * this gate (confirmed on a real device, TalkBack 16.0, API 36). */
 function defaultFocusMainHeading(target: MainHeadingTarget): void {
-  const nativeHandle = findNodeHandle(target.nativeRef.current);
-  if (nativeHandle !== null) {
-    AccessibilityInfo.setAccessibilityFocus(nativeHandle);
+  const node = target.nativeRef.current;
+  if (node !== null) {
+    AccessibilityInfo.sendAccessibilityEvent(node, "focus");
   }
 }
 
@@ -168,12 +221,15 @@ export function ChatConversationScreen({
     ? destructiveConfirmCopy(pendingDestructive)
     : null;
   const { shareAttachment } = useMediaSharing();
+  // DESIGN.md "Screen and Main Heading": the heading focus rule targets the header title, or on
+  // the chat screen the header subtitle (sync status) when one is shown.
+  const headingContent = subtitle ?? title;
   const headingTarget = useMemo<MainHeadingTarget>(
     () => ({
       nativeRef: headingRef,
-      props: { accessibilityRole: "header", children: title },
+      props: { accessibilityRole: "header", children: headingContent },
     }),
-    [title],
+    [headingContent],
   );
   const revealedInitial = useRef(false);
   useEffect(() => {
@@ -190,9 +246,26 @@ export function ChatConversationScreen({
     }
   }, [conversation, revealInitialLatest]);
 
+  // A11YF-AC1 (DESIGN.md "Screen and Main Heading" "once on route entry"): `headingTarget` is
+  // recomputed whenever `headingContent` changes (e.g. the subtitle's sync
+  // status updates while the user is reading), which would otherwise rerun
+  // this effect and yank focus back to the heading mid-read. This ref guards
+  // the one-time focus call per mount without limiting how often the
+  // (still-visible-to-screen-readers) heading text itself updates.
+  const hasFocusedHeadingRef = useRef(false);
+  // A13: real-device TalkBack 16.0/API 36 heard this heading twice (same
+  // text as the header) and never acted on this effect's focus request
+  // anyway (RN Fabric's "focus" maps to `TYPE_VIEW_FOCUSED`, which TalkBack
+  // ignores for a non-input view) -- so neither the heading nor this focus
+  // call renders on Android; TalkBack's own default order (Navigate up ->
+  // header title -> messages -> composer) applies there instead.
+  const showsMainHeading = supportsMainHeadingFocus(process.env.EXPO_OS);
   useEffect(() => {
+    if (!showsMainHeading) return;
+    if (hasFocusedHeadingRef.current) return;
+    hasFocusedHeadingRef.current = true;
     focusMainHeading(headingTarget);
-  }, [focusMainHeading, headingTarget]);
+  }, [focusMainHeading, headingTarget, showsMainHeading]);
 
   return (
     <>
@@ -236,6 +309,13 @@ export function ChatConversationScreen({
                   width: "100%",
                 }}
               >
+                {showsMainHeading ? (
+                  <Text
+                    ref={headingRef}
+                    style={HIDDEN_HEADING_STYLE}
+                    {...headingTarget.props}
+                  />
+                ) : null}
                 {toolbar}
                 {notice ? (
                   <InlineMessage kind="notice" message={notice} />

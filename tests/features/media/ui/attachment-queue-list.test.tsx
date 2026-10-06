@@ -1,4 +1,5 @@
 import { act, render, waitFor } from "@testing-library/react-native";
+import { StyleSheet } from "react-native";
 
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import { AttachmentQueueList } from "@/features/media/ui/attachment-queue-list";
@@ -131,5 +132,56 @@ describe("AttachmentQueueList draft thumbnails (W4)", () => {
     expect(mockRemoveStagedFile).toHaveBeenCalledWith(
       "file:///staged/late-thumbnail.jpg",
     );
+  });
+});
+
+describe("AttachmentQueueList accessibility (A11YF-AC5)", () => {
+  beforeEach(() => {
+    mockCreateNativeVideoThumbnail.mockReset();
+    mockRemoveStagedFile.mockReset();
+  });
+
+  test("the remove ('빼기') button reaches the 44x44 minimum touch target (currently 20pt + 8pt hitSlop = 36pt)", async () => {
+    // An image attachment (not video) renders synchronously -- no
+    // `createNativeVideoThumbnail` promise to await -- since this test only
+    // checks the remove button's touch target, not thumbnail generation.
+    const screen = await render(
+      <AppThemeProvider>
+        <AttachmentQueueList
+          items={[
+            videoItem({
+              kind: "image",
+              filename: "photo.jpg",
+              uri: "file:///staged/photo.jpg",
+            }),
+          ]}
+          onCancel={noop}
+          onRemove={noop}
+          onRetry={noop}
+        />
+      </AppThemeProvider>,
+    );
+    const removeButton = screen.getByLabelText("photo.jpg 빼기");
+    const style = StyleSheet.flatten(removeButton.props.style) ?? {};
+    const rawHitSlop = removeButton.props.hitSlop;
+    const hitSlop =
+      typeof rawHitSlop === "number"
+        ? {
+            top: rawHitSlop,
+            bottom: rawHitSlop,
+            left: rawHitSlop,
+            right: rawHitSlop,
+          }
+        : (rawHitSlop ?? {});
+    const touchHeight =
+      Number(style.height ?? 0) +
+      (Number(hitSlop.top) || 0) +
+      (Number(hitSlop.bottom) || 0);
+    const touchWidth =
+      Number(style.width ?? 0) +
+      (Number(hitSlop.left) || 0) +
+      (Number(hitSlop.right) || 0);
+    expect(touchHeight).toBeGreaterThanOrEqual(44);
+    expect(touchWidth).toBeGreaterThanOrEqual(44);
   });
 });

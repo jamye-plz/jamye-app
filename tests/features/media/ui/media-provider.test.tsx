@@ -164,3 +164,63 @@ test("account replacement and unmount keep old runtimes invalid while foreground
   expect(stateListeners.size).toBe(0);
   expect(current.isCurrent(current.captureGeneration())).toBe(false);
 });
+
+// C9/DEBUG-AC3 (M17 ANR round 2): dev-only sweep timing. RED until
+// media-provider.tsx logs `[startup-timing] temp_sweep` (startup + teardown)
+// via the shared logger.
+test("C9/DEBUG-AC3: dev build logs temp-sweep timing under the startup-timing tag with no personal values", async () => {
+  const debugSpy = jest.spyOn(console, "debug").mockImplementation(() => {});
+  try {
+    const view = await render(
+      <MediaProvider>
+        <Probe />
+      </MediaProvider>,
+    );
+    await view.unmount();
+
+    const timingRecords = debugSpy.mock.calls
+      .map(
+        ([record]) =>
+          record as { event: string; metadata: Record<string, unknown> },
+      )
+      .filter((record) => record.event.startsWith("[startup-timing]"));
+    const sweepEvents = timingRecords.filter(
+      (record) => record.event === "[startup-timing] temp_sweep",
+    );
+    expect(sweepEvents).toHaveLength(2);
+    const triggers = sweepEvents.map((record) => record.metadata.trigger);
+    expect(triggers.sort()).toEqual(["startup", "teardown"]);
+    for (const record of timingRecords) {
+      expect(typeof record.metadata.durationMs).toBe("number");
+      expect(JSON.stringify(record.metadata)).not.toMatch(
+        /user-a|example\.com|token/i,
+      );
+    }
+  } finally {
+    debugSpy.mockRestore();
+  }
+});
+
+test("C9/DEBUG-AC3: temp-sweep timing is not logged outside __DEV__", async () => {
+  const originalDev = __DEV__;
+  (globalThis as unknown as { __DEV__: boolean }).__DEV__ = false;
+  const debugSpy = jest.spyOn(console, "debug").mockImplementation(() => {});
+  try {
+    const view = await render(
+      <MediaProvider>
+        <Probe />
+      </MediaProvider>,
+    );
+    await view.unmount();
+
+    const timingCalls = debugSpy.mock.calls.filter(([record]) =>
+      (record as { event?: string } | undefined)?.event?.startsWith(
+        "[startup-timing]",
+      ),
+    );
+    expect(timingCalls).toHaveLength(0);
+  } finally {
+    (globalThis as unknown as { __DEV__: boolean }).__DEV__ = originalDev;
+    debugSpy.mockRestore();
+  }
+});

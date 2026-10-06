@@ -1,4 +1,5 @@
 import { ListItem, Switch, Text } from "@expo/ui";
+import { semantics } from "@expo/ui/jetpack-compose/modifiers";
 import { Linking } from "react-native";
 
 import { ListSubheader } from "@/shared/ui/list-subheader";
@@ -21,6 +22,13 @@ const SECTION_FOOTER = "알림에 메시지 내용을 보여 줍니다.";
  * supporting text.
  * The parent `account-screen.android.tsx` owns the single `Host`/`List`
  * this renders into.
+ *
+ * A11YF-AC3: each `Switch`'s accessibility name goes through
+ * `semantics({ contentDescription })` in `modifiers` -- the universal
+ * `SwitchProps` has no direct accessibility-name prop, only this
+ * platform-modifier escape hatch (Android's real `ListItem` already applies
+ * `clickable` only when `onPress` is given, so no button-trait fix is
+ * needed here, unlike the iOS file).
  */
 export function NotificationSettingsSection() {
   const { disable, enable, previewEnabled, setMessagePreview, state } =
@@ -50,6 +58,7 @@ export function NotificationSettingsSection() {
         trailing={
           <Switch
             disabled={busy}
+            modifiers={[semantics({ contentDescription: "푸시 알림" })]}
             onValueChange={handleTogglePush}
             testID="push-notifications-switch"
             value={pushRegistered}
@@ -74,6 +83,7 @@ export function NotificationSettingsSection() {
         trailing={
           <Switch
             disabled={!pushRegistered}
+            modifiers={[semantics({ contentDescription: "메시지 미리보기" })]}
             onValueChange={handleTogglePreview}
             testID="message-preview-switch"
             value={previewEnabled}

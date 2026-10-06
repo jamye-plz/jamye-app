@@ -83,36 +83,39 @@ loader 동작을 확인해 단일 source만 사용하며, 이 문서가 추측�
 
 버전은 문서나 개발자 전역 설치를 권위 원본으로 사용하지 않는다.
 
-| 영역                  | 현재 승인 버전       | 권위 원본                                                   |
-| --------------------- | -------------------- | ----------------------------------------------------------- |
-| Bun                   | 1.3.13               | `nix/toolchain-versions.nix`, `package.json#packageManager` |
-| Node.js               | 22.23.2              | `nix/toolchain-versions.nix`                                |
-| JDK                   | 17.0.19              | `nix/toolchain-versions.nix`                                |
-| CocoaPods             | 1.16.2               | `nix/toolchain-versions.nix`                                |
-| Expo                  | 57.0.21              | `package.json`, `bun.lock`                                  |
-| Expo Router           | 57.0.20              | `package.json`, `bun.lock`                                  |
-| Expo Dev Client       | 57.0.18              | `package.json`, `bun.lock`                                  |
-| React Native          | 0.86.3               | `package.json`, `bun.lock`                                  |
-| Keyboard Controller   | 1.21.9               | `package.json`, `bun.lock`                                  |
-| TypeScript            | 6.0.3                | `package.json`, `bun.lock`                                  |
-| ESLint                | 9.39.5               | `package.json`, `bun.lock`                                  |
-| Prettier              | 3.9.6                | `package.json`, `bun.lock`                                  |
-| Jest                  | 29.7.0               | `package.json`, `bun.lock`                                  |
-| Android Platform      | 36                   | `nix/toolchain-versions.nix`                                |
-| Android Build Tools   | 36.0.0, 35.0.0       | `nix/toolchain-versions.nix`                                |
-| Android CMake         | 3.22.1               | `nix/toolchain-versions.nix`                                |
-| Android NDK           | 27.1.12297006        | `nix/toolchain-versions.nix`                                |
-| Android Emulator      | 37.1.11.0            | `nix/android-avd-spec.json`                                 |
-| Android system image  | API 36.1, revision 4 | `nix/android-avd-spec.json`                                 |
-| Gradle wrapper        | 9.3.1                | React Native/Expo가 생성한 `android/gradle/wrapper`         |
-| Android Gradle Plugin | 8.12.0               | React Native Gradle plugin dependency                       |
-| Xcode와 iOS runtime   | host 설치를 사용     | `toolchain:check`가 선택 경로와 실제 상태 검증              |
+| 영역                    | 현재 승인 버전       | 권위 원본                                                   |
+| ----------------------- | -------------------- | ----------------------------------------------------------- |
+| Bun                     | 1.3.13               | `nix/toolchain-versions.nix`, `package.json#packageManager` |
+| Node.js                 | 22.23.2              | `nix/toolchain-versions.nix`                                |
+| JDK                     | 17.0.19              | `nix/toolchain-versions.nix`                                |
+| CocoaPods               | 1.16.2               | `nix/toolchain-versions.nix`                                |
+| Maestro                 | 2.8.0                | `nix/toolchain-versions.nix`                                |
+| Expo                    | 57.0.26              | `package.json`, `bun.lock`                                  |
+| Expo Router             | 57.0.24              | `package.json`, `bun.lock`                                  |
+| Expo Dev Client         | 57.0.19              | `package.json`, `bun.lock`                                  |
+| React Native            | 0.86.3               | `package.json`, `bun.lock`                                  |
+| React Native Metro 설정 | 0.86.3               | `package.json`(devDependency), `bun.lock`                   |
+| Keyboard Controller     | 1.21.9               | `package.json`, `bun.lock`                                  |
+| TypeScript              | 6.0.3                | `package.json`, `bun.lock`                                  |
+| ESLint                  | 9.39.5               | `package.json`, `bun.lock`                                  |
+| Prettier                | 3.9.6                | `package.json`, `bun.lock`                                  |
+| Jest                    | 29.7.0               | `package.json`, `bun.lock`                                  |
+| Android Platform        | 36                   | `nix/toolchain-versions.nix`                                |
+| Android Build Tools     | 36.0.0, 35.0.0       | `nix/toolchain-versions.nix`                                |
+| Android CMake           | 3.22.1               | `nix/toolchain-versions.nix`                                |
+| Android NDK             | 27.1.12297006        | `nix/toolchain-versions.nix`                                |
+| Android Emulator        | 37.1.11.0            | `nix/android-avd-spec.json`                                 |
+| Android system image    | API 36.1, revision 4 | `nix/android-avd-spec.json`                                 |
+| Gradle wrapper          | 9.3.1                | React Native/Expo가 생성한 `android/gradle/wrapper`         |
+| Android Gradle Plugin   | 8.12.0               | React Native Gradle plugin dependency                       |
+| Xcode와 iOS runtime     | host 설치를 사용     | `toolchain:check`가 선택 경로와 실제 상태 검증              |
 
 Nix 또는 package dependency를 바꾸면 이 표를 수동으로 먼저 믿지 않는다. 선언 원본을 변경한
 뒤 아래 toolchain, Expo, quality 검사를 통과시키고 문서 표를 함께 갱신한다.
 
-`@expo/ui`(57.0.17), `expo-symbols`(57.0.2), `expo-glass-effect`(57.0.2)는 이번 세션에서
-추가된 dependency로 위 표에는 포함하지 않는다. 세 패키지 모두 이미 실행 중인 iOS
+`@expo/ui`(`~57.0.21`), `expo-symbols`(`~57.0.3`), `expo-glass-effect`(`~57.0.4`)는 이번 세션에서
+추가된 dependency로 위 표에는 포함하지 않는다. 세 패키지는 처음에 정확한 버전으로 고정했지만
+M17 라운드 2 의존성 정렬에서 다른 Expo 패키지와 같은 `~` 범위로 맞췄다(아래 기록). 세 패키지 모두 이미 실행 중인 iOS
 Simulator, Android Emulator development build에 linked된 Expo module이라 별도의 native
 rebuild 없이 사용할 수 있다. `expo-image`(~57.0.5)는 후속 승인으로 추가한 dependency로 native
 rebuild가 필요해 clean prebuild와 iOS·Android rebuild/install을 수행했다. 세부 배경은
@@ -235,6 +238,11 @@ initial-link state 갱신 오류를 막는 패치이며, 기존 회귀 테스트
 독립 보안 리뷰는 설치 코드와 보안 회귀 테스트 24개를 확인해 수정 범위에서 PASS를 판정했다.
 이는 원본 감사가 0건이 됐다는 판정도, 앱 전체의 출시 승인도 아니다.
 
+이 절은 2026-09-09 시점의 기록이다. 2026-10-01 M17 라운드 2 (A)에서 image-size가 의존성 트리에서
+빠져 로컬 패치와 `patchedDependencies` 항목을 지웠고, expo-router 패치는 새 버전 key로 옮겼으며,
+`bun audit`은 의존성 정리 직후 0건이 됐다. 현재 상태와 근거는 아래 "M17 라운드 2 (A) 의존성·ANR·기기
+수용 기록"을 따른다.
+
 설치는 lifecycle script를 실행하지 않는 다음 명령으로 재검증했다. 초기 설치에 남아 있던
 구버전 nested YAML은 같은 frozen lock으로 force 재설치한 뒤 실제 소비 경로를 다시 확인했다.
 
@@ -249,7 +257,7 @@ Native preflight와 별도로 사용자 승인에 따라 다음 명령을 pinned
 | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `CI=1 bun run expo:prebuild:clean --no-install --skip-dependency-update react,react-native` | exit 0; ignored iOS/Android native project 재생성, package 선언 유지 |
 | `bun run toolchain:check:native`                                                            | prebuild 전후 각각 45 PASS / 0 FAIL                                  |
-| `CI=1 bun run expo:run:ios --device 95B8CDCD-0C27-4B40-A48F-71AC2B0FD547`                   | exit 0; iPhone 17 / iOS 26.5 빌드·설치·실행, 0 errors / 1 warning    |
+| `CI=1 bun run expo:run:ios --device <simulator-udid>`                                       | exit 0; iPhone 17 / iOS 26.5 빌드·설치·실행, 0 errors / 1 warning    |
 | `CI=1 bun run expo:run:android --device jamye_pixel_9_api_36`                               | exit 0; Android 빌드·설치·실행, BUILD SUCCESSFUL                     |
 | `bun run expo:start --clear --lan --port 8081`                                              | Metro 실행; iOS·Android bundle과 앱 화면 확인                        |
 
@@ -551,7 +559,7 @@ platform semantic color·native Stack 헤더 기준으로 재구성했다(배경
 | `bun run toolchain:check:native`                                                            | prebuild 전 45 PASS / 0 FAIL, 빌드 후 gradle daemon 정지 뒤 45 PASS   |
 | `CI=1 bun run expo:prebuild:clean --no-install --skip-dependency-update react,react-native` | exit 0; ignored `ios/`, `android/` 재생성                             |
 | `CI=1 bun run expo:run:android --device jamye_pixel_9_api_36`                               | exit 0; BUILD SUCCESSFUL, 설치·실행                                   |
-| `CI=1 bun run expo:run:ios --device 95B8CDCD-0C27-4B40-A48F-71AC2B0FD547`                   | xcodebuild 0 errors / 1 warning, 설치 완료. 마지막 `simctl openurl`만 |
+| `CI=1 bun run expo:run:ios --device <simulator-udid>`                                       | xcodebuild 0 errors / 1 warning, 설치 완료. 마지막 `simctl openurl`만 |
 |                                                                                             | LSApplicationWorkspaceErrorDomain 115로 실패해 수동으로 실행          |
 
 iOS 빌드는 `pod install`이 ASCII-8BIT locale에서 `Unicode Normalization` 오류로 한 번 실패해
@@ -614,6 +622,266 @@ native 입력 변경이 없어 재빌드는 하지 않았다.
 native 모듈 추가로 인한 clean prebuild·재빌드와 실기기 수신 확인은 별도 승인 이후로 미룬다.
 자격 증명 준비·로컬 mock 테스트 실행·재빌드 절차는 [Expo 푸시 개발 연결](push-development.md)에,
 자동 검사와 실기기 증거의 분리 기록은 [M12 evidence](evidence/M12.md)에 있다.
+
+## M17 라운드 2 (A) 의존성·ANR·기기 수용 기록 — 2026-10-01-2026-10-06
+
+M17 (A) 앱 출시 blocker의 구현과 기기 수용 기록이다. 이 기록 시점(2026-10-06)에 변경은 모두 작업
+트리에 있고 VERIFY·REFINE·SHIP 리뷰와 커밋이 남아 있다. 자동 검사와 기기 증거의 상세는
+[M17 evidence](evidence/M17.md)에, 이 라운드가 M18로 넘긴 작업은 [로드맵](roadmap.md)의 M17·M18 절에
+있다. 아래 수치는 해당 시점의 관찰이며 현재 실행의 PASS로 재사용하지 않는다.
+
+### 의존성 정렬과 audit 정리 (사용자 결정 A1)
+
+별도 의존성 승인(A1) 범위 안에서만 바꿨다. `CI=1 bunx expo install --fix`가 `expo install --check`의
+기대 버전으로 Expo SDK 57 패키지 22개를 맞췄다.
+
+| 패키지                   | 이전                     | 이후       |
+| ------------------------ | ------------------------ | ---------- |
+| `@expo/ui`               | `57.0.17`                | `~57.0.21` |
+| `expo`                   | `~57.0.21`               | `~57.0.26` |
+| `expo-auth-session`      | `~57.0.11`               | `~57.0.13` |
+| `expo-constants`         | `~57.0.17`               | `~57.0.20` |
+| `expo-crypto`            | `~57.0.2`                | `~57.0.3`  |
+| `expo-dev-client`        | `~57.0.18`               | `~57.0.19` |
+| `expo-file-system`       | `~57.0.6`                | `~57.0.7`  |
+| `expo-font`              | `~57.0.3`                | `~57.0.4`  |
+| `expo-glass-effect`      | `57.0.2`                 | `~57.0.4`  |
+| `expo-image-manipulator` | `~57.0.16`               | `~57.0.20` |
+| `expo-image-picker`      | `~57.0.16`               | `~57.0.20` |
+| `expo-linking`           | `~57.0.9`                | `~57.0.11` |
+| `expo-notifications`     | `~57.0.20`               | `~57.0.21` |
+| `expo-router`            | `~57.0.20`               | `~57.0.24` |
+| `expo-secure-store`      | `~57.0.3`                | `~57.0.4`  |
+| `expo-sharing`           | `~57.0.18`               | `~57.0.22` |
+| `expo-splash-screen`     | `~57.0.8`                | `~57.0.9`  |
+| `expo-sqlite`            | `~57.0.2`                | `~57.0.3`  |
+| `expo-symbols`           | `57.0.2`                 | `~57.0.3`  |
+| `expo-system-ui`         | `~57.0.3`                | `~57.0.4`  |
+| `expo-video`             | `~57.0.3`(설치 `57.0.4`) | `~57.0.5`  |
+| `expo-web-browser`       | `~57.0.2`                | `~57.0.3`  |
+
+위 표 밖의 변경은 다음과 같다.
+
+- devDependency `@react-native/metro-config`를 React Native와 같은 `0.86.3`으로 정확히 고정해
+  추가했다. 그러면 `react-native-worklets`의 peer가 Expo와 같은 Metro 0.84.5 계열로 채워져, 중첩
+  Metro 0.87.0 트리와 `image-size` 1.2.1이 의존성 트리에서 빠진다.
+- `expo-asset`을 `~57.0.18`로 직접 선언했다. 같은 57.0.18이 `expo`의 dependency로 이미 설치·autolink
+  되어 있었지만, expo-doctor가 `expo-audio`의 필수 peer를 직접 선언하라고 요구했다("Native module
+  peer dependencies must be installed directly"). 선언만 추가했고 패키지 트리와 앱 번들은 바뀌지
+  않는다. "새 런타임 dependency를 추가하지 않는다"는 A1 조건에 대한 범위 조정이며 사용자에게
+  보고했다.
+- `@expo/ui`·`expo-glass-effect`·`expo-symbols`는 정확한 버전 고정에서 다른 Expo 패키지와 같은 `~`
+  범위(`expo install --fix`의 표준 형식)로 바뀌었다. 실제 버전은 `bun.lock`이 고정하고, expo-router가
+  caret 범위로 의존하는 세 패키지의 중첩 사본은 없다.
+- `expo install --fix`가 안내한 `expo-sharing`·`expo-video`·`expo-asset` config plugin 등록은 반영하지
+  않았다. 설치된 plugin 소스를 읽어 세 plugin 모두 option이 없으면 아무것도 하지 않음을 확인했고,
+  등록하지 않아도 native 설정이 같다.
+- `bun install`로 lock 전체를 다시 해석하면 A1 범위 밖 패키지 74개가 바뀌고 Metro가 두 벌로 갈라져
+  그 결과를 버렸다. 대신 기준 lock에서 필요한 항목(아래 audit 대상, `@expo/metro-runtime` 중복
+  제거)만 레지스트리가 해석한 값 그대로 옮겼다. 그 시점의 lock에서 `rm -rf node_modules` 뒤
+  `bun run deps:install:frozen --ignore-scripts`(1017 packages)가 lock을 바꾸지 않았다.
+
+`bun audit`은 사전 14건(high 10, moderate 4)에서 의존성 정리 직후(2026-10-01) 0건("No vulnerabilities found")이
+됐다. override는 쓰지 않았다.
+
+| 대상            | 이전 audit 대상 경로                                                                                                     | 정리                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| fast-uri        | `ajv` 경로, 앱 번들 `>=3.0.0 <3.1.7`                                                                                     | lock 갱신으로 `3.1.8`                                                              |
+| brace-expansion | root 1.1.18, `@redocly/openapi-core` 2.1.4, `@expo/fingerprint`·`@typescript-eslint/typescript-estree`·`glob` 아래 5.0.9 | 같은 메이저의 수정판 `1.1.21`, `2.1.7`, `5.0.12`                                   |
+| image-size      | Expo Metro, react-native, `react-native-worklets` 경로의 2건                                                             | 의존성 트리에서 제거(위 `@react-native/metro-config`). 수용 위험으로 남기지 않았다 |
+
+brace-expansion을 5.x 하나로 override하면 minimatch 3·5를 쓰는 eslint·jest·redocly가 깨지기 때문에
+메이저별 수정판으로 갔다. fast-uri는 앱 번들의 Ajv 경로에 있어 계약 검증 테스트로 다시 확인한다.
+
+image-size가 트리에서 빠졌으므로 로컬 패치 파일(`image-size@1.2.1`용)과 `patchedDependencies` 항목을
+지웠다. 위 2026-09-09 기록의 image-size High 2건은 이 정리로 해소됐다.
+`tests/quality/image-size-security.test.ts`는 image-size가 앱과 Metro의 패키지 범위에서 resolve되지
+않는지, 그리고 Expo Metro 자체 `lib/imageSize` 파서가 정상 PNG·JPEG·WebP·TIFF·SVG의 치수를 읽고 SVG
+헤더 스캔에 상한이 있는지를 별도 프로세스에서 확인하도록 다시 썼다.
+
+expo-router 57.0.24의 `node_modules/expo-router/build/fork/NavigationContainer.js`에도 마운트 전 initial link 상태 갱신
+문제가 그대로 남아 있었다. 그래서 같은 의미의 패치를 `patches/expo-router@57.0.24.patch`로 다시
+만들고(57.0.20 패치와 내용이 같고 diff 헤더 한 줄만 다르다) `patchedDependencies` key를 새 버전으로
+옮겼다. 설치된 파일에 패치가 적용됐는지는 architecture checker와 그 테스트가 설치 파일 내용으로
+확인한다. checker의 `APPROVED_DEPENDENCIES`·`APPROVED_DEV_DEPENDENCIES`·
+`APPROVED_PATCHED_DEPENDENCIES`·패치 파일 sha 상수와 거울 테스트도 새 상태에 맞췄다. 현재
+`patchedDependencies`는 `expo-router@57.0.24`와 `query-string@7.1.3` 둘이다.
+
+검증 기록(2026-10-01): `bun run check:expo`에서 `expo install --check`가 "Dependencies are up to
+date", expo-doctor가 21/21 통과했다.
+
+### 재빌드와 smoke (C6)
+
+네이티브 모듈 버전이 바뀌어 6절의 전체 순서를 따라 clean prebuild와 두 플랫폼 dev client 재빌드를
+했다(`CI=1 bun run expo:prebuild:clean --no-install --skip-dependency-update react,react-native`,
+`android:avd:verify`·`android:avd:start`·`android:gradle:stop`·`toolchain:check:native`,
+`CI=1 bun run expo:run:ios --device <시뮬레이터>`, `CI=1 bun run expo:run:android`). 모두 exit 0이었고
+Metro 번들은 Android 2540 modules, iOS 2596 modules였다. 로그인 유지, 그룹 목록, 대화는 두 플랫폼 모두
+통과했다. iOS 미디어 뷰어의 닫기 실패(F-1)와 Android 음성 재생 보류(F-2)가 이 smoke에서 나왔고 아래
+기기 수용에서 처리했다.
+
+### production identity 확인
+
+`APP_VARIANT=production` 경로는 구현했지만 production prebuild·빌드·서명은 하지 않는다(사용자 결정
+A5). 설정은 native 폴더가 없는 임시 사본에서 읽기 전용으로만 확인한다.
+
+```sh
+APP_VARIANT=production bunx expo config --type introspect --json
+```
+
+저장소 작업 트리에서 실행하면 기존 development `ios/` 파일을 base로 읽어 production의
+`aps-environment`가 development로 보인다. 그래서 판정은 깨끗한 사본 기준으로 한다. 이 확인에서
+production은 이름 `잼얘좀`, iOS bundle id·Android package `com.ridewithmin.jamyeapp`, URL scheme
+`jamye`와 bundle id, associated domains `applinks:jamye-api.ridewithmin.com`(`?mode=developer`
+없음), `aps-environment`=production, `extra.appVariant`=production이고 개발 scheme `exp+jamye-app`은
+0건이었다. `expo-dev-client` plugin을 목록에서 빼기만 하면 prebuild의 legacy auto-plugin이 설치된
+패키지를 다시 적용해 scheme이 남기 때문에, production은 `["expo-dev-client", { addGeneratedScheme:
+false }]`를 명시한다.
+
+### Android 시작 ANR 분석 (사용자 결정 A3)
+
+결론부터: **이번 dev build 실험에서 ANR은 재현되지 않았다.** 원인이 "규명됐다"고 기록하지 않는다. 앱 코드는
+시작 지연의 원인에서 배제했고, 남은 main thread 지연은 expo-dev-launcher의 debug 경로로 추정한다.
+
+- 재현: 에뮬레이터 `jamye_pixel_9_api_36` dev build에서 cold start를 세 방식으로 2회씩 6회 반복했고,
+  `[startup-timing]` 계측을 넣은 뒤 같은 방식으로 5회를 다시 확인했다.
+
+  | 실행 방식                                    | 관찰                                                                                                       |
+  | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+  | `am start -W -n …/.MainActivity`(구성요소만) | dev-launcher 홈(`DevLauncherActivity`)만 뜨고 앱 JS는 실행되지 않는다. 2.0-2.5초                           |
+  | `am start -W -a MAIN -c LAUNCHER -n …`       | `.MainActivity` 1.4-1.6초, dev launcher가 마지막 번들로 재시작한 뒤(두 번째 Displayed 0.75-0.89초) JS 시작 |
+  | 런처 아이콘                                  | `Displayed` +1.6초, 위와 같은 순서(`am start -W`로 잴 수 없어 `Displayed` 값을 기록)                       |
+
+  재현 6회와 재확인 5회(한 회차는 logcat 수집 실패로 판정 보류)에서 `ANR in`, `Application Not
+Responding`, `Input dispatching timed out`이 없었고 `dumpsys activity exit-info`에도 새 ANR 항목이
+  없었다. M6(2026-09-09)의 `BIND APPLICATION ANR`은 일반 실행 경로에서 재현되지 않았다.
+
+- 남은 지연: 앱 main thread에 `Choreographer: Skipped 30-39 frames`(약 530-600ms)가 반복된다. JS가
+  실행되지 않는 방식 1에서도 같은 크기로 나오므로 React·앱 코드와 무관한 native 작업이다. 후보는
+  `expo-dev-launcher/android/src/debug` 아래의 `DevLauncherController.initialize`(스플래시를 reflection으로
+  숨기고 `DependencyInjection.init`이 `SharedPreferences`를 동기로 여는 작업)와 모드 전환의
+  `runBlockingOnMainThread` + `host.destroy()`다. 어느 한 줄이 시간을 차지하는지는 method-level trace
+  없이는 확정할 수 없다.
+- release에는 이 경로가 없다. `src/debug/**` 소스셋은 release 빌드에 컴파일되지 않고
+  `MainApplication.kt`에도 `devlauncher` import가 없다. 근거는 소스셋 경계이며 release 측정값이 아니다.
+- 앱 코드(MediaProvider의 `sweepOwnedTempFiles()` 동기 I/O)는 원인이 아니다. 그 코드는 main thread가
+  아니라 JS thread(tid가 다르다)에서 돌고, Choreographer 경고가 JS `Running "main"`보다 1.4초 이상
+  먼저 찍히며(MediaProvider는 그 뒤에야 마운트된다), 계측값도 1-9ms다.
+- 코드 변경: 동작을 바꾸지 않았다(재현 없이 추측성 수정을 하지 않는다). 개발 중에만 쓰는
+  `__DEV__` 가드 로그 `[startup-timing]` 세 가지를 추가했다 — `start_to_first_screen`(trigger
+  `timeout`·`restore`)과 `session_restore`(`session-provider.tsx`), `temp_sweep`(trigger `startup`·
+  `teardown`, `media-provider.tsx`). 값은 ms 숫자와 고정 문자열뿐이고 개인 값은 없다. 읽는 방법은
+  `adb logcat | grep '\[startup-timing\]'` 또는 Metro 로그다.
+- 계측값(에뮬레이터 dev build): `session_restore` 2.3-3.7초, `start_to_first_screen` 2.5-3.3초,
+  `temp_sweep` 1-9ms. 복원이 3초 splash 안전 시간(`SPLASH_SAFETY_TIMEOUT_MS`)을 넘으면 `timeout`으로
+  splash가 먼저 내려가 로그인 화면이 잠깐 보일 수 있다.
+- 세션 중 관찰한 ANR·크래시: 모두 dev-client 링크를 처리하는 debug 경로다. 2026-10-01 23:11에 치환되지
+  않은 `url=${MAESTRO_METRO_URL}`로 `openLink`한 첫 Maestro 실행이 약 2시간 된 dev 프로세스에서
+  `/data/anr` trace와 `APP CRASH(EXCEPTION)`을 냈고, 10-02 00:10에는 유효한 링크를 받은 프로세스가
+  크래시한 뒤 잘못된 `url=` VIEW intent의 cold start가 M6와 같은 `BIND APPLICATION ANR`로 끝났다. 재시험
+  3건(깨끗한 상태의 잘못된 `url=`, 접근 불가 URL, 실행 중 앱에 유효 링크)은 재현되지 않아
+  결정적이지 않다. 크래시 stack은 실험 사이의 `adb logcat -c`로 지워져 확보하지 못했고 ANR trace
+  파일은 production 이미지라 `adb root`가 안 돼 읽지 못했다. 같은 실험을 다시 한다면
+  `adb logcat -v threadtime > file`을 실험 내내 연속 수집한다. 그래서 Maestro flow는 시작 때 앱을
+  종료(`stopApp`)한다.
+- 남은 한계: release(또는 release 유사) 빌드의 cold start 측정은 하지 않았다. 새 승인이 필요한 항목이며
+  M18 또는 별도 승인으로 남는다. Choreographer 경고는 6회 중 4회만 나와 비결정적이다.
+
+### 기기·접근성 수용 결과 (사용자 결정 A4·A10·A19)
+
+기기는 사용자가 조작하고 coordinator가 기록과 결함 수정을 맡았다. 대상은 iPhone 15 Pro(iOS 27.0.1)
+실기기, iOS 시뮬레이터(iPhone 17 Pro, iOS 26.5), Android 에뮬레이터(`jamye_pixel_9_api_36`, API 36,
+TalkBack 16.0)다. 실기기는 2026-10-05와 10-06에 두 차례 일괄 검증했고, 계정 삭제 항목은 사용자가 본인
+계정으로 삭제와 복구까지 직접 진행했다.
+
+| 항목                        | 결과                                                                                                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Apple 로그인 오류 안내      | PASS. "로그인 실패" 알림에 문구와 `닫기`·`다시 시도` 버튼이 나온다(비행기 모드)                                                                       |
+| 로그인(실기기)·세션 유지    | PASS(카카오). 세션 유지 PASS                                                                                                                          |
+| 세션 복원 시간(실기기)      | iPhone 첫 실행 뒤 복원 `start_to_first_screen` 1602/1113/823ms, `session_restore` 1570/1079/785ms. 로그에 시각이 없어 어느 실행인지는 특정하지 못했다 |
+| 200% 텍스트                 | 실기기 로그인·대화방 부제·composer·그룹 정보 연필 PASS(2차). 시뮬레이터·에뮬레이터 캡처 확인                                                          |
+| 동작 줄이기                 | PASS(실기기에서 바로 이동). 시뮬레이터는 프레임 분석 도구가 없어 시각 확인을 생략했다                                                                 |
+| 이미지 뷰어(F-1)            | PASS. 닫기·공유가 Dynamic Island 아래에 있고 눌러서 닫힌다                                                                                            |
+| 햅틱                        | PASS(녹음 시작·종료)                                                                                                                                  |
+| 통화 중단                   | PASS(2차)                                                                                                                                             |
+| Apple 재인증 취소·계정 삭제 | 사용자가 Apple·카카오 계정으로 삭제와 복구까지 직접 진행해 완료. coordinator는 삭제를 완료하지 않았다                                                 |
+| F-8 scene 전환              | PASS                                                                                                                                                  |
+| VoiceOver                   | 필수 기능이 아니라 넘어갔다(A19). iOS 숨긴 heading은 그대로 둔다                                                                                      |
+| Android TalkBack 라벨       | PASS(노드 트리). 제스처 이동은 자동화가 모두 실패해 수동 확인으로 남겼다(미검증)                                                                      |
+
+무음 모드 재생은 이 표에 별도 PASS로 기록하지 않았다. 실기기 음성 재생은 F-9 해소 뒤 "다시 재생"(F-11)
+확인으로 통과했다.
+
+기기에서 재현해 고친 결함은 다음과 같다. 모두 회귀 테스트를 RED에서 GREEN으로 확인했다.
+
+| ID   | 증상                                                                       | 원인과 조치                                                                                                                                                                                        |
+| ---- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F-1  | iOS 이미지 뷰어 상단 닫기·공유 버튼이 상태 표시줄 아래에 깔려 닫히지 않음  | `fullScreenModal`이 `SafeAreaView`의 provider 경로를 끊어 top inset이 0이었다. `media-viewer-screen.tsx`가 `useSafeAreaInsets()`로 inset을 읽는다                                                  |
+| F-3  | Android 200% 텍스트에서 그룹 정보 이름 변경 연필이 잘림                    | expo-symbols Android `SymbolView`가 글리프를 글자 크기 배율이 적용되는 `Text`로 그려 상자를 넘쳤다. `symbolViewSizing`이 Android에서 `size / fontScale`을 넘기고 상자를 고정한다(모든 `AppSymbol`) |
+| F-4  | TalkBack 대화방 첫 포커스가 `Navigate up`, 숨긴 heading이 제목을 중복 낭독 | RN Fabric의 `"focus"` 이벤트는 TalkBack이 입력 요소가 아닌 view에서 무시한다. 숨긴 heading과 포커스 요청을 iOS에서만 렌더하고 Android는 TalkBack 기본 순서를 따른다                                |
+| F-7  | iOS 뒤로 버튼의 VoiceOver 이름이 `(tabs)`(route group 이름)                | 루트 `(tabs)` 화면에 화면에 보이지 않는 title "이전 화면"을 줬다                                                                                                                                   |
+| F-10 | 첨부(음성·사진·동영상)를 길게 누르면 공유 시트와 메시지 메뉴가 함께 열림   | iOS native `ContextMenu`와 첨부의 RN `onLongPress`가 둘 다 반응했다. 길게 누르면 메뉴(`공유`, 본인 메시지는 `삭제`)만 열고 Android는 첨부가 메뉴를 연다(`openRef`)                                 |
+| F-11 | 끝까지 재생한 음성을 다시 누르면 재생되지 않음                             | expo-audio가 끝난 clip을 끝 위치에 둔다. 끝에서 0.05초 이내면 `seekTo(0)` 뒤 재생한다(버블·composer 미리듣기)                                                                                      |
+| C15  | Android snackbar 4줄 메시지가 160dp 띠에 잘림                              | 띠 높이를 `160 * max(1, fontScale)`로 바꿨다                                                                                                                                                       |
+| C15  | iOS 대화 header 부제가 200%에서 내비게이션 바 아래로 내려감                | 제목은 Dynamic Type 배율 상한 2.0, 부제는 상한 1.2에 한 줄로 고정(`HeaderTitleButton`, iOS만)                                                                                                      |
+| C15  | iOS 입력창이 200%에서 120pt capsule 위로 넘침                              | 최대 줄 수를 `clamp(floor(120 / (22 × fontScale)), 1, 5)`로 정했다(1x는 5줄, 그보다 크면 줄고 넘치면 필드 안에서 스크롤)                                                                           |
+
+F-2(Android 음성이 즉시 끝 위치로 감)는 결함이 아니었다. iOS 시뮬레이터 마이크로 만든 무음 AAC(2 kbps)와
+F-11의 끝 위치 재생이 겹친 현상이었고, 실기기 iPhone이 녹음한 음성(0:08)은 Android 에뮬레이터에서
+정상 재생됐다. F-9(실기기 녹음이 거의 빈 파일, audio bytes 18)는 사용자가 다시 확인해 녹음 문제가
+모두 해결됐다고 판정했다. 원인은 확정하지 않았다. 가설은 녹음 중 expo-video가 audio session category를
+`.playback`으로 바꾼다는 것이고(공개 이슈 expo/expo#36890, #41656과 같은 계열), A/B 재현은 하지 않았다.
+
+#### iOS 27 실기기 실행 즉시 종료 (F-8)
+
+iOS 27.0.x 실기기에서 dev client가 시작하자마자 종료됐다. 10-02에 이를 Metro·로컬 네트워크 문제로 본
+판단은 틀렸다. 기기 crash log(2026-10-02, 10-05 모두)가 같은 원인을 가리킨다.
+
+- 원인: `EXC_BREAKPOINT`, UIKit `_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`. iOS 27
+  SDK(Xcode 27)로 빌드한 앱이 UIScene life cycle을 쓰지 않으면 iOS 27에서 실행되지 않는다. SDK 57
+  prebuild 템플릿은 AppDelegate가 window를 직접 만들고 scene manifest가 없다. iOS 26.5 시뮬레이터에서는
+  드러나지 않았고, 같은 SDK로 만든 release 빌드도 iOS 27에서 같은 이유로 막힌다.
+- 조치(사용자 결정 A18): SDK 57을 유지하고 로컬 config plugin `tools/expo/with-ios-scene-lifecycle.cjs`를
+  `app.config.ts`의 두 variant에 등록했다. SDK 58 템플릿(`expo-template-bare-minimum` 58.0.12)의
+  `UIApplicationSceneManifest`·`SceneDelegate.swift`(expo 57.0.26의 `ExpoAppSceneDelegate` 상속)·
+  AppDelegate(`ExpoReactNativeFactoryProvider` 채택, window 생성과 `startReactNative` 제거)를 이식한다.
+  템플릿이 바뀌면 추측하지 않고 prebuild를 실패시키고, `--clean` 없는 재실행에도 결과가 같다. 테스트는
+  `tests/config/ios-scene-lifecycle-plugin.test.ts`와 `tests/config/app-config.test.ts`, checker의
+  `APPROVED_IOS_SCENE_LIFECYCLE_PLUGIN`이다.
+- 확인: iOS 시뮬레이터 재빌드에서 세션 복원과 warm deep link(scene URL 이벤트 → `+native-intent`)가
+  동작했고, 실기기(iOS 27.0.1) 재빌드·설치·실행에서 프로세스가 유지되고 새 crash log가 없었다.
+  Android는 영향이 없다(iOS mod만 있다).
+- 후속: SDK 58이 stable(`latest`)이 되면 업그레이드하고 이 plugin을 지운다. 이 기록 시점(2026-10-05)에
+  58은 npm `next` 태그였고 React Native 0.88.0-rc.3을 썼다.
+
+#### 후속 과제로 남긴 관찰
+
+- F-5: iOS 최대 텍스트 크기(약 357%)에서 로그인 소개 문구와 버튼이 겹친다(200% 기준에서는 재현되지
+  않음).
+- F-6: access token이 만료된 뒤(서버 기본 TTL 900초) 오프라인이나 불안정한 네트워크에서 앱을 처음 열면
+  `refresh()`가 fail-closed로 세션을 지워 로그아웃된다. 보안 쪽을 택한 설계라 바꾸지 않았고, 요청이
+  서버에 닿지 않은 경우의 세션 유지나 서버의 짧은 재사용 grace window를 후속으로 논의한다.
+- 2026-10-06 재감사(A22): 새로 공개된 advisory로 dev/build 도구 경로(expo CLI, Metro, jest, postcss)에 high 4건이
+  나왔다. 버전은 10-01 lock과 같았다.
+  - lock을 같은 메이저 안에서 정밀 교체했다: compression 1.8.1→1.8.2, source-map-js 1.2.1→1.2.2.
+    - compression 1.8.2가 요구하는 `destroy@1.2.0`은 이미 root에 같은 integrity로 있다.
+    - checker `APPROVED_BUN_LOCK_SHA256`을 갱신했다.
+  - braces(<=3.0.3)와 node-forge(<=1.4.0)는 npm 최신 버전이 곧 영향 범위라 수정판이 없다. 앱 번들에 들어가지 않는
+    dev 도구 경로이므로 수용 위험으로 두고 수정판이 나오면 다시 감사한다.
+  - 결과: `bun audit` 2건(high 2), `check:code` 통과(2416 tests), `check:expo` 21/21
+- F-7b(결함 아님, A21에서 확인): 주제 상세 뒤로 버튼의 시스템 문구는 기기 첫 언어를 따른다.
+  - 한국어가 첫 언어인 시뮬레이터에서는 Info.plist 변경 없이도 `뒤로`였다.
+  - 영어가 첫 언어인 기본 시뮬레이터에서는 Korean-only localization(`CFBundleDevelopmentRegion: ko`,
+    `CFBundleLocalizations: ["ko"]`)을 넣어도 `Back`이었다.
+  - 효과가 없어 config 변경은 되돌렸다.
+- SDK 58 업그레이드와 scene lifecycle plugin 제거.
+- Android snackbar가 200%에서 화면 하단보다 조금 위에 뜬다(Compose `SnackbarHost`가 띠 위쪽에 붙음,
+  `align` modifier로 하단 정렬하는 안).
+- Android: 스택 header 제목(그룹·알림함·계정·그룹 정보)이 글자 크기를 따라 커지지 않는다. composer가
+  4줄로 커지면 목록의 마지막 메시지 아래쪽이 가린다.
+- iOS: 큰 글자에서 알림함 행의 본문 열이 오른쪽 시각 열 때문에 좁아진다. 계정 화면의 dev 전용
+  섹션은 진단 문구가 다음 행과 겹친다.
+- F-9의 원인 미확정(위).
 
 ## 4. Dependency와 toolchain script
 
@@ -716,15 +984,17 @@ adb shell dumpsys package dev.local.jamyeapp | grep -E "lastUpdateTime|firstInst
 
 ## 6. Expo Development Build script
 
-| 명령                          | 분류        | 동작                                              |
-| ----------------------------- | ----------- | ------------------------------------------------- |
-| `bun run expo:install:check`  | 읽기 전용   | 비대화형 Expo dependency 호환성 검사              |
-| `bun run expo:doctor`         | 읽기 전용   | 로컬 고정 `expo-doctor` 실행                      |
-| `bun run check:expo`          | 복합 검사   | dependency check → doctor                         |
-| `bun run expo:start`          | 장시간 실행 | Development Client용 Metro 시작                   |
-| `bun run expo:prebuild:clean` | 파괴적 생성 | ignored `ios/`, `android/` 삭제·재생성            |
-| `bun run expo:run:ios`        | build       | Simulator binary build/install/open, Metro 미포함 |
-| `bun run expo:run:android`    | build       | Emulator APK build/install/open, Metro 미포함     |
+| 명령                          | 분류        | 동작                                                                                                                                                                                                                                                                             |
+| ----------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run expo:install:check`  | 읽기 전용   | 비대화형 Expo dependency 호환성 검사                                                                                                                                                                                                                                             |
+| `bun run expo:doctor`         | 읽기 전용   | 로컬 고정 `expo-doctor` 실행                                                                                                                                                                                                                                                     |
+| `bun run check:expo`          | 복합 검사   | dependency check → doctor                                                                                                                                                                                                                                                        |
+| `bun run expo:start`          | 장시간 실행 | Development Client용 Metro 시작                                                                                                                                                                                                                                                  |
+| `bun run expo:prebuild:clean` | 파괴적 생성 | ignored `ios/`, `android/` 삭제·재생성                                                                                                                                                                                                                                           |
+| `bun run expo:run:ios`        | build       | Simulator binary build/install/open, Metro 미포함                                                                                                                                                                                                                                |
+| `bun run expo:run:android`    | build       | Emulator APK build/install/open, Metro 미포함                                                                                                                                                                                                                                    |
+| `bun run e2e:ios`             | 상태 변경   | 로그인된 dev client + Metro 필요. `MAESTRO_METRO_URL`/`MAESTRO_TEST_GROUP_NAME`/`MAESTRO_TEST_TOPIC_TITLE`/`MAESTRO_E2E_MESSAGE`(+선택 `MAESTRO_DEVICE`)를 셸에서 export한 뒤 실행한다 — script가 이미 `-e`로 전달하므로 `-- -e`를 덧붙이지 않는다(테스트 그룹 메시지 전송 포함) |
+| `bun run e2e:android`         | 상태 변경   | 로그인된 dev client + Metro 필요. `MAESTRO_METRO_URL`/`MAESTRO_TEST_GROUP_NAME`/`MAESTRO_TEST_TOPIC_TITLE`/`MAESTRO_E2E_MESSAGE`(+선택 `MAESTRO_DEVICE`)를 셸에서 export한 뒤 실행한다 — script가 이미 `-e`로 전달하므로 `-- -e`를 덧붙이지 않는다(테스트 그룹 메시지 전송 포함) |
 
 `expo:prebuild:clean`, 양 플랫폼 build와 runtime smoke는 각각 별도 사용자 승인 게이트다. 명령이
 script로 존재한다는 사실은 실행 승인이나 성공 증거가 아니다. 마일스톤별 실제 결과와 미실행
@@ -777,6 +1047,104 @@ JS-only 변경을 기존 dev client로 확인하는 세션(재빌드 없이 Metr
 2026-09-30 M17 라운드 1에서 이 절차로 두 플랫폼 모두 현재 JS로 번들됐고(Android 2516 modules,
 iOS 2591 modules) 로그인 상태의 그룹 목록이 보이는 것을 preflight로 확인한 뒤 §8 항목별 확인에
 들어갔다.
+
+### Maestro E2E 실행 (M17 라운드 2)
+
+E2E는 로그인된 dev client에서 로컬로 실행한다. 저장소에 CI가 없어 자동 실행은 없다. 도구는 devShell의
+`maestro` 2.8.0이다(`nix/toolchain-versions.nix`에 고정, `toolchain:check`가 exact 버전을 검사하고
+devShell이 `MAESTRO_CLI_NO_ANALYTICS=1`을 설정한다). flow는 `e2e/maestro/dev-client-journeys.yaml`
+하나이며 일곱 여정(시작에서 그룹 목록까지, 테스트 그룹 홈, 그룹 대화방에서 텍스트 메시지 1건 전송, 주제
+상세와 뒤로가기 순서, 그룹 정보와 갤러리, 알림함, 계정 탭 읽기)이 앞 여정이 남긴 화면에 이어지므로
+여정별 파일로 나누지 않았다. 그룹·대화는 deep link로 열 수 없어 모든 이동을 UI로 한다.
+
+전제 조건은 다음과 같다.
+
+1. iOS 시뮬레이터나 Android 에뮬레이터에 dev client가 설치돼 있고, 사용자가 한 번 직접 로그인한
+   상태다. flow는 자격 증명을 입력하지 않는다. 로그인이 안 돼 있으면 여정 1의 그룹 목록 대기(최대
+   60초)가 시간 초과로 실패한다.
+2. Metro가 실행 중이다(`bun run expo:start`). Android는 `adb reverse tcp:8081 tcp:8081`을 해 두면
+   두 플랫폼이 같은 `localhost` origin을 쓴다.
+3. dev menu의 "Tools button"(떠 있는 톱니 버튼)을 끈다. 켜져 있으면 오른쪽 가장자리의 행을 누를 때
+   dev menu가 열린다. 개발자 설정이며 다시 켤 수 있다.
+4. 계정이 테스트 그룹 하나의 구성원이고 그 그룹에 기존 주제가 있다. 실행마다 그 그룹 대화방에
+   운영 서버 쓰기(텍스트 메시지 1건)가 남는다. 주제 생성·삭제와 그룹 관리는 flow에 없다.
+
+값은 실행할 때만 셸에서 넘기고 저장소·문서·증거에 쓰지 않는다.
+
+```sh
+export MAESTRO_METRO_URL=http%3A%2F%2Flocalhost%3A8081 \
+  MAESTRO_TEST_GROUP_NAME='<테스트 그룹 이름>' \
+  MAESTRO_TEST_TOPIC_TITLE='<그 그룹의 기존 주제 제목>' \
+  MAESTRO_E2E_MESSAGE='<보낼 메시지 본문>'
+bun run e2e:ios        # 또는 bun run e2e:android
+```
+
+- `MAESTRO_METRO_URL`은 flow가 `openLink`의 query에 그대로 넣으므로 URL 인코딩한 origin이어야 한다.
+- Maestro 2.8.0은 셸의 `MAESTRO_*` 변수를 flow에 자동 주입하지 않는다. package script가 각 값을 `-e`로
+  넘기므로 셸에서 export만 하고 `-- -e`는 덧붙이지 않는다. 특정 기기를 고르려면 `MAESTRO_DEVICE`도
+  export한다.
+- 결과와 화면은 ignored `.maestro-output/`에 남는다.
+
+flow 설계에서 Maestro 2.8.0 동작을 확인해 반영한 내용은 다음과 같다.
+
+- 시작 때 `stopApp`을 먼저 한다. 장시간 실행된 dev 프로세스가 dev-client 링크를 받은 뒤 크래시한 관찰
+  때문에 링크가 항상 cold start가 되게 했다(위 ANR 절).
+- 그룹 목록을 최대 60초 기다린다. 에뮬레이터의 세션 복원은 6-60초이고 3초 안전 시간 뒤 로그인 화면이
+  잠깐 보일 수 있어 "지금 로그인 화면인가"를 순간 검사하면 안 된다. Android cold start는 파일 변경
+  직후 JS 시작까지 수십 초(약 37초 관찰) 걸릴 수 있다.
+- `back`은 Android 전용이다. iOS는 `tapOn id: BackButton`으로 뒤로 간다. iOS에서 `back`은 아무 동작도
+  하지 않아 이어지는 제목 단언이 거짓 통과한다.
+- `hideKeyboard`는 iOS에서만 부른다. Android의 `hideKeyboard`는 조건 없이 BACK 키(`input keyevent 4`)를
+  보내 키보드가 이미 내려가 있으면 화면을 떠난다.
+- 주제 링크를 찾는 `scrollUntilVisible`에 `centerElement: true`를 둔다. 키보드가 올라온 상태에서 링크가
+  반투명 내비게이션 바 아래에 걸린 채 멈추면 탭이 header 제목(그룹 정보)으로 간다.
+- 전송한 메시지 본문에 `evalScript`로 `Date.now()` 접미사를 붙인다. 두 플랫폼이 같은 환경 값을
+  공유해도 각자 보낸 메시지만 확인하게 하려는 것이다. iOS 메시지 행의 접근성 이름이 "본문, 전송됨"이라
+  본문 접두 일치로 찾는다.
+- flow를 디버깅할 때는 전송 단계를 뺀 임시 사본(저장소 밖)으로 실행해 운영 쓰기를 늘리지 않는다.
+
+결과(2026-10-02): 최종 required 실행에서 Android가 일곱 여정을 통과했고(1분 6초), iOS도 통과했다(48초).
+앞선 실패는 flow 판정 단계 오류(접근성 이름 일치, 탭 타이밍, 키보드)와 환경 문제(Android driver 지연,
+iOS dev client 로그아웃)였고, 모두 flow나 전제 조건 보강으로 처리했다. 운영 쓰기는 테스트 그룹의 텍스트
+메시지 iOS 4건·Android 1건으로 사용자가 허용한 한도 안이다.
+
+OMA 작업 원장에서 이 task는 `failed`로 남았다. 고정 required check ID(`maestro-run-ios`,
+`maestro-run-android`)에는 1·2차 실패 기록만 있고, 통과한 실행은 같은 명령을 ID 없는 ad-hoc check로
+돌렸기 때문이다. 사용자 결정(A16)으로 이 상태를 그대로 두고 추가 운영 쓰기로 고정 ID 기록을 다시 만들지
+않았다. 판정 근거는 위의 통과 실행이다.
+
+### 실기기·시뮬레이터 개발 메모 (M17 라운드 2)
+
+- devShell에 UTF-8 locale이 없으면 `expo prebuild`와 `pod install`이 CocoaPods(Ruby)의 encoding 오류로
+  멈춘다. 네이티브 설정이 바뀌어 prebuild를 다시 할 때는 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8`을 함께
+  준다(예: `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 bunx expo prebuild -p ios`).
+- 물리 iPhone dev client는 Mac의 `localhost`에 닿지 못하므로 Mac의 LAN 주소로 Metro에 연결한다.
+  - iPhone을 개발자 모드로 두고 케이블로 연결해 잠금을 해제하고 "이 컴퓨터를 신뢰"를 허용한다.
+    `xcrun devicectl list devices`로 식별자를 확인하고 `bun run expo:run:ios --device <Identifier>`로
+    빌드·설치한다(Xcode 자동 서명, Sign In with Apple·Associated Domains capability 필요).
+  - Mac과 iPhone을 같은 Wi-Fi에 두고 `ipconfig getifaddr en0`으로 Mac 주소를 확인한다. 앱이 묻는
+    "로컬 네트워크" 권한을 허용하고, dev launcher에서 `http://<Mac 주소>:8081`을 직접 입력하거나
+    `exp+jamye-app://expo-development-client/?url=http%3A%2F%2F<Mac 주소>%3A8081` 링크를 연다.
+- 기기에서 앱이 시작하자마자 종료되면 Metro나 네트워크를 의심하기 전에 기기 crash log부터 본다. F-8은
+  처음에 Metro 문제로 오진했다가 crash log로 원인을 찾았다.
+
+  ```sh
+  xcrun devicectl device info files --domain-type systemCrashLogs --device <Identifier>
+  ```
+
+  목록에서 고른 파일은 `xcrun devicectl device copy from`으로 Mac에 복사한다(옵션은 `--help`를 따른다).
+
+- 앱 데이터 컨테이너도 같은 방식으로 읽을 수 있다(`--domain-type appDataContainer
+--domain-identifier dev.local.jamyeapp`). F-9 때 기기가 만든 녹음 파일을 꺼내 `afinfo`로 분석했다.
+- Android 에뮬레이터의 TalkBack 제스처는 자동화로 보낼 수 없다. `adb shell input`은 TalkBack을
+  우회하고, 키보드 단축키나 원시 터치 이벤트는 제스처로 인식되지 않았다. 접근성 노드 트리
+  (`uiautomator dump`)로 순서와 라벨만 확인하고 제스처 이동은 수동으로 확인한다. 200% 글자 크기는
+  `font_scale 2.0`으로 만든다.
+- iOS 시뮬레이터의 큰 글자는 Dynamic Type `accessibility-large`(React Native 배율 약 2.14)와
+  `accessibility-extra-extra-extra-large`(약 3.57)로 확인하고 끝나면 `large`로 되돌린다. 프레임 분석
+  도구(ffmpeg)가 없어 reduce motion의 시각 확인은 실기기에서 한다.
+- Android smoke 중 뒤로 가기를 너무 많이 누르면 앱을 벗어나 런처를 거쳐 다른 시스템 화면이 열릴 수
+  있다. 화면 밖으로 나가면 입력 없이 돌아와 dev-client 링크로 앱을 다시 연 뒤 이동한다.
 
 ### 6.1 Production release / rollback preflight — future gate
 

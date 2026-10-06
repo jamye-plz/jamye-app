@@ -40,7 +40,25 @@ const DEVELOPMENT_IDENTITY = {
   androidPackage: "dev.local.jamyeapp",
 };
 
+// A5/C17: APP_VARIANT=production identity. slug stays "jamye-app" (same EAS
+// project as development); only the bundle id/package and display name
+// change.
+const PRODUCTION_IDENTITY = {
+  name: "잼얘좀",
+  slug: "jamye-app",
+  iosBundleIdentifier: "com.ridewithmin.jamyeapp",
+  androidPackage: "com.ridewithmin.jamyeapp",
+};
+
 const DEV_CLIENT_PLUGIN = ["expo-dev-client", { addGeneratedScheme: true }];
+// C17a: prebuild auto-applies installed expo-dev-client as a legacy plugin
+// regardless of whether app.config.ts lists it (addGeneratedScheme defaults
+// to true there), so production must list it explicitly with the scheme
+// generator turned off instead of omitting it.
+const PRODUCTION_DEV_CLIENT_PLUGIN = [
+  "expo-dev-client",
+  { addGeneratedScheme: false },
+];
 const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"];
 const MEDIA_PICKER_PLUGIN = [
   "expo-image-picker",
@@ -63,6 +81,10 @@ const IOS_ASSOCIATED_DOMAINS = [
   "applinks:jamye-api.ridewithmin.com",
   "applinks:jamye-api.ridewithmin.com?mode=developer",
 ];
+// C17: production drops the `?mode=developer` development-signing entry.
+const PRODUCTION_IOS_ASSOCIATED_DOMAINS = [
+  "applinks:jamye-api.ridewithmin.com",
+];
 const ANDROID_INTENT_FILTERS = [
   {
     action: "VIEW",
@@ -79,6 +101,16 @@ const ANDROID_INTENT_FILTERS = [
 ];
 // M12: Expo push wiring (EAS project link, FCM V1 config, notifications plugin).
 const PUSH_NOTIFICATIONS_PLUGIN = "expo-notifications";
+// C17: production pins the iOS aps-environment to production (the bare
+// plugin above defaults to development, per expo-notifications'
+// NotificationsPluginProps `mode` default).
+const PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN = [
+  "expo-notifications",
+  { mode: "production" },
+];
+// F-8/A18: iOS 27 SDK builds must adopt the UIScene life cycle to launch on
+// iOS 27; both variants apply the local SDK 58 template backport plugin.
+const IOS_SCENE_LIFECYCLE_PLUGIN = "./tools/expo/with-ios-scene-lifecycle.cjs";
 const EAS_OWNER = "jamye-plz";
 const EAS_PROJECT_ID = "6a27e581-0093-4e75-bd88-01be99fcdab5";
 const ANDROID_GOOGLE_SERVICES_FILE = "./google-services.json";
@@ -267,6 +299,7 @@ describe("M3-I1 Expo configuration contract", () => {
         MEDIA_PICKER_PLUGIN,
         AUDIO_PLUGIN,
         PUSH_NOTIFICATIONS_PLUGIN,
+        IOS_SCENE_LIFECYCLE_PLUGIN,
       ],
     });
     expect(resolved).toMatchObject({
@@ -291,31 +324,112 @@ describe("M3-I1 Expo configuration contract", () => {
       MEDIA_PICKER_PLUGIN,
       AUDIO_PLUGIN,
       PUSH_NOTIFICATIONS_PLUGIN,
+      IOS_SCENE_LIFECYCLE_PLUGIN,
     ]);
   });
 
-  test("rejects missing, unknown, preview, and production variants with distinct actionable errors", () => {
+  test("rejects a missing APP_VARIANT with an actionable error", () => {
     const missing = captureError(() => resolveAppConfig(undefined));
-    const unknown = captureError(() => resolveAppConfig("staging"));
-    const preview = captureError(() => resolveAppConfig("preview"));
-    const production = captureError(() => resolveAppConfig("production"));
-
     expect(missing.message).toMatch(/APP_VARIANT/i);
     expect(missing.message).toMatch(/missing|required/i);
+  });
+
+  test("rejects an unknown APP_VARIANT with an actionable error naming the value", () => {
+    const unknown = captureError(() => resolveAppConfig("staging"));
     expect(unknown.message).toMatch(/APP_VARIANT/i);
     expect(unknown.message).toMatch(/unsupported|unknown/i);
     expect(unknown.message).toMatch(/staging/i);
-    expect(preview.message).toMatch(/preview/i);
-    expect(preview.message).toMatch(/not configured/i);
-    expect(production.message).toMatch(/production/i);
-    expect(production.message).toMatch(/not configured/i);
-    expect(
-      new Set([
-        missing.message,
-        unknown.message,
-        preview.message,
-        production.message,
-      ]).size,
-    ).toBe(4);
+  });
+
+  // PROD-AC6: preview stays unconfigured. The message is pinned exactly so a
+  // future production-path change cannot silently also change preview's.
+  test("rejects APP_VARIANT=preview with its existing not-configured error (PROD-AC6)", () => {
+    const preview = captureError(() => resolveAppConfig("preview"));
+    expect(preview.message).toBe(
+      "APP_VARIANT=preview is not configured. No development identity fallback is available.",
+    );
+  });
+
+  // PROD-AC1/AC2/AC3: production now resolves instead of throwing, with the
+  // approved identity and the production-only plugin/domain differences.
+  // C17a: the dev-client plugin stays explicit (not omitted) so its own
+  // addGeneratedScheme: false overrides prebuild's legacy auto-plugin
+  // default of true.
+  test("derives production from the complete base and adds the approved production identity, EAS link, a scheme-disabled dev-client plugin, and the production push plugin", () => {
+    const base = loadBaseConfig();
+    const resolved = resolveAppConfig("production");
+
+    expect(resolved).toEqual({
+      ...base,
+      name: PRODUCTION_IDENTITY.name,
+      slug: PRODUCTION_IDENTITY.slug,
+      owner: EAS_OWNER,
+      ios: {
+        ...(base.ios as UnknownRecord),
+        bundleIdentifier: PRODUCTION_IDENTITY.iosBundleIdentifier,
+        appleTeamId: IOS_APPLE_TEAM_ID,
+        associatedDomains: PRODUCTION_IOS_ASSOCIATED_DOMAINS,
+        usesAppleSignIn: true,
+      },
+      android: {
+        ...(base.android as UnknownRecord),
+        package: PRODUCTION_IDENTITY.androidPackage,
+        googleServicesFile: ANDROID_GOOGLE_SERVICES_FILE,
+        intentFilters: ANDROID_INTENT_FILTERS,
+      },
+      scheme: "jamye",
+      extra: {
+        eas: { projectId: EAS_PROJECT_ID },
+        appVariant: "production",
+      },
+      plugins: [
+        ...(base.plugins as unknown[]),
+        PRODUCTION_DEV_CLIENT_PLUGIN,
+        ...OAUTH_NATIVE_PLUGINS,
+        MEDIA_PICKER_PLUGIN,
+        AUDIO_PLUGIN,
+        PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN,
+        IOS_SCENE_LIFECYCLE_PLUGIN,
+      ],
+    });
+    expect(resolved).toMatchObject({
+      name: PRODUCTION_IDENTITY.name,
+      slug: PRODUCTION_IDENTITY.slug,
+      ios: {
+        bundleIdentifier: PRODUCTION_IDENTITY.iosBundleIdentifier,
+        appleTeamId: IOS_APPLE_TEAM_ID,
+        associatedDomains: PRODUCTION_IOS_ASSOCIATED_DOMAINS,
+        usesAppleSignIn: true,
+      },
+      android: {
+        package: PRODUCTION_IDENTITY.androidPackage,
+        intentFilters: ANDROID_INTENT_FILTERS,
+      },
+    });
+    expect(resolved.scheme).toBe("jamye");
+    expect(resolved.plugins).toEqual([
+      ...PINNED_BASE.plugins,
+      PRODUCTION_DEV_CLIENT_PLUGIN,
+      ...OAUTH_NATIVE_PLUGINS,
+      MEDIA_PICKER_PLUGIN,
+      AUDIO_PLUGIN,
+      PRODUCTION_PUSH_NOTIFICATIONS_PLUGIN,
+      IOS_SCENE_LIFECYCLE_PLUGIN,
+    ]);
+    // C17a: the plain development dev-client plugin (addGeneratedScheme:
+    // true) must not appear, and the scheme-disabled production entry must.
+    expect(resolved.plugins).not.toContainEqual(DEV_CLIENT_PLUGIN);
+    expect(resolved.plugins).toContainEqual(PRODUCTION_DEV_CLIENT_PLUGIN);
+    // C17a: defensive scan — no plugin entry anywhere in production may
+    // generate a dev scheme, in case a future plugin addition reintroduces
+    // one.
+    const pluginsWithGeneratedSchemeEnabled = (
+      resolved.plugins as unknown[]
+    ).filter((plugin) => {
+      if (!Array.isArray(plugin)) return false;
+      const [, options] = plugin as [unknown, unknown];
+      return isRecord(options) && options.addGeneratedScheme === true;
+    });
+    expect(pluginsWithGeneratedSchemeEnabled).toEqual([]);
   });
 });

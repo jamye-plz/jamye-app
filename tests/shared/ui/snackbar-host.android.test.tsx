@@ -4,6 +4,10 @@ import type { ComponentType, ReactNode, Ref } from "react";
 
 import type { AndroidSnackbarHostProps } from "@/shared/ui/snackbar-host.android";
 
+// jest.requireActual, not `import * as`: a namespace import spies on Babel's wildcard-interop copy, never the real module object the component's own require("react-native") reads.
+const ReactNative =
+  jest.requireActual<typeof import("react-native")>("react-native");
+
 type MockSnackbarHostRef = Readonly<{
   showSnackbar: (options: {
     actionLabel?: string;
@@ -97,6 +101,14 @@ describe("AndroidSnackbarHost", () => {
     mockReportContentLayout = null;
   });
 
+  afterEach(() => {
+    // An earlier task leaked a `useWindowDimensions` mock across test files
+    // by using `mockReset` instead of restoring the spy; `restoreAllMocks`
+    // puts every `jest.spyOn` call in this file back to its real
+    // implementation so later tests never see our font-scale override.
+    jest.restoreAllMocks();
+  });
+
   test("calls into Compose only after the host's content has laid out", async () => {
     // On device an immediate call was rejected: "Call to function
     // 'SnackbarHostView.showSnackbar' has been rejected".
@@ -165,5 +177,48 @@ describe("AndroidSnackbarHost", () => {
     expect(
       screen.getByTestId("compose-snackbar-host").props.modifiers,
     ).toBeUndefined();
+  });
+
+  test("scales the band height past 2x when the system font size is doubled", async () => {
+    // At 200% system font scale a 4-line Snackbar message clipped against
+    // the fixed 160dp band on device; the band must grow with the text.
+    jest.spyOn(ReactNative, "useWindowDimensions").mockReturnValue({
+      fontScale: 2,
+      height: 1334,
+      scale: 2,
+      width: 750,
+    });
+    const AndroidSnackbarHost = loadAndroidSnackbarHost();
+    const ref = createRef<MockSnackbarHostRef>();
+    const screen = await render(
+      <AndroidSnackbarHost ref={ref} testID="group-list-snackbar" />,
+    );
+    await act(async () => {
+      void ref.current?.showSnackbar({ message: "불러오지 못했어요" });
+    });
+    const { height } = screen.getByTestId("group-list-snackbar").props.style;
+    expect(height).toBeGreaterThanOrEqual(2 * 160);
+  });
+
+  test("keeps the base 160dp band height at the default system font size", async () => {
+    // RN's jest environment defaults Dimensions/useWindowDimensions to
+    // fontScale 2, so the 1x case must be pinned explicitly rather than
+    // relying on an un-mocked default.
+    jest.spyOn(ReactNative, "useWindowDimensions").mockReturnValue({
+      fontScale: 1,
+      height: 667,
+      scale: 2,
+      width: 375,
+    });
+    const AndroidSnackbarHost = loadAndroidSnackbarHost();
+    const ref = createRef<MockSnackbarHostRef>();
+    const screen = await render(
+      <AndroidSnackbarHost ref={ref} testID="group-list-snackbar" />,
+    );
+    await act(async () => {
+      void ref.current?.showSnackbar({ message: "불러오지 못했어요" });
+    });
+    const { height } = screen.getByTestId("group-list-snackbar").props.style;
+    expect(height).toBe(160);
   });
 });

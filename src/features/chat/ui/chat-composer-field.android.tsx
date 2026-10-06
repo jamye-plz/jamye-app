@@ -2,7 +2,11 @@ import { forwardRef, useImperativeHandle, useRef } from "react";
 import { RNHostView } from "@expo/ui";
 import { Shape, Text, TextField } from "@expo/ui/jetpack-compose";
 import type { TextFieldRef } from "@expo/ui/jetpack-compose";
-import { weight } from "@expo/ui/jetpack-compose/modifiers";
+import {
+  semantics,
+  testID as testIdModifier,
+  weight,
+} from "@expo/ui/jetpack-compose/modifiers";
 
 import { useAppThemeOrSystem } from "@/core/theme/theme-provider";
 import { androidThemeColors } from "@/core/theme/tokens";
@@ -12,8 +16,11 @@ import type {
   ChatComposerFieldHandle,
   ChatComposerFieldProps,
 } from "./chat-composer-field.types";
+import {
+  COMPOSER_LINE_LIMIT_MAX,
+  COMPOSER_LINE_LIMIT_MIN,
+} from "./composer-max-lines";
 
-const COMPOSER_MAX_LINES = 5;
 // W1: a rounded filled field (no underline indicator), like Messages.
 const FIELD_CORNER_RADIUS = 24;
 
@@ -34,17 +41,25 @@ const FIELD_CORNER_RADIUS = 24;
  * and this file never wires `keyboardActions.onDone/onSend`, so there is no
  * path that could turn Return into a send (E11).
  *
- * `@expo/ui/jetpack-compose`'s `TextField` exposes no `contentDescription`/
- * `accessibilityLabel` modifier (only `semantics({ contentType })` and
- * `testID`); the placeholder text is the practical TalkBack name via
- * Compose's own Material3 semantics -- device verification should confirm
- * that is sufficient (`task-app-device`, W2 device checklist).
+ * `@expo/ui/jetpack-compose`'s `TextField` has no dedicated accessibility-
+ * name prop; A11YF-AC2 wires the Korean `accessibilityLabel` through the
+ * `semantics({ contentDescription })` modifier (TalkBack name) and `testID`
+ * through the `testID(...)` modifier (`node_modules/@expo/ui/build/jetpack-
+ * compose/modifiers/index.d.ts`), the same escape hatch `ListItem`/`Switch`
+ * use elsewhere in this app.
  */
 const NativeChatComposerField = forwardRef<
   ChatComposerFieldHandle,
   ChatComposerFieldProps
 >(function NativeChatComposerField(
-  { onChangeText, onFocus, onBlur, placeholder },
+  {
+    onChangeText,
+    onFocus,
+    onBlur,
+    placeholder,
+    accessibilityLabel: label,
+    testID,
+  },
   ref,
 ) {
   const { colorScheme } = useAppThemeOrSystem();
@@ -66,9 +81,13 @@ const NativeChatComposerField = forwardRef<
         unfocusedContainerColor: hex.surfaceMuted,
         unfocusedIndicatorColor: "transparent",
       }}
-      maxLines={COMPOSER_MAX_LINES}
-      minLines={1}
-      modifiers={[weight(1)]}
+      maxLines={COMPOSER_LINE_LIMIT_MAX}
+      minLines={COMPOSER_LINE_LIMIT_MIN}
+      modifiers={[
+        weight(1),
+        semantics({ contentDescription: label }),
+        ...(testID ? [testIdModifier(testID)] : []),
+      ]}
       onFocusChanged={(focused) => (focused ? onFocus?.() : onBlur?.())}
       onValueChange={onChangeText}
       ref={nativeRef}

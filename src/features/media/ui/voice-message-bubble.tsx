@@ -28,6 +28,17 @@ type SourceState =
   | Readonly<{ status: "error" }>;
 
 const THUMB_SIZE = 14;
+/** A11YF-AC4: VoiceOver/TalkBack increment/decrement step on the seek bar. */
+const SEEK_STEP_SECONDS = 5;
+/** A11YF-AC4: the visual track stays `THUMB_SIZE` tall; this expands only
+ * the *touchable* bounds (top/bottom) to the 44pt minimum without changing
+ * layout -- a vertical-only hitSlop can't newly overlap the play/share
+ * buttons beside it (unaffected, already 44pt+) or the non-interactive
+ * duration label below it in any interactive-hit-area sense. Applied to both
+ * the `View`'s own `hitSlop` prop (standard RN touch/accessibility hit
+ * testing) and `seekPan`'s `.hitSlop(...)` (RNGH's own gesture recognition,
+ * which the View prop alone may not widen on Android). */
+const SEEK_BAR_HIT_SLOP = { top: 15, bottom: 15, left: 0, right: 0 } as const;
 const BUBBLE_MAX_WIDTH = 240;
 /** The bubble shrinks to its content, so every part has a definite width and
  * the track takes what the max leaves after padding, the play and share
@@ -190,6 +201,12 @@ export function VoiceMessageBubble({
   // directly (not through a ref) is both simpler and correct here.
   const seekPan = Gesture.Pan()
     .runOnJS(true)
+    // A11YF-AC4: the View's `hitSlop` prop below may not widen RNGH's own
+    // gesture-recognition area on Android, so the gesture itself also gets
+    // the same hit-test expansion (`Gesture.Pan().hitSlop(...)`,
+    // `node_modules/react-native-gesture-handler/lib/typescript/handlers/
+    // gestures/gesture.d.ts`).
+    .hitSlop(SEEK_BAR_HIT_SLOP)
     .onUpdate((event) => {
       setDragProgress(Math.min(1, Math.max(0, event.x / TRACK_WIDTH)));
     })
@@ -198,6 +215,22 @@ export function VoiceMessageBubble({
       setDragProgress(null);
       if (totalSeconds > 0) void session.seekTo(next * totalSeconds);
     });
+
+  // A11YF-AC4: a screen-reader user can't perform `seekPan`'s drag gesture,
+  // so the `adjustable` role needs its own increment/decrement handler,
+  // stepping by a fixed number of seconds instead.
+  function handleSeekAccessibilityAction(
+    event: Readonly<{ nativeEvent: Readonly<{ actionName: string }> }>,
+  ): void {
+    if (totalSeconds <= 0) return;
+    if (event.nativeEvent.actionName === "increment") {
+      void session.seekTo(
+        Math.min(totalSeconds, elapsedSeconds + SEEK_STEP_SECONDS),
+      );
+    } else if (event.nativeEvent.actionName === "decrement") {
+      void session.seekTo(Math.max(0, elapsedSeconds - SEEK_STEP_SECONDS));
+    }
+  }
 
   const foreground = mine ? colors.onPrimary : colors.text;
   const muted = mine ? colors.onPrimary : colors.textMuted;
@@ -274,11 +307,20 @@ export function VoiceMessageBubble({
             <View
               accessibilityRole="adjustable"
               accessibilityLabel={`${label} 재생 위치`}
+              accessibilityActions={[
+                {
+                  name: "increment",
+                  label: `${SEEK_STEP_SECONDS}초 앞으로`,
+                },
+                { name: "decrement", label: `${SEEK_STEP_SECONDS}초 뒤로` },
+              ]}
+              onAccessibilityAction={handleSeekAccessibilityAction}
               accessibilityValue={{
                 min: 0,
                 max: 100,
                 now: Math.round(progress * 100),
               }}
+              hitSlop={SEEK_BAR_HIT_SLOP}
               style={{
                 backgroundColor: trackColor,
                 borderRadius: 999,

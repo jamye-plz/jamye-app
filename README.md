@@ -24,7 +24,7 @@ M9는 영속 outbox와 실시간·누락 복구를 연결했다. M10 주제·태
 [M10 주제·태그 검증](docs/evidence/M10.md), [M11 미디어 구현·검증 현황](docs/evidence/M11.md),
 [M12 알림·푸시 증거](docs/evidence/M12.md), [M13 계정 수명주기 증거](docs/evidence/M13.md),
 [M14 UI/UX 증거](docs/evidence/M14.md), [M15 소프트 삭제 증거](docs/evidence/M15.md),
-[M16 Sign in with Apple 증거](docs/evidence/M16.md), [M17 라운드 1 증거](docs/evidence/M17.md).
+[M16 Sign in with Apple 증거](docs/evidence/M16.md), [M17 증거(라운드 1·2)](docs/evidence/M17.md).
 
 ## 현재 범위
 
@@ -41,7 +41,8 @@ exclusive transaction에 기록한다. 실패 재시도는 기존 identity와 co
 M5의 queued outbox는 전송 의도를 로컬에 보존할 뿐 네트워크 전송 성공을 뜻하지 않는다.
 M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도를 제공한다. M9는 같은 계정의
 영속 outbox를 처리하고 WebSocket 수신과 S1 delta로 메시지를 수렴시킨다. 자동 mobile E2E와
-실기기 acceptance는 전체 제품에 대해 완료하지 않았다.
+실기기 acceptance는 전체 제품에 대해 완료하지 않았다(M17 라운드 2에서 로컬 Maestro flow와 일부
+실기기 항목을 더했지만 전체 제품 범위는 아니다).
 
 현재 범위와 다음 사용자 여정은 [전체 로드맵](docs/roadmap.md)을 따른다.
 
@@ -58,7 +59,7 @@ M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도�
 - M14: UI/UX 다듬기 — 완료 (2026-09-28 사용자 종료 승인). 라운드 1은 탭 구조와 그룹·주제 화면, 라운드 2는 로그인·계정·알림·대화방 네이티브 UI와 사진·동영상·음성 첨부
 - M15: 소프트 삭제 수용 — 완료 (2026-09-29 사용자 종료 승인). 메시지·주제 삭제와 삭제 표시, 계정 삭제 30일 유예·복구 안내, 서버 계약 v2(서버 task-14 1·2·3차 배포)
 - M16: Sign in with Apple — 완료 (2026-09-30 사용자 종료 승인). iOS 네이티브 Apple 로그인, Kakao/Google과 같은 세션 모델(TokenPair·refresh·로그아웃·계정 삭제), 계정 삭제 시 Apple 재인증·token revoke(서버 task-15 운영 배포, D17)
-- M17: 잔여 백로그 — 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인). 주제 공지 링크, 만료된 첨부 버리기, 음성·동영상 재생 조정, 알림 배지 실시간 갱신, 로그인 route 분리, 그룹 정보 재구성과 auth-controller 분리·lint 경고 0건. (A) 앱 출시 blocker는 2026-10-01 착수
+- M17: 잔여 백로그 — 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인). 주제 공지 링크, 만료된 첨부 버리기, 음성·동영상 재생 조정, 알림 배지 실시간 갱신, 로그인 route 분리, 그룹 정보 재구성과 auth-controller 분리·lint 경고 0건. (A) 앱 출시 blocker는 2026-10-01 착수해 구현과 실기기·시뮬레이터·에뮬레이터 수용을 마쳤다(의존성 정렬과 audit 0건, Maestro E2E, Android 시작 ANR 분석, `APP_VARIANT=production` identity, iOS 27 scene life cycle 대응과 기기 결함 수정). 2026-10-06 현재 변경은 모두 작업 트리에 있고 VERIFY·REFINE·SHIP 리뷰와 커밋이 남아 있다
 - 다음: M17의 (B)-(D)와 M18(스토어 배포)은 `planned_unapproved`이며 각각 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
 
 M10의 확정 범위와 순서는 [로드맵의 M10 계획](docs/roadmap.md#m10-주제태그)에 있다.
@@ -73,9 +74,11 @@ M10 종료·로컬 커밋을 승인했다. 출처별 결과와 한계는 [M10 ev
 새 OAuth provider(Apple 제외), STT/on-device AI와 새 push backend는 현재 서버 계약 밖의 별도
 backlog다. 메시지 삭제(M15)는 서버 task-14와 함께 마쳤고, Apple login(M16)은 서버 task-15와 함께
 마쳤다(2026-09-30). 메시지 편집과 presence/typing/reaction(M17(C))은 2026-09-22 로드맵에
-`planned_unapproved`로 등록됐고 서버 계약이 선행한다. 의존성 보안 수정 후에도
-원본 감사의 image-size High 2건과 Android 시작 ANR 추적, 출시 범위의 실기기·E2E 수용 및 배포
-revision binding은 남아 있어 production readiness는 `NOT READY`다. M6-M16 종료는 이 출시 항목들의
+`planned_unapproved`로 등록됐고 서버 계약이 선행한다. M17 라운드 2에서 의존성을
+정렬해 image-size가 트리에서 빠지고 `bun audit`이 0건이 됐다(2026-10-01). 10-06 재감사의 dev 도구
+advisory는 수정판이 있는 2건만 lock에서 올렸고 braces·node-forge 2건은 수정판이 없어 수용 위험으로 남겼으며 Android 시작 ANR은 dev build에서
+재현되지 않았다(release build 측정은 하지 않았다). 그러나 서명·빌드 파이프라인·production
+credential·서버 binding 등 M18 작업이 남아 있어 production readiness는 `NOT READY`다. M6-M16 종료는 이 출시 항목들의
 완료를 뜻하지 않는다.
 패치 검증과 감사 결과는 [개발 검증 기록](docs/development-workflow.md)에 구분한다. 자세한 경계는
 [`docs/roadmap.md`](docs/roadmap.md)와
@@ -203,45 +206,64 @@ WebSocket, auth 실행을 뜻하지 않는다. 실제 S1/R1 실행은 M9 server 
 
 | 항목                    | 값                  |
 | ----------------------- | ------------------- |
-| Expo                    | `~57.0.21`          |
+| Expo                    | `~57.0.26`          |
 | React Native            | `0.86.3`            |
 | React                   | `19.2.3`            |
-| Expo Router             | `~57.0.20`          |
-| Expo Development Client | `~57.0.18`          |
+| Expo Router             | `~57.0.24`          |
+| Expo Development Client | `~57.0.19`          |
+| RN Metro config         | `0.86.3`            |
 | Keyboard Controller     | `1.21.9`            |
 | TypeScript              | `~6.0.3`            |
 | package manager         | Bun `1.3.13`        |
 | route root              | `src/app/`          |
 | entry                   | `expo-router/entry` |
 
-Expo Router의 초기 링크가 마운트 전에 상태를 갱신하는 문제는 57.0.20에도 남아 있어
-`patches/expo-router@57.0.20.patch`를 유지한다. 버전 업데이트 시 원본 코드와 패치 적용 여부를
+Expo Router의 초기 링크가 마운트 전에 상태를 갱신하는 문제는 57.0.24에도 남아 있어
+`patches/expo-router@57.0.24.patch`를 유지한다. `patches/`에는 이 패치와
+`query-string@7.1.3.patch`만 있다(image-size는 의존성 트리에서 빠져 패치를 지웠다). 버전 업데이트 시 원본 코드와 패치 적용 여부를
 확인하며, 설치된 코드의 마운트 지연 처리는 회귀 테스트로 검사한다.
 
 OAuth native plugin은 `expo-web-browser`와 `expo-secure-store`이며 선언 원본은
 `package.json`/`bun.lock`이다. 공개 앱 scheme `jamye`는 OAuth app return용이고,
 `expo-dev-client`가 생성하는 development scheme과 구분한다.
 
-Development variant의 simulator/emulator 식별자는 다음 네 값으로만 구성한다.
+Variant별 식별자는 다음 네 값으로만 구성한다.
 
-| 필드                  | development 값       |
-| --------------------- | -------------------- |
-| app name              | `Jamye Development`  |
-| slug                  | `jamye-app`          |
-| iOS bundle identifier | `dev.local.jamyeapp` |
-| Android package       | `dev.local.jamyeapp` |
+| variant (`APP_VARIANT`) | app name            | slug        | iOS bundle identifier      | Android package            |
+| ----------------------- | ------------------- | ----------- | -------------------------- | -------------------------- |
+| development             | `Jamye Development` | `jamye-app` | `dev.local.jamyeapp`       | `dev.local.jamyeapp`       |
+| production              | `잼얘좀`            | `jamye-app` | `com.ridewithmin.jamyeapp` | `com.ridewithmin.jamyeapp` |
 
-`APP_VARIANT`가 없거나 알 수 없는 값이면 app config 해석이 실패한다. `preview`와
-`production`도 아직 구성하지 않았으므로 development 값으로 fallback하지 않고 명시적으로
-실패한다. Production identifier는 open decision이다.
+`APP_VARIANT`가 없거나 알 수 없는 값이면 app config 해석이 실패한다. `preview`는 아직 구성하지
+않았으므로 development 값으로 fallback하지 않고 명시적으로 실패한다. `production`은
+2026-10-01(M17 라운드 2, 사용자 결정 A5)에 identity만 구현했고 production prebuild·빌드·서명·제출은
+하지 않았다. production에서 development와 달라지는 것은 다음과 같다.
+
+- iOS associated domains에서 `?mode=developer` 항목이 빠진다.
+- `expo-notifications` plugin이 `mode: "production"`이라 `aps-environment`가 production이 된다.
+- `expo-dev-client` plugin은 `{ addGeneratedScheme: false }`로 남겨 개발 scheme `exp+jamye-app`이
+  생기지 않게 한다(plugin을 목록에서 빼기만 하면 prebuild의 legacy auto-plugin이 설치된 패키지를
+  다시 적용해 scheme이 남는다).
+- `extra.appVariant`가 `production`이다. `googleServicesFile` 경로는 같고, Firebase production
+  client 추가는 M18 사용자 작업이다.
+
+앱 이름이 비ASCII(`잼얘좀`)라 production prebuild의 iOS 프로젝트 이름은 `app`이 된다(Expo의
+`sanitizedName`이 ASCII가 아닌 문자를 지운다). development는 `JamyeDevelopment`다. 이름 구조는 바꾸지
+않았고 이 점을 기록만 해 둔다. 이 이름을 가정한 명령이나 문서는 production 쪽에서 다시 확인해야 한다.
+설정 확인 방법은 [개발 workflow](docs/development-workflow.md)의 production identity 절을 따른다.
+
+M18에 남은 작업은 아이콘·스플래시, 서명, 빌드 파이프라인, push·OAuth credential과 콘솔 production
+등록, 서버 AASA/assetlinks 기본값과 Apple audience, Firebase production client다.
 
 `src/core/config/expo-base-config.json`은 SDK 57 template에서 보존한 non-identity Expo
 설정에 M4의 option-free native plugin인 `expo-sqlite`, `expo-font`를 그 순서로 등록한
 단일 base fragment다. 두 plugin에는 option이나 font asset path를 넣지 않는다. `app.config.ts`는
-이 JSON 위에 development identity, 공개 scheme `jamye`, `['expo-dev-client', { addGeneratedScheme: true }]`,
+이 JSON 위에 variant별 identity, 공개 scheme `jamye`, `['expo-dev-client', { addGeneratedScheme: true }]`(production은 `false`),
 OAuth(`expo-web-browser`, `expo-secure-store`)·사진 선택(`expo-image-picker`)·음성 녹음(`expo-audio`)·
 푸시(`expo-notifications`) plugin과 권한 문구, 초대 링크용 iOS associated domains·Android intent
-filter, 푸시용 EAS project id와 Android FCM 설정을 더한다. dev-client의 generated scheme은 개발
+filter, 푸시용 EAS project id와 Android FCM 설정, 그리고 iOS 27 SDK 빌드가 요구하는 UIScene life cycle을
+넣는 로컬 config plugin `tools/expo/with-ios-scene-lifecycle.cjs`(두 variant 공통)를 더한다. 이 plugin은
+SDK 58 템플릿의 scene 구성을 이식한 것이라 SDK 58로 올릴 때 지운다. dev-client의 generated scheme은 개발
 launcher 연결용일 뿐 공개 custom scheme, universal link 또는 app link 계약이 아니다. 초대 링크
 계약은 [ADR 0012](docs/adr/0012-invite-links-public-link-contract.md)를 따른다.
 
@@ -357,7 +379,10 @@ Android Studio는 선택적인 편집·검사 UI이고 CLI build authority가 �
 즉 Android Studio에서는 generated native code와 Gradle model을 읽을 수 있지만, 그 session의
 SDK 선택·AVD·Run 결과를 재현 가능한 project build 증거로 사용하지 않는다.
 
-Watchman과 Maestro는 현재 devShell에 포함하지 않았다. Android NDK는 첫 M3 Android native
+Watchman은 현재 devShell에 포함하지 않았다. Maestro 2.8.0은 M17 라운드 2에서 E2E 도구로 devShell에
+추가했다(`nix/toolchain-versions.nix`에 고정, `toolchain:check`가 exact 버전을 검사하고 devShell이
+`MAESTRO_CLI_NO_ANALYTICS=1`을 설정한다). 실행법과 전제 조건은
+[`docs/development-workflow.md`](docs/development-workflow.md) §6의 Maestro E2E 절에 있다. Android NDK는 첫 M3 Android native
 build가 요구한 exact side-by-side revision `27.1.12297006`을 Nix SDK에 포함한다. Gradle이나
 `sdkmanager`가 read-only Nix store에 component를 설치하게 두지 않는다. 같은 이유로
 Build Tools는 app/RN 계약의 `36.0.0`과 build-tools override가 없는 Android library에 적용되는
@@ -427,7 +452,7 @@ bun run deps:install:frozen
 Lifecycle script가 필요하다는 실제 실패 근거와 사용자 승인 없이 `trustedDependencies`를
 추가하지 않는다.
 
-`@expo/ui`(57.0.17), `expo-symbols`(57.0.2), `expo-glass-effect`(57.0.2)는 native UI
+`@expo/ui`(`~57.0.21`), `expo-symbols`(`~57.0.3`), `expo-glass-effect`(`~57.0.4`)는 native UI
 toolkit으로 추가한 direct dependency이며, 배경과 checker 정책 변경은
 [ADR 0005](docs/adr/0005-native-ui-toolkit-adoption.md)를 따른다. 이후 미디어·푸시·음성 같은
 native module도 milestone마다 별도 승인을 받아 추가했고, native module 추가는 clean prebuild와

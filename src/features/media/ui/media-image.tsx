@@ -10,6 +10,7 @@ import {
   useMediaGeneration,
   useMediaRuntime,
 } from "@/features/media/model/media-runtime";
+import { useImageFadeTransition } from "@/shared/platform/use-reduce-motion-enabled";
 import { AppSymbol } from "@/shared/ui/app-symbol";
 import { AppText } from "@/shared/ui/app-text";
 import { NativeButton } from "@/shared/ui/native-button";
@@ -192,6 +193,9 @@ export function MediaImage({
   const runtime = useMediaRuntime();
   const access = useMediaAccess();
   const generation = useMediaGeneration(runtime);
+  // A11YM-AC2: reduce-motion drops the cross-dissolve fade-in, the image
+  // still appears (DESIGN.md §8 reduced motion keeps the state-change feedback).
+  const imageFadeTransition = useImageFadeTransition();
 
   const label = labelOverride ?? filename ?? "첨부 이미지";
   const box: Readonly<{
@@ -304,7 +308,7 @@ export function MediaImage({
             ...box,
             ...(outlineStyle ?? {}),
           }}
-          transition={150}
+          transition={imageFadeTransition}
         />
       </Pressable>
       {expandedKey === viewKey && runtime.isCurrent(generation) ? (
