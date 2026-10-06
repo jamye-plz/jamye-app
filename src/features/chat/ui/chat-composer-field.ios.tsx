@@ -1,19 +1,20 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
+import { useWindowDimensions } from "react-native";
 import { Host } from "@expo/ui";
 import { TextField } from "@expo/ui/swift-ui";
 import type { TextFieldRef } from "@expo/ui/swift-ui";
 import { accessibilityLabel, lineLimit } from "@expo/ui/swift-ui/modifiers";
 
-import { COMPOSER_TEXT_FIELD_IMPL } from "./chat-composer-field-impl";
 import { ChatComposerField as ChatComposerFieldFallback } from "./chat-composer-field-fallback";
+import { COMPOSER_TEXT_FIELD_IMPL } from "./chat-composer-field-impl";
 import type {
   ChatComposerFieldHandle,
   ChatComposerFieldProps,
 } from "./chat-composer-field.types";
-
-// SwiftUI's `lineLimit` numeric overload (`lineLimit(5)`) sets only a max;
-// a `{ min, max }` range needs the range overload -- see `modifiers/index.d.ts`.
-const COMPOSER_LINE_LIMIT_RANGE = { max: 5, min: 1 } as const;
+import {
+  COMPOSER_LINE_LIMIT_MIN,
+  composerMaxLines,
+} from "./composer-max-lines";
 
 /**
  * W2 (decided, default): a native SwiftUI `TextField(axis: .vertical)`
@@ -45,6 +46,7 @@ const NativeChatComposerField = forwardRef<
   ref,
 ) {
   const nativeRef = useRef<TextFieldRef>(null);
+  const { fontScale } = useWindowDimensions();
   useImperativeHandle(ref, () => ({
     clear: () => {
       void nativeRef.current?.clear();
@@ -66,7 +68,17 @@ const NativeChatComposerField = forwardRef<
         axis="vertical"
         modifiers={[
           accessibilityLabel(label),
-          lineLimit(COMPOSER_LINE_LIMIT_RANGE),
+          // C15: `max` used to be a fixed `5` regardless of Dynamic Type -- at
+          // large accessibility sizes five lines grew far taller than the
+          // capsule's fixed 120pt cap (`appChatComposer.maxHeight`) and
+          // spilled above it instead of scrolling inside the field.
+          // `composerMaxLines` (`./composer-max-lines`) derives a fontScale-
+          // aware max so the field's max height always stays within the cap;
+          // see that file for the grounded constants and arithmetic.
+          lineLimit({
+            max: composerMaxLines(fontScale),
+            min: COMPOSER_LINE_LIMIT_MIN,
+          }),
         ]}
         onFocusChange={(focused) => (focused ? onFocus?.() : onBlur?.())}
         onTextChange={onChangeText}

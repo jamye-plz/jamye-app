@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useWindowDimensions } from "react-native";
 
 import { useAppThemeOrSystem } from "@/core/theme/theme-provider";
 import { androidThemeColors } from "@/core/theme/tokens";
@@ -24,7 +25,9 @@ export const SNACKBAR_DEFAULT_RETRY_LABEL = "다시 시도";
 export type AndroidSnackbarHostProps = Readonly<{ testID?: string }>;
 
 // Room for a two-line Snackbar plus its M3 margins; the host covers only
-// this bottom band, never the screen.
+// this bottom band, never the screen. 160 is the 1.0x base: the mounted
+// band height scales up with the system font size so larger text never
+// clips against a fixed band.
 const SNACKBAR_BAND_HEIGHT = 160;
 
 /**
@@ -48,6 +51,7 @@ export const AndroidSnackbarHost = forwardRef<
 >(function AndroidSnackbarHost({ testID }, ref) {
   const { colorScheme } = useAppThemeOrSystem();
   const hex = androidThemeColors(colorScheme);
+  const { fontScale } = useWindowDimensions();
   const composeRef = useRef<SnackbarHostRef>(null);
   const [showing, setShowing] = useState(0);
   // The native SnackbarHost rejects calls until its Compose content has laid
@@ -96,7 +100,7 @@ export const AndroidSnackbarHost = forwardRef<
       seedColor={hex.primary}
       style={{
         bottom: 0,
-        height: SNACKBAR_BAND_HEIGHT,
+        height: SNACKBAR_BAND_HEIGHT * Math.max(1, fontScale),
         left: 0,
         position: "absolute",
         right: 0,

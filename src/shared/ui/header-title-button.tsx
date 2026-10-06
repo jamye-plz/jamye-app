@@ -22,6 +22,15 @@ import { AppText } from "@/shared/ui/app-text";
  */
 const IOS_BAR_ITEMS_WIDTH = 240;
 const MIN_TITLE_WIDTH = 96;
+// C15: iOS's native nav bar is a fixed 44pt and never grows for Dynamic
+// Type (system titles don't scale either), but this custom `headerTitle`
+// view can grow past that budget and slide under the message list. Title
+// (headline, 22pt line height) already fills the 44pt button row
+// (`styles.button` minHeight), so capping at 2x keeps it at exactly
+// 22 * 2 = 44pt. Subtitle (body, 26pt line height) caps at 1.2x = 31.2pt,
+// at most ~5pt over its 26pt default. Android is unaffected.
+const IOS_TITLE_FONT_SCALE_CAP = 2;
+const IOS_SUBTITLE_FONT_SCALE_CAP = 1.2;
 
 export function HeaderTitleButton({
   accessibilityHint,
@@ -37,13 +46,18 @@ export function HeaderTitleButton({
 }>) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
-  const cap =
-    process.env.EXPO_OS === "ios"
-      ? { maxWidth: Math.max(MIN_TITLE_WIDTH, width - IOS_BAR_ITEMS_WIDTH) }
-      : null;
+  const isIos = process.env.EXPO_OS === "ios";
+  const cap = isIos
+    ? { maxWidth: Math.max(MIN_TITLE_WIDTH, width - IOS_BAR_ITEMS_WIDTH) }
+    : null;
   const content = (
     <>
-      <AppText numberOfLines={1} style={styles.title} variant="headline">
+      <AppText
+        maxFontSizeMultiplier={isIos ? IOS_TITLE_FONT_SCALE_CAP : undefined}
+        numberOfLines={1}
+        style={styles.title}
+        variant="headline"
+      >
         {title}
       </AppText>
       {onPress ? (
@@ -51,15 +65,21 @@ export function HeaderTitleButton({
       ) : null}
     </>
   );
+  const subtitleNode = subtitle ? (
+    <AppText
+      color={colors.textMuted}
+      maxFontSizeMultiplier={isIos ? IOS_SUBTITLE_FONT_SCALE_CAP : undefined}
+      numberOfLines={1}
+      style={styles.subtitle}
+    >
+      {subtitle}
+    </AppText>
+  ) : null;
   if (!onPress) {
     return (
       <View style={styles.column}>
         <View style={[styles.button, cap]}>{content}</View>
-        {subtitle ? (
-          <AppText color={colors.textMuted} style={styles.subtitle}>
-            {subtitle}
-          </AppText>
-        ) : null}
+        {subtitleNode}
       </View>
     );
   }
@@ -79,11 +99,7 @@ export function HeaderTitleButton({
       >
         {content}
       </Pressable>
-      {subtitle ? (
-        <AppText color={colors.textMuted} style={styles.subtitle}>
-          {subtitle}
-        </AppText>
-      ) : null}
+      {subtitleNode}
     </View>
   );
 }
