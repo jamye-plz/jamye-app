@@ -36,8 +36,8 @@ Android resolves the light or dark spec from the active app color scheme. `@expo
 - Everything else that is not a highlight, including header tint, header and in-content icon buttons, list leading icons and chevrons, refresh spinners, activity indicators, and section titles, uses the platform label colors (`text`, `textMuted`) or the platform default.
 - Clear Red (#B33C48): error text and failed state emphasis (light mode)
 - Soft Error Pink (#F2A0A8): error text and failed state emphasis (dark mode)
-- Butter Notice (#FBF3D6): local-fixture notice surface (light mode)
-- Night Butter (#3D351F): local-fixture notice surface (dark mode)
+- Butter Notice (#FBF3D6): notice surface for `InlineMessage` notices (light mode)
+- Night Butter (#3D351F): notice surface for `InlineMessage` notices (dark mode)
 
 ### State Rules
 
@@ -255,16 +255,37 @@ the following interop rules:
 - The native splash screen (`expo-splash-screen`) stays up while a saved session is restoring, so the
   login screen never flashes before an authenticated redirect. Once restore settles — signed in,
   signed out, or errored — the app hides the splash and shows the group list, a pending-invite join
-  screen, or the login screen; fixture mode hides it immediately.
+  screen, or the login screen.
 
 ### Account Screen
 
 - The screen opens on a centered profile header: a 72pt avatar (the existing `Avatar` component —
   the Kakao/Google photo, or a first-letter monogram), the nickname, and `카카오 계정으로 로그인됨`,
   `Google 계정으로 로그인됨`, or `Apple 계정으로 로그인됨` (M16; Apple never supplies a photo, so this
-  provider always shows the monogram) — the provider ID rendered as its Korean display name. Avatar
-  upload stays out of scope (ADR 0008 §5).
-- Below the header, a settings list follows this order: a `프로필` section with a `닉네임` row
+  provider always shows the monogram) — the provider ID rendered as its Korean display name.
+- Profile photo (M17 round 3): the header avatar and the `프로필 사진` row in the `프로필` section
+  open one and the same menu with two items, `사진 선택` and `기본 이미지로`. `기본 이미지로` is
+  disabled when the account has no photo. iOS renders the menu as a SwiftUI `Menu` (the header
+  avatar and the row each are a `Menu` label); Android renders a Material 3 `DropdownMenu` that
+  the header avatar and the row share.
+  - `사진 선택` opens the system picker with one image and the system square crop. The app always
+    re-encodes the result to a 512px JPEG (this also drops EXIF location data) before uploading.
+  - While a pick, upload, or clear is running, the avatar shows a scrim with an activity indicator
+    (the native upload reports only start and finish, so the indicator is indeterminate) and
+    both menu items are disabled.
+  - A failure shows its reason in a centered `ConfirmAlert` titled `프로필 사진`. When repeating
+    the action can succeed, the alert offers `닫기` and `다시 시도`; otherwise it offers one `확인`.
+    A reason never shows a raw server error code.
+  - Accessibility: the header avatar is a button named `프로필 사진 변경` (`프로필 사진 업로드 중`
+    while uploading), the menu trigger is named `프로필 사진 메뉴`, and every touch target is at
+    least 44pt (the Android row trigger is a 48dp `IconButton`). The avatar frame is point-sized,
+    so large text does not change it.
+  - Following the Compose touch rule in §4, the Android header avatar is an RN `Pressable` and
+    only the row's `IconButton` trigger is Compose-owned; both open the same controlled menu.
+  - A photo changed here shows immediately on this screen and in the session profile. Copies of
+    the old photo cached on conversation rows refresh with the next history update.
+- Below the header, a settings list follows this order: a `프로필` section with a `프로필 사진`
+  row (the menu above) and a `닉네임` row
   (current nickname as the trailing value; tapping it opens the C3 nickname editor,
   `닉네임 변경`, helper text `그룹에서 보이는 이름입니다.`); an `알림` section with `푸시 알림` and
   `메시지 미리보기` toggles (the latter captioned `알림에 메시지 내용을 보여 줍니다.`); then
@@ -316,13 +337,6 @@ the following interop rules:
   `더 이상 접근할 수 없는 알림입니다.` for an authorization loss, or `알림을 열 수 없습니다.` with a
   `다시 시도` action for a network or other failure. The same copy covers a push tap that cannot
   open. An `other`-kind notification only marks itself read; it never navigates.
-
-### Local Fixture Notice
-
-- Use Butter Notice in light mode and Night Butter in dark mode.
-- Use 16px body text with Ink Plum or Moon Ink.
-- Keep the established exact non-production notice copy.
-- The notice appears after the heading and before the message region in visual and accessibility order.
 
 ### Message Region and Pagination
 
@@ -516,7 +530,7 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 - Conversation maximum width: 720px equivalent
 - Compact gutter: 16px
 - Wide gutter: 24px
-- Order: native header (title, sync subtitle, and header actions), local-fixture notice, older-page state, message region, composer (`+` attachment button, input, send control)
+- Order: native header (title, sync subtitle, and header actions), older-page state, message region, composer (`+` attachment button, input, send control)
 - The list fills remaining height while the composer remains reachable above the keyboard. Its lower visible boundary follows the same native keyboard progress and lands at the same resting offset when the keyboard closes.
 - Do not use an inverted list, fixed desktop width, nested cards, or a separate context rail in M5.
 
@@ -532,7 +546,7 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 ## 6. Depth & Elevation
 
 - Elevation 0: page, message bubbles, list content
-- Elevation 1: local-fixture notice when separation is needed
+- Elevation 1: inline notice when separation is needed
 - Elevation 2: composer boundary only when a platform needs separation from scrolling content
 - Shadows are subtle, single-source, and top-down. Prefer a divider or surface change over a shadow.
 - Do not use glassmorphism, blur, inner clay shadows, or floating decorative layers.
@@ -594,7 +608,7 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 ### Accessibility and Platform Adaptation
 
 - Support 200% text without hiding status or controls.
-- VoiceOver order is heading, notice, messages, composer, send action. TalkBack on the chat screen follows its own default order (Navigate up, header title, messages, composer) with no hidden heading (F-4; see Screen and Main Heading).
+- VoiceOver order is heading, messages, composer, send action. TalkBack on the chat screen follows its own default order (Navigate up, header title, messages, composer) with no hidden heading (F-4; see Screen and Main Heading).
 - Keep state meaning when reduced motion is enabled. The system setting is read live, including a mid-session toggle (`useReduceMotionEnabled`), and only the motion is dropped: the chat auto-scroll reveal jumps to its offset instead of animating, the full-screen media viewer opens without its slide, and image loads (photo, video thumbnail, gallery thumbnail) skip their 150ms fade through the shared `useImageFadeTransition` (`IMAGE_FADE_MS`).
 - Verify system status-bar content remains legible against the active light or dark canvas on both platforms.
 - Shared components own copy, semantics, tokens, and the lower-boundary anchor rule. Platform wrappers expose native keyboard progress and normalize settled safe-area overlap.
@@ -623,7 +637,7 @@ Use the existing 4px and 8px-derived scale: 4, 8, 12, 16, 20, 24, 32, 40, and 48
 
 ### Example Component Prompts
 
-1. "Build the React Native chat screen on #FAF8F4 light or #1C1920 dark canvas. Center one fluid conversation column capped at 720 points equivalent, with 16-point compact gutters and 24-point wide gutters. Order the accessible main heading, exact local-fixture notice, non-inverted message list, and bottom-safe-area composer."
+1. "Build the React Native chat screen on #FAF8F4 light or #1C1920 dark canvas. Center one fluid conversation column capped at 720 points equivalent, with 16-point compact gutters and 24-point wide gutters. Order the accessible main heading, non-inverted message list, and bottom-safe-area composer."
 2. "Build a React Native message bubble. Incoming uses #FFFFFF light or #252129 dark. Outgoing uses #9B3F68 with #FFFFFF text in light mode and #E39BB8 with #2C141F text in dark mode. Use 16-point text at 1.55 line height, 20-point radius with one 8-point conversation-side corner, 78% compact and 66% wide maximum width, 4-point same-sender gaps, and 12-point sender-change gaps."
 3. "Build a non-inverted React Native message list with accessibility name `채팅 메시지`. Load older pages at the top edge, show `이전 메시지 불러오는 중...`, expose failure action `이전 메시지 다시 불러오기`, and retain the first visible anchor after prepend without animated correction."
 4. "Build a multiline React Native composer on #FFFFFF light or #252129 dark with a semantic border, 48-point minimum height, 120-point growth cap, and 16-point radius. Accessibility name is `메시지 입력`. Enter inserts a newline. Only the explicit send control submits. Preserve Korean IME composition and input focus after commit. Drive the frame and latest-message anchor from the same native keyboard progress, normalized for bottom safe area."
