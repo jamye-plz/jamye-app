@@ -58,8 +58,8 @@ M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도�
 - M14: UI/UX 다듬기 — 완료 (2026-09-28 사용자 종료 승인). 라운드 1은 탭 구조와 그룹·주제 화면, 라운드 2는 로그인·계정·알림·대화방 네이티브 UI와 사진·동영상·음성 첨부
 - M15: 소프트 삭제 수용 — 완료 (2026-09-29 사용자 종료 승인). 메시지·주제 삭제와 삭제 표시, 계정 삭제 30일 유예·복구 안내, 서버 계약 v2(서버 task-14 1·2·3차 배포)
 - M16: Sign in with Apple — 완료 (2026-09-30 사용자 종료 승인). iOS 네이티브 Apple 로그인, Kakao/Google과 같은 세션 모델(TokenPair·refresh·로그아웃·계정 삭제), 계정 삭제 시 Apple 재인증·token revoke(서버 task-15 운영 배포, D17)
-- M17: 잔여 백로그 — 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인). 주제 공지 링크, 만료된 첨부 버리기, 음성·동영상 재생 조정, 알림 배지 실시간 갱신, 로그인 route 분리, 그룹 정보 재구성과 auth-controller 분리·lint 경고 0건. (A) 앱 출시 blocker는 2026-10-01 착수해 구현과 실기기·시뮬레이터·에뮬레이터 수용을 마쳤다(의존성 정렬과 audit 0건, Maestro E2E, Android 시작 ANR 분석, `APP_VARIANT=production` identity, iOS 27 scene life cycle 대응과 기기 결함 수정). 라운드 2 (A)는 PR #8(merge `671b649`, 2026-10-06)로 반영했다. 라운드 3 (B)는 local-fixture mode와 M4 bootstrap contract 제거, 프로필 사진 업로드(서버 task-19 배포: jamye-server #18, homelab #98·#99), 계정 삭제 30일 뒤 로컬 DB 정리를 구현하고 iOS 시뮬레이터·Android 에뮬레이터에서 기기 검증을 마쳤다. 리뷰와 커밋이 남아 있다. M17은 사용자 결정으로 열어 둔다
-- 다음: M17의 (C)(D)와 M18(스토어 배포)은 `planned_unapproved`이며 각각 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
+- M17: 잔여 백로그 — 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인). 주제 공지 링크, 만료된 첨부 버리기, 음성·동영상 재생 조정, 알림 배지 실시간 갱신, 로그인 route 분리, 그룹 정보 재구성과 auth-controller 분리·lint 경고 0건. (A) 앱 출시 blocker는 2026-10-01 착수해 구현과 실기기·시뮬레이터·에뮬레이터 수용을 마쳤다(의존성 정렬과 audit 0건, Maestro E2E, Android 시작 ANR 분석, `APP_VARIANT=production` identity, iOS 27 scene life cycle 대응과 기기 결함 수정). 라운드 2 (A)는 PR #8(merge `671b649`, 2026-10-06)로 반영했다. 라운드 3 (B)는 local-fixture mode와 M4 bootstrap contract 제거, 프로필 사진 업로드(서버 task-19 배포: jamye-server #18, homelab #98·#99), 계정 삭제 30일 뒤 로컬 DB 정리를 구현하고 기기 검증과 격리 리뷰를 거쳐 PR #9(merge `7f05699`)로 반영했다. M17은 2026-10-07 사용자 종료 승인으로 완료했고 (C)·(D)는 백로그로 남겼다([로드맵 §9](docs/roadmap.md#9-현재-server-contract-밖의-backlog))
+- 다음: M18(스토어 배포)은 `planned_unapproved`이며 release 범위 확정과 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
 
 M10의 확정 범위와 순서는 [로드맵의 M10 계획](docs/roadmap.md#m10-주제태그)에 있다.
 계약·데이터 연결 → 주제·태그 화면 → M9 동기화 연결 → 자동 검증·양 플랫폼 수용 순서이며,
