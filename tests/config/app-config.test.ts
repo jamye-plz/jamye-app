@@ -63,7 +63,8 @@ const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"];
 const MEDIA_PICKER_PLUGIN = [
   "expo-image-picker",
   {
-    photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
+    photosPermission:
+      "선택한 사진과 동영상을 대화에 첨부하거나 프로필 사진으로 사용하기 위해 접근합니다.",
     cameraPermission: false,
   },
 ];

@@ -84,6 +84,54 @@ jest.mock("@/features/account/model/use-account-lifecycle", () => ({
     deleteAccount: mockDeleteAccount,
   })),
 }));
+// AV-AC4: the avatar upload hook and the profile-photo menu are stood in so
+// this file pins the screen's wiring; the real menus have their own tests in
+// tests/features/account/ui/profile-photo-menu.*.test.tsx.
+const mockAvatarUpload = {
+  phase: "idle" as string,
+  busy: false,
+  progress: null as number | null,
+  failure: null as { message: string; retryable: boolean } | null,
+  hasAvatar: false,
+  selectPhoto: jest.fn(),
+  resetToDefault: jest.fn(),
+  retry: jest.fn(),
+  dismissFailure: jest.fn(),
+};
+jest.mock("@/features/account/model/use-avatar-upload", () => ({
+  useAvatarUpload: () => mockAvatarUpload,
+}));
+jest.mock("@/features/account/ui/profile-photo-menu", () => {
+  const { Pressable, View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    ProfilePhotoMenu: (props: {
+      actions: readonly {
+        key: string;
+        label: string;
+        disabled: boolean;
+        onPress: () => void;
+      }[];
+      label?: React.ReactNode;
+      testID?: string;
+      expanded?: boolean;
+      onExpandedChange?: (expanded: boolean) => void;
+    }) => (
+      <View testID={props.testID} {...({ expanded: props.expanded } as object)}>
+        {props.label}
+        {props.actions.map((action) => (
+          <Pressable
+            accessibilityLabel={action.label}
+            accessibilityState={{ disabled: action.disabled }}
+            key={action.key}
+            onPress={action.disabled ? undefined : action.onPress}
+            testID={`${props.testID}-action-${action.key}`}
+          />
+        ))}
+      </View>
+    ),
+  };
+});
 jest.mock("@/features/notifications/ui/notification-settings-section", () => {
   const { Text: RNText } =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -112,6 +160,7 @@ jest.mock("@/shared/ui/confirm-alert", () => {
       title: string;
       message?: string;
       confirmLabel: string;
+      cancelLabel?: string;
       onConfirm: () => void;
       onDismiss: () => void;
       testID?: string;
@@ -129,6 +178,14 @@ jest.mock("@/shared/ui/confirm-alert", () => {
         <View testID={props.testID}>
           <RNText accessibilityRole="header">{props.title}</RNText>
           {props.message ? <RNText>{props.message}</RNText> : null}
+          {props.cancelLabel ? (
+            <Pressable
+              accessibilityLabel={props.cancelLabel}
+              accessibilityRole="button"
+              onPress={props.onDismiss}
+              testID={`${props.testID}-cancel`}
+            />
+          ) : null}
           <Pressable
             accessibilityLabel={props.confirmLabel}
             accessibilityRole="button"
@@ -353,5 +410,119 @@ describe("account screen (android)", () => {
     } finally {
       profile.provider = "google";
     }
+  });
+});
+
+describe("account screen profile photo (android, AV-AC4)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListItemCalls.length = 0;
+    Object.assign(mockAvatarUpload, {
+      phase: "idle",
+      busy: false,
+      progress: null,
+      failure: null,
+      hasAvatar: true,
+    });
+    mockPrincipal = {
+      origin: "https://api.example",
+      userId: profile.id,
+      epoch: 1,
+    };
+    mockAccountState = { status: "ready", database: {} };
+  });
+
+  test("puts a 프로필 사진 row under the 프로필 subheader, before 닉네임", async () => {
+    const screen = await renderScreen();
+    expect(screen.getByTestId("profile-photo-row")).toBeTruthy();
+    expect(screen.getByText("프로필 사진")).toBeTruthy();
+    expect(screen.getByTestId("profile-photo-row-menu")).toBeTruthy();
+  });
+
+  test("the row's onPress stays a defined function even while uploading (LogBox PropSetException guard)", async () => {
+    mockAvatarUpload.busy = true;
+    await renderScreen();
+    expect(typeof lastListItemOnPress("profile-photo-row")).toBe("function");
+  });
+
+  test("tapping the header avatar or the row opens the same menu (expanded=true)", async () => {
+    const screen = await renderScreen();
+    expect(screen.getByTestId("profile-photo-row-menu").props.expanded).toBe(
+      false,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "프로필 사진 변경" }),
+    );
+    expect(screen.getByTestId("profile-photo-row-menu").props.expanded).toBe(
+      true,
+    );
+  });
+
+  test("the row opens the menu on press", async () => {
+    const screen = await renderScreen();
+    await fireEvent.press(screen.getByTestId("profile-photo-row"));
+    expect(screen.getByTestId("profile-photo-row-menu").props.expanded).toBe(
+      true,
+    );
+  });
+
+  test("a busy upload does not open the menu from the avatar or the row", async () => {
+    mockAvatarUpload.busy = true;
+    mockAvatarUpload.phase = "uploading";
+    const screen = await renderScreen();
+    await fireEvent.press(screen.getByTestId("profile-photo-row"));
+    expect(screen.getByTestId("profile-photo-row-menu").props.expanded).toBe(
+      false,
+    );
+  });
+
+  test("menu actions are wired to the upload hook and disable per state", async () => {
+    mockAvatarUpload.hasAvatar = false;
+    const screen = await renderScreen();
+    await fireEvent.press(
+      screen.getByTestId("profile-photo-row-menu-action-select"),
+    );
+    expect(mockAvatarUpload.selectPhoto).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByTestId("profile-photo-row-menu-action-reset").props
+        .accessibilityState,
+    ).toEqual({ disabled: true });
+  });
+
+  test("shows a progress indicator on the avatar and disables both actions while uploading", async () => {
+    Object.assign(mockAvatarUpload, {
+      phase: "uploading",
+      busy: true,
+      progress: 0.4,
+    });
+    const screen = await renderScreen();
+    expect(screen.getByTestId("profile-photo-progress")).toBeTruthy();
+    for (const key of ["select", "reset"]) {
+      expect(
+        screen.getByTestId(`profile-photo-row-menu-action-${key}`).props
+          .accessibilityState,
+      ).toEqual({ disabled: true });
+    }
+  });
+
+  test("a retryable failure shows the Korean reason with 다시 시도", async () => {
+    mockAvatarUpload.phase = "failed";
+    mockAvatarUpload.failure = {
+      message:
+        "사진 저장소를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      retryable: true,
+    };
+    const screen = await renderScreen();
+    expect(
+      screen.getByText(
+        "사진 저장소를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      ),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "다시 시도" }));
+    expect(mockAvatarUpload.retry).toHaveBeenCalledTimes(1);
+    await fireEvent.press(
+      screen.getByTestId("profile-photo-failure-alert-cancel"),
+    );
+    expect(mockAvatarUpload.dismissFailure).toHaveBeenCalledTimes(1);
   });
 });

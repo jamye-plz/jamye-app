@@ -24,12 +24,17 @@ import { useSession } from "@/core/providers/session-provider";
 import { useAppThemeOrSystem } from "@/core/theme/theme-provider";
 import { appSpacing } from "@/core/theme/tokens";
 import { useAccountLifecycle } from "@/features/account/model/use-account-lifecycle";
+import { useAvatarUpload } from "@/features/account/model/use-avatar-upload";
 import { useDeleteAccountFlow } from "@/features/account/model/use-delete-account-flow";
 import { DeveloperSection } from "@/features/account/ui/developer-section";
+import { ProfilePhotoAvatar } from "@/features/account/ui/profile-photo-avatar";
+import { ProfilePhotoFailureAlert } from "@/features/account/ui/profile-photo-failure-alert";
+import { ProfilePhotoMenu } from "@/features/account/ui/profile-photo-menu";
+import { PROFILE_PHOTO_ROW_TITLE } from "@/features/account/ui/profile-photo-menu.shared";
+import { useProfilePhotoActions } from "@/features/account/ui/use-profile-photo-actions";
 import { usePushLifecycle } from "@/features/notifications/model/push-lifecycle-provider";
 import { NotificationSettingsSection } from "@/features/notifications/ui/notification-settings-section";
 import { AppText } from "@/shared/ui/app-text";
-import { Avatar } from "@/shared/ui/avatar";
 import { ConfirmAlert } from "@/shared/ui/confirm-alert";
 
 import {
@@ -60,6 +65,8 @@ export function AccountScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const accountLifecycle = useAccountLifecycle();
   const deleteFlow = useDeleteAccountFlow(accountLifecycle);
+  const avatarUpload = useAvatarUpload();
+  const photoActions = useProfilePhotoActions(avatarUpload);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
   const logoutPending = useRef(false);
@@ -110,21 +117,41 @@ export function AccountScreen() {
                 listRowInsets({ bottom: 0, leading: 0, top: 0, trailing: 0 }),
               ]}
             >
+              {/* AV-AC4: tapping the header avatar opens the profile-photo
+                  menu (SwiftUI `Menu`; the RN avatar is its label). */}
+              <ProfilePhotoMenu
+                actions={photoActions}
+                label={
+                  <RNHostView matchContents>
+                    <View
+                      style={{
+                        alignItems: "center",
+                        paddingTop: appSpacing.md,
+                        width: windowWidth - HEADER_HORIZONTAL_INSETS,
+                      }}
+                    >
+                      <ProfilePhotoAvatar
+                        busy={avatarUpload.busy}
+                        name={profile.nickname}
+                        size={72}
+                        testID="account-avatar"
+                        uri={profile.avatarUrl}
+                      />
+                    </View>
+                  </RNHostView>
+                }
+                testID="profile-photo-header-menu"
+              />
               <RNHostView matchContents>
                 <View
                   style={{
                     alignItems: "center",
                     gap: appSpacing.xs,
-                    paddingVertical: appSpacing.md,
+                    paddingBottom: appSpacing.md,
+                    paddingTop: appSpacing.xs,
                     width: windowWidth - HEADER_HORIZONTAL_INSETS,
                   }}
                 >
-                  <Avatar
-                    name={profile.nickname}
-                    size={72}
-                    testID="account-avatar"
-                    uri={profile.avatarUrl}
-                  />
                   <AppText variant="title">{profile.nickname}</AppText>
                   <AppText color={colors.textMuted}>
                     {providerLoginLabel(profile.provider)}
@@ -134,6 +161,41 @@ export function AccountScreen() {
             </VStack>
           </Section>
           <Section title="프로필">
+            {/* AV-AC4: the row is itself the SwiftUI `Menu` label. */}
+            <ProfilePhotoMenu
+              actions={photoActions}
+              label={
+                <HStack
+                  modifiers={[
+                    frame({ maxWidth: Infinity, alignment: "leading" }),
+                  ]}
+                  spacing={6}
+                >
+                  <Text
+                    modifiers={[
+                      foregroundStyle({
+                        style: "primary",
+                        type: "hierarchical",
+                      }),
+                      frame({ maxWidth: Infinity, alignment: "leading" }),
+                    ]}
+                  >
+                    {PROFILE_PHOTO_ROW_TITLE}
+                  </Text>
+                  <Image
+                    modifiers={[
+                      foregroundStyle({
+                        style: "tertiary",
+                        type: "hierarchical",
+                      }),
+                    ]}
+                    size={13}
+                    systemName="chevron.up.chevron.down"
+                  />
+                </HStack>
+              }
+              testID="profile-photo-row-menu"
+            />
             <ListItem
               onPress={() => router.push("/account/nickname")}
               testID="nickname-row"
@@ -235,6 +297,11 @@ export function AccountScreen() {
           onDismiss={deleteFlow.dismissFailure}
           testID="delete-failure-alert"
           title={DELETE_CONFIRM_TITLE}
+        />
+        <ProfilePhotoFailureAlert
+          failure={avatarUpload.failure}
+          onDismiss={avatarUpload.dismissFailure}
+          onRetry={() => void avatarUpload.retry()}
         />
       </Host>
     </>
