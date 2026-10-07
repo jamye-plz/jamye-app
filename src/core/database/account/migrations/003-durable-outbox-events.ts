@@ -1,4 +1,4 @@
-import type { Migration } from "../../migrations/001-initial-schema";
+import type { Migration } from "../../types";
 
 export const durableOutboxEventsMigration: Migration = {
   version: 3,

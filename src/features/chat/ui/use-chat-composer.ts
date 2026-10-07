@@ -2,7 +2,6 @@ import { Linking } from "react-native";
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import type { ChatSendController } from "@/features/chat/model/chat-send";
 import type { ConnectedPendingAttachment } from "@/features/chat/model/connected-chat-presentation";
 import type { MediaAttachmentController } from "@/features/media/ui/media-attachment-types";
 import { isSendableWithoutBody } from "@/features/media/ui/media-composition";
@@ -24,6 +23,16 @@ type ChatSendInputWithMedia = Readonly<{
   clearDraft: () => void;
   onCommitted?: (localId: string) => void;
   media?: readonly ConnectedPendingAttachment[];
+}>;
+
+export type ChatSendController = Readonly<{
+  send: (
+    input: Readonly<{
+      body: string;
+      clearDraft: () => void;
+      onCommitted?: (localId: string) => void;
+    }>,
+  ) => Promise<Readonly<{ outcome: "committed" | "empty" }>>;
 }>;
 
 export type ChatComposerController = Readonly<{

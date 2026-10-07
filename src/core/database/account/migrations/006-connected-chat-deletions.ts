@@ -1,4 +1,4 @@
-import type { Migration } from "../../migrations/001-initial-schema";
+import type { Migration } from "../../types";
 
 // Version 006 (AC1/E17) adds a monotonic per-message deletion tombstone and
 // widens connected_chat_applied_events.event_kind to record message.deleted

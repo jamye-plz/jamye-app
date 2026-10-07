@@ -22,7 +22,6 @@ import type {
 } from "@/core/contracts/server";
 import { ChatApiError } from "@/features/chat/data/chat-api";
 import type { ChatApi } from "@/features/chat/data/chat-api";
-import type { ClockPort } from "@/features/chat/model/chat-send";
 import { createConnectedChatRead, emptyReadState } from "./connected-chat-read";
 import type { ConnectedChatReadState } from "./connected-chat-read";
 
@@ -30,9 +29,15 @@ const ROOMS_PAGE_LIMIT = 30;
 const HISTORY_WINDOW_LIMIT = 50;
 const MAX_RENDERED_ROWS = 200;
 
-export type { ClockPort };
+export type ClockPort = Readonly<{
+  nowMs: () => number;
+}>;
 
-/** Distinct from `MessageIdentityPort` (M5 local-only send): C4's outbox also needs a commandId. */
+export function createSystemClock(): ClockPort {
+  return { nowMs: () => Date.now() };
+}
+
+/** The outbox needs a commandId beside the client message id and local id. */
 export type ConnectedMessageIdentityPort = Readonly<{
   next: () => Readonly<{
     clientMsgId: string;

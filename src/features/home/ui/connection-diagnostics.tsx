@@ -43,10 +43,8 @@ function describeHealthError(error: unknown): string {
 
 export function ConnectionDiagnostics() {
   const { colors } = useAppTheme();
-  const env = getPublicEnv();
-  const origin = env.apiOrigin;
-  if (!origin) throw new Error("connected-auth requires an API origin.");
-  const api = useMemo(() => createHealthApi(origin), [origin]);
+  const { apiOrigin } = getPublicEnv();
+  const api = useMemo(() => createHealthApi(apiOrigin), [apiOrigin]);
   const [state, setState] = useState<DiagnosticsState>({ status: "loading" });
   const [runId, setRunId] = useState(0);
   const pendingRef = useRef(true);

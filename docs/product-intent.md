@@ -15,11 +15,12 @@
 
 이번 수직 절편은 다음 경계를 지킨다.
 
-- `local-fixture` mode는 고정 fixture 사용자와 대화방을, `connected-auth` mode는 shared
-  OAuth session, 검증된 U1 profile, logout과 account-safe home, M7 group journey 및 M8 REST chat을 표시한다.
+- 앱은 항상 서버에 연결된 상태로 실행된다. shared OAuth session, 검증된 U1 profile, logout과
+  account-safe home, M7 group journey 및 M8 REST chat을 표시한다.
   그룹에서 주제 목록·메시지 조회·텍스트 전송·수동 재시도·내 읽음 위치 저장으로 이동하며
-  M9의 자동 outbox와 실시간·delta 복구를 사용한다.
-- 인증 mode는 M5 `jamye.db` fixture와 seed를 사용하지 않는다. API origin과 검증된 User UUID를
+  M9의 자동 outbox와 실시간·delta 복구를 사용한다. M5의 `local-fixture` mode(고정 fixture
+  사용자·대화방)는 M17 라운드 3에서 제거했다.
+- 앱은 M5 `jamye.db` fixture와 seed를 사용하지 않는다. API origin과 검증된 User UUID를
   함께 digest한 account namespace와 `scope_metadata` identity를 사용하며, 이전 account의
   늦은 응답·open/close 작업이 새 account에 노출되지 않도록 session epoch와 scope drain으로
   fence한다. 유효한 profile 없는 cold restore는 authenticated account data를 표시하지 않는다.
@@ -324,7 +325,7 @@ chat spacing, socket reconnect, design size, layout focus의 회귀 의도만 �
 - semantic color, spacing, typography는 역할과 검증 가능한 값만 기록한다.
 - 현재 slice의 source of truth, send 정책, sync 규칙은 [로드맵](roadmap.md)과 일치한다.
 
-M4 bootstrap contract와 M5 local chat을 닫을 때 이 문서의 제품 불변 조건과 roadmap을 함께
+M4 bootstrap contract와 M5 local chat(둘 다 M17 라운드 3에서 제거)을 닫을 때 이 문서의 제품 불변 조건과 roadmap을 함께
 대조했다. 기존 PWA 구현과 다른 wire shape와 native keyboard adapter를 선택한 것은 의도
 훼손이 아니라 새 모바일 경계의 정상적인 설계다. M6는 종료했고 M7은 구현·로컬 검사 이후
 양 플랫폼 그룹 생성·초대·가입·나가기와 계정 전환의 사용자 확인을 받아 2026-09-10 종료했다.

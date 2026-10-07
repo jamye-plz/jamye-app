@@ -34,6 +34,7 @@ import { PushLifecycleProvider } from "@/features/notifications/model/push-lifec
 import { notificationsStore } from "@/features/notifications/model/notifications-store";
 import {
   createConnectedChatStore,
+  createSystemClock,
   toCanonicalUpsert,
   toHistoryUpsert,
 } from "@/features/chat/model/connected-chat-store";
@@ -49,39 +50,14 @@ import {
   ConnectedChatProvider,
   useConnectedChat,
 } from "@/features/chat/model/connected-chat-provider";
-import {
-  createMonotonicMessageIdentity,
-  createSystemClock,
-} from "@/features/chat/model/chat-send";
-import type {
-  ClockPort,
-  MessageIdentityPort,
-} from "@/features/chat/model/chat-send";
-
-import {
-  DatabaseProvider,
-  productionDatabaseFactory,
-  useDatabaseRepository,
-} from "../database/database-provider";
-import type { DatabaseProviderFactory } from "../database/database-provider";
-import type { DatabaseRepository } from "../database/repositories/database-repository";
 
 import { SessionProvider, useSession } from "./session-provider";
 import type { SessionProviderProps } from "./session-provider";
 
 export type AppProvidersProps = PropsWithChildren<{
-  clockFactory?: () => ClockPort;
-  databaseFactory?: DatabaseProviderFactory;
-  messageIdentityFactory?: () => MessageIdentityPort;
   createSessionController?: SessionProviderProps["createController"];
   createAccountScope?: () => AccountScopeController;
   createGroupsStore?: (origin: string) => GroupsStore;
-}>;
-
-export type AppRuntimeDependencies = Readonly<{
-  clock: ClockPort;
-  messageIdentity: MessageIdentityPort;
-  repository: DatabaseRepository;
 }>;
 
 export type AccountScopeContextValue = Readonly<{
@@ -89,9 +65,6 @@ export type AccountScopeContextValue = Readonly<{
   retry: () => void;
 }>;
 
-const AppRuntimeContext = createContext<AppRuntimeDependencies | undefined>(
-  undefined,
-);
 const AccountScopeContext = createContext<AccountScopeContextValue | undefined>(
   undefined,
 );
@@ -257,9 +230,6 @@ function createDefaultChatStore() {
 
 export function AppProviders({
   children,
-  databaseFactory = productionDatabaseFactory,
-  clockFactory = createSystemClock,
-  messageIdentityFactory = createMonotonicMessageIdentity,
   createSessionController,
   createAccountScope,
   createGroupsStore: groupsStoreFactory,
@@ -269,55 +239,17 @@ export function AppProviders({
   return (
     <KeyboardProvider>
       <AppThemeProvider>
-        {env.appMode === "connected-auth" ? (
-          <ConnectedRuntimeProviders
-            accountScopeFactory={createAccountScope}
-            createSessionController={createSessionController}
-            groupsStoreFactory={groupsStoreFactory}
-            origin={requireConnectedOrigin(env.apiOrigin)}
-          >
-            {children}
-          </ConnectedRuntimeProviders>
-        ) : (
-          <FixtureRuntimeProviders
-            databaseFactory={databaseFactory}
-            clockFactory={clockFactory}
-            messageIdentityFactory={messageIdentityFactory}
-          >
-            {children}
-          </FixtureRuntimeProviders>
-        )}
+        <ConnectedRuntimeProviders
+          accountScopeFactory={createAccountScope}
+          createSessionController={createSessionController}
+          groupsStoreFactory={groupsStoreFactory}
+          origin={env.apiOrigin}
+        >
+          {children}
+        </ConnectedRuntimeProviders>
       </AppThemeProvider>
     </KeyboardProvider>
   );
-}
-
-function FixtureRuntimeProviders({
-  children,
-  databaseFactory,
-  clockFactory,
-  messageIdentityFactory,
-}: PropsWithChildren<
-  Readonly<{
-    databaseFactory: DatabaseProviderFactory;
-    clockFactory: () => ClockPort;
-    messageIdentityFactory: () => MessageIdentityPort;
-  }>
->) {
-  const [clock] = useState(clockFactory);
-  const [messageIdentity] = useState(messageIdentityFactory);
-  return (
-    <DatabaseProvider databaseFactory={databaseFactory}>
-      <AppRuntimeBridge clock={clock} messageIdentity={messageIdentity}>
-        {children}
-      </AppRuntimeBridge>
-    </DatabaseProvider>
-  );
-}
-
-function requireConnectedOrigin(origin: string | undefined): string {
-  if (!origin) throw new Error("connected-auth requires an API origin.");
-  return origin;
 }
 
 function ConnectedRuntimeProviders({
@@ -456,9 +388,7 @@ function AccountScopeBridge({
 export function useAccountScope(): AccountScopeContextValue {
   const value = useContext(AccountScopeContext);
   if (!value) {
-    throw new Error(
-      "useAccountScope must be used inside AppProviders' connected-auth mode.",
-    );
+    throw new Error("useAccountScope must be used inside AppProviders.");
   }
   return value;
 }
@@ -484,31 +414,4 @@ function GroupsStoreBridge({
       {children}
     </GroupsProvider>
   );
-}
-
-function AppRuntimeBridge({
-  children,
-  clock,
-  messageIdentity,
-}: PropsWithChildren<
-  Readonly<{
-    clock: ClockPort;
-    messageIdentity: MessageIdentityPort;
-  }>
->) {
-  const repository = useDatabaseRepository();
-
-  return (
-    <AppRuntimeContext.Provider value={{ clock, messageIdentity, repository }}>
-      {children}
-    </AppRuntimeContext.Provider>
-  );
-}
-
-export function useAppRuntime(): AppRuntimeDependencies {
-  const runtime = useContext(AppRuntimeContext);
-  if (!runtime) {
-    throw new Error("useAppRuntime must be used inside AppProviders.");
-  }
-  return runtime;
 }

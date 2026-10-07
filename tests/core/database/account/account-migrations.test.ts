@@ -21,11 +21,10 @@ type Migration = Readonly<{
 
 type MigrateModule = { runMigrations?: unknown };
 type AccountMigrationsModule = { accountMigrations?: unknown };
-type FixtureMigrationsModule = { migrations?: unknown };
 
 type RunMigrations = (
   database: SqliteDatabase,
-  migrations?: readonly Migration[],
+  migrations: readonly Migration[],
 ) => Promise<void>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -79,13 +78,6 @@ function loadAccountMigrations(): readonly Migration[] {
     );
   }
   return module.accountMigrations as readonly Migration[];
-}
-
-function loadFixtureMigrations(): readonly Migration[] {
-  const module = jest.requireActual<FixtureMigrationsModule>(
-    "../../../../src/core/database/migrations",
-  );
-  return module.migrations as readonly Migration[];
 }
 
 class RecordingSqliteDatabase implements SqliteDatabase {
@@ -205,47 +197,5 @@ describe("M11 account v5 migration registry", () => {
       /PRAGMA\s+user_version\s*=/i,
     );
     expect(database.userVersion).toBe(7);
-  });
-
-  test("does not modify the preserved fixture migration registry or its five-table schema", async () => {
-    const runMigrations = loadRunMigrations();
-    const fixtureMigrations = loadFixtureMigrations();
-
-    expect(fixtureMigrations).toHaveLength(1);
-    expect(fixtureMigrations[0]?.version).toBe(1);
-    expect(fixtureMigrations[0]?.name).toBe("initial-schema");
-
-    const fixtureDatabase = new RecordingSqliteDatabase();
-    await runMigrations(fixtureDatabase, fixtureMigrations);
-    const fixtureSchema = schemaOf(fixtureDatabase);
-
-    expect(tableNames(fixtureSchema)).toEqual([
-      "applied_events",
-      "conversations",
-      "messages",
-      "outbox_commands",
-      "sync_cursors",
-    ]);
-    expect(fixtureSchema).not.toMatch(/scope_metadata/i);
-  });
-
-  test("runs the fixture and account registries against independent databases without any cross-writes", async () => {
-    const runMigrations = loadRunMigrations();
-    const accountMigrations = loadAccountMigrations();
-    const fixtureMigrations = loadFixtureMigrations();
-
-    const fixtureDatabase = new RecordingSqliteDatabase();
-    const accountDatabase = new RecordingSqliteDatabase();
-
-    await runMigrations(fixtureDatabase, fixtureMigrations);
-    await runMigrations(accountDatabase, accountMigrations);
-
-    expect(schemaOf(fixtureDatabase)).not.toMatch(/scope_metadata/i);
-    expect(schemaOf(accountDatabase)).not.toMatch(
-      /CREATE\s+TABLE\s+(?:applied_events|sync_cursors)\b/i,
-    );
-    expect(fixtureDatabase.committedStatements).not.toEqual(
-      accountDatabase.committedStatements,
-    );
   });
 });

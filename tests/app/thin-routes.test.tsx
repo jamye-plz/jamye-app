@@ -1,6 +1,6 @@
 import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 
 // Keep native image gestures outside thin route/provider wiring tests.
 jest.mock("@/features/media/ui/media-image-viewer", () => ({
@@ -66,23 +66,48 @@ jest.mock("@expo/ui/swift-ui/modifiers", () => ({
 }));
 
 let mockRouterShouldThrow = false;
-const mockShellRepository = {
-  ensureFixtureConversation: jest.fn(async () => undefined),
-};
-const mockShellDatabaseClose = jest.fn(async () => undefined);
-const mockProductionDatabaseFactory = jest.fn(async () => ({
-  close: mockShellDatabaseClose,
-  repository: mockShellRepository,
-}));
 
-jest.mock("../../src/core/database/database-provider", () => {
-  const actual = jest.requireActual<Record<string, unknown>>(
-    "../../src/core/database/database-provider",
-  );
+// Connected-auth harness: the root layout renders the real `AppProviders`
+// (the only runtime), with its session controller and account scope replaced
+// by signed-out fakes so no secure storage, network, or SQLite is touched.
+jest.mock("../../src/core/providers/app-providers", () => {
+  const mockReact = jest.requireActual<typeof import("react")>("react");
+  const actual = jest.requireActual<
+    typeof import("../../src/core/providers/app-providers")
+  >("../../src/core/providers/app-providers");
+  const signedOut = {
+    status: "signed-out" as const,
+    profile: null,
+    message: null,
+  };
+  const createSessionController = () => ({
+    getState: () => signedOut,
+    getGeneration: () => 1,
+    subscribe: () => () => undefined,
+    dispose: () => undefined,
+    restore: async () => undefined,
+    signIn: async () => undefined,
+    logout: async () => undefined,
+    retryProfile: async () => undefined,
+  });
+  const createAccountScope = () => ({
+    getState: () => null,
+    setPrincipal: () => undefined,
+    subscribe: () => () => undefined,
+  });
+
+  const RealAppProviders = actual.AppProviders as React.ComponentType<
+    Record<string, unknown>
+  >;
 
   return {
     ...actual,
-    productionDatabaseFactory: mockProductionDatabaseFactory,
+    AppProviders: ({ children }: { children?: React.ReactNode }) =>
+      mockReact.createElement(
+        RealAppProviders,
+        { createAccountScope, createSessionController },
+        children,
+      ),
   };
 });
 
@@ -263,6 +288,7 @@ jest.mock("expo-router", () => {
     DefaultTheme: { dark: false },
     ThemeProvider: MockThemeProvider,
     Stack,
+    useRouter: () => ({ push: jest.fn() }),
     useFocusEffect: (callback: () => (() => void) | void) =>
       jest
         .requireActual<typeof import("react")>("react")
@@ -272,22 +298,6 @@ jest.mock("expo-router", () => {
 
 type DefaultComponentModule = { default?: unknown };
 type NamedComponentModule = Record<string, unknown>;
-type AppProvidersProps = {
-  children: ReactNode;
-  clockFactory?: () => Readonly<{ nowMs: () => number }>;
-  databaseFactory?: () => Promise<
-    Readonly<{
-      close: () => Promise<void>;
-      repository: Record<string, unknown>;
-    }>
-  >;
-  messageIdentityFactory?: () => Readonly<{
-    next: () => Readonly<{ clientMsgId: string; localId: string }>;
-  }>;
-};
-
-const REQUIRED_NOTICE =
-  "로컬 개발용 fixture 데이터입니다. production server에 연결되어 있지 않습니다.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -367,36 +377,26 @@ function loadActualRoute(
   return loaded.default as ComponentType;
 }
 
-function loadActualAppProviders(): ComponentType<AppProvidersProps> {
-  const loaded = loadRequiredModule<NamedComponentModule>(
-    "../../src/core/providers/app-providers",
-    "src/core/providers/app-providers.tsx",
-  );
-  if (typeof loaded.AppProviders !== "function") {
-    throw new Error(
-      "M3-I3 implementation incomplete: app-providers.tsx must export AppProviders.",
-    );
-  }
-  return loaded.AppProviders as ComponentType<AppProvidersProps>;
-}
-
 let consoleErrorSpy: jest.SpyInstance;
-const originalAppMode = process.env.EXPO_PUBLIC_APP_MODE;
+const originalApiOrigin = process.env.EXPO_PUBLIC_API_ORIGIN;
+const originalMediaOrigin = process.env.EXPO_PUBLIC_MEDIA_ORIGIN;
 
 beforeEach(() => {
-  process.env.EXPO_PUBLIC_APP_MODE = "local-fixture";
+  process.env.EXPO_PUBLIC_API_ORIGIN = "https://api.example.com";
+  process.env.EXPO_PUBLIC_MEDIA_ORIGIN = "https://media.example.com";
   mockRouterShouldThrow = false;
-  mockProductionDatabaseFactory.mockClear();
-  mockShellDatabaseClose.mockClear();
-  mockShellRepository.ensureFixtureConversation.mockClear();
   consoleErrorSpy = jest
     .spyOn(console, "error")
     .mockImplementation(() => undefined);
 });
 
 afterEach(() => {
-  if (originalAppMode === undefined) delete process.env.EXPO_PUBLIC_APP_MODE;
-  else process.env.EXPO_PUBLIC_APP_MODE = originalAppMode;
+  if (originalApiOrigin === undefined)
+    delete process.env.EXPO_PUBLIC_API_ORIGIN;
+  else process.env.EXPO_PUBLIC_API_ORIGIN = originalApiOrigin;
+  if (originalMediaOrigin === undefined)
+    delete process.env.EXPO_PUBLIC_MEDIA_ORIGIN;
+  else process.env.EXPO_PUBLIC_MEDIA_ORIGIN = originalMediaOrigin;
   consoleErrorSpy.mockRestore();
 });
 
@@ -498,118 +498,14 @@ describe("M3-I3 actual thin Expo Router modules", () => {
     expect(screen.getByLabelText("Expo Router stack light")).toBeTruthy();
   });
 
-  // E7a/C13/AUTH-AC2: the fixture screen moved from `app/index.tsx` (now a
-  // pure redirector, see connected-index-route.test.tsx) to its own
-  // `/local-fixture` route -- this test now exercises that route file
-  // directly. `ChatScreen`/`chat-fixture.ts` themselves are unmodified.
-  test("binds the actual local-fixture route to one fixture selector and the exact local fixture notice", async () => {
-    const chat = loadRequiredModule<NamedComponentModule>(
-      "../../src/features/chat/ui/chat-screen",
-      "src/features/chat/ui/chat-screen.tsx",
+  test("declares the sign-in route but no local-fixture route (fixture mode was removed)", async () => {
+    const RootLayout = loadActualRoute(
+      "../../src/app/_layout",
+      "src/app/_layout.tsx",
     );
-    const fixture = loadRequiredModule<NamedComponentModule>(
-      "../../src/features/chat/model/chat-fixture",
-      "src/features/chat/model/chat-fixture.ts",
-    );
-    if (typeof chat.ChatScreen !== "function") {
-      throw new Error(
-        "M5-UI-1 implementation incomplete: chat-screen.tsx must export ChatScreen.",
-      );
-    }
-    if (fixture.LOCAL_FIXTURE_NOTICE !== REQUIRED_NOTICE) {
-      throw new Error(
-        "M5-UI-1 fixture contract is incomplete: LOCAL_FIXTURE_NOTICE must preserve the exact local-only copy.",
-      );
-    }
-    if (
-      !isRecord(fixture.FIXTURE_CONVERSATION_SEED) ||
-      !isRecord(fixture.FIXTURE_CONVERSATION_SEED.conversation) ||
-      fixture.FIXTURE_CONVERSATION_SEED.conversation.id !==
-        fixture.FIXTURE_CONVERSATION_ID
-    ) {
-      throw new Error(
-        "M5-UI-1 fixture contract is incomplete: seed conversation.id must equal FIXTURE_CONVERSATION_ID.",
-      );
-    }
-    if (typeof fixture.FIXTURE_CONVERSATION_ID !== "string") {
-      throw new Error(
-        "M5-UI-1 fixture contract is incomplete: FIXTURE_CONVERSATION_ID must be a string selector.",
-      );
-    }
-    const fixtureConversationId = fixture.FIXTURE_CONVERSATION_ID;
+    const screen = await render(<RootLayout />);
 
-    const LocalFixtureRoute = loadActualRoute(
-      "../../src/app/local-fixture",
-      "src/app/local-fixture.tsx",
-    );
-    const AppProviders = loadActualAppProviders();
-    const repository = {
-      ensureFixtureConversation: jest.fn(async () => undefined),
-      enqueuePendingMessage: jest.fn(async (input) => ({
-        ...input,
-        eventId: null,
-        serverSequence: null,
-        status: "pending",
-      })),
-      listMessagesPage: jest.fn(async () => ({
-        hasMore: false,
-        items: [],
-        nextBefore: null,
-      })),
-      retryFailedMessage: jest.fn(async () => undefined),
-      subscribe: jest.fn(() => () => undefined),
-    };
-    const screen = await render(
-      <AppProviders
-        clockFactory={() => ({ nowMs: () => 1000 })}
-        databaseFactory={async () => ({
-          close: async () => undefined,
-          repository,
-        })}
-        messageIdentityFactory={() => ({
-          next: () => ({ clientMsgId: "test-client", localId: "test-local" }),
-        })}
-      >
-        <LocalFixtureRoute />
-      </AppProviders>,
-    );
-
-    expect(await screen.findByText(REQUIRED_NOTICE)).toBeTruthy();
-    // C14a: the screen intentionally renders two same-named "header"s here --
-    // this suite's `Stack.Screen` mock surfaces the native header title (no
-    // `style`, the pre-existing contract below), and chat-screen.tsx also
-    // renders its own visually hidden content heading (has `style`) that
-    // `headingRef` attaches to, since a ref can't reach the native title
-    // while fixture/title resolution is pending. Device acceptance (C16)
-    // confirms whether the duplicate VoiceOver announcement is audible; C15
-    // would switch to focusing the native header directly if so.
-    const headings = screen.getAllByRole("header", { name: "로컬 대화" });
-    expect(headings).toHaveLength(2);
-    expect(
-      headings.filter((heading) => heading.props.style == null),
-    ).toHaveLength(1); // native Stack.Screen header title mock
-    expect(
-      headings.filter((heading) => heading.props.style != null),
-    ).toHaveLength(1); // chat-screen.tsx's hidden content heading
-    expect(repository.listMessagesPage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        before: null,
-        conversationId: fixtureConversationId,
-      }),
-    );
-
-    await fireEvent.changeText(
-      screen.getByLabelText("메시지 입력"),
-      "fixture selector send",
-    );
-    await fireEvent.press(
-      screen.getByRole("button", { name: "메시지 보내기" }),
-    );
-    expect(repository.enqueuePendingMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: "fixture selector send",
-        conversationId: fixtureConversationId,
-      }),
-    );
+    expect(screen.getByTestId("route-(auth)/sign-in")).toBeTruthy();
+    expect(screen.queryByTestId("route-local-fixture")).toBeNull();
   });
 });

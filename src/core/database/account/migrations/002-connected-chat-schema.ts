@@ -1,4 +1,4 @@
-import type { Migration } from "../../migrations";
+import type { Migration } from "../../types";
 
 export const connectedChatSchemaMigration: Migration = {
   version: 2,

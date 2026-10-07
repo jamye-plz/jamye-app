@@ -29,10 +29,9 @@ import { createProfileRecovery } from "@/features/sync/model/profile-recovery";
  * login screen never flashes behind it. `preventAutoHideAsync` runs once at
  * module evaluation time -- this file is statically imported (directly by
  * `app/index.tsx`, and transitively via `app-providers.tsx` from the root
- * layout) regardless of app mode, so this fires at process start even in
- * `local-fixture` mode, where `SessionProvider` itself never mounts and
- * `app/index.tsx` hides the splash immediately instead (see its own E12
- * comment). `void` matches the existing fire-and-forget style below (`void
+ * layout), so this fires at process start; the matching hide (restore
+ * complete, or the safety timeout below) lives in `SessionProvider`. `void`
+ * matches the existing fire-and-forget style below (`void
  * controller.restore()`).
  */
 void SplashScreen.preventAutoHideAsync();
@@ -42,8 +41,7 @@ const SPLASH_SAFETY_TIMEOUT_MS = 3000;
 /**
  * C9 (M17 ANR round 2, DEBUG-AC3): dev-only startup timing. `moduleLoadTimeMs`
  * is the earliest marker available in this task's file scope -- this module
- * is evaluated at process start regardless of app mode (see the comment
- * above). `startupTimingLogger` reuses the shared structured logger; every
+ * is evaluated at process start (see the comment above). `startupTimingLogger` reuses the shared structured logger; every
  * call below is gated by `__DEV__` and its metadata carries only numeric
  * durations or fixed enum labels, never tokens/ids/profile fields. The fixed
  * `[startup-timing]` event prefix is grep-able in logcat/Metro output.

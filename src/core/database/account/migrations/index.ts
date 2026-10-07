@@ -5,7 +5,7 @@ import { topicsCacheMigration } from "./004-topics-cache";
 import { connectedChatMediaMigration } from "./005-connected-chat-media";
 import { connectedChatDeletionsMigration } from "./006-connected-chat-deletions";
 import { mediaExpiredErrorCodeMigration } from "./007-media-expired-error-code";
-import type { Migration } from "../../migrations";
+import type { Migration } from "../../types";
 
 // M17 (U10): account writes still run with foreign keys OFF (see 007), so
 // orphan rows can pile up between releases and runMigrations'

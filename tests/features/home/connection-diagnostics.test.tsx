@@ -32,11 +32,13 @@ async function renderDiagnostics() {
 }
 
 describe("connection diagnostics (H1/H2)", () => {
-  const previousMode = process.env.EXPO_PUBLIC_APP_MODE;
-  const previousOrigin = process.env.EXPO_PUBLIC_API_ORIGIN;
+  const previousEnv = {
+    EXPO_PUBLIC_API_ORIGIN: process.env.EXPO_PUBLIC_API_ORIGIN,
+    EXPO_PUBLIC_MEDIA_ORIGIN: process.env.EXPO_PUBLIC_MEDIA_ORIGIN,
+  };
   beforeEach(() => {
-    process.env.EXPO_PUBLIC_APP_MODE = "connected-auth";
     process.env.EXPO_PUBLIC_API_ORIGIN = "https://api.example";
+    process.env.EXPO_PUBLIC_MEDIA_ORIGIN = "https://media.example";
     jest.clearAllMocks();
     mockLiveness.mockResolvedValue({ status: "live" });
     mockReadiness.mockResolvedValue({
@@ -49,8 +51,10 @@ describe("connection diagnostics (H1/H2)", () => {
     });
   });
   afterAll(() => {
-    process.env.EXPO_PUBLIC_APP_MODE = previousMode;
-    process.env.EXPO_PUBLIC_API_ORIGIN = previousOrigin;
+    for (const [name, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
   });
 
   test("shows the live/ready diagnosis results after diagnosing", async () => {

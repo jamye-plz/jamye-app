@@ -28,12 +28,11 @@ function RootStack() {
         {/* E7a/C13: registered here for the same reason as the C3 screens
             below -- a signed-out guard's `<Redirect href="/sign-in" />`
             resolves through the router the same way an external link would,
-            and `AuthScreen`/`ChatScreen` already self-set `headerShown:
-            false`/their own title via their own `Stack.Screen`, but an
-            explicit entry keeps both new routes discoverable in this one
-            manifest alongside every other route this file already lists. */}
+            and `AuthScreen` already self-sets `headerShown: false` via its
+            own `Stack.Screen`, but an explicit entry keeps the route
+            discoverable in this one manifest alongside every other route
+            this file already lists. */}
         <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
-        <Stack.Screen name="local-fixture" options={{ headerShown: false }} />
         {/* F-7: the root-stack back label for any screen pushed over the
             tabs (e.g. chat). A static Korean phrase is used because a chat
             can be pushed from any tab, so no single tab's title is always

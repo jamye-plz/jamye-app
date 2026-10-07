@@ -3,13 +3,15 @@ import type { ReactNode } from "react";
 import { AccessibilityInfo, FlatList } from "react-native";
 
 import { AppThemeProvider } from "@/core/theme/theme-provider";
-import type { ChatMessage } from "@/features/chat/model/chat-message-window";
+import type {
+  ChatConversation,
+  ChatMessage,
+} from "@/features/chat/model/chat-message-window";
 import {
   ChatMessageList,
   getPinnedBottomFollowOffset,
   resolveListKeyboardDismissMode,
 } from "@/features/chat/ui/chat-message-list";
-import type { ChatConversation } from "@/features/chat/use-chat-conversation";
 
 jest.mock("expo-router", () => ({
   useFocusEffect: jest.fn(),

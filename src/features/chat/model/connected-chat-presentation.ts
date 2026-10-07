@@ -2,12 +2,11 @@ import type {
   ConnectedChatMessage,
   ConnectedSendErrorCode,
 } from "@/core/database/account/connected-chat-types";
-import type { ChatMessage } from "./chat-message-window";
+import type { ChatConversation, ChatMessage } from "./chat-message-window";
 import type {
   ConnectedChatState,
   ConnectedChatStoreActions,
 } from "./connected-chat-store";
-import type { ChatConversation } from "../use-chat-conversation";
 
 /** UI-tier files cannot import `@/core/database/**` directly (architecture policy);
  * this model-tier file re-exports the two attachment-shaped types the media UI and

@@ -41,7 +41,7 @@ ignored `node_modules/`, `ios/`, `android/` 같은 산출물을 제외한다. �
 
 ### dotenv 설정
 
-Application variant와 공개 fixture mode는 package script에 붙이지 않는다. 최초 한 번 안전한
+Application variant와 공개 origin은 package script에 붙이지 않는다. 최초 한 번 안전한
 template을 로컬 `.env`로 복사한다.
 
 ```sh
@@ -54,24 +54,16 @@ Jest는 `jest.config.js#globalSetup`에 고정된 `tools/quality/jest-env.cjs`�
 `process.loadEnvFile`로 `.env`를 suite 환경 생성보다 먼저 로드한다. 따라서 `test`,
 `test:watch`, `test:coverage`는 모두 직접 Jest 명령을 사용하면서 같은 환경 계약을 공유한다.
 Test workflow는 개발자마다 달라질 수 있는 `.env.local`을 읽지 않는다. App config가 필요한
-명령은 다음 두 키가 없거나 지원하지 않는 값이면 명확하게 실패한다.
-
-로컬 M5 채팅과 OAuth 연결 개발은 mode를 분리해 사용한다.
-
-```dotenv
-# Local M5 chat
-APP_VARIANT=development
-EXPO_PUBLIC_APP_MODE=local-fixture
-```
+명령은 `APP_VARIANT`가 없거나 지원하지 않는 값이면 명확하게 실패하고, 앱은 API·미디어 origin이
+없거나 bare HTTPS origin이 아니면 시작할 때 명확한 오류로 실패한다. 앱 mode 선택 변수는 없다.
 
 ```dotenv
-# Connected OAuth development; keep only in ignored local env
 APP_VARIANT=development
-EXPO_PUBLIC_APP_MODE=connected-auth
 EXPO_PUBLIC_API_ORIGIN=https://jamye-api.ridewithmin.com
+EXPO_PUBLIC_MEDIA_ORIGIN=https://jamye-media.ridewithmin.com
 ```
 
-두 mode의 값을 한 환경 파일에 동시에 활성화하지 않는다. `EXPO_PUBLIC_*` 값은 공개 bundle에
+`EXPO_PUBLIC_*` 값은 공개 bundle에
 포함될 수 있으므로 token과 credential을 넣지 않는다. Environment file precedence는 현재
 loader 동작을 확인해 단일 source만 사용하며, 이 문서가 추측한 precedence를 새 계약으로
 만들지 않는다.

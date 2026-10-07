@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 import React from "react";
 import type { ComponentType, ReactNode } from "react";
 import { AccessibilityInfo, StatusBar, useColorScheme } from "react-native";
@@ -196,20 +196,7 @@ type FileSystemModule = Readonly<{
   readFileSync: (path: string, encoding: "utf8") => string;
 }>;
 
-type DatabaseResource = Readonly<{
-  close: () => Promise<void>;
-  repository: Record<string, unknown>;
-}>;
-type AppProvidersProps = Readonly<{
-  children: ReactNode;
-  databaseFactory: () => Promise<DatabaseResource>;
-  clockFactory: () => Readonly<{ nowMs: () => number }>;
-  messageIdentityFactory: () => Readonly<{
-    next: () => Readonly<{ clientMsgId: string; localId: string }>;
-  }>;
-}>;
 type ChatScreenModule = {
-  ChatScreen?: unknown;
   ChatConversationScreen?: unknown;
 };
 type ChatMessageRowModule = { ChatMessageRow?: unknown };
@@ -219,7 +206,6 @@ type ChatMessageListModule = {
   getKeyboardAnchoredScrollOffset?: unknown;
 };
 type ThemeProviderModule = { AppThemeProvider?: unknown };
-type ProvidersModule = { AppProviders?: unknown };
 type ChatTokensModule = {
   appChatComposer?: unknown;
   appChatLayout?: unknown;
@@ -248,13 +234,8 @@ type M5ChatTokens = Readonly<{
     timestampFontSize: 13;
   }>;
 }>;
-type ChatScreen = (
-  props: Readonly<{
-    focusMainHeading?: (target: unknown) => void;
-  }>,
-) => React.JSX.Element;
-/** A11YF-AC1 once-guard test only: a loose contract covering just the props
- * that test needs (`subtitle`), not the component's full real prop surface. */
+/** A loose contract covering just the props these tests need, not the
+ * component's full real prop surface. */
 type ChatConversationScreen = (
   props: Readonly<{
     title: string;
@@ -345,16 +326,6 @@ type ChatMessageRow = (
   }>,
 ) => React.JSX.Element;
 
-function createDeferred<Value>() {
-  let reject: (error: Error) => void = () => undefined;
-  let resolve: (value: Value) => void = () => undefined;
-  const promise = new Promise<Value>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, reject, resolve };
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -368,63 +339,23 @@ function isMissingModuleError(error: unknown): boolean {
   );
 }
 
-function loadChatScreenContract(): {
-  AppProviders: ComponentType<AppProvidersProps>;
-  ChatScreen: ChatScreen;
-} {
-  let chat: ChatScreenModule;
-  let providers: ProvidersModule;
-  try {
-    chat = jest.requireActual<ChatScreenModule>(
-      "../../../src/features/chat/ui/chat-screen",
-    );
-    providers = jest.requireActual<ProvidersModule>(
-      "../../../src/core/providers/app-providers",
-    );
-  } catch (error) {
-    if (isMissingModuleError(error)) {
-      throw new Error(
-        "M5-UI-1 implementation missing: ChatScreen and AppProviders runtime composition must exist before accessibility GREEN.",
-      );
-    }
-    throw error;
-  }
-
-  if (typeof chat.ChatScreen !== "function") {
-    throw new Error(
-      "M5-UI-1 chat accessibility contract is incomplete: chat-screen.tsx must export ChatScreen.",
-    );
-  }
-  if (typeof providers.AppProviders !== "function") {
-    throw new Error(
-      "M5-UI-1 chat accessibility contract is incomplete: app-providers.tsx must export AppProviders.",
-    );
-  }
-  return {
-    AppProviders: providers.AppProviders as ComponentType<AppProvidersProps>,
-    ChatScreen: chat.ChatScreen as ChatScreen,
-  };
-}
-
-/** A11YF-AC1 once-guard test only: `ChatConversationScreen` directly, so the
- * test can control `subtitle` (unlike the fixed-title `ChatScreen` wrapper). */
 function loadChatConversationScreenContract(): {
-  AppProviders: ComponentType<AppProvidersProps>;
+  AppThemeProvider: ComponentType<{ children: ReactNode }>;
   ChatConversationScreen: ChatConversationScreen;
 } {
   let chat: ChatScreenModule;
-  let providers: ProvidersModule;
+  let theme: ThemeProviderModule;
   try {
     chat = jest.requireActual<ChatScreenModule>(
       "../../../src/features/chat/ui/chat-screen",
     );
-    providers = jest.requireActual<ProvidersModule>(
-      "../../../src/core/providers/app-providers",
+    theme = jest.requireActual<ThemeProviderModule>(
+      "../../../src/core/theme/theme-provider",
     );
   } catch (error) {
     if (isMissingModuleError(error)) {
       throw new Error(
-        "M5-UI-1 implementation missing: ChatConversationScreen and AppProviders runtime composition must exist before accessibility GREEN.",
+        "M5-UI-1 implementation missing: ChatConversationScreen and AppThemeProvider must exist before accessibility GREEN.",
       );
     }
     throw error;
@@ -434,13 +365,15 @@ function loadChatConversationScreenContract(): {
       "A11YF-AC1 contract is incomplete: chat-screen.tsx must export ChatConversationScreen.",
     );
   }
-  if (typeof providers.AppProviders !== "function") {
+  if (typeof theme.AppThemeProvider !== "function") {
     throw new Error(
-      "M5-UI-1 chat accessibility contract is incomplete: app-providers.tsx must export AppProviders.",
+      "M5-UI-1 chat accessibility contract is incomplete: expected AppThemeProvider for screen rendering.",
     );
   }
   return {
-    AppProviders: providers.AppProviders as ComponentType<AppProvidersProps>,
+    AppThemeProvider: theme.AppThemeProvider as ComponentType<{
+      children: ReactNode;
+    }>,
     ChatConversationScreen:
       chat.ChatConversationScreen as ChatConversationScreen,
   };
@@ -572,12 +505,14 @@ function loadM5ChatTokens(): M5ChatTokens {
   return tokens as M5ChatTokens;
 }
 
-function createRepository(): Record<string, unknown> {
-  const messages = [
+const CONVERSATION_ID = "room-1";
+
+function createMessages(): ChatMessage[] {
+  return [
     {
       body: "pending body",
       clientMsgId: "pending-client",
-      conversationId: "fixture-conversation",
+      conversationId: CONVERSATION_ID,
       createdAtMs: 100,
       eventId: null,
       localId: "pending-local",
@@ -588,7 +523,7 @@ function createRepository(): Record<string, unknown> {
     {
       body: "failed body",
       clientMsgId: "failed-client",
-      conversationId: "fixture-conversation",
+      conversationId: CONVERSATION_ID,
       createdAtMs: 110,
       eventId: null,
       localId: "failed-local",
@@ -599,138 +534,125 @@ function createRepository(): Record<string, unknown> {
     {
       body: "sent body",
       clientMsgId: null,
-      conversationId: "fixture-conversation",
+      conversationId: CONVERSATION_ID,
       createdAtMs: 120,
       eventId: "event-sent",
       localId: "sent-local",
-      senderId: "fixture-sender",
+      senderId: "other-user",
       serverSequence: 1,
       status: "sent",
     },
   ];
+}
+
+function createConversation(
+  overrides: Partial<ChatConversation> = {},
+): ChatConversation {
   return {
-    ensureFixtureConversation: jest.fn(async () => undefined),
-    enqueuePendingMessage: jest.fn(async () => messages[0]),
-    listMessagesPage: jest.fn(async () => ({
-      hasMore: false,
-      items: messages,
-      nextBefore: null,
-    })),
-    retryFailedMessage: jest.fn(async () => messages[0]),
-    subscribe: jest.fn(() => () => undefined),
+    hasMore: false,
+    initialPageStatus: "ready",
+    items: createMessages(),
+    loadOlder: async () => undefined,
+    olderPageStatus: "idle",
+    retryInitialPage: async () => undefined,
+    ...overrides,
   };
 }
 
-const mockedUseColorScheme = jest.mocked(useColorScheme);
-const originalAppMode = process.env.EXPO_PUBLIC_APP_MODE;
+function createController() {
+  return { send: jest.fn(async () => ({ outcome: "empty" as const })) };
+}
 
+const mockedUseColorScheme = jest.mocked(useColorScheme);
 // Full-suite coverage runs (--runInBand) push the first async screen test past
 // jest's 5 s default; the flow itself is unchanged.
 jest.setTimeout(15_000);
 
-describe("M5-UI-1 accessible local chat screen", () => {
+function renderConversationScreen(
+  props: Readonly<{
+    conversation?: ChatConversation;
+    controller?: unknown;
+    focusMainHeading?: (target: unknown) => void;
+    onRetryFailedMessage?: (input: unknown) => void;
+    subtitle?: string;
+  }> = {},
+) {
+  const { AppThemeProvider, ChatConversationScreen } =
+    loadChatConversationScreenContract();
+  const noop = () => undefined;
+  const element = (nextProps: typeof props) => (
+    <AppThemeProvider>
+      <ChatConversationScreen
+        conversation={nextProps.conversation ?? createConversation()}
+        controller={nextProps.controller ?? createController()}
+        focusMainHeading={nextProps.focusMainHeading}
+        onDeleteMessage={noop}
+        onDiscardFailedMessage={noop}
+        onRetryFailedMessage={nextProps.onRetryFailedMessage ?? noop}
+        subtitle={nextProps.subtitle}
+        title="그룹 대화방"
+      />
+    </AppThemeProvider>
+  );
+  return { element, render: () => render(element(props)) };
+}
+
+describe("M5-UI-1 accessible conversation screen", () => {
   beforeEach(() => {
-    process.env.EXPO_PUBLIC_APP_MODE = "local-fixture";
     mockScreenOptions = undefined;
   });
 
-  afterEach(() => {
-    if (originalAppMode === undefined) delete process.env.EXPO_PUBLIC_APP_MODE;
-    else process.env.EXPO_PUBLIC_APP_MODE = originalAppMode;
-  });
-
   test("distinguishes initial message loading, recoverable error, and successful empty state", async () => {
-    const { AppProviders, ChatScreen } = loadChatScreenContract();
-    const firstPage = createDeferred<{
-      hasMore: false;
-      items: [];
-      nextBefore: null;
-    }>();
-    const retryPage = createDeferred<{
-      hasMore: false;
-      items: [];
-      nextBefore: null;
-    }>();
-    const listMessagesPage = jest
-      .fn()
-      .mockImplementationOnce(async () => await firstPage.promise)
-      .mockImplementationOnce(async () => await retryPage.promise);
-    const repository = { ...createRepository(), listMessagesPage };
-    const screen = await render(
-      <AppProviders
-        clockFactory={() => ({ nowMs: () => 1000 })}
-        databaseFactory={async () => ({
-          close: async () => undefined,
-          repository,
-        })}
-        messageIdentityFactory={() => ({
-          next: () => ({ clientMsgId: "next-client", localId: "next-local" }),
-        })}
-      >
-        <ChatScreen focusMainHeading={() => undefined} />
-      </AppProviders>,
-    );
+    const retryInitialPage = jest.fn(async () => undefined);
+    const harness = renderConversationScreen({
+      conversation: createConversation({
+        initialPageStatus: "loading",
+        items: [],
+        retryInitialPage,
+      }),
+    });
+    const screen = await harness.render();
 
     expect(await screen.findByText("메시지 불러오는 중...")).toBeTruthy();
-    await act(async () => {
-      firstPage.reject(new Error("initial page failed"));
-      await firstPage.promise.catch(() => undefined);
-    });
+
+    await screen.rerender(
+      harness.element({
+        conversation: createConversation({
+          initialPageStatus: "error",
+          items: [],
+          retryInitialPage,
+        }),
+      }),
+    );
 
     expect(
       await screen.findByText("메시지를 불러오지 못했습니다."),
     ).toBeTruthy();
     expect(screen.getByRole("alert")).toBeTruthy();
-    const retry = screen.getByRole("button", {
-      name: "메시지 다시 불러오기",
-    });
+    await fireEvent.press(
+      screen.getByRole("button", { name: "메시지 다시 불러오기" }),
+    );
+    expect(retryInitialPage).toHaveBeenCalledTimes(1);
 
-    await fireEvent.press(retry);
-    expect(screen.getByText("메시지 불러오는 중...")).toBeTruthy();
-    expect(listMessagesPage).toHaveBeenCalledTimes(2);
-    expect(listMessagesPage).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        before: null,
-        conversationId: "fixture-conversation",
+    await screen.rerender(
+      harness.element({
+        conversation: createConversation({
+          initialPageStatus: "ready",
+          items: [],
+        }),
       }),
     );
-
-    await fireEvent.press(retry);
-    expect(listMessagesPage).toHaveBeenCalledTimes(2);
-
-    await act(async () => {
-      retryPage.resolve({ hasMore: false, items: [], nextBefore: null });
-      await retryPage.promise;
-    });
     expect(await screen.findByText("아직 메시지가 없습니다.")).toBeTruthy();
     expect(screen.queryByText("메시지를 불러오지 못했습니다.")).toBeNull();
   });
 
-  test("orders heading, local notice, messages, composer, and send action with exact Korean semantics", async () => {
-    const { AppProviders, ChatScreen } = loadChatScreenContract();
+  test("orders heading, messages, composer, and send action with exact Korean semantics", async () => {
     const focusMainHeading = jest.fn();
-    const repository = createRepository();
-    const screen = await render(
-      <AppProviders
-        clockFactory={() => ({ nowMs: () => 1000 })}
-        databaseFactory={async () => ({
-          close: async () => undefined,
-          repository,
-        })}
-        messageIdentityFactory={() => ({
-          next: () => ({ clientMsgId: "next-client", localId: "next-local" }),
-        })}
-      >
-        <ChatScreen focusMainHeading={focusMainHeading} />
-      </AppProviders>,
-    );
+    const screen = await renderConversationScreen({
+      focusMainHeading,
+    }).render();
 
-    expect(mockScreenOptions?.title).toBe("로컬 대화");
-    expect(
-      screen.getByText(
-        "로컬 개발용 fixture 데이터입니다. production server에 연결되어 있지 않습니다.",
-      ),
-    ).toBeTruthy();
+    expect(mockScreenOptions?.title).toBe("그룹 대화방");
     expect(screen.getByLabelText("채팅 메시지")).toBeTruthy();
     expect(screen.getByLabelText("메시지 입력")).toBeTruthy();
     expect(screen.getByRole("button", { name: "메시지 보내기" })).toBeTruthy();
@@ -741,7 +663,7 @@ describe("M5-UI-1 accessible local chat screen", () => {
     expect(focusTarget?.props).toEqual(
       expect.objectContaining({
         accessibilityRole: "header",
-        children: "로컬 대화",
+        children: "그룹 대화방",
       }),
     );
 
@@ -766,30 +688,24 @@ describe("M5-UI-1 accessible local chat screen", () => {
         };
       })(),
     );
-    const noticeIndex = renderedTree.indexOf(
-      "로컬 개발용 fixture 데이터입니다. production server에 연결되어 있지 않습니다.",
-    );
     const messagesIndex = renderedTree.indexOf("pending body");
     const composerIndex = renderedTree.indexOf("메시지 입력");
     const sendIndex = renderedTree.indexOf("메시지 보내기");
-    expect(noticeIndex).toBeGreaterThanOrEqual(0);
-    expect(noticeIndex).toBeLessThan(messagesIndex);
+    expect(messagesIndex).toBeGreaterThanOrEqual(0);
     expect(messagesIndex).toBeLessThan(composerIndex);
     expect(composerIndex).toBeLessThan(sendIndex);
 
     expect(screen.getByText("전송 중")).toBeTruthy();
     expect(screen.getByText("전송 실패")).toBeTruthy();
-    // "sent body" is the incoming (not-outgoing) fixture message and there is
-    // no outgoing "sent" message in this fixture, so the visible "전송됨"
-    // caption stays hidden (showSentStatus only applies to the last outgoing
-    // bubble) while the status remains available to screen readers.
+    // "sent body" is the incoming (not-outgoing) message and there is no
+    // outgoing "sent" message here, so the visible "전송됨" caption stays
+    // hidden (showSentStatus only applies to the last outgoing bubble) while
+    // the status remains available to screen readers.
     expect(screen.queryByText("전송됨")).toBeNull();
     expect(screen.getByLabelText("sent body, 전송됨")).toBeTruthy();
   });
 
   test("A11YF-AC1: the real default focusMainHeading sends a Fabric 'focus' accessibility event to the mounted header element once on mount", async () => {
-    const { AppProviders, ChatScreen } = loadChatScreenContract();
-    const repository = createRepository();
     // Unlike every other test above, this one does not inject a
     // `focusMainHeading` stand-in -- it exercises the screen's own default
     // implementation, which must resolve `headingRef` to a real mounted
@@ -798,28 +714,17 @@ describe("M5-UI-1 accessible local chat screen", () => {
     // pre-Fabric legacy path and return `null` for a Fabric host instance
     // (this app has `newArchEnabled=true`) -- `sendAccessibilityEvent`
     // takes the mounted `HostInstance` directly instead.
+    // `AccessibilityInfo` is a shared jest mock (react-native's jest preset), so
+    // `spyOn` hands back that same function with the calls earlier tests made
+    // still recorded (the earlier cases render the screen with its real default
+    // focus). Clear it so this test counts only its own mount.
     const sendAccessibilityEventSpy = jest
       .spyOn(AccessibilityInfo, "sendAccessibilityEvent")
       .mockImplementation(() => undefined);
+    sendAccessibilityEventSpy.mockClear();
 
     try {
-      await render(
-        <AppProviders
-          clockFactory={() => ({ nowMs: () => 1000 })}
-          databaseFactory={async () => ({
-            close: async () => undefined,
-            repository,
-          })}
-          messageIdentityFactory={() => ({
-            next: () => ({
-              clientMsgId: "next-client",
-              localId: "next-local",
-            }),
-          })}
-        >
-          <ChatScreen />
-        </AppProviders>,
-      );
+      await renderConversationScreen().render();
 
       expect(sendAccessibilityEventSpy).toHaveBeenCalledTimes(1);
       const [handle, eventType] = sendAccessibilityEventSpy.mock.calls[0] ?? [];
@@ -831,69 +736,26 @@ describe("M5-UI-1 accessible local chat screen", () => {
   });
 
   test("A11YF-AC1 (once guard): a header-subtitle change after mount does not refocus the heading a second time", async () => {
-    const { AppProviders, ChatConversationScreen } =
-      loadChatConversationScreenContract();
-    const repository = createRepository();
-    const clockFactory = () => ({ nowMs: () => 1000 });
-    const databaseFactory = async () => ({
-      close: async () => undefined,
-      repository,
+    const harness = renderConversationScreen({
+      conversation: createConversation({ items: [] }),
     });
-    const messageIdentityFactory = () => ({
-      next: () => ({ clientMsgId: "next-client", localId: "next-local" }),
-    });
-    const conversation = {
-      hasMore: false,
-      initialPageStatus: "ready" as const,
-      items: [],
-      loadOlder: async () => undefined,
-      olderPageStatus: "idle" as const,
-      retryInitialPage: async () => undefined,
-    };
-    const controller = { send: async () => ({ outcome: "empty" as const }) };
-    const noop = () => undefined;
     const sendAccessibilityEventSpy = jest
       .spyOn(AccessibilityInfo, "sendAccessibilityEvent")
       .mockImplementation(() => undefined);
+    sendAccessibilityEventSpy.mockClear();
 
     try {
-      const screen = await render(
-        <AppProviders
-          clockFactory={clockFactory}
-          databaseFactory={databaseFactory}
-          messageIdentityFactory={messageIdentityFactory}
-        >
-          <ChatConversationScreen
-            conversation={conversation}
-            controller={controller}
-            onDeleteMessage={noop}
-            onDiscardFailedMessage={noop}
-            onRetryFailedMessage={noop}
-            title="그룹 대화방"
-          />
-        </AppProviders>,
-      );
+      const screen = await harness.render();
       expect(sendAccessibilityEventSpy).toHaveBeenCalledTimes(1);
 
       // DESIGN.md:199's "once on route entry" would otherwise be violated:
       // `headingTarget` (and so the focus effect's dependency) is recomputed
       // whenever `subtitle` changes, e.g. the chat's own sync-status text.
       await screen.rerender(
-        <AppProviders
-          clockFactory={clockFactory}
-          databaseFactory={databaseFactory}
-          messageIdentityFactory={messageIdentityFactory}
-        >
-          <ChatConversationScreen
-            conversation={conversation}
-            controller={controller}
-            onDeleteMessage={noop}
-            onDiscardFailedMessage={noop}
-            onRetryFailedMessage={noop}
-            subtitle="동기화 중"
-            title="그룹 대화방"
-          />
-        </AppProviders>,
+        harness.element({
+          conversation: createConversation({ items: [] }),
+          subtitle: "동기화 중",
+        }),
       );
 
       expect(sendAccessibilityEventSpy).toHaveBeenCalledTimes(1);
@@ -962,28 +824,10 @@ describe("M5-UI-1 accessible local chat screen", () => {
       const pushStatusBarEntry = jest.spyOn(StatusBar, "pushStackEntry");
 
       try {
-        const { AppProviders, ChatScreen } = loadChatScreenContract();
-        const repository = createRepository();
-        const screen = await render(
-          <AppProviders
-            clockFactory={() => ({ nowMs: () => 1000 })}
-            databaseFactory={async () => ({
-              close: async () => undefined,
-              repository,
-            })}
-            messageIdentityFactory={() => ({
-              next: () => ({
-                clientMsgId: "next-client",
-                localId: "next-local",
-              }),
-            })}
-          >
-            <ChatScreen focusMainHeading={() => undefined} />
-          </AppProviders>,
-        );
+        const screen = await renderConversationScreen().render();
 
         await screen.findByLabelText("채팅 메시지");
-        expect(mockScreenOptions?.title).toBe("로컬 대화");
+        expect(mockScreenOptions?.title).toBe("그룹 대화방");
         expect(pushStatusBarEntry).toHaveBeenCalledWith(
           expect.objectContaining({ barStyle: expectedBarStyle }),
         );
@@ -995,31 +839,19 @@ describe("M5-UI-1 accessible local chat screen", () => {
   );
 
   test("uses separately named failed-message retry and never introduces M6 connection copy", async () => {
-    const { AppProviders, ChatScreen } = loadChatScreenContract();
-    const repository = createRepository();
-    const screen = await render(
-      <AppProviders
-        clockFactory={() => ({ nowMs: () => 1000 })}
-        databaseFactory={async () => ({
-          close: async () => undefined,
-          repository,
-        })}
-        messageIdentityFactory={() => ({
-          next: () => ({ clientMsgId: "next-client", localId: "next-local" }),
-        })}
-      >
-        <ChatScreen />
-      </AppProviders>,
-    );
+    const onRetryFailedMessage = jest.fn();
+    const screen = await renderConversationScreen({
+      onRetryFailedMessage,
+    }).render();
 
     const retry = await screen.findByRole("button", {
       name: "메시지 다시 보내기",
     });
     await fireEvent.press(retry);
 
-    expect(repository.retryFailedMessage).toHaveBeenCalledWith({
+    expect(onRetryFailedMessage).toHaveBeenCalledWith({
       clientMsgId: "failed-client",
-      conversationId: "fixture-conversation",
+      conversationId: CONVERSATION_ID,
     });
     expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
     expect(
@@ -1302,7 +1134,7 @@ describe("M5-UI-1 accessible local chat screen", () => {
     const pendingMessage = {
       body: "live body",
       clientMsgId: "live-client",
-      conversationId: "fixture-conversation",
+      conversationId: CONVERSATION_ID,
       createdAtMs: 100,
       eventId: null,
       localId: "live-local",

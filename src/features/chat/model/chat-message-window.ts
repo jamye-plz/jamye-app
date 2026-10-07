@@ -1,76 +1,41 @@
-import type { Message as RepositoryMessage } from "@/core/database/repositories/database-repository";
 import type {
   ConnectedChatMedia,
   ConnectedPendingAttachment,
   ConnectedSendErrorCode,
 } from "@/core/database/account/connected-chat-types";
 
-/** Presentation-only fields shared by the fixture and REST conversations. `media` is
- * always `[]` for the local M5 fixture path, which never carries attachments. */
-export type ChatMessage = Pick<
-  RepositoryMessage,
-  | "body"
-  | "clientMsgId"
-  | "conversationId"
-  | "createdAtMs"
-  | "localId"
-  | "status"
-> &
-  Readonly<{
-    senderId: string | null;
-    isOutgoing?: boolean;
-    senderLabel?: string;
-    /** R1/E7: incoming-group avatar source. Undefined on the M5 fixture path
-     * (never set there), which falls back to the monogram via `Avatar`. */
-    senderAvatarUrl?: string | null;
-    serverMessageId?: string | null;
-    /** AC4/E2: ms epoch this device recorded the tombstone, or
-     * null/undefined while live -- undefined on the M5 fixture path, which
-     * never carries a deletion. Mirrors `ConnectedChatMessage.deletedAtMs`;
-     * the connected/REST mapping site must copy it through unchanged. */
-    deletedAtMs?: number | null;
-    /** E2/CHAT-AC3: mirrors `ConnectedChatMessage.errorCode` -- the backing
-     * outbox command's current failure reason, when known. */
-    errorCode?: ConnectedSendErrorCode | null;
-    media?: readonly ConnectedChatMedia[];
-    pendingMedia?: readonly ConnectedPendingAttachment[];
-  }>;
-
-export type MessageWindowItem = Readonly<{
+/** Presentation-only message fields rendered by the chat list. */
+export type ChatMessage = Readonly<{
+  body: string;
+  clientMsgId: string | null;
+  conversationId: string;
   createdAtMs: number;
   localId: string;
+  status: "pending" | "sent" | "failed";
+  senderId: string | null;
+  isOutgoing?: boolean;
+  senderLabel?: string;
+  /** R1/E7: incoming-group avatar source. Undefined falls back to the
+   * monogram via `Avatar`. */
+  senderAvatarUrl?: string | null;
+  serverMessageId?: string | null;
+  /** AC4/E2: ms epoch this device recorded the tombstone, or
+   * null/undefined while live. Mirrors `ConnectedChatMessage.deletedAtMs`;
+   * the connected/REST mapping site must copy it through unchanged. */
+  deletedAtMs?: number | null;
+  /** E2/CHAT-AC3: mirrors `ConnectedChatMessage.errorCode` -- the backing
+   * outbox command's current failure reason, when known. */
+  errorCode?: ConnectedSendErrorCode | null;
+  media?: readonly ConnectedChatMedia[];
+  pendingMedia?: readonly ConnectedPendingAttachment[];
 }>;
 
-function sameItem<Value extends MessageWindowItem>(
-  left: Value,
-  right: Value,
-): boolean {
-  const leftRecord = left as Record<string, unknown>;
-  const rightRecord = right as Record<string, unknown>;
-  const leftKeys = Object.keys(leftRecord);
-  return (
-    leftKeys.length === Object.keys(rightRecord).length &&
-    leftKeys.every((key) => leftRecord[key] === rightRecord[key])
-  );
-}
-
-export function mergeMessageWindow<Value extends MessageWindowItem>(
-  current: readonly Value[],
-  incoming: readonly Value[],
-): Value[] {
-  const byLocalId = new Map(current.map((item) => [item.localId, item]));
-
-  for (const item of incoming) {
-    const existing = byLocalId.get(item.localId);
-    byLocalId.set(
-      item.localId,
-      existing && sameItem(existing, item) ? existing : item,
-    );
-  }
-
-  return [...byLocalId.values()].sort(
-    (left, right) =>
-      left.createdAtMs - right.createdAtMs ||
-      left.localId.localeCompare(right.localId),
-  );
-}
+/** The paged message window a conversation screen renders and scrolls. */
+export type ChatConversation = Readonly<{
+  hasMore: boolean;
+  initialPageStatus: "error" | "loading" | "ready";
+  items: readonly ChatMessage[];
+  loadOlder: () => Promise<void>;
+  olderPageStatus: "error" | "idle" | "loading";
+  retryInitialPage: () => Promise<void>;
+}>;

@@ -20,13 +20,12 @@ type Migration = Readonly<{
 }>;
 
 type MigrationModule = {
-  migrations?: unknown;
   runMigrations?: unknown;
 };
 
 type RunMigrations = (
   database: SqliteDatabase,
-  migrations?: readonly Migration[],
+  migrations: readonly Migration[],
 ) => Promise<void>;
 
 type MigrationEvent = Readonly<{
@@ -53,7 +52,6 @@ function isMissingModuleError(error: unknown): boolean {
 }
 
 function loadMigrationModule(): {
-  migrations: readonly Migration[];
   runMigrations: RunMigrations;
 } {
   let loaded: MigrationModule;
@@ -64,26 +62,42 @@ function loadMigrationModule(): {
   } catch (error) {
     if (isMissingModuleError(error)) {
       throw new Error(
-        "M4-DB-1 implementation missing: src/core/database/migrate.ts must export migrations and runMigrations().",
+        "M4-DB-1 implementation missing: src/core/database/migrate.ts must export runMigrations().",
       );
     }
     throw error;
   }
 
-  if (
-    !Array.isArray(loaded.migrations) ||
-    typeof loaded.runMigrations !== "function"
-  ) {
+  if (typeof loaded.runMigrations !== "function") {
     throw new Error(
-      "M4-DB-1 implementation incomplete: migrate.ts must expose the ordered migration registry and runMigrations(database, migrations?).",
+      "M4-DB-1 implementation incomplete: migrate.ts must expose runMigrations(database, migrations).",
     );
   }
 
-  return {
-    migrations: loaded.migrations as readonly Migration[],
-    runMigrations: loaded.runMigrations as RunMigrations,
-  };
+  return { runMigrations: loaded.runMigrations as RunMigrations };
 }
+
+/** `runMigrations` takes its registry as an argument, so the runner contract is
+ * pinned against synthetic registries instead of a production schema. */
+const syntheticMigrations: readonly Migration[] = [
+  {
+    version: 1,
+    name: "synthetic-items",
+    statements: [
+      "CREATE TABLE synthetic_items (id TEXT PRIMARY KEY NOT NULL)",
+      "CREATE INDEX synthetic_items_id_idx ON synthetic_items (id)",
+    ],
+  },
+];
+
+const twoStepMigrations: readonly Migration[] = [
+  ...syntheticMigrations,
+  {
+    version: 2,
+    name: "synthetic-labels",
+    statements: ["CREATE TABLE synthetic_labels (id TEXT PRIMARY KEY)"],
+  },
+];
 
 class RecordingSqliteDatabase implements SqliteDatabase {
   readonly committedStatements: string[] = [];
@@ -164,22 +178,6 @@ class RecordingSqliteDatabase implements SqliteDatabase {
   }
 }
 
-function schemaStatements(database: RecordingSqliteDatabase): string {
-  return database.committedStatements
-    .filter((statement) => /CREATE\s+(?:TABLE|INDEX)/i.test(statement))
-    .join("\n");
-}
-
-function tableBody(schema: string, tableName: string): string {
-  const match = schema.match(
-    new RegExp(`CREATE\\s+TABLE\\s+${tableName}\\s*\\((.*?)\\);`, "is"),
-  );
-  if (!match?.[1]) {
-    throw new Error(`Expected CREATE TABLE body for ${tableName}.`);
-  }
-  return match[1];
-}
-
 function eventIndex(
   events: readonly MigrationEvent[],
   predicate: (event: MigrationEvent) => boolean,
@@ -193,10 +191,10 @@ function eventIndex(
 
 describe("M4-DB-1 deterministic SQLite migration contract", () => {
   test("configures WAL and foreign keys, then advances native user_version from 0 to 1", async () => {
-    const { migrations, runMigrations } = loadMigrationModule();
+    const { runMigrations } = loadMigrationModule();
     const database = new RecordingSqliteDatabase();
 
-    await runMigrations(database, migrations);
+    await runMigrations(database, syntheticMigrations);
 
     expect(database.userVersion).toBe(1);
     expect(database.transactions).toEqual(["commit"]);
@@ -260,14 +258,14 @@ describe("M4-DB-1 deterministic SQLite migration contract", () => {
   });
 
   test("is a no-op after version 1 instead of replaying DDL or advancing the version again", async () => {
-    const { migrations, runMigrations } = loadMigrationModule();
+    const { runMigrations } = loadMigrationModule();
     const database = new RecordingSqliteDatabase();
 
-    await runMigrations(database, migrations);
+    await runMigrations(database, syntheticMigrations);
     const beforeRetry = database.committedStatements.length;
     const transactionsBeforeRetry = database.transactions.length;
 
-    await runMigrations(database, migrations);
+    await runMigrations(database, syntheticMigrations);
 
     const retryStatements = database.committedStatements.slice(beforeRetry);
     expect(database.userVersion).toBe(1);
@@ -278,220 +276,25 @@ describe("M4-DB-1 deterministic SQLite migration contract", () => {
     );
   });
 
-  test("creates exactly the five approved tables with their relational and domain constraints", async () => {
-    const { migrations, runMigrations } = loadMigrationModule();
+  test("applies only the migrations newer than the stored version, one transaction each", async () => {
+    const { runMigrations } = loadMigrationModule();
     const database = new RecordingSqliteDatabase();
 
-    await runMigrations(database, migrations);
+    await runMigrations(database, syntheticMigrations);
+    const beforeUpgrade = database.committedStatements.length;
+    expect(database.transactions).toEqual(["commit"]);
 
-    const schema = schemaStatements(database);
-    const conversations = tableBody(schema, "conversations");
-    const messages = tableBody(schema, "messages");
-    const outboxCommands = tableBody(schema, "outbox_commands");
-    const appliedEvents = tableBody(schema, "applied_events");
-    const syncCursors = tableBody(schema, "sync_cursors");
-    const tables = [...schema.matchAll(/CREATE\s+TABLE\s+([a-z_]+)/gi)]
-      .map((match) => match[1])
-      .sort();
+    await runMigrations(database, twoStepMigrations);
 
-    expect(tables).toEqual([
-      "applied_events",
-      "conversations",
-      "messages",
-      "outbox_commands",
-      "sync_cursors",
-    ]);
-    expect(schema).not.toMatch(/CREATE\s+TABLE\s+schema_version/i);
-    expect(schema).toMatch(
-      /CREATE\s+TABLE\s+conversations[\s\S]*id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL/i,
-    );
-    expect(schema).toMatch(
-      /CREATE\s+TABLE\s+messages[\s\S]*local_id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL/i,
-    );
-    expect(schema).toMatch(
-      /CREATE\s+TABLE\s+outbox_commands[\s\S]*command_id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL/i,
-    );
-    expect(schema).toMatch(
-      /CREATE\s+TABLE\s+applied_events[\s\S]*event_id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL/i,
-    );
-    expect(schema).toMatch(
-      /CREATE\s+TABLE\s+sync_cursors[\s\S]*conversation_id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL/i,
-    );
-    expect(schema).toMatch(
-      /conversations[\s\S]*kind\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*kind\s*=\s*'fixture'\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /conversations[\s\S]*title\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*title\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /conversations[\s\S]*updated_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*updated_at_ms\s*>=\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /messages[\s\S]*conversation_id\s+TEXT\s+NOT\s+NULL[\s\S]*client_msg_id\s+TEXT\s+CHECK\s*\(\s*client_msg_id\s+IS\s+NULL\s+OR\s+length\s*\(\s*client_msg_id\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /messages[\s\S]*event_id\s+TEXT\s+CHECK\s*\(\s*event_id\s+IS\s+NULL\s+OR\s+length\s*\(\s*event_id\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /messages[\s\S]*sender_id\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*sender_id\s*\)\s*>\s*0\s*\)[\s\S]*body\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*body\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /messages[\s\S]*created_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*created_at_ms\s*>=\s*0\s*\)[\s\S]*server_sequence\s+INTEGER\s+CHECK\s*\(\s*server_sequence\s+IS\s+NULL\s+OR\s+server_sequence\s*>=\s*1\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CONSTRAINT\s+messages_conversation_fk\s+FOREIGN\s+KEY\s*\(\s*conversation_id\s*\)[\s\S]*REFERENCES\s+conversations\s*\(\s*id\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /messages[\s\S]*FOREIGN\s+KEY\s*\(\s*conversation_id\s*\)[\s\S]*ON\s+UPDATE\s+RESTRICT\s+ON\s+DELETE\s+RESTRICT/i,
-    );
-    expect(schema).toMatch(
-      /outbox_commands[\s\S]*FOREIGN\s+KEY\s*\(\s*conversation_id\s*,\s*client_msg_id\s*\)[\s\S]*REFERENCES\s+messages\s*\(\s*conversation_id\s*,\s*client_msg_id\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CONSTRAINT\s+applied_events_conversation_fk\s+FOREIGN\s+KEY\s*\(\s*conversation_id\s*\)[\s\S]*REFERENCES\s+conversations\s*\(\s*id\s*\)[\s\S]*ON\s+UPDATE\s+RESTRICT\s+ON\s+DELETE\s+RESTRICT/i,
-    );
-    expect(schema).toMatch(
-      /CONSTRAINT\s+sync_cursors_conversation_fk\s+FOREIGN\s+KEY\s*\(\s*conversation_id\s*\)[\s\S]*REFERENCES\s+conversations\s*\(\s*id\s*\)[\s\S]*ON\s+UPDATE\s+RESTRICT\s+ON\s+DELETE\s+RESTRICT/i,
-    );
-    expect(schema).toMatch(
-      /CONSTRAINT\s+messages_client_msg_id_unique\s+UNIQUE\s*\(\s*client_msg_id\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CONSTRAINT\s+messages_event_id_unique\s+UNIQUE\s*\(\s*event_id\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CONSTRAINT\s+messages_conversation_client_unique\s+UNIQUE\s*\(\s*conversation_id\s*,\s*client_msg_id\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CONSTRAINT\s+applied_events_sequence_unique\s+UNIQUE\s*\(\s*conversation_id\s*,\s*server_sequence\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /outbox_commands[\s\S]*conversation_id\s+TEXT\s+NOT\s+NULL[\s\S]*client_msg_id\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*client_msg_id\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /outbox_commands[\s\S]*command_type\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*command_type\s*=\s*'message\.create'\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /outbox_commands[\s\S]*body\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*body\s*\)\s*>\s*0\s*\)[\s\S]*created_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*created_at_ms\s*>=\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CONSTRAINT\s+outbox_client_msg_id_unique\s+UNIQUE\s*\(\s*client_msg_id\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CONSTRAINT\s+outbox_message_fk\s+FOREIGN\s+KEY\s*\(\s*conversation_id\s*,\s*client_msg_id\s*\)[\s\S]*ON\s+UPDATE\s+RESTRICT\s+ON\s+DELETE\s+RESTRICT/i,
-    );
-    expect(schema).toMatch(
-      /CHECK\s*\(\s*status\s+IN\s*\(\s*'pending'\s*,\s*'sent'\s*,\s*'failed'\s*\)\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CHECK\s*\(\s*state\s+IN\s*\(\s*'queued'\s*,\s*'in_flight'\s*,\s*'acked'\s*,\s*'failed'\s*\)\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CHECK\s*\(\s*status\s*<>\s*'sent'\s+OR\s*\(\s*event_id\s+IS\s+NOT\s+NULL\s+AND\s+server_sequence\s+IS\s+NOT\s+NULL\s*\)\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CHECK\s*\(\s*outcome\s+IN\s*\(\s*'applied'\s*,\s*'unknown_recorded'\s*\)\s*\)/i,
-    );
-    expect(schema).toMatch(/CHECK\s*\(\s*server_sequence\s*>=\s*0\s*\)/i);
-    expect(schema).toMatch(
-      /applied_events[\s\S]*conversation_id\s+TEXT\s+NOT\s+NULL[\s\S]*type\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*type\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /applied_events[\s\S]*server_sequence\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*server_sequence\s*>=\s*1\s*\)[\s\S]*payload_json\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*payload_json\s*\)\s*>\s*0\s*\)[\s\S]*recorded_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*recorded_at_ms\s*>=\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /sync_cursors[\s\S]*cursor\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*cursor\s*\)\s*>\s*0\s*\)[\s\S]*server_sequence\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*server_sequence\s*>=\s*0\s*\)[\s\S]*updated_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*updated_at_ms\s*>=\s*0\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CREATE\s+INDEX\s+messages_conversation_created_idx\s+ON\s+messages\s*\(\s*conversation_id\s*,\s*created_at_ms\s*,\s*local_id\s*\)/i,
-    );
-    expect(schema).toMatch(
-      /CREATE\s+INDEX\s+outbox_state_created_idx\s+ON\s+outbox_commands\s*\(\s*state\s*,\s*created_at_ms\s*,\s*command_id\s*\)/i,
-    );
-    const explicitIndexes = [
-      ...schema.matchAll(/CREATE\s+INDEX\s+([a-z_]+)/gi),
-    ].map((match) => match[1]);
-    expect(explicitIndexes).toEqual([
-      "messages_conversation_created_idx",
-      "outbox_state_created_idx",
-    ]);
-
-    expect(conversations).toMatch(
-      /id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*id\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(conversations).toMatch(
-      /kind\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*kind\s*=\s*'fixture'\s*\)/i,
-    );
-    expect(conversations).toMatch(
-      /title\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*title\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(conversations).toMatch(
-      /updated_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*updated_at_ms\s*>=\s*0\s*\)/i,
-    );
-
-    expect(messages).toMatch(
-      /local_id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*local_id\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(messages).toMatch(
-      /conversation_id\s+TEXT\s+NOT\s+NULL[\s\S]*CONSTRAINT\s+messages_conversation_fk\s+FOREIGN\s+KEY\s*\(\s*conversation_id\s*\)[\s\S]*ON\s+UPDATE\s+RESTRICT\s+ON\s+DELETE\s+RESTRICT/i,
-    );
-    expect(messages).toMatch(
-      /client_msg_id\s+TEXT\s+CHECK\s*\(\s*client_msg_id\s+IS\s+NULL\s+OR\s+length\s*\(\s*client_msg_id\s*\)\s*>\s*0\s*\)[\s\S]*event_id\s+TEXT\s+CHECK\s*\(\s*event_id\s+IS\s+NULL\s+OR\s+length\s*\(\s*event_id\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(messages).toMatch(
-      /sender_id\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*sender_id\s*\)\s*>\s*0\s*\)[\s\S]*body\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*body\s*\)\s*>\s*0\s*\)[\s\S]*status\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*status\s+IN\s*\(\s*'pending'\s*,\s*'sent'\s*,\s*'failed'\s*\)\s*\)/i,
-    );
-    expect(messages).toMatch(
-      /created_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*created_at_ms\s*>=\s*0\s*\)[\s\S]*server_sequence\s+INTEGER\s+CHECK\s*\(\s*server_sequence\s+IS\s+NULL\s+OR\s+server_sequence\s*>=\s*1\s*\)/i,
-    );
-    expect(messages).toMatch(
-      /CONSTRAINT\s+messages_client_msg_id_unique\s+UNIQUE\s*\(\s*client_msg_id\s*\)[\s\S]*CONSTRAINT\s+messages_event_id_unique\s+UNIQUE\s*\(\s*event_id\s*\)[\s\S]*CONSTRAINT\s+messages_conversation_client_unique\s+UNIQUE\s*\(\s*conversation_id\s*,\s*client_msg_id\s*\)/i,
-    );
-    expect(messages).toMatch(
-      /CONSTRAINT\s+messages_sent_has_canonical_identity\s+CHECK\s*\(\s*status\s*<>\s*'sent'\s+OR\s*\(\s*event_id\s+IS\s+NOT\s+NULL\s+AND\s+server_sequence\s+IS\s+NOT\s+NULL\s*\)\s*\)/i,
-    );
-
-    expect(outboxCommands).toMatch(
-      /command_id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*command_id\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(outboxCommands).toMatch(
-      /command_type\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*command_type\s*=\s*'message\.create'\s*\)/i,
-    );
-    expect(outboxCommands).toMatch(
-      /conversation_id\s+TEXT\s+NOT\s+NULL[\s\S]*client_msg_id\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*client_msg_id\s*\)\s*>\s*0\s*\)[\s\S]*body\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*body\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(outboxCommands).toMatch(
-      /state\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*state\s+IN\s*\(\s*'queued'\s*,\s*'in_flight'\s*,\s*'acked'\s*,\s*'failed'\s*\)\s*\)[\s\S]*created_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*created_at_ms\s*>=\s*0\s*\)/i,
-    );
-    expect(outboxCommands).toMatch(
-      /CONSTRAINT\s+outbox_client_msg_id_unique\s+UNIQUE\s*\(\s*client_msg_id\s*\)[\s\S]*CONSTRAINT\s+outbox_message_fk\s+FOREIGN\s+KEY\s*\(\s*conversation_id\s*,\s*client_msg_id\s*\)[\s\S]*ON\s+UPDATE\s+RESTRICT\s+ON\s+DELETE\s+RESTRICT/i,
-    );
-
-    expect(appliedEvents).toMatch(
-      /event_id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*event_id\s*\)\s*>\s*0\s*\)/i,
-    );
-    expect(appliedEvents).toMatch(
-      /CONSTRAINT\s+applied_events_conversation_fk\s+FOREIGN\s+KEY\s*\(\s*conversation_id\s*\)[\s\S]*ON\s+UPDATE\s+RESTRICT\s+ON\s+DELETE\s+RESTRICT[\s\S]*CONSTRAINT\s+applied_events_sequence_unique\s+UNIQUE\s*\(\s*conversation_id\s*,\s*server_sequence\s*\)/i,
-    );
-    expect(appliedEvents).toMatch(
-      /outcome\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*outcome\s+IN\s*\(\s*'applied'\s*,\s*'unknown_recorded'\s*\)\s*\)/i,
-    );
-    expect(appliedEvents).toMatch(
-      /conversation_id\s+TEXT\s+NOT\s+NULL[\s\S]*type\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*type\s*\)\s*>\s*0\s*\)[\s\S]*server_sequence\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*server_sequence\s*>=\s*1\s*\)/i,
-    );
-    expect(appliedEvents).toMatch(
-      /payload_json\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*payload_json\s*\)\s*>\s*0\s*\)[\s\S]*recorded_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*recorded_at_ms\s*>=\s*0\s*\)/i,
-    );
-
-    expect(syncCursors).toMatch(
-      /conversation_id\s+TEXT\s+PRIMARY\s+KEY\s+NOT\s+NULL[\s\S]*CONSTRAINT\s+sync_cursors_conversation_fk\s+FOREIGN\s+KEY\s*\(\s*conversation_id\s*\)[\s\S]*ON\s+UPDATE\s+RESTRICT\s+ON\s+DELETE\s+RESTRICT/i,
-    );
-    expect(syncCursors).toMatch(
-      /cursor\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*length\s*\(\s*cursor\s*\)\s*>\s*0\s*\)[\s\S]*server_sequence\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*server_sequence\s*>=\s*0\s*\)/i,
-    );
-    expect(syncCursors).toMatch(
-      /updated_at_ms\s+INTEGER\s+NOT\s+NULL\s+CHECK\s*\(\s*updated_at_ms\s*>=\s*0\s*\)/i,
-    );
+    const upgradeStatements = database.committedStatements
+      .slice(beforeUpgrade)
+      .join("\n");
+    expect(database.userVersion).toBe(2);
+    expect(database.transactions).toEqual(["commit", "commit"]);
+    expect(upgradeStatements).toMatch(/CREATE\s+TABLE\s+synthetic_labels/i);
+    expect(upgradeStatements).not.toMatch(/CREATE\s+TABLE\s+synthetic_items/i);
+    expect(upgradeStatements).toMatch(/PRAGMA\s+user_version\s*=\s*2/i);
+    expect(upgradeStatements).not.toMatch(/PRAGMA\s+user_version\s*=\s*1/i);
   });
 
   test("rolls back failed migration DDL and leaves user_version at the prior value", async () => {
@@ -524,12 +327,12 @@ describe("M4-DB-1 deterministic SQLite migration contract", () => {
   });
 
   test("rejects a device version newer than the migration registry without schema or version mutation", async () => {
-    const { migrations, runMigrations } = loadMigrationModule();
+    const { runMigrations } = loadMigrationModule();
     const database = new RecordingSqliteDatabase();
     database.userVersion = 2;
     const statementsBeforeAttempt = database.committedStatements.length;
 
-    await expect(runMigrations(database, migrations)).rejects.toThrow(
+    await expect(runMigrations(database, syntheticMigrations)).rejects.toThrow(
       /unsupported|newer|version/i,
     );
 

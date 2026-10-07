@@ -71,9 +71,8 @@ function sweepOwnedTempFiles(trigger: "startup" | "teardown"): void {
  * Constructs the account-scoped `MediaRuntime` (core/model's consumption seam:
  * `useMediaUploadQueue`/`useMediaAccess`) from the native transport/object-put/cleanup
  * adapters plus the active session, and renders `MediaRuntimeProvider`. With no
- * `EXPO_PUBLIC_MEDIA_ORIGIN` configured, or no signed-in principal, the runtime is
- * `null` and every media hook degrades to its documented disabled state — never a
- * crash. Also owns account/background fencing: an account switch or a background
+ * signed-in principal the runtime is `null` and every media hook degrades to its
+ * documented disabled state — never a crash. Also owns account/background fencing: an account switch or a background
  * transition bumps the runtime's generation, notifies subscribed upload queues to
  * clear their in-flight drafts, and sweeps app-owned staging/download temp files.
  */
@@ -114,8 +113,6 @@ export function MediaProvider({ children }: PropsWithChildren) {
 
   const nativeParts = useMemo(() => {
     const env = getPublicEnv();
-    if (env.appMode !== "connected-auth" || !env.apiOrigin || !env.mediaOrigin)
-      return null;
     return {
       api: createMediaApi(
         env.apiOrigin,
@@ -129,7 +126,7 @@ export function MediaProvider({ children }: PropsWithChildren) {
 
   const runtime = useMemo<MediaRuntime | null>(() => {
     // Never expose the previous account while its replacement effect commits.
-    if (!nativeParts || !slot.accountKey || !lifetime) return null;
+    if (!slot.accountKey || !lifetime) return null;
     const authorize: MediaRuntime["authorize"] = async (execute, signal) => {
       const generation = lifetime.captureGeneration();
       const check = () => {

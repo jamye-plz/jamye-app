@@ -23,7 +23,7 @@ describe("M8 REST chat boundaries", () => {
       "src/features/chat/data/unapproved-api.ts",
       "src/features/chat/model/connected-chat-service.ts",
       "src/features/chat/model/connected-chat-store.ts",
-      "src/features/chat/use-chat-conversation.ts",
+      "src/features/chat/model/chat-message-window.ts",
       "src/features/chat/ui/chat-screen.tsx",
       "src/app/groups/[groupId]/chatrooms/[chatroomId].tsx",
     ]) {

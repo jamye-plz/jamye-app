@@ -40,9 +40,6 @@ jest.mock("@/shared/ui/native-input-dialog", () => ({
     typeof import("../../../support/native-input-shell-mock")
   >("../../../support/native-input-shell-mock").NativeInputShellMock,
 }));
-jest.mock("@/core/config/public-env", () => ({
-  getPublicEnv: () => ({ appMode: "connected-auth" }),
-}));
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: () => ({
     principal: { userId: "44444444-4444-4444-8444-444444444444" },
