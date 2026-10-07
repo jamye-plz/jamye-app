@@ -42,7 +42,6 @@ type RecordedScreenOptions = Readonly<{
 }>;
 const mockObserveScreenOptions = jest.fn<void, [RecordedScreenOptions]>();
 let mockParams: Record<string, string | string[]> = {};
-let mockAppMode = "connected-auth";
 let mockPrincipal: typeof PRINCIPAL | null = PRINCIPAL;
 let mockAccount = { state: { status: "ready" }, retry: jest.fn() };
 let mockChat: {
@@ -78,9 +77,6 @@ jest.mock("expo-router", () => ({
       )
       .createStackToolbarMock(),
   },
-}));
-jest.mock("@/core/config/public-env", () => ({
-  getPublicEnv: () => ({ appMode: mockAppMode }),
 }));
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: () => ({ principal: mockPrincipal }),
@@ -292,7 +288,6 @@ function actions(): ConnectedChatStoreActions {
 beforeEach(() => {
   jest.clearAllMocks();
   mockPrincipal = PRINCIPAL;
-  mockAppMode = "connected-auth";
   mockParams = { groupId: GROUP_ID, chatroomId: CHATROOM_ID };
   mockAccount = { state: { status: "ready" }, retry: jest.fn() };
   mockGroupName = "그룹 이름";
@@ -686,11 +681,5 @@ test("thin routes use real params and reject malformed arrays; fixture and signe
   // E7a/task-app-auth: signed-out now redirects to the split (auth)/sign-in
   // route instead of "/".
   expect(mockRedirect).toHaveBeenCalledWith("/sign-in");
-  mockAppMode = "fixture";
-  await screen.rerender(
-    <ChatRouteGuard>
-      <></>
-    </ChatRouteGuard>,
-  );
-  expect(mockRedirect).toHaveBeenCalledTimes(2);
+  expect(mockRedirect).toHaveBeenCalledTimes(1);
 });

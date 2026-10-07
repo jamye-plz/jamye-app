@@ -1,10 +1,4 @@
-import {
-  migrations as registeredMigrations,
-  type Migration,
-} from "./migrations";
-import type { SqliteMigrationDatabase } from "./types";
-
-export { migrations } from "./migrations";
+import type { Migration, SqliteMigrationDatabase } from "./types";
 
 function validateMigrationRegistry(migrations: readonly Migration[]): void {
   migrations.forEach((migration, index) => {
@@ -40,7 +34,7 @@ function readUserVersion(
 
 export async function runMigrations(
   database: SqliteMigrationDatabase,
-  migrations: readonly Migration[] = registeredMigrations,
+  migrations: readonly Migration[],
 ): Promise<void> {
   validateMigrationRegistry(migrations);
 

@@ -42,12 +42,27 @@ export type DeleteAccountResult =
   | Readonly<{ status: "blocked" }>
   | Readonly<{ status: "error"; code: string }>;
 
+/**
+ * Port to the device-local purge schedule (B3/C7). The implementation lives
+ * under `src/core/database/account` (file system access is confined there by
+ * the ESLint boundary); it stores only the hashed database name and the
+ * device time, never the user id or e-mail.
+ */
+export type AccountLocalDataPurgePort = Readonly<{
+  recordAccountDeletion: (
+    principal: Readonly<{ origin: string; userId: string }>,
+  ) => Promise<void>;
+}>;
+
 export type AccountLifecycleDeps = Readonly<{
   accountApi: AccountApiPort;
   session: Pick<
     SessionContextValue,
     "authorizedRequest" | "logout" | "applyProfile"
   >;
+  /** The signed-in account this lifecycle acts for. */
+  principal: Readonly<{ origin: string; userId: string }>;
+  purge: AccountLocalDataPurgePort;
 }>;
 
 export type AccountLifecycle = Readonly<{
@@ -152,6 +167,16 @@ export function createAccountLifecycle(
           // local push state once `session.logout()` below fires; an
           // account restored via re-login re-registers through that same
           // provider's `enable()`.
+          //
+          // B3/C7: schedule the 30-day local data purge while the DELETE's
+          // success is certain and before logout drops the session. The
+          // recording is best effort: a failure (or a throwing port) must
+          // never block logout or turn the result into an error.
+          try {
+            await deps.purge.recordAccountDeletion(deps.principal);
+          } catch {
+            // The purge is a cleanup nicety; the deletion itself succeeded.
+          }
           await deps.session.logout().catch(() => undefined);
           return { status: "ok" };
         },

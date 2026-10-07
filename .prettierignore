@@ -29,8 +29,6 @@ assets/
 tsconfig.json
 
 # Canonical contract sources and deterministic generated output own their bytes
-contracts/bootstrap/openapi.json
-contracts/bootstrap/realtime-event.schema.json
 contracts/server/manifest.json
 contracts/server/openapi.json
 contracts/server/fixtures/mobile-sync-handoff.json

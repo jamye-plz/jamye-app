@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { PropsWithChildren } from "react";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { randomUUID } from "expo-crypto";
@@ -9,6 +16,9 @@ import type {
   AccountScopeController,
   AccountScopeRenderedState,
 } from "@/core/database/account/account-scope";
+import type { AccountLocalDataPurge } from "@/core/database/account/account-local-data-purge";
+import { createDefaultAccountLocalDataPurge } from "@/core/database/account/account-local-data-purge-runtime";
+import { openAccountDatabase as defaultOpenAccountDatabase } from "@/core/database/account/open-account-database";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import {
   createGroupsApi,
@@ -34,6 +44,7 @@ import { PushLifecycleProvider } from "@/features/notifications/model/push-lifec
 import { notificationsStore } from "@/features/notifications/model/notifications-store";
 import {
   createConnectedChatStore,
+  createSystemClock,
   toCanonicalUpsert,
   toHistoryUpsert,
 } from "@/features/chat/model/connected-chat-store";
@@ -49,39 +60,16 @@ import {
   ConnectedChatProvider,
   useConnectedChat,
 } from "@/features/chat/model/connected-chat-provider";
-import {
-  createMonotonicMessageIdentity,
-  createSystemClock,
-} from "@/features/chat/model/chat-send";
-import type {
-  ClockPort,
-  MessageIdentityPort,
-} from "@/features/chat/model/chat-send";
-
-import {
-  DatabaseProvider,
-  productionDatabaseFactory,
-  useDatabaseRepository,
-} from "../database/database-provider";
-import type { DatabaseProviderFactory } from "../database/database-provider";
-import type { DatabaseRepository } from "../database/repositories/database-repository";
 
 import { SessionProvider, useSession } from "./session-provider";
 import type { SessionProviderProps } from "./session-provider";
 
 export type AppProvidersProps = PropsWithChildren<{
-  clockFactory?: () => ClockPort;
-  databaseFactory?: DatabaseProviderFactory;
-  messageIdentityFactory?: () => MessageIdentityPort;
   createSessionController?: SessionProviderProps["createController"];
   createAccountScope?: () => AccountScopeController;
+  /** B3: device-local purge of a deleted account's database (test seam). */
+  createAccountLocalDataPurge?: () => AccountLocalDataPurge;
   createGroupsStore?: (origin: string) => GroupsStore;
-}>;
-
-export type AppRuntimeDependencies = Readonly<{
-  clock: ClockPort;
-  messageIdentity: MessageIdentityPort;
-  repository: DatabaseRepository;
 }>;
 
 export type AccountScopeContextValue = Readonly<{
@@ -89,12 +77,12 @@ export type AccountScopeContextValue = Readonly<{
   retry: () => void;
 }>;
 
-const AppRuntimeContext = createContext<AppRuntimeDependencies | undefined>(
-  undefined,
-);
 const AccountScopeContext = createContext<AccountScopeContextValue | undefined>(
   undefined,
 );
+const AccountLocalDataPurgeContext = createContext<
+  AccountLocalDataPurge | undefined
+>(undefined);
 function createDefaultGroupsStore(): GroupsStore {
   return createGroupsStore({ createApi: createGroupsApi });
 }
@@ -257,67 +245,32 @@ function createDefaultChatStore() {
 
 export function AppProviders({
   children,
-  databaseFactory = productionDatabaseFactory,
-  clockFactory = createSystemClock,
-  messageIdentityFactory = createMonotonicMessageIdentity,
   createSessionController,
   createAccountScope,
+  createAccountLocalDataPurge = createDefaultAccountLocalDataPurge,
   createGroupsStore: groupsStoreFactory,
 }: AppProvidersProps) {
   const env = getPublicEnv();
+  const [accountLocalDataPurge] = useState<AccountLocalDataPurge>(
+    createAccountLocalDataPurge,
+  );
 
   return (
     <KeyboardProvider>
       <AppThemeProvider>
-        {env.appMode === "connected-auth" ? (
+        <AccountLocalDataPurgeContext.Provider value={accountLocalDataPurge}>
           <ConnectedRuntimeProviders
             accountScopeFactory={createAccountScope}
             createSessionController={createSessionController}
             groupsStoreFactory={groupsStoreFactory}
-            origin={requireConnectedOrigin(env.apiOrigin)}
+            origin={env.apiOrigin}
           >
             {children}
           </ConnectedRuntimeProviders>
-        ) : (
-          <FixtureRuntimeProviders
-            databaseFactory={databaseFactory}
-            clockFactory={clockFactory}
-            messageIdentityFactory={messageIdentityFactory}
-          >
-            {children}
-          </FixtureRuntimeProviders>
-        )}
+        </AccountLocalDataPurgeContext.Provider>
       </AppThemeProvider>
     </KeyboardProvider>
   );
-}
-
-function FixtureRuntimeProviders({
-  children,
-  databaseFactory,
-  clockFactory,
-  messageIdentityFactory,
-}: PropsWithChildren<
-  Readonly<{
-    databaseFactory: DatabaseProviderFactory;
-    clockFactory: () => ClockPort;
-    messageIdentityFactory: () => MessageIdentityPort;
-  }>
->) {
-  const [clock] = useState(clockFactory);
-  const [messageIdentity] = useState(messageIdentityFactory);
-  return (
-    <DatabaseProvider databaseFactory={databaseFactory}>
-      <AppRuntimeBridge clock={clock} messageIdentity={messageIdentity}>
-        {children}
-      </AppRuntimeBridge>
-    </DatabaseProvider>
-  );
-}
-
-function requireConnectedOrigin(origin: string | undefined): string {
-  if (!origin) throw new Error("connected-auth requires an API origin.");
-  return origin;
 }
 
 function ConnectedRuntimeProviders({
@@ -405,12 +358,23 @@ function ChatStoreBridge({ children }: PropsWithChildren) {
 
 function AccountScopeBridge({
   children,
-  accountScopeFactory = createDefaultAccountScope,
+  accountScopeFactory,
 }: PropsWithChildren<
   Readonly<{ accountScopeFactory?: () => AccountScopeController }>
 >) {
-  const { principal } = useSession();
-  const [scope] = useState<AccountScopeController>(accountScopeFactory);
+  const { principal, state: sessionState } = useSession();
+  const purge = useAccountLocalDataPurge();
+  const [scope] = useState<AccountScopeController>(() =>
+    accountScopeFactory
+      ? accountScopeFactory()
+      : // Opens run inside the purge's serialization section so a sweep delete
+        // and a database open can never overlap on the same files.
+        createDefaultAccountScope((openPrincipal) =>
+          purge.gateAccountOpen(() =>
+            defaultOpenAccountDatabase(openPrincipal),
+          ),
+        ),
+  );
   // Bind every notification to the principal that actually opened this scope.
   // A changed session is hidden synchronously, before effects close the old DB.
   const [snapshot, setSnapshot] = useState<{
@@ -420,6 +384,21 @@ function AccountScopeBridge({
     principal: null,
     state: scope.getState(),
   }));
+
+  // B3/C9: announce the open principal to the purge before the scope opens.
+  // Keyed by origin + user id (not the per-refresh epoch) so a token refresh
+  // never re-runs the cancel against an account that is mid-deletion. It
+  // marks the database as open for the sweep and cancels a pending purge of
+  // the same user_id (a recovery).
+  const principalOrigin = principal?.origin ?? null;
+  const principalUserId = principal?.userId ?? null;
+  useEffect(() => {
+    void purge.setActivePrincipal(
+      principalOrigin && principalUserId
+        ? { origin: principalOrigin, userId: principalUserId }
+        : null,
+    );
+  }, [purge, principalOrigin, principalUserId]);
 
   useEffect(() => {
     const unsubscribe = scope.subscribe(() =>
@@ -433,6 +412,12 @@ function AccountScopeBridge({
   }, [scope, principal]);
 
   useEffect(() => () => scope.setPrincipal(null), [scope]);
+  useEffect(
+    () => () => {
+      void purge.setActivePrincipal(null);
+    },
+    [purge],
+  );
 
   const value = useMemo<AccountScopeContextValue>(
     () => ({
@@ -446,6 +431,24 @@ function AccountScopeBridge({
     [scope, principal, snapshot],
   );
 
+  // B3/C8: one asynchronous startup sweep, only after the session restore and
+  // the account scope open have settled. It is not part of the synchronous
+  // media temp sweep or the ANR timing path, and it never surfaces an error.
+  const sweepStarted = useRef(false);
+  const sessionSettled =
+    sessionState.status === "signed-in" ||
+    sessionState.status === "signed-out" ||
+    sessionState.status === "error";
+  const scopeSettled =
+    !principal ||
+    value.state?.status === "ready" ||
+    value.state?.status === "error";
+  useEffect(() => {
+    if (sweepStarted.current || !sessionSettled || !scopeSettled) return;
+    sweepStarted.current = true;
+    void purge.sweep().catch(() => undefined);
+  }, [purge, sessionSettled, scopeSettled]);
+
   return (
     <AccountScopeContext.Provider value={value}>
       {children}
@@ -453,12 +456,20 @@ function AccountScopeBridge({
   );
 }
 
+export function useAccountLocalDataPurge(): AccountLocalDataPurge {
+  const value = useContext(AccountLocalDataPurgeContext);
+  if (!value) {
+    throw new Error(
+      "useAccountLocalDataPurge must be used inside AppProviders.",
+    );
+  }
+  return value;
+}
+
 export function useAccountScope(): AccountScopeContextValue {
   const value = useContext(AccountScopeContext);
   if (!value) {
-    throw new Error(
-      "useAccountScope must be used inside AppProviders' connected-auth mode.",
-    );
+    throw new Error("useAccountScope must be used inside AppProviders.");
   }
   return value;
 }
@@ -484,31 +495,4 @@ function GroupsStoreBridge({
       {children}
     </GroupsProvider>
   );
-}
-
-function AppRuntimeBridge({
-  children,
-  clock,
-  messageIdentity,
-}: PropsWithChildren<
-  Readonly<{
-    clock: ClockPort;
-    messageIdentity: MessageIdentityPort;
-  }>
->) {
-  const repository = useDatabaseRepository();
-
-  return (
-    <AppRuntimeContext.Provider value={{ clock, messageIdentity, repository }}>
-      {children}
-    </AppRuntimeContext.Provider>
-  );
-}
-
-export function useAppRuntime(): AppRuntimeDependencies {
-  const runtime = useContext(AppRuntimeContext);
-  if (!runtime) {
-    throw new Error("useAppRuntime must be used inside AppProviders.");
-  }
-  return runtime;
 }

@@ -6,6 +6,12 @@ export {
   validateChatroomMediaItem,
   validateChatroomMediaPage,
   validateMediaAccessUrl,
+  validateAvatarUploadCreate,
+  validateAvatarUploadIntent,
+  validateAvatarUploadFinalize,
+  type AvatarUploadCreateWire,
+  type AvatarUploadIntentWire,
+  type AvatarUploadFinalizeWire,
   type UploadIntentCreateWire,
   type UploadIntentWithPresignedPutWire,
   type UploadFinalizeWire,
@@ -234,7 +240,19 @@ export {
   type ExpoInstallationPutInput,
 } from "./push-installations";
 export {
+  AVATAR_CONTENT_TYPE,
+  AVATAR_MAX_BYTES,
+  AVATAR_UPLOAD_ERROR_CODES,
+  avatarUploadCreateToWire,
+  classifyAvatarUploadError,
+  isValidAvatarByteSize,
+  mapAvatarUploadIntent,
+  type AvatarUploadErrorKind,
+  type AvatarUploadIntent,
+} from "./avatar";
+export {
   userPatchToWire,
+  AVATAR_CLEAR_VALUE,
   NICKNAME_MIN_LENGTH,
   NICKNAME_MAX_LENGTH,
   type UserPatchInput,

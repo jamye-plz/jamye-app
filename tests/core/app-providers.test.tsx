@@ -35,6 +35,24 @@ jest.mock("react-native-keyboard-controller", () => {
   };
 });
 
+// CLN (task-app-deletion-cleanup): the default composition touches the
+// documents directory and expo-sqlite files; every test here injects its own
+// scope, so the production purge runtime is replaced by an inert double and
+// the real database open is replaced by a mock the gate tests can observe.
+const mockInertPurge = () => ({
+  recordAccountDeletion: jest.fn(async () => undefined),
+  setActivePrincipal: jest.fn(async () => undefined),
+  gateAccountOpen: jest.fn(async (open: () => Promise<unknown>) => open()),
+  sweep: jest.fn(async () => ({ due: 0, removed: 0, skipped: 0, failed: 0 })),
+});
+jest.mock("@/core/database/account/account-local-data-purge-runtime", () => ({
+  createDefaultAccountLocalDataPurge: () => mockInertPurge(),
+}));
+const mockOpenAccountDatabase = jest.fn();
+jest.mock("@/core/database/account/open-account-database", () => ({
+  openAccountDatabase: (...args: unknown[]) => mockOpenAccountDatabase(...args),
+}));
+
 describe("M9 production sync composition", () => {
   function setupSync() {
     const runtimeModule = jest.requireActual<
@@ -207,26 +225,8 @@ type AppTheme = Readonly<{
     onPrimary: ColorValue;
   }>;
 }>;
-type ClockPort = Readonly<{ nowMs: () => number }>;
-type MessageIdentityPort = Readonly<{
-  next: () => Readonly<{ clientMsgId: string; localId: string }>;
-}>;
-type DatabaseRepository = Readonly<{
-  ensureFixtureConversation: (fixture: unknown) => Promise<void>;
-  label: string;
-}>;
-type DatabaseResource = Readonly<{
-  close: () => Promise<void>;
-  repository: DatabaseRepository;
-}>;
-type DatabaseProviderFactory = () => Promise<DatabaseResource>;
 type FileSystemModule = Readonly<{
   readFileSync: (path: string, encoding: "utf8") => string;
-}>;
-type AppRuntimeDependencies = Readonly<{
-  clock: ClockPort;
-  messageIdentity: MessageIdentityPort;
-  repository: DatabaseRepository;
 }>;
 type AuthState = Readonly<{
   status: "loading" | "signed-out" | "signing-in" | "signed-in" | "error";
@@ -273,20 +273,17 @@ type AccountScopeController = Readonly<{
 }>;
 type AppProvidersProps = Readonly<{
   children: ReactNode;
-  clockFactory?: () => ClockPort;
-  databaseFactory?: DatabaseProviderFactory;
-  messageIdentityFactory?: () => MessageIdentityPort;
   createSessionController?: (origin: string) => AuthController;
   createAccountScope?: () => AccountScopeController;
+  createAccountLocalDataPurge?: () => ReturnType<typeof mockInertPurge>;
 }>;
 type ProvidersModule = {
   AppProviders?: unknown;
-  useAppRuntime?: unknown;
   useAccountScope?: unknown;
+  useAccountLocalDataPurge?: unknown;
 };
 type ThemeModule = { useAppTheme?: unknown };
 type UseAppTheme = () => AppTheme;
-type UseAppRuntime = () => AppRuntimeDependencies;
 type AccountScopeContextValue = Readonly<{
   state: AccountScopeRenderedState;
   retry: () => void;
@@ -341,7 +338,6 @@ function loadRequiredModule<T extends object>(
 function loadProviderContract(): {
   AppProviders: ComponentType<AppProvidersProps>;
   useAppTheme: UseAppTheme;
-  useAppRuntime: UseAppRuntime;
   useAccountScope: UseAccountScope;
 } {
   const providers = loadRequiredModule<ProvidersModule>(
@@ -358,11 +354,6 @@ function loadProviderContract(): {
       "M3-I3 implementation incomplete: app-providers.tsx must export AppProviders.",
     );
   }
-  if (typeof providers.useAppRuntime !== "function") {
-    throw new Error(
-      "M5-RUNTIME-1 implementation incomplete: app-providers.tsx must export useAppRuntime().",
-    );
-  }
   if (typeof providers.useAccountScope !== "function") {
     throw new Error(
       "M6-04 implementation incomplete: app-providers.tsx must export useAccountScope().",
@@ -377,21 +368,8 @@ function loadProviderContract(): {
   return {
     AppProviders: providers.AppProviders as ComponentType<AppProvidersProps>,
     useAppTheme: theme.useAppTheme as UseAppTheme,
-    useAppRuntime: providers.useAppRuntime as UseAppRuntime,
     useAccountScope: providers.useAccountScope as UseAccountScope,
   };
-}
-
-function createDeterministicDatabaseFactory(
-  label: string,
-): DatabaseProviderFactory {
-  return jest.fn(async (): Promise<DatabaseResource> => ({
-    close: async () => undefined,
-    repository: {
-      ensureFixtureConversation: async () => undefined,
-      label,
-    },
-  }));
 }
 
 function fakeSessionController(
@@ -448,20 +426,21 @@ function fakeAccountScope(): AccountScopeController & {
 }
 
 const mockedUseColorScheme = jest.mocked(useColorScheme);
-const originalAppMode = process.env.EXPO_PUBLIC_APP_MODE;
 const originalApiOrigin = process.env.EXPO_PUBLIC_API_ORIGIN;
+const originalMediaOrigin = process.env.EXPO_PUBLIC_MEDIA_ORIGIN;
 
 beforeEach(() => {
-  process.env.EXPO_PUBLIC_APP_MODE = "local-fixture";
-  delete process.env.EXPO_PUBLIC_API_ORIGIN;
+  process.env.EXPO_PUBLIC_API_ORIGIN = "https://api.example";
+  process.env.EXPO_PUBLIC_MEDIA_ORIGIN = "https://media.example";
 });
 
 afterEach(() => {
-  if (originalAppMode === undefined) delete process.env.EXPO_PUBLIC_APP_MODE;
-  else process.env.EXPO_PUBLIC_APP_MODE = originalAppMode;
   if (originalApiOrigin === undefined)
     delete process.env.EXPO_PUBLIC_API_ORIGIN;
   else process.env.EXPO_PUBLIC_API_ORIGIN = originalApiOrigin;
+  if (originalMediaOrigin === undefined)
+    delete process.env.EXPO_PUBLIC_MEDIA_ORIGIN;
+  else process.env.EXPO_PUBLIC_MEDIA_ORIGIN = originalMediaOrigin;
   mockedUseColorScheme.mockReset();
 });
 
@@ -471,13 +450,6 @@ describe("M3-I3 active provider and system theme contract", () => {
     async ({ colorScheme, primary, onPrimary }) => {
       mockedUseColorScheme.mockReturnValue(colorScheme);
       const { AppProviders, useAppTheme } = loadProviderContract();
-      const databaseFactory = createDeterministicDatabaseFactory(
-        `theme-${colorScheme}`,
-      );
-      const clockFactory = jest.fn((): ClockPort => ({ nowMs: () => 1 }));
-      const messageIdentityFactory = jest.fn((): MessageIdentityPort => ({
-        next: () => ({ clientMsgId: "theme-client", localId: "theme-local" }),
-      }));
 
       function ThemeProbe(): React.JSX.Element {
         const theme = useAppTheme();
@@ -491,9 +463,8 @@ describe("M3-I3 active provider and system theme contract", () => {
 
       const screen = await render(
         <AppProviders
-          clockFactory={clockFactory}
-          databaseFactory={databaseFactory}
-          messageIdentityFactory={messageIdentityFactory}
+          createAccountScope={() => fakeAccountScope()}
+          createSessionController={() => fakeSessionController()}
         >
           <ThemeProbe />
         </AppProviders>,
@@ -506,82 +477,7 @@ describe("M3-I3 active provider and system theme contract", () => {
   );
 });
 
-describe("M5-RUNTIME-1 AppProviders runtime dependency contract", () => {
-  test("publishes the exact injected repository, clock, and identity once after one successful database attempt", async () => {
-    const repository: DatabaseRepository = {
-      ensureFixtureConversation: async () => undefined,
-      label: "injected-repository",
-    };
-    const close = jest.fn(async () => undefined);
-    const databaseFactory = jest.fn(async (): Promise<DatabaseResource> => ({
-      close,
-      repository,
-    }));
-    const clock: ClockPort = { nowMs: () => 3456 };
-    const messageIdentity: MessageIdentityPort = {
-      next: () => ({
-        clientMsgId: "client-message-1",
-        localId: "local-message-1",
-      }),
-    };
-    const clockFactory = jest.fn(() => clock);
-    const messageIdentityFactory = jest.fn(() => messageIdentity);
-    const { AppProviders, useAppRuntime } = loadProviderContract();
-
-    function RuntimeProbe(): React.JSX.Element {
-      const runtime = useAppRuntime();
-      return (
-        <Text>
-          {runtime.repository.label}:{runtime.clock.nowMs()}:
-          {runtime.messageIdentity.next().localId}
-        </Text>
-      );
-    }
-
-    const screen = await render(
-      <AppProviders
-        clockFactory={clockFactory}
-        databaseFactory={databaseFactory}
-        messageIdentityFactory={messageIdentityFactory}
-      >
-        <RuntimeProbe />
-      </AppProviders>,
-    );
-
-    expect(
-      await screen.findByText("injected-repository:3456:local-message-1"),
-    ).toBeTruthy();
-    expect(databaseFactory).toHaveBeenCalledTimes(1);
-    expect(clockFactory).toHaveBeenCalledTimes(1);
-    expect(messageIdentityFactory).toHaveBeenCalledTimes(1);
-
-    await screen.unmount();
-    expect(close).toHaveBeenCalledTimes(1);
-  });
-
-  test("uses the named production database, clock, and identity factories as defaults", () => {
-    const filesystem = jest.requireActual<FileSystemModule>("node:fs");
-    const source = filesystem.readFileSync(
-      `${process.cwd()}/src/core/providers/app-providers.tsx`,
-      "utf8",
-    );
-
-    expect(source).toMatch(
-      /import\s*\{[^}]*productionDatabaseFactory[^}]*\}\s*from\s*["'][^"']*database-provider["']/,
-    );
-    expect(source).toMatch(
-      /import\s*\{[^}]*createSystemClock[^}]*\}\s*from\s*["'][^"']*chat-send["']/,
-    );
-    expect(source).toMatch(
-      /import\s*\{[^}]*createMonotonicMessageIdentity[^}]*\}\s*from\s*["'][^"']*chat-send["']/,
-    );
-    expect(source).toMatch(/databaseFactory\s*=\s*productionDatabaseFactory/);
-    expect(source).toMatch(/clockFactory\s*=\s*createSystemClock/);
-    expect(source).toMatch(
-      /messageIdentityFactory\s*=\s*createMonotonicMessageIdentity/,
-    );
-  });
-
+describe("AppProviders composition contract", () => {
   test("mounts the native keyboard controller above application consumers", () => {
     const filesystem = jest.requireActual<FileSystemModule>("node:fs");
     const source = filesystem.readFileSync(
@@ -602,21 +498,57 @@ describe("M5-RUNTIME-1 AppProviders runtime dependency contract", () => {
     expect(keyboardProviderEnd).toBeGreaterThan(themeProviderStart);
   });
 
-  test("throws outside AppProviders instead of manufacturing a runtime fallback", async () => {
-    const { useAppRuntime } = loadProviderContract();
+  test.each([
+    ["EXPO_PUBLIC_API_ORIGIN"],
+    ["EXPO_PUBLIC_MEDIA_ORIGIN"],
+  ] as const)(
+    "fails at startup with a clear error when %s is missing",
+    async (name) => {
+      delete process.env[name];
+      const { AppProviders } = loadProviderContract();
+      const consoleError = jest
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+
+      try {
+        await expect(
+          render(
+            <AppProviders
+              createAccountScope={() => fakeAccountScope()}
+              createSessionController={() => fakeSessionController()}
+            >
+              <Text>unreachable</Text>
+            </AppProviders>,
+          ),
+        ).rejects.toThrow(`${name} is required.`);
+      } finally {
+        consoleError.mockRestore();
+      }
+    },
+  );
+
+  test("useAccountScope throws outside AppProviders instead of manufacturing a fallback", async () => {
+    const { useAccountScope } = loadProviderContract();
 
     function OutsideProviderProbe(): React.JSX.Element {
-      useAppRuntime();
+      useAccountScope();
       return <Text>unreachable</Text>;
     }
 
-    await expect(render(<OutsideProviderProbe />)).rejects.toThrow(
-      /useAppRuntime must be used inside AppProviders/i,
-    );
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    try {
+      await expect(render(<OutsideProviderProbe />)).rejects.toThrow(
+        /useAccountScope must be used inside AppProviders/i,
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
 
-describe("M6-04 connected-auth mode composition", () => {
+describe("M6-04 connected provider composition", () => {
   const principalProfile = {
     id: "3f0a3f1e-2f2a-4a3e-9c3b-1f8f9d3a2b4c",
     provider: "kakao",
@@ -624,11 +556,6 @@ describe("M6-04 connected-auth mode composition", () => {
     avatarUrl: null,
     createdAt: "2020-01-01T00:00:00Z",
   };
-
-  beforeEach(() => {
-    process.env.EXPO_PUBLIC_APP_MODE = "connected-auth";
-    process.env.EXPO_PUBLIC_API_ORIGIN = "https://api.example";
-  });
 
   test("wires the account scope to the validated session principal and drops it on sign-out", async () => {
     const controller = fakeSessionController();
@@ -789,7 +716,7 @@ describe("M6-04 connected-auth mode composition", () => {
     }
   });
 
-  test("supports an explicit account-scope retry after an error, with no fixture fallback", async () => {
+  test("supports an explicit account-scope retry after an error, with no fallback scope", async () => {
     const controller = fakeSessionController({
       status: "signed-in",
       profile: principalProfile,
@@ -826,36 +753,6 @@ describe("M6-04 connected-auth mode composition", () => {
       userId: principalProfile.id,
       epoch: controller.getGeneration(),
     });
-  });
-
-  test("never mounts the fixture database/runtime provider in connected-auth mode", async () => {
-    const controller = fakeSessionController();
-    const scope = fakeAccountScope();
-    const databaseFactory =
-      createDeterministicDatabaseFactory("should-not-run");
-    const { AppProviders } = loadProviderContract();
-    const clockFactory = jest.fn(() => ({ nowMs: () => 0 }));
-    const messageIdentityFactory = jest.fn(() => ({
-      next: () => ({ clientMsgId: "unused", localId: "unused" }),
-    }));
-
-    await render(
-      <AppProviders
-        createAccountScope={() => scope}
-        createSessionController={() => controller}
-        databaseFactory={databaseFactory}
-        clockFactory={clockFactory}
-        messageIdentityFactory={messageIdentityFactory}
-      >
-        <Text>connected</Text>
-      </AppProviders>,
-    );
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(databaseFactory).not.toHaveBeenCalled();
-    expect(clockFactory).not.toHaveBeenCalled();
-    expect(messageIdentityFactory).not.toHaveBeenCalled();
   });
 
   test.each(["user", "epoch", "origin", "logout"])(
@@ -920,28 +817,6 @@ describe("M6-04 connected-auth mode composition", () => {
     },
   );
 
-  test("does not provide AppRuntimeContext (fixture runtime) in connected-auth mode", async () => {
-    const controller = fakeSessionController();
-    const scope = fakeAccountScope();
-    const { AppProviders, useAppRuntime } = loadProviderContract();
-
-    function RuntimeProbe(): React.JSX.Element {
-      useAppRuntime();
-      return <Text>unreachable</Text>;
-    }
-
-    await expect(
-      render(
-        <AppProviders
-          createAccountScope={() => scope}
-          createSessionController={() => controller}
-        >
-          <RuntimeProbe />
-        </AppProviders>,
-      ),
-    ).rejects.toThrow(/useAppRuntime must be used inside AppProviders/i);
-  });
-
   test("closes the account scope on unmount", async () => {
     const controller = fakeSessionController();
     const scope = fakeAccountScope();
@@ -963,5 +838,200 @@ describe("M6-04 connected-auth mode composition", () => {
       screen.unmount();
     });
     expect(scope.setPrincipal).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("CLN account local data purge wiring in AppProviders", () => {
+  const profile = {
+    id: "3f0a3f1e-2f2a-4a3e-9c3b-1f8f9d3a2b4c",
+    provider: "kakao",
+    nickname: "name",
+    avatarUrl: null,
+    createdAt: "2020-01-01T00:00:00Z",
+  };
+  const signedIn = {
+    status: "signed-in" as const,
+    profile,
+    message: null,
+  };
+  const signedOut = {
+    status: "signed-out" as const,
+    profile: null,
+    message: null,
+  };
+
+  async function mountWith(
+    controller: ReturnType<typeof fakeSessionController>,
+    purge: ReturnType<typeof mockInertPurge>,
+    scope?: ReturnType<typeof fakeAccountScope>,
+    children: ReactNode = <Text>connected</Text>,
+  ) {
+    const { AppProviders } = loadProviderContract();
+    const screen = await render(
+      <AppProviders
+        createAccountLocalDataPurge={() => purge}
+        createAccountScope={scope ? () => scope : undefined}
+        createSessionController={() => controller}
+      >
+        {children}
+      </AppProviders>,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    return screen;
+  }
+
+  beforeEach(() => mockOpenAccountDatabase.mockReset());
+
+  test("CLN-AC8 the sweep waits while the session is still restoring and then runs once on a signed-out device", async () => {
+    const controller = fakeSessionController();
+    const purge = mockInertPurge();
+    await mountWith(controller, purge, fakeAccountScope());
+    expect(purge.sweep).not.toHaveBeenCalled();
+
+    await act(async () => {
+      controller.publish(signedOut);
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      controller.publish({ ...signedOut, status: "signing-in" });
+      controller.publish(signedOut);
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+  });
+
+  test("CLN-AC8 the sweep starts only after the account scope open has settled, and only once", async () => {
+    const controller = fakeSessionController(signedIn);
+    const purge = mockInertPurge();
+    const scope = fakeAccountScope();
+    await mountWith(controller, purge, scope);
+    expect(purge.sweep).not.toHaveBeenCalled();
+
+    await act(async () => {
+      scope.publish({ status: "opening" });
+    });
+    expect(purge.sweep).not.toHaveBeenCalled();
+
+    await act(async () => {
+      scope.publish({ status: "ready", database: {} });
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      scope.publish({ status: "opening" });
+      scope.publish({ status: "ready", database: {} });
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+  });
+
+  test("CLN-AC8 a failed scope open also counts as settled", async () => {
+    const controller = fakeSessionController(signedIn);
+    const purge = mockInertPurge();
+    const scope = fakeAccountScope();
+    await mountWith(controller, purge, scope);
+    await act(async () => {
+      scope.publish({ status: "error", error: new Error("open failed") });
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+  });
+
+  test("CLN-AC8 a sweep that rejects never surfaces to the UI", async () => {
+    const controller = fakeSessionController(signedOut);
+    const purge = mockInertPurge();
+    purge.sweep.mockRejectedValue(new Error("sweep exploded"));
+    const screen = await mountWith(controller, purge, fakeAccountScope());
+    expect(screen.getByText("connected")).toBeTruthy();
+  });
+
+  test("CLN-AC4 the open principal is announced to the purge before the scope opens, and cleared on sign-out and unmount", async () => {
+    const controller = fakeSessionController();
+    const purge = mockInertPurge();
+    const scope = fakeAccountScope();
+    const screen = await mountWith(controller, purge, scope);
+    expect(purge.setActivePrincipal).toHaveBeenLastCalledWith(null);
+
+    await act(async () => {
+      controller.publish(signedIn);
+    });
+    expect(purge.setActivePrincipal).toHaveBeenLastCalledWith({
+      origin: "https://api.example",
+      userId: profile.id,
+    });
+    const announcedOrders = purge.setActivePrincipal.mock.invocationCallOrder;
+    const openedOrders = scope.setPrincipal.mock.invocationCallOrder;
+    expect(announcedOrders[announcedOrders.length - 1]).toBeLessThan(
+      openedOrders[openedOrders.length - 1],
+    );
+
+    await act(async () => {
+      controller.publish(signedOut);
+    });
+    expect(purge.setActivePrincipal).toHaveBeenLastCalledWith(null);
+
+    await act(async () => {
+      controller.publish(signedIn);
+    });
+    purge.setActivePrincipal.mockClear();
+    await act(async () => {
+      screen.unmount();
+    });
+    expect(purge.setActivePrincipal).toHaveBeenCalledWith(null);
+  });
+
+  test("CLN-AC4 an epoch-only principal change does not re-announce (and so never re-cancels) the same account", async () => {
+    const controller = fakeSessionController(signedIn);
+    const purge = mockInertPurge();
+    await mountWith(controller, purge, fakeAccountScope());
+    const calls = purge.setActivePrincipal.mock.calls.length;
+    await act(async () => {
+      controller.bumpGeneration();
+      controller.publish({ ...signedIn, profile: { ...profile } });
+    });
+    expect(purge.setActivePrincipal.mock.calls.length).toBe(calls);
+  });
+
+  test("CLN-AC8 the default scope opens its database through the purge gate", async () => {
+    const controller = fakeSessionController(signedIn);
+    const purge = mockInertPurge();
+    // Keep the open pending: only the gate and the open call are observed.
+    mockOpenAccountDatabase.mockReturnValue(new Promise(() => undefined));
+    await mountWith(controller, purge);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(purge.gateAccountOpen).toHaveBeenCalledTimes(1);
+    expect(mockOpenAccountDatabase).toHaveBeenCalledWith({
+      origin: "https://api.example",
+      userId: profile.id,
+      epoch: controller.getGeneration(),
+    });
+  });
+
+  test("useAccountLocalDataPurge exposes the provided purge and throws outside AppProviders", async () => {
+    const controller = fakeSessionController(signedOut);
+    const purge = mockInertPurge();
+    const providers = loadRequiredModule<ProvidersModule>(
+      "../../src/core/providers/app-providers",
+      "src/core/providers/app-providers.tsx",
+    );
+    const useAccountLocalDataPurge =
+      providers.useAccountLocalDataPurge as () => unknown;
+    let seen: unknown;
+    function Probe(): React.JSX.Element {
+      seen = useAccountLocalDataPurge();
+      return <Text>probe</Text>;
+    }
+    await mountWith(controller, purge, fakeAccountScope(), <Probe />);
+    expect(seen).toBe(purge);
+
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(render(<Probe />)).rejects.toThrow(/AppProviders/);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

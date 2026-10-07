@@ -1,19 +1,21 @@
 # jamye-app 서버 계약 기반 로드맵
 
-- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15 소프트 삭제 수용 완료 (2026-09-29 M15 사용자 종료 승인), M16 Sign in with Apple 완료 (2026-09-30 M16 사용자 종료 승인), M17 잔여 백로그 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인)·라운드 2 (A) 구현·기기 수용 완료 (2026-10-06, 리뷰·종료 승인 대기, 미커밋), M18 스토어 배포 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
+- 현재 상태: M0-M5 완료 이력 보존, M6 계정 안전 기반, M7 그룹·멤버십·초대, M8 REST 채팅, M9 영속 outbox·실시간/delta 동기화, M10 주제·태그 완료 (2026-09-10 M10 사용자 종료 승인), M11 미디어 업로드·첨부·접근 완료 (2026-09-16 M11 사용자 종료 승인), M12 알림함·Expo 푸시 완료 (2026-09-21 M12 사용자 종료 승인), M13 프로필 수정·계정 삭제 완료 (2026-09-22 M13 사용자 종료 승인), M14 UI/UX 다듬기 완료 (2026-09-28 M14 사용자 종료 승인, 라운드 1·2), M15 소프트 삭제 수용 완료 (2026-09-29 M15 사용자 종료 승인), M16 Sign in with Apple 완료 (2026-09-30 M16 사용자 종료 승인), M17 잔여 백로그 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인)·라운드 2 (A) 구현·기기 수용 완료 (2026-10-06, PR #8 merge `671b649`)·라운드 3 (B) 구현·검증·격리 리뷰 완료 (2026-10-07 사용자 라운드 종료 승인, PR #9; 사용자 결정으로 M17은 열어 둠), M18 스토어 배포 2026-09-22 사용자 결정으로 `planned_unapproved` 등록
 - 앱 조사 기준점: `ff909de9e43367a17b5c40fb16f64708c34c25ea` (2026-09-09, clean `main...origin/main`)
 - 서버 계약 조사 기준점: `7d146ab0040ba49acbc42e40b2408e3e27f6e88d`
-- 현재 frontier: M17(A) 앱 출시 blocker — 2026-10-01 사용자 착수 승인("다음 착수 범위는 A를
-  진행할게"). 2026-10-06 (A)의 구현과 기기 수용을 마쳤다(의존성 정렬·감사 0건, 접근성 수정,
-  production identity 경로, Maestro E2E iOS·Android PASS, ANR 분석, 기기 수용 결함 수정; 상세는 M17
-  절 "(A) 결과"). ultrawork 리뷰 단계(VERIFY/REFINE/SHIP)가 남아 있고 아직 아무것도 커밋하지
-  않았다(작업 트리, 브랜치 `feature/m17-release-blockers`). 직전 M17 라운드 1 (E)·(F)는 2026-10-01
-  사용자 종료 승인으로 닫았다(PR #6 merge `589c5e0`, [M17 evidence](evidence/M17.md)). M18 스토어
-  배포는 M14 만족 선언과 M16 종료 조건을 충족했고 M17(A) 종료·release 범위 확정과 별도 승인이 남아
-  있다. 파괴적 로컬 정리는 여전히 별도 승인 대상(M17-B).
-- 앱 출시 판정: NOT READY — (A)가 다룬 image-size High 2건(트리에서 제거, 10-01 `bun audit` 0건, 10-06 재감사 뒤 dev 도구 수정판 없는 2건만 남음)·Android 시작 ANR 분석·E2E·실기기 수용은 닫았다. release build의 cold start 측정, 아이콘·서명·빌드 파이프라인, push·OAuth production 설정과 서버 AASA/assetlinks·배포 binding(M18)이 남아 있음
+- 현재 frontier: M17 남은 묶음의 착수 결정 — 2026-10-07 사용자가 라운드 3 (B)의 종료를 승인하고 M17은
+  닫지 않기로 했다. (B) 세 항목(아바타 업로드, 계정 삭제 30일 뒤 로컬 DB 정리, bootstrap/local-fixture
+  모드 제거)과 Expo SDK 57 patch 정렬은 구현, iOS 시뮬레이터·Android 에뮬레이터 검증, 격리 리뷰
+  (VERIFY·REFINE·SHIP 모두 PASS)를 마치고 PR #9로 main에 들어갔다(상세는 M17 절 "(B) 결과"). 서버
+  task-19(아바타 업로드)는 운영에 배포했다(jamye-server PR #18 merge `f86012e`, homelab PR #98·#99).
+  직전 라운드 2 (A)는 구현·기기 수용을 마치고 PR #8(merge `671b649`, 2026-10-06)로 main에 들어갔다.
+  (C)·(D)는 `planned_unapproved`다.
+  라운드 1 (E)·(F)는 2026-10-01 사용자 종료 승인으로 닫았다(PR #6 merge `589c5e0`,
+  [M17 evidence](evidence/M17.md)). M18 스토어 배포는 M14 만족 선언과 M16 종료 조건을 충족했고 release
+  범위 확정과 별도 승인이 남아 있다.
+- 앱 출시 판정: NOT READY — (A)가 다룬 image-size High 2건(트리에서 제거, 10-01 `bun audit` 0건, 10-06 재감사·B7 Expo patch 정렬 뒤 dev 도구 수정판 없는 2건만 남음)·Android 시작 ANR 분석·E2E·실기기 수용은 닫았다. release build의 cold start 측정, 아이콘·서명·빌드 파이프라인, push·OAuth production 설정과 서버 AASA/assetlinks·배포 binding(M18)이 남아 있음
 - 결정권자: 사용자
-- 최종 수정일: 2026-10-06
+- 최종 수정일: 2026-10-07
 
 ## 1. 이 문서가 답하는 것
 
@@ -55,6 +57,9 @@ production readiness의 증거로 재사용하지 않는다.
 | M4 SQLite/bootstrap  | completed | SQLite v1 repository와 unbound `bootstrap.v2` contract                                   | [M4 evidence](evidence/M4.md). 실제 server contract나 transport가 아님                                                                        |
 | M5 로컬 채팅         | completed | SQLite-only chat, atomic pending/outbox, stable retry, Korean IME와 native keyboard/list | [M5 evidence](evidence/M5.md). 당시 20 suites/193 tests와 양 platform Simulator/Emulator local 수용; network/auth/physical-device 증거가 아님 |
 
+M4의 bootstrap 계약과 M5의 local-fixture 실행 경로(`jamye.db`)는 2026-10-06 M17 라운드 3 (B)에서 코드·계약·도구와
+함께 제거했다(M17 절 "(B) 결과"). 위 표는 당시 기록이다.
+
 M1-M5 evidence는 각 시점의 기록이므로 현재 package version이나 새 roadmap에 맞춰 고쳐 쓰지
 않는다. 원래 roadmap 전문은 Git 기준점 `ff909de`의 blob
 `b54bf80d94d97888b938bac540dfef73fa6694cf`에 남아 있다.
@@ -69,7 +74,7 @@ architecture exact-path 정책 변경까지 요구하기 때문이다.
 ### 3.2 M5 이후 실제 OAuth 추가와 M6 shared session
 
 Commit `ff909de`에서 Kakao/Google OAuth authorize·exchange, refresh, logout, profile,
-PKCE, SecureStore와 native callback bridge가 추가됐다. `connected-auth` mode에서 현재 이 흐름이
+PKCE, SecureStore와 native callback bridge가 추가됐다. 당시 `connected-auth` mode(지금은 유일한 실행 경로)에서 이 흐름이
 shared session과 U1 profile을 제공하며, M6에는 별도의 health 연결 진단도 있다.
 
 초기 OAuth 수용 이후 M6와 의존성 보안 패치를 포함해 clean iOS/Android rebuild·설치를
@@ -94,21 +99,24 @@ M6 종료 당시 아래 항목은 전체 PASS가 아니었다. 이후 그룹 nav
 
 ### 3.3 현재 실행 경로
 
-현재 app mode는 둘이다.
+현재 실행 경로는 하나다. `EXPO_PUBLIC_APP_MODE`로 고르던 app mode(`local-fixture`: M5의 SQLite local
+chat, `connected-auth`)는 2026-10-06 M17 (B)에서 없앴다. API·미디어 origin(`EXPO_PUBLIC_API_ORIGIN`,
+`EXPO_PUBLIC_MEDIA_ORIGIN`)이 필수이고 누락하면 앱이 시작할 때 오류를 낸다.
 
-- `local-fixture`: M5의 SQLite local chat을 표시한다. Network 전송이나 로그인은 없다.
-- `connected-auth`: 로그인 뒤 그룹·알림·계정 탭([ADR 0009](adr/0009-tab-bar-navigation.md))으로
+- 연결 경로: 로그인 뒤 그룹·알림·계정 탭([ADR 0009](adr/0009-tab-bar-navigation.md))으로
   들어간다. 그룹 목록 → 그룹 홈(날짜별 주제 목록)에서 주제 대화방·주제 상세나 그룹 기본 대화방에
   들어가 메시지 조회, 텍스트·사진·동영상·음성 전송, 수동 재시도와 내 읽음 위치 저장을 사용하며 M9의
-  실시간·delta 복구를 재사용한다. 알림 탭은 알림함(M12), 계정 탭은 닉네임 변경·로그아웃·계정
-  삭제(M13)를 제공하고, 푸시나 알림 항목을 누르면 해당 대화방이나 주제로 이동한다.
+  실시간·delta 복구를 재사용한다. 알림 탭은 알림함(M12), 계정 탭은 닉네임·프로필 사진 변경, 로그아웃, 계정
+  삭제(M13, 사진은 M17 (B))를 제공하고, 푸시나 알림 항목을 누르면 해당 대화방이나 주제로 이동한다.
 
-`local-fixture`만 기존 `jamye.db`와 fixture conversation을 사용한다. `connected-auth`는
-fixture database/seed를 열지 않고 shared session과 account scope를 사용한다. 계정 namespace는
+기존 `jamye.db`와 fixture conversation은 더는 열지 않는다(개발 기기에 남은 `jamye.db` 파일은 지우지
+않았다). 앱은 shared session과 account scope를 사용한다. 계정 namespace는
 정규화된 HTTPS origin과 검증된 U1 User UUID의 digest로 분리되며 `scope_metadata` identity를
 매번 확인한다. Logout/account switch 뒤 이전 account의 row/outbox/late response가 새 account에
 표시·전송되지 않도록 session epoch와 account-scope open/close drain으로 fence한다. cold restore가
-검증된 U1 profile을 얻지 못하면 authenticated account data를 표시하지 않는다.
+검증된 U1 profile을 얻지 못하면 authenticated account data를 표시하지 않는다. 계정 삭제가 성공하면
+그 계정의 DB 파일 이름(해시)과 삭제 시각을 기기에 기록하고, 30일이 지난 뒤 처음 앱을 열 때 그 DB를
+지운다(M17 (B)).
 
 ## 4. 서버 계약을 어떻게 사용할 것인가
 
@@ -139,6 +147,9 @@ app domain mapper를 둔다. 문서 변경마다 tag, manifest, 승인 hash를 �
 evidence generation 체계는 만들지 않는다.
 
 ### 4.2 Bootstrap과 실제 계약의 핵심 차이
+
+이 표는 M6 intake 당시의 비교 기록이다. M4 bootstrap 계약은 2026-10-06 M17 (B)에서 제거했고 서버
+계약만 남았다.
 
 | 주제        | M4 bootstrap                                            | server contract v1                                                                          | future app rule                                    |
 | ----------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------- |
@@ -204,8 +215,8 @@ M13 completed (2026-09-22)
 M14 UI/UX 다듬기 completed (2026-09-28, round 1·2)
   ├─→ M15 소프트 삭제 수용 completed (2026-09-29) ← server task-14
   ├─→ M16 Sign in with Apple completed (2026-09-30) ← server task-15
-  └─→ M17 잔여 백로그 (라운드 1 (E)·(F) completed 2026-10-01, (A) 구현·기기 수용 completed 2026-10-06 — 리뷰·종료 승인 대기) ← server task-16 (일부)
-M14 만족 선언 (충족) + M17(A) 종료 + release 범위 확정 ─→ M18 스토어 배포
+  └─→ M17 잔여 백로그 (라운드 1 (E)·(F) completed 2026-10-01, 라운드 2 (A) completed 2026-10-06 PR #8, 라운드 3 (B) completed 2026-10-07 PR #9, M17 열림) ← server task-16 (일부), task-19 (아바타)
+M14 만족 선언 (충족) + M17(A) 해소 (PR #8 머지, 충족) + release 범위 확정 ─→ M18 스토어 배포
 
 selected completed scopes ─→ common release acceptance
 ```
@@ -218,10 +229,12 @@ account-safe session을 선행 조건으로 하는 독립 account lifecycle이�
 M14-M18은 2026-09-22 사용자 결정으로 등록했다. M14는 라운드 1·2를 거쳐 2026-09-28 사용자 만족
 선언과 종료 승인으로 완료했고, M15는 2026-09-29 사용자 종료 승인으로 완료했다. M16은 2026-09-30
 사용자 종료 승인으로 완료했다. M17은 2026-10-01 라운드 1 (E)·(F)를 사용자 종료 승인으로 닫았고
-같은 날 (A) 착수를 승인했고, (A)는 2026-10-06 구현과 기기 수용을 마쳤다(리뷰 단계·종료 승인 대기).
-M17의 나머지 묶음과 M18은 `planned_unapproved`로 남아 각각 별도 승인으로 착수한다.
+같은 날 (A) 착수를 승인했고, (A)는 2026-10-06 구현과 기기 수용을 마치고 PR #8(merge `671b649`)로 머지했다. 같은 날 사용자가 M17을
+닫지 않고 남은 라운드를 진행하기로 결정해 (B)를 라운드 3으로 착수했고, 2026-10-07 구현·검증·격리 리뷰를
+마치고 PR #9로 머지한 뒤 사용자 종료 승인으로 닫았다. M17의 나머지 묶음((C)·(D))과 M18은 `planned_unapproved`로 남아 각각 별도
+승인으로 착수한다.
 M18은 M14 만족 선언(충족)과 release 범위 확정 뒤에만 시작하며, 10.2절의 공통 release acceptance를
-실제 선택한 범위에 적용한다. 서버 측 작업(task-14-16)은 jamye-server 저장소의 로드맵 문서가 소유한다.
+실제 선택한 범위에 적용한다. 서버 측 작업(task-14-16, task-19)은 jamye-server 저장소의 로드맵 문서가 소유한다.
 
 ## 7. 서버 계약 기반 milestone
 
@@ -329,7 +342,7 @@ checker도 `status:ok`, exit 0이며 transport/architecture regression 2 suites/
 - 201 new, 200 same request, 409 different payload를 구분
 - `CanonicalMessage`의 nullable body/sender/client ID와 media/tombstone-safe rendering
 - Local UI key와 server message ID를 분리하고 REST response에 event metadata를 만들지 않음
-- SQLite v1을 데이터 삭제 없이 migration하고 local-fixture mode를 보존
+- SQLite v1을 데이터 삭제 없이 migration하고 local-fixture mode를 보존(M8 당시 결정; mode는 M17 (B)에서 제거)
 
 완료 증거:
 
@@ -734,7 +747,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
   실제 화면의 일치, 라이트/다크, Android API 34 미만 fallback, 200% 텍스트·reduce motion.
 - 페이지 네비게이션: tab bar 동선(그룹/알림/계정 탭, ADR 0009)과 루트 Stack의 대화·모달, large title·back, modal presentation(그룹 생성·초대 참여·새 주제), 알림 탭 → 대화방 handoff.
 - 페이지 라우팅: `src/app` 13개 route의 계층 재정리(`groups/[groupId]` ↔ `chatrooms`/`topics`),
-  `index.tsx`의 `appMode` 분기(local-fixture / connected-auth), deep link·`+native-intent.tsx` 규칙,
+  `index.tsx`의 `appMode` 분기(local-fixture / connected-auth; mode는 M17 (B)에서 제거), deep link·`+native-intent.tsx` 규칙,
   로그인 전후 redirect.
 - 상태 화면: loading/empty/error/retry, 삭제된 콘텐츠 placeholder(M15와 연계).
 
@@ -827,7 +840,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 
 라운드 2 또는 이후 후보:
 
-- 아바타 변경(계정 화면 업로드 + 공개 URL).
+- 아바타 변경(계정 화면 업로드 + 공개 URL) — M17 라운드 3 (B)에서 구현(서버 task-19).
 - haptics(날짜 선택 tick 등).
 - Android swipe-to-delete 모듈과 주제 삭제 UX(M15).
 - 그룹 기본 대화방 갤러리.
@@ -842,14 +855,15 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - iOS toolbar 강조 버튼(가입·만들기) tint.
 - 서버 공지 메시지의 markdown 링크 렌더링과 앱 경로 정리.
 - 그룹 목록을 거치지 않고 그룹 홈에 들어올 때 제목이 `그룹`으로 남는 문제.
-- 로컬 모드 DB(`jamye.db`) 쓰기 직렬화 적용 여부.
-- 아바타 URL 신뢰 경계: 서버 `PATCH /users/me`는 `avatar_url`을 512자 이하의 임의 문자열로 받는다. 앱은
-  절대 웹 URL만 불러오고 `http:`는 `https:`로 올리지만(`src/shared/ui/avatar.shared.ts`), 다른 멤버가 넣은
-  URL을 불러오면 보는 사람의 IP와 조회 시점이 그 host에 드러난다. 아바타 변경(업로드 + 공개 URL)과 함께
-  서버 검증이나 업로드 기반 URL로 바꾼다. 같은 작업에서 Kakao 로그인 profile 요청에 `secure_resource=true`를
-  넣고 이미 저장된 `http://` Kakao URL을 정리한다(서버 변경·재배포 필요). 라운드 2 서버 배포로
-  해결: S3(https 절대 URL만 허용, `secure_resource=true`)·S4(migration 0013으로 저장된 `http://`
-  값을 `https://`로 일괄 변환), PR #9 → `a77cac5`(2026-09-27).
+- 로컬 모드 DB(`jamye.db`) 쓰기 직렬화 적용 여부 — 로컬 모드를 M17 (B)에서 제거해 해당 없음.
+- 아바타 URL 신뢰 경계: 라운드 2 서버 배포 전의 `PATCH /users/me`는 `avatar_url`을 길이(512자 이하)만
+  보고 받았다. 앱은 절대 웹 URL만 불러오고 `http:`는 `https:`로 올리지만(`src/shared/ui/avatar.shared.ts`),
+  다른 멤버가 넣은 URL을 불러오면 보는 사람의 IP와 조회 시점이 그 host에 드러난다. 아바타 변경(업로드 +
+  공개 URL)과 함께 서버 검증이나 업로드 기반 URL로 바꾸고, 같은 작업에서 Kakao 로그인 profile 요청에
+  `secure_resource=true`를 넣고 이미 저장된 `http://` Kakao URL을 정리하기로 했다(서버 변경·재배포
+  필요). 라운드 2 서버 배포로 해결: S3(https 절대 URL만 허용, `secure_resource=true`)·S4(migration 0013으로
+  저장된 `http://` 값을 `https://`로 일괄 변환), PR #9 → `a77cac5`(2026-09-27). 지금 서버 규칙은 https
+  URL, 512자 이하이고 `""`는 지우기다. 업로드 기반 URL은 M17 라운드 3 (B)의 서버 task-19로 추가했다.
 - 주제 태그 권한 맞추기: 앱은 2026-09-27 사용자 결정으로 주제 편집(제목·본문·태그)을 작성자만 한다. 서버 T6
   태그 교체 API는 아직 작성자 또는 그룹 소유자를 허용하므로, 서버 권한도 작성자만으로 맞출지 정한다(서버 변경·재배포 필요).
   라운드 2 서버 배포로 해결: S2(작성자만 허용, 비작성자는 403 `topic_author_required`), PR #9 →
@@ -860,7 +874,7 @@ M12/M13 선행 구현, 추가 읽음 기능과 bootstrap 정리.
 - release variant / 스토어 등록 / Play signing key 추가 / store URL 값 채우기(M18).
 - 서버 task-14(soft delete), task-15(Apple 로그인), task-16 잔여 백로그.
 - 2026-09-22 라운드 1에서 넘어온 후보(아직 유효): D. 인증 게이트 라우팅 분리(`(auth)/sign-in` +
-  Redirect, local-fixture 모드 별도 라우트); 계정 화면의 '로컬 계정 저장소'·'서버 연결 진단' 섹션을
+  Redirect; local-fixture 모드 별도 라우트는 M17 (B)에서 모드 제거로 해당 없음); 계정 화면의 '로컬 계정 저장소'·'서버 연결 진단' 섹션을
   개발자 전용으로 정리; 이번 네 화면 밖의 스타일·컴포넌트와 상태 화면(loading/empty/error); 미디어 뷰어
   오버레이·채팅 composer의 Liquid Glass 적용 여부(ADR 0010 D2). 채팅 화면 제목(D7·E11), 날짜 다이얼
   haptic(위 haptics), Android 주제 행 스와이프(위 M15)는 이번 세션에서 처리했거나 위 항목으로 옮겼다.
@@ -926,9 +940,9 @@ M14 종료 후 후속 후보(각각 별도 결정, 2026-09-30 M17 절의 묶음�
 - 라운드 1에서 넘어왔지만 라운드 2 범위(로그인·계정·알림·대화방) 밖이라 다루지 않은 후보: 인증 게이트
   라우팅 분리(`(auth)/sign-in`), 그룹 목록을 거치지 않고 연 그룹 홈의 `그룹` 제목, 날짜 선택 haptics,
   그룹 기본 대화방 갤러리, Android carousel `maskClip`, 3열 grid 타일 모양과 서버 썸네일, iOS 그룹 정보
-  섹션 헤더, iOS toolbar 강조 버튼 tint, 로컬 모드 DB 쓰기 직렬화. 상세는 위 "라운드 2 또는 이후
+  섹션 헤더, iOS toolbar 강조 버튼 tint, 로컬 모드 DB 쓰기 직렬화(로컬 모드는 M17 (B)에서 제거). 상세는 위 "라운드 2 또는 이후
   후보"에 있다. 알림 목적지(E5)는 라운드 2 N2가 현행 경로(대화방·주제)를 유지했고, 아바타 변경은
-  M17(B), image-size 의존성 정리는 M17(A)가 맡는다.
+  M17(B)(라운드 3에서 구현), image-size 의존성 정리는 M17(A)(라운드 2에서 완료)가 맡았다.
 
 ### M15. 소프트 삭제 수용 (서버 task-14 연동)
 
@@ -1172,23 +1186,28 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
   후에 머지해")으로 PR #6(merge `589c5e0`)을 머지했고, 같은 날 사용자가 라운드 1 종료를
   승인했다("라운드 1 종료 승인할게"). 종료와 함께 그룹 갤러리 화면 제목을 주제 갤러리와 같은
   `갤러리`로 통일했다(사용자 결정). 같은 날 사용자가 (A) 착수를 승인했다("다음 착수 범위는 A를
-  진행할게"). 2026-10-06 (A)의 구현과 양 플랫폼·실기기 수용을 마쳤다(아래 "(A) 결과"). ultrawork
-  리뷰 단계(VERIFY/REFINE/SHIP)가 남아 있고 작업 트리는 아직 커밋하지 않았다. (B)-(D)와 라운드 1이
-  남긴 후속 항목은 개별 승인 전까지 `planned_unapproved`로 남는다.
+  진행할게"). 2026-10-06 (A)의 구현과 양 플랫폼·실기기 수용을 마쳤고(아래 "(A) 결과") PR #8(merge
+  `671b649`)로 main에 들어갔다. 같은 날 사용자는 M17을 닫지 않고 남은 라운드를 진행하기로 결정했고
+  (B)를 라운드 3으로 착수했다. 2026-10-06~07 (B) 세 항목과 Expo patch 정렬(B7)을 구현하고 iOS
+  시뮬레이터·Android 에뮬레이터와 사용자 본인 계정으로 검증했다(아래 "(B) 결과"). 서버 task-19(아바타
+  업로드)는 운영에 배포·활성화했다. 라운드 3의 격리 리뷰(VERIFY/REFINE/SHIP)를 모두 통과했고 2026-10-07
+  사용자 요청("앱 브랜치 기능별로 커밋 나누고 PR 만들어서 머지해")으로 PR #9를 머지했다. 같은 날 사용자가
+  라운드 3 종료를 승인했다("라운드3 종료, M17은 아직 종료하지 마"). (C)·(D)와 라운드 1·2가 남긴 후속 항목은
+  개별 승인 전까지 `planned_unapproved`로 남는다.
 - 선행: 항목별 상이(아래 묶음별 목록)
 - 결정(2026-09-22): 각 항목은 개별 승인으로 착수하고, M18 release에 포함할지도 개별로 결정한다. 서버
   계약이 필요한 항목은 서버 task-16(또는 별도 task)을 선행한다.
 - 사용자 결과: 출시를 막는 결함이 정리되고, 보류했던 기능과 M14–M16에서 미룬 다듬기 중 선택한 것이
   제품에 들어간다.
-- 계약 범위: (C) 묶음만 서버 계약 변경을 요구한다. (D)는 서버 코드와 운영 작업이고, 나머지는
-  app-only다.
+- 계약 범위: (C) 묶음이 서버 계약 변경을 요구한다. (B)의 아바타 업로드는 서버 task-19(계약 추가·운영
+  배포)와 함께 했다. (D)는 서버 코드와 운영 작업이고, 나머지는 app-only다.
 - 목록 규칙: M14–M16 절의 후속 후보 목록은 기록으로 남기고, 이 절을 단일 목록으로 쓴다. 항목 끝
   괄호는 출처다 — `등록`은 2026-09-22 등록, `M14`·`M15`·`M16`은 해당 절의 후속 후보다.
 
 | 묶음                      | 성격                | 선행·비고                                                       |
 | ------------------------- | ------------------- | --------------------------------------------------------------- |
 | (A) 앱 출시 blocker       | M18 선행            | 기존 기록은 [개발 workflow](development-workflow.md)            |
-| (B) 보류된 앱 기능        | app-only            | 파괴적 로컬 정리는 별도 명시 승인 뒤에만                        |
+| (B) 보류된 앱 기능        | app + 서버 task-19  | 라운드 3 완료(2026-10-07, PR #9)                                |
 | (C) 채팅·미디어 기능 확장 | 서버 계약 선행      | 메시지 편집은 서버 task-16 후보, 나머지는 별도 product decision |
 | (D) 서버·운영             | 서버·homelab 작업   | 서버 task-16과 homelab 로드맵에서 수행                          |
 | (E) UI/UX·동작 다듬기     | app-only            | M14 라운드 1 잔여와 M14·M15 관찰                                |
@@ -1206,7 +1225,7 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
   중 Apple 재인증 취소, 앱 수준 Apple 로그인 오류 안내(M16 미검증)다.
 - production identity·서명 준비(등록)
 
-(A) 결과 (2026-10-06 구현·기기 수용 완료, 리뷰·커밋·종료 승인 대기; 상세는
+(A) 결과 (2026-10-06 구현·기기 수용 완료, PR #8 merge `671b649`; 상세는
 [M17 evidence](evidence/M17.md)와 [개발 workflow](development-workflow.md)):
 
 - 의존성: Expo SDK 57 patch 22개를 `expo install --check` 기준으로 정렬했다(`expo` 57.0.26,
@@ -1267,13 +1286,93 @@ true`를 켰다. 체커 고정값(`APPROVED_DEPENDENCIES`, `APPROVED_BUN_LOCK_SH
   조금 위에 뜸, Android 스택 header 제목이 글자 크기를 따라 커지지 않음, composer가 4줄로 커질 때
   마지막 메시지가 가려짐, iOS 알림함 행의 본문 열이 좁음, 계정의 dev 전용 개발자 섹션 문구 겹침.
 
-(B) 보류된 앱 기능:
+(B) 보류된 앱 기능 — 세 항목 모두 라운드 3(2026-10-06~07)에서 구현·검증했다(아래 "(B) 결과"):
 
 - 아바타 업로드([ADR 0008](adr/0008-account-lifecycle-placement.md) 5번; U2 + MD1/MD2 재사용)(등록,
-  M14의 아바타 변경)
-- 계정 삭제 후 파괴적 로컬 정리(ADR 0008 6번). 별도 명시 승인 뒤에만 한다(등록).
-- bootstrap/local-fixture 모드 정리(M6에서 미룸; M4 bootstrap contract 제거 여부 결정)(등록). 모드를
-  남기면 로컬 모드 DB(`jamye.db`) 쓰기 직렬화 적용 여부도 정한다(M14).
+  M14의 아바타 변경) — 라운드 3 완료. 서버 task-19와 함께 했고
+  [ADR 0015](adr/0015-avatar-hosting-and-local-data-purge.md)가 ADR 0008 5번을 대체한다.
+- 계정 삭제 후 파괴적 로컬 정리(ADR 0008 6번)(등록). 별도 명시 승인이 조건이었고 2026-10-06 사용자
+  요청이 그 승인이다(범위: "복구 가능 기간 30일이 지난 뒤") — 라운드 3 완료.
+- bootstrap/local-fixture 모드 정리(M6에서 미룸; M4 bootstrap contract 제거 여부 결정)(등록) — 라운드 3
+  완료. 사용자가 모드를 없애기로 결정했고, 모드와 함께 로컬 모드 DB(`jamye.db`) 쓰기 직렬화 질문(M14)도
+  사라졌다.
+
+(B) 결과 (2026-10-06~07 구현·검증·격리 리뷰 완료, 2026-10-07 라운드 종료 승인, PR #9; 상세는
+[M17 evidence](evidence/M17.md) 라운드 3 절과 [개발 workflow](development-workflow.md)):
+
+- local-fixture/bootstrap 제거: `EXPO_PUBLIC_APP_MODE`를 없애고 API·미디어 origin을 필수로 만들었다
+  (누락하면 앱이 시작할 때 `EXPO_PUBLIC_API_ORIGIN is required.` 같은 오류). `src/app/local-fixture.tsx`,
+  fixture DB 런타임·repository, M4 bootstrap 계약(`contracts/bootstrap/`, bootstrap 생성·검사 도구,
+  `src/core/contracts/{index,canonical-json,map-message-event,validate-wire}.ts`)과 관련 테스트까지
+  35개 파일(약 6,860줄)을 지웠다. 운영 경로가 빌려 쓰던 타입·헬퍼(`Migration`, `ChatMessage`,
+  `ChatConversation`, `ClockPort`, `ChatSendController`)는 소비하는 모듈 가까이로 옮겼다. checker는 M5
+  선례대로 `M17_RETIRED_FIXTURE_PATHS`를 `AUTHORIZED_DELETE_PATHS`에 등록하고 폐기 경로의 부활을 막는
+  `m17-retired-fixture-transition` 검사를 더했다. 서버 계약 경로와 계정 DB 경로는 바꾸지 않았다. 개발
+  기기의 옛 `jamye.db`는 지우지 않았다(별도 파괴 작업). ADR 0004와 evidence M3-M17은 역사 기록이라 그대로
+  둔다.
+- 아바타(서버 task-19): 아바타 전용 업로드 U4(시작, presigned PUT)·U5(완료: 서버가 객체를 확인하고
+  `users.avatar_url`을 서버가 만든 공개 URL로 바꾼 뒤 `User`를 돌려줌)와 인증 없는 공개 조회 U6를
+  더했다. URL은 업로드마다 새로 생기는 추측 불가 ID라 바뀌지 않고 오래 캐시한다(migration 0019,
+  `user_avatar_uploads`). 사진을 바꾸거나 U2에 `""`를 보내 지울 때, 그리고 계정이 영구 삭제될 때 이전 서버
+  호스팅 객체를 삭제 대기열에 넣어 worker가 MinIO에서 지운다. U2의 `avatar_url`은 https URL, 512자 이하만
+  받고 `""`는 지우기, `null`은 무시다.
+  - 운영 배포(사용자 B5 승인, M16과 같은 2단계): midgard DB 백업(pg_dump)·개수 사전 집계 → jamye-server
+    PR #18(merge `f86012e`, 단일 커밋, CI 통과)로 기능 꺼짐 배포(homelab 자동 flake input 갱신 PR #98,
+    migration 0019 적용) → 기능 꺼짐 smoke(무인증 U4·U6 404) → homelab PR #99(merge `972ce7a`)로 공개 URL과
+    공개 조회 rate limit 6000회/60초 설정 → 활성 smoke(무인증 U4·U5 401, 없는 U6 404). 배포 전 안전
+    리뷰는 CRITICAL·HIGH 0건이었다. 프록시 뒤에서는 모든 사용자가 한 rate limit 버킷을 공유해 기본 600회에서
+    올렸다.
+  - 앱: 계정 화면 상단 사진과 `프로필 사진` 행이 같은 메뉴(`사진 선택`, `기본 이미지로`)를 연다(iOS
+    SwiftUI `Menu`, Android M3 `DropdownMenu`). 고른 사진은 시스템 정사각형 자르기를 거쳐 512px
+    JPEG(EXIF 제거, 1 MiB 초과 거부)로 올린다. 업로드 중에는 아바타에 스피너를 두고 메뉴를 막으며, 실패하면
+    한국어 이유와 `다시 시도`를 보인다. 사진 선택·재인코딩은 `platform/` 어댑터에 있고 새 의존성은 없다.
+    iOS 사진 권한 문구에 프로필 사진 용도를 더했다. 앱의 아바타 지우기가 `null`을 보내 서버에서 아무 일도
+    일어나지 않던 결함은 `""`를 보내도록 고쳤다.
+- 30일 뒤 로컬 DB 정리: 계정 삭제(U3)가 성공하면 logout 직전에 해시된 DB 파일 이름과 기기 시각만 문서
+  디렉터리 JSON registry에 기록한다(userId·origin·이메일 원문은 저장하지 않음). 앱을 시작해 세션 복원과
+  계정 scope open이 정착한 뒤 비동기 sweep이 30일 이상 지난 항목의 DB와 `-wal`·`-shm`·`-journal`을
+  지운다. 30일 안에 같은 계정으로 다시 로그인해 scope가 열리면(복구) 예약을 지우고, 열려 있는 계정의 DB는
+  지우지 않는다. 실패는 사용자에게 보이지 않고 다음 실행에서 다시 시도한다. 취소·sweep·계정 DB open이 한
+  mutex를 공유하고 로그에는 건수만 남는다. 이 기능 이전에 생긴 고아 DB는 기록이 없어 건드리지 않는다.
+- Expo patch 정렬(B7): 2026-10-06 Expo가 SDK 57 새 patch를 공개해 `check:expo`가 실패했고, 사용자가
+  이번 라운드에 맞추기로 했다. `expo install --fix`로 10개(`expo` 57.0.27, `@expo/ui` 57.0.22,
+  `expo-asset` 57.0.19, `expo-auth-session` 57.0.14, `expo-constants` 57.0.21,
+  `expo-image-manipulator` 57.0.21, `expo-linking` 57.0.12, `expo-notifications` 57.0.22,
+  `expo-router` 57.0.25, `expo-sqlite` 57.0.4)를 올렸다. incremental install이 남긴 중복 사본을 지우고
+  `bun install --frozen-lockfile`로 lock 일치를 확인했다. expo-router 로컬 patch는 57.0.25에 그대로
+  적용되어 `expo-router@57.0.25.patch`로 옮겼다. `expo install`이 제안한 `expo-asset` config plugin은
+  추가하지 않았다(expo-doctor 21/21, native 설정 변경 없음). `bun audit`은 기존 수용 위험 2건만 남는다.
+  checker 고정값과 미러 테스트는 coordinator가 고쳤다. 위 (A) 결과의 patch 번호는 당시 기록이다.
+- 검증: `bun run check:code`(마지막 확인, SHIP 수정 뒤: 255 suites / 2,611 tests PASS, coverage
+  statements 88.53 / branches 83.17 / functions 87.99 / lines 91.2, architecture 위반 0건)와 `bun run check:expo`(B7 정렬
+  뒤 expo-doctor 21/21). 서버는 format·clippy·contract-check·전체 test 통과이고, 앱의
+  `contracts/server/openapi.json`은 서버 `f86012e`와 byte 동일하다. 기기: iOS 26.5 시뮬레이터와 Android
+  API 36 에뮬레이터 dev client(B4 재빌드, Expo patch 정렬 포함)에서 (1) fixture 없는 시작 → 세션 복원 →
+  그룹 목록(재시작 포함), (2) 30일 정리(registry 시드: 31일 전 항목 삭제, 29일 23시간 항목 유지, 열린
+  계정 DB 유지; 두 플랫폼 sweep 로그 `due:1 removed:1`)를 확인했다. 아바타는 사용자가 본인 계정으로
+  2026-10-07 두 플랫폼에서 업로드·교체·`기본 이미지로`와 Android 비행기 모드 실패 → `다시 시도` 성공을
+  직접 확인했다("예상대로 작동"). 서버 집계(개수만): 교체·해제된 호스팅 객체 5건의 공개 URL이 모두 404이고
+  삭제 대기열 5건이 모두 `succeeded`다. 새 결함은 없었다. coordinator는 계정 삭제와 운영 아바타 변경을
+  하지 않았다.
+- 격리 리뷰(ultrawork `20261006-174701`): VERIFY 3건(정합성·안전·회귀), REFINE 2건(재사용·일관성), SHIP
+  4건(품질·UX·연쇄 영향·최종)이 모두 PASS했고 CRITICAL·HIGH는 0건이다. VERIFY에서 아바타 presigned PUT
+  URL의 미디어 origin 확인 누락(MEDIUM)을 채팅 미디어와 같은 검증으로 고쳤고, 이미지 해제 오류 때의 임시
+  파일 정리와 DB 파일 삭제의 이름 가드를 더했다. REFINE은 동작을 바꾸지 않고 실패 알림·메뉴 동작, DB 파일
+  이름 판별, 이미지 변환 모듈을 공유로 모았다. SHIP에서는 업로드 시작·완료·기본 이미지 복귀를 화면
+  낭독기에 알리고, iOS 상단 사진에 접근성 이름·busy 상태를 주고, 복구 취소 때 DB 이름 계산 실패를 고정
+  이벤트로 기록하도록 고쳤다(수정 줄을 되돌린 RED 10건 실패 → GREEN).
+- 한계: (1) 다른 화면과 대화 행에 캐시된 내 옛 `sender_avatar_url`은 즉시 갱신하지 않고 다음 기록
+  갱신 때 바뀐다. (2) 사진을 `기본 이미지로` 해제하면 로그인 때 가져온 카카오·Google 사진으로 돌아가지
+  않는다. (3) 업로드 진행률은 시작·완료만 알려 스피너로 표시하고, U4를 재시도할 때마다 새 `upload_id`를
+  받는다(실패한 보류 업로드는 서버가 정리). (4) 공개 조회 rate limit 6000회/60초는 프록시 뒤에서 전체
+  사용자가 공유하는 버킷이다. 실제 client IP 기준 제한은 후속 과제다. (5) 30일 기준은 기기 시계이고
+  정리는 앱을 시작한 뒤에만 일어난다(백그라운드 작업 없음). 다른 기기에서 계정을 복구해도 이 기기의
+  로컬 DB는 30일 뒤 지워지며 보내지 못한 outbox는 사라진다. registry는 앱을 삭제하면 DB 파일과 함께
+  사라진다. (6) `UserPatchInput.avatarUrl` 타입이 아직 `null`을 허용한다(와이어에는 `""`로 정규화).
+  `eslint.config.js`의 삭제된 fixture 모듈 제한 패턴 잔재도 정리 후속이다. (7) 실기기 확인, 새 메뉴의
+  VoiceOver/TalkBack·큰 글꼴 확인은 이번 라운드에 별도로 기록하지 않았고, release build 측정도 하지 않았다.
+  (8) SHIP UX 리뷰 후속: `기본 이미지로` 확인 단계(제공자 사진은 복구되지 않음), 사진 권한 거부 알림의
+  `설정 열기`, rate limit 재시도 대기 시간 표시, 업로드 진행 표시 scrim 대비.
 
 (C) 채팅·미디어 기능 확장(서버 계약 선행):
 
@@ -1379,15 +1478,22 @@ M18로 보낸 항목: production bundle id의 App ID capability와 .p8 키 Sign 
 - 라운드 1 (E)·(F): [M17 evidence](evidence/M17.md) — 자동 검사(`bun run check:code`, 246
   suites / 2353 tests, architecture 위반 0건)와 요구사항 §8 1-15 기기 검증.
 - 라운드 2 (A): 구현·기기 수용 기록은 [M17 evidence](evidence/M17.md) 라운드 2 절과
-  [개발 workflow](development-workflow.md)에 둔다. 격리 리뷰(VERIFY/REFINE/SHIP)와 사용자 종료
-  승인은 아직 없다.
+  [개발 workflow](development-workflow.md)에 둔다. PR #8(merge `671b649`, 2026-10-06)로 main에
+  들어갔다. M17 종료 승인은 없고 M17은 열려 있다.
+- 라운드 3 (B): 구현·검증 기록은 [M17 evidence](evidence/M17.md) 라운드 3 절과
+  [개발 workflow](development-workflow.md)에 둔다. 서버 쪽은 jamye-server 로드맵 task-19와 배포 기록(PR
+  #18, homelab #98·#99)이다. 자동 검사(`check:code` 255 suites / 2,611 tests, `check:expo`),
+  시뮬레이터·에뮬레이터 검증, 사용자 본인 계정 아바타 확인, 격리 리뷰 9건 PASS를 마치고 PR #9로 main에
+  들어갔다. 2026-10-07 사용자가 라운드 3 종료를 승인했고 M17은 열려 있다.
 
 미검증 / 별도 승인 필요:
 
-- (B)-(D) 항목의 착수 승인. (A)는 2026-10-01 착수를 승인했고(그 안의 Expo SDK patch 갱신은 별도
-  의존성 승인) 2026-10-06 구현·기기 수용을 마쳤다. (A)의 리뷰 단계·커밋·종료 승인과 release build
-  cold start 측정은 남아 있다. (B) 파괴적 로컬 정리, (C) 계약 변경, (D) Apple 서버 간 알림도 각각 별도
-  승인이다.
+- (C)·(D) 항목의 착수 승인. (A)는 2026-10-01 착수를 승인했고(그 안의 Expo SDK patch 갱신은 별도
+  의존성 승인) 2026-10-06 구현·기기 수용을 마쳐 PR #8로 머지했다. (B)는 2026-10-06 라운드 3 착수를
+  승인했고(파괴적 로컬 정리는 30일 경과 뒤로 한정, Expo patch 정렬·dev client 재빌드·서버 2단계 운영
+  배포는 각각 사용자 결정) 2026-10-06~07 구현·검증·격리 리뷰를 마치고 PR #9로 머지해 2026-10-07 라운드
+  종료를 승인받았다. (B)의 실기기 확인과 release build cold start 측정은 남아 있다. M17 종료는 별도 사용자 결정이다. (C) 계약 변경, (D) Apple 서버 간
+  알림도 각각 별도 승인이다.
 - 라운드 1이 남긴 후속 항목(쓰기 연결 FK 강제, 과거 공지 소급 숨김 불가 등 — 위 (E) 목록 참고)은
   각각 별도 결정이 필요하다.
 
@@ -1395,7 +1501,7 @@ M18로 보낸 항목: production bundle id의 App ID capability와 .p8 키 Sign 
 
 - 상태: `planned_unapproved` — 2026-09-22 사용자 결정으로 로드맵 등록; 착수는 M14 만족 선언(2026-09-28
   충족) 이후 별도 승인
-- 선행: M14 만족 선언(2026-09-28 충족); M16(Guideline 4.8, 2026-09-30 충족); M17(A) blocker 해소(2026-10-06 구현·기기 수용 완료, 리뷰·종료 승인 대기); release에 포함할 M15/M17 범위 확정
+- 선행: M14 만족 선언(2026-09-28 충족); M16(Guideline 4.8, 2026-09-30 충족); M17(A) blocker 해소(2026-10-06 구현·기기 수용 완료, PR #8 merge `671b649`; M17 종료 승인은 없음); release에 포함할 M15/M17 범위 확정
 - 결정(2026-09-22): iOS App Store와 Google Play 양 스토어에 출시한다. legacy jamye-plz 데이터는
   이관하지 않고 새 서버에서 신규 출발한다. 서버는 이미 homelab(midgard)에 배포되어 있으므로 release 시
   배포 revision과 contract binding을 고정한다.
@@ -1483,7 +1589,7 @@ intake 기준은 서버 `2c93ed1`다(`contracts/server/intake.json`, source_git_
 | Message edit                                                                                                                    | M17(C), 서버 task-16 후보                      |
 | Presence, typing, reaction                                                                                                      | M17(C), 별도 product decision + 서버 계약 선행 |
 | Production signing과 store submission                                                                                           | M18                                            |
-| 삭제된 계정의 로컬 SQLite 파일·미디어 캐시 물리 삭제(파괴적 로컬 정리, [ADR 0008](adr/0008-account-lifecycle-placement.md) 6번) | M17(B), 별도 명시 승인 뒤에만                  |
+| 삭제된 계정의 로컬 SQLite 파일·미디어 캐시 물리 삭제(파괴적 로컬 정리, [ADR 0008](adr/0008-account-lifecycle-placement.md) 6번) | M17(B), 라운드 3 완료(30일 경과 뒤 정리)       |
 
 backlog에 남는 항목:
 
@@ -1592,15 +1698,23 @@ R4 수정을 확인하고 M14 종료를 승인해 M14는 `COMPLETED / USER_ACCEP
 2026-10-01 사용자가 M17 라운드 1 (E)·(F) 종료를 승인했다. 구현, 양 플랫폼 기기 검증(결함 4건 수정,
 사용자 결정 U10-U14)과 격리 리뷰를 마쳤고 PR #6(merge `589c5e0`)으로 머지했다([M17
 evidence](evidence/M17.md)). 같은 날 그룹 갤러리 제목을 `갤러리`로 통일했고, 사용자가 M17(A) 착수를
-승인했다. 남은 후보별 선행 조건은 다음과 같다.
+승인했다.
+
+2026-10-06 M17(A)는 구현·기기 수용을 마치고 PR #8(merge `671b649`)로 머지했다. 같은 날 사용자는 M17을
+닫지 않고 남은 라운드를 진행하기로 결정했고 (B)를 라운드 3으로 착수했다. 2026-10-06~07 아바타 업로드
+(서버 task-19 운영 배포: jamye-server PR #18 merge `f86012e`, homelab #98·#99), 계정 삭제 30일 뒤 로컬 DB
+정리, local-fixture/bootstrap 모드 제거와 Expo patch 정렬(B7)을 구현하고 시뮬레이터·에뮬레이터·사용자 본인
+계정으로 검증했다(M17 절 "(B) 결과"). 2026-10-07 격리 리뷰를 마치고 PR #9로 머지했고, 사용자가 라운드 3
+종료를 승인했다(M17은 열어 둠). 이 승인과 검증은 M17 종료, 앱 출시, 스토어 배포를 뜻하지 않는다.
+다음 단계는 남은 묶음 (C)·(D)와 라운드 1·2·3의 후속 항목 중 착수할 것을 사용자가 고르는 일이다. 남은 후보별 선행 조건은 다음과 같다.
 
 - M17 잔여 백로그: 항목별 개별 승인. 2026-09-30에 M14–M16의 후속 후보를 모아 여섯 묶음((A)-(F))으로
-  정리했다. (E)·(F)는 라운드 1로 닫았고 (A)는 2026-10-01 착수해 2026-10-06 구현·기기 수용을 마쳤다
-  (리뷰·종료 승인 대기). 서버 계약 변경은 (C),
-  서버·homelab 작업은 (D)이고, (B)의 파괴적 로컬 정리는 별도 명시 승인 뒤에만 한다. M18로 가는
-  선행은 (A)다.
-- M18 스토어 배포: M14 만족 선언과 M16 종료(Guideline 4.8)는 충족했다. M17(A) 종료(리뷰·사용자
-  승인)와 release에 포함할 범위 확정이 남아 있다. production bundle identifier는 M17(A)에서
+  정리했다. (E)·(F)는 라운드 1로 닫았고 (A)는 2026-10-01 착수해 2026-10-06 구현·기기 수용을 마쳐 PR #8로
+  머지했다. (B)는 2026-10-06 라운드 3으로 착수해 2026-10-07 구현·검증·격리 리뷰를 마치고 PR #9로
+  머지했다(라운드 종료 승인, 파괴적 로컬 정리는 30일 경과 뒤로 한정해 그 요청에서 승인). 서버 계약 변경은 (C), 서버·homelab 작업은
+  (D)이며 둘은 `planned_unapproved`다. M18로 가는 선행은 (A)다.
+- M18 스토어 배포: M14 만족 선언과 M16 종료(Guideline 4.8)는 충족했다. M17(A)는 PR #8로 머지했고
+  release에 포함할 범위 확정과 별도 승인이 남아 있다. production bundle identifier는 M17(A)에서
   `com.ridewithmin.jamyeapp`으로 정했고, 그 App ID·key Sign in with Apple 설정은 M18에서 한다.
 
 M14 종료 뒤 남은 개선 후보는 M14 절의 "M14 종료 후 후속 후보"에 모았다.

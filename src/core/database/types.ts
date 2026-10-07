@@ -1,3 +1,9 @@
+export type Migration = Readonly<{
+  name: string;
+  statements: readonly string[];
+  version: number;
+}>;
+
 export type SqliteValue = string | number | null;
 
 export type SqliteRow = Record<string, SqliteValue>;

@@ -66,12 +66,10 @@ export function authIntroText(os: string | undefined): string {
 }
 
 export function AuthScreen() {
-  const env = getPublicEnv();
-  const origin = env.apiOrigin;
-  if (!origin) throw new Error("connected-auth requires an API origin.");
+  const { apiOrigin } = getPublicEnv();
   return (
     <SystemFeedbackHost>
-      <AuthScreenContent origin={origin} />
+      <AuthScreenContent origin={apiOrigin} />
     </SystemFeedbackHost>
   );
 }

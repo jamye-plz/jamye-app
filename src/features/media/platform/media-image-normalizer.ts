@@ -1,8 +1,7 @@
-import { requireNativeModule } from "expo";
 import { Directory, File, Paths } from "expo-file-system";
-import type { ImageRef, SaveFormat } from "expo-image-manipulator";
 
 import type { PickedMediaAsset } from "./image-video-picker";
+import { renderJpeg } from "./native-image-manipulator";
 import { MAX_VIDEO_BYTES } from "@/features/media/model/media-policy";
 
 // Input formats the OS may decode; these are NOT additions to the server allowlist.
@@ -75,23 +74,11 @@ export async function normalizePickedImage(
   if (!source.exists || source.size <= 0 || source.size > MAX_VIDEO_BYTES)
     throw new Error("invalid_conversion_input_size");
 
-  // Lazy loading keeps existing supported-file flows usable until a dev build
-  // has been rebuilt with this native dependency. No network fallback exists.
-  // Same native entry point as Expo's public JS wrapper, loaded on demand like
-  // native-file-put.ts. Types stay tied to the pinned SDK package.
-  const native = requireNativeModule<
-    typeof import("expo-image-manipulator").ImageManipulator
-  >("ExpoImageManipulator");
-  const context = native.manipulate(asset.uri);
-  let image: ImageRef | undefined;
+  // The native module loads lazily inside renderJpeg (no network fallback).
+  const rendered = await renderJpeg(asset.uri, { compress: 0.9 });
   let output: File | undefined;
   try {
-    image = await context.renderAsync();
-    const result = await image.saveAsync({
-      format: "jpeg" as SaveFormat,
-      compress: 0.9,
-      base64: false,
-    });
+    const { result } = rendered;
     output = convertedFile(result.uri, asset.uri);
     const fileSize = jpegSize(output);
     const filename = (asset.fileName ?? "image").replace(/\.[^.]+$/, "");
@@ -113,10 +100,6 @@ export async function normalizePickedImage(
     if (output) releaseFile(output);
     throw error;
   } finally {
-    try {
-      image?.release();
-    } finally {
-      context.release();
-    }
+    rendered.release();
   }
 }

@@ -198,9 +198,13 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         // proof, User.provider gains "apple"); the frozen M6 schema closure
         // snapshot right below is unaffected by design -- only
         // generate-server-contract.mjs's runtime closure grows (by A6/U3).
-        source_git_revision: "2c93ed1637eb1896d8749ae3d31a287585e38d05",
+        // M17 (task-app-avatar, AV-AC8): re-intook at the deployed
+        // jamye-server merge commit f86012e (U4 avatar upload intent, U5
+        // finalize, U6 public avatar read; User.avatar_url may be ""); the
+        // runtime closure grows again (by U4/U5/U6).
+        source_git_revision: "f86012eaa682316f768620a46c4a3314dbf0e009",
         upstream_bundle_sha256:
-          "3a9278661f82d069f60acca7d9a63df08d198296592a24f507618662ee0071ed",
+          "2939704953f6adc24118ce9fdd922e69cb81c96b92214c8588cecc0ecf4ccb7f",
         upstream_bundle_verified: true,
         upstream_contract_version: "2",
         upstream_server_commit: "dirty",
@@ -227,7 +231,7 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         server_commit: "dirty",
         server_tag: null,
         sha256:
-          "3a9278661f82d069f60acca7d9a63df08d198296592a24f507618662ee0071ed",
+          "2939704953f6adc24118ce9fdd922e69cb81c96b92214c8588cecc0ecf4ccb7f",
       }),
     );
   });
@@ -273,6 +277,9 @@ describe("M6-01 deterministic server contract intake, generation, and drift chec
         "H2",
         "U1",
         "U3",
+        "U4",
+        "U5",
+        "U6",
         "G1",
         "G2",
         "G3",

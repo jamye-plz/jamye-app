@@ -20,6 +20,11 @@ export const DELETE_CONFIRM_MESSAGE =
 export const APPLE_REAUTH_NOTICE =
   "삭제하려면 Apple 인증을 한 번 더 진행합니다.";
 export const LOGOUT_CONFIRM_TITLE = "로그아웃할까요?";
+// Generic alert button labels (retry / close / acknowledge), shared by the
+// account screens' alerts such as the profile-photo failure alert.
+export const RETRY_LABEL = "다시 시도";
+export const CLOSE_LABEL = "닫기";
+export const ACKNOWLEDGE_LABEL = "확인";
 export const PROVIDER_LABELS: Record<string, string> = {
   apple: "Apple",
   google: "Google",

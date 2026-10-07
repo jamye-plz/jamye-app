@@ -102,6 +102,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/avatars/{avatar_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a public avatar image */
+        get: operations["U6"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/chatrooms/{chatroom_id}/media": {
         parameters: {
             query?: never;
@@ -402,6 +419,40 @@ export interface paths {
         patch: operations["U2"];
         trace?: never;
     };
+    "/api/v1/me/avatar/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an avatar upload intent */
+        post: operations["U4"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/avatar/uploads/{upload_id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finalize an avatar upload */
+        post: operations["U5"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/media/uploads": {
         parameters: {
             query?: never;
@@ -604,6 +655,23 @@ export interface components {
             full_name?: string;
             identity_token: string;
             raw_nonce: string;
+        };
+        AvatarPresignedPut: {
+            /** @constant */
+            expires_in: 900;
+            /** Format: uri */
+            url: string;
+        };
+        AvatarUploadCreate: {
+            byte_size: number;
+            /** @constant */
+            content_type: "image/jpeg";
+        };
+        AvatarUploadFinalize: Record<string, unknown>;
+        AvatarUploadIntent: {
+            presigned_put: components["schemas"]["AvatarPresignedPut"];
+            /** Format: uuid */
+            upload_id: string;
         };
         CanonicalMessage: {
             body?: string | null;
@@ -1409,6 +1477,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TokenPair"];
+                };
+            };
+            /** @description Error response; inspect error.code for the stable machine-readable reason */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    U6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                avatar_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response or canonical idempotent retry */
+            200: {
+                headers: {
+                    "Cache-Control"?: "public, max-age=31536000, immutable";
+                    "X-Content-Type-Options"?: "nosniff";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                };
+            };
+            /** @description Unknown, malformed, replaced, cleared, or purged avatar id; never cached */
+            404: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Error response; inspect error.code for the stable machine-readable reason */
@@ -2439,6 +2550,74 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UserPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful response or canonical idempotent retry */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Error response; inspect error.code for the stable machine-readable reason */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    U4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AvatarUploadCreate"];
+            };
+        };
+        responses: {
+            /** @description Resource created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvatarUploadIntent"];
+                };
+            };
+            /** @description Error response; inspect error.code for the stable machine-readable reason */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    U5: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AvatarUploadFinalize"];
             };
         };
         responses: {

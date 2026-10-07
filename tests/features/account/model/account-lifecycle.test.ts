@@ -1,6 +1,14 @@
 import { createAccountLifecycle } from "@/features/account/model/account-lifecycle";
-import type { AccountApiPort } from "@/features/account/model/account-lifecycle";
+import type {
+  AccountApiPort,
+  AccountLocalDataPurgePort,
+} from "@/features/account/model/account-lifecycle";
 import type { SessionContextValue } from "@/core/providers/session-provider";
+
+const PRINCIPAL = {
+  origin: "https://api.example",
+  userId: "11111111-1111-4111-8111-111111111111",
+};
 
 const profile = {
   id: "id",
@@ -29,6 +37,7 @@ function fixture(
   overrides: Readonly<{
     accountApi?: Partial<AccountApiPort>;
     session?: Partial<FakeSession>;
+    purge?: Partial<AccountLocalDataPurgePort>;
   }> = {},
 ) {
   const accountApi: AccountApiPort = {
@@ -44,10 +53,20 @@ function fixture(
     applyProfile: jest.fn(),
     ...overrides.session,
   };
+  const purge: AccountLocalDataPurgePort = {
+    recordAccountDeletion: jest.fn(async () => undefined),
+    ...overrides.purge,
+  };
   return {
     accountApi,
     session,
-    lifecycle: createAccountLifecycle({ accountApi, session }),
+    purge,
+    lifecycle: createAccountLifecycle({
+      accountApi,
+      session,
+      principal: PRINCIPAL,
+      purge,
+    }),
   };
 }
 
@@ -250,5 +269,110 @@ describe("account lifecycle: deleteAccount", () => {
       status: "error",
     });
     expect(f.session.logout).not.toHaveBeenCalled();
+  });
+});
+
+describe("CLN-AC1 deleteAccount records the local purge schedule", () => {
+  test("records the principal after the DELETE succeeded and before logout", async () => {
+    const f = fixture();
+    await expect(f.lifecycle.deleteAccount()).resolves.toEqual({
+      status: "ok",
+    });
+    expect(f.purge.recordAccountDeletion).toHaveBeenCalledTimes(1);
+    expect(f.purge.recordAccountDeletion).toHaveBeenCalledWith(PRINCIPAL);
+    const deleteOrder = (f.accountApi.deleteAccount as jest.Mock).mock
+      .invocationCallOrder[0];
+    const recordOrder = (f.purge.recordAccountDeletion as jest.Mock).mock
+      .invocationCallOrder[0];
+    const logoutOrder = (f.session.logout as jest.Mock).mock
+      .invocationCallOrder[0];
+    expect(deleteOrder).toBeLessThan(recordOrder);
+    expect(recordOrder).toBeLessThan(logoutOrder);
+  });
+
+  test("logout waits for the recording to settle", async () => {
+    const gate = deferred<void>();
+    const f = fixture({
+      purge: { recordAccountDeletion: jest.fn(async () => gate.promise) },
+    });
+    const pending = f.lifecycle.deleteAccount();
+    for (let tick = 0; tick < 20; tick += 1) await Promise.resolve();
+    expect(f.purge.recordAccountDeletion).toHaveBeenCalledTimes(1);
+    expect(f.session.logout).not.toHaveBeenCalled();
+    gate.resolve();
+    await expect(pending).resolves.toEqual({ status: "ok" });
+    expect(f.session.logout).toHaveBeenCalledTimes(1);
+  });
+
+  test("a recording failure never blocks logout or the ok result", async () => {
+    const f = fixture({
+      purge: {
+        recordAccountDeletion: jest.fn(async () => {
+          throw new Error("disk full");
+        }),
+      },
+    });
+    await expect(f.lifecycle.deleteAccount()).resolves.toEqual({
+      status: "ok",
+    });
+    expect(f.purge.recordAccountDeletion).toHaveBeenCalledTimes(1);
+    expect(f.session.logout).toHaveBeenCalledTimes(1);
+    const recordOrder = (f.purge.recordAccountDeletion as jest.Mock).mock
+      .invocationCallOrder[0];
+    const logoutOrder = (f.session.logout as jest.Mock).mock
+      .invocationCallOrder[0];
+    expect(recordOrder).toBeLessThan(logoutOrder);
+  });
+
+  test("a synchronously throwing recorder is also tolerated", async () => {
+    const f = fixture({
+      purge: {
+        recordAccountDeletion: jest.fn(() => {
+          throw new Error("boom");
+        }) as unknown as AccountLocalDataPurgePort["recordAccountDeletion"],
+      },
+    });
+    await expect(f.lifecycle.deleteAccount()).resolves.toEqual({
+      status: "ok",
+    });
+    expect(f.purge.recordAccountDeletion).toHaveBeenCalledTimes(1);
+    expect(f.session.logout).toHaveBeenCalledTimes(1);
+    const recordOrder = (f.purge.recordAccountDeletion as jest.Mock).mock
+      .invocationCallOrder[0];
+    const logoutOrder = (f.session.logout as jest.Mock).mock
+      .invocationCallOrder[0];
+    expect(recordOrder).toBeLessThan(logoutOrder);
+  });
+
+  test("a 409 blocked result records nothing", async () => {
+    const f = fixture({
+      accountApi: {
+        deleteAccount: jest.fn(async () => {
+          throw { status: 409, code: "group_ownership_transfer_required" };
+        }),
+      },
+    });
+    await expect(f.lifecycle.deleteAccount()).resolves.toEqual({
+      status: "blocked",
+    });
+    expect(f.purge.recordAccountDeletion).not.toHaveBeenCalled();
+  });
+
+  test("any other failed DELETE records nothing", async () => {
+    const f = fixture({
+      accountApi: {
+        deleteAccount: jest.fn(async () => {
+          throw { status: 503, code: "database_unavailable" };
+        }),
+      },
+    });
+    await f.lifecycle.deleteAccount();
+    expect(f.purge.recordAccountDeletion).not.toHaveBeenCalled();
+  });
+
+  test("a nickname update never touches the purge port", async () => {
+    const f = fixture();
+    await f.lifecycle.updateNickname("new nickname");
+    expect(f.purge.recordAccountDeletion).not.toHaveBeenCalled();
   });
 });

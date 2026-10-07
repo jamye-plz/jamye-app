@@ -8,12 +8,17 @@ import { useSession } from "@/core/providers/session-provider";
 import { useAppThemeOrSystem } from "@/core/theme/theme-provider";
 import { androidThemeColors, appSpacing } from "@/core/theme/tokens";
 import { useAccountLifecycle } from "@/features/account/model/use-account-lifecycle";
+import { useAvatarUpload } from "@/features/account/model/use-avatar-upload";
 import { useDeleteAccountFlow } from "@/features/account/model/use-delete-account-flow";
 import { DeveloperSection } from "@/features/account/ui/developer-section";
+import { ProfilePhotoAvatar } from "@/features/account/ui/profile-photo-avatar";
+import { ProfilePhotoFailureAlert } from "@/features/account/ui/profile-photo-failure-alert";
+import { ProfilePhotoMenu } from "@/features/account/ui/profile-photo-menu";
+import { PROFILE_PHOTO_ROW_TITLE } from "@/features/account/ui/profile-photo-menu.shared";
+import { useProfilePhotoActions } from "@/features/account/ui/use-profile-photo-actions";
 import { usePushLifecycle } from "@/features/notifications/model/push-lifecycle-provider";
 import { NotificationSettingsSection } from "@/features/notifications/ui/notification-settings-section";
 import { AppText } from "@/shared/ui/app-text";
-import { Avatar } from "@/shared/ui/avatar";
 import { ConfirmAlert } from "@/shared/ui/confirm-alert";
 import { ListSubheader } from "@/shared/ui/list-subheader";
 
@@ -42,6 +47,9 @@ export function AccountScreen() {
   const hex = androidThemeColors(colorScheme);
   const accountLifecycle = useAccountLifecycle();
   const deleteFlow = useDeleteAccountFlow(accountLifecycle);
+  const avatarUpload = useAvatarUpload();
+  const photoActions = useProfilePhotoActions(avatarUpload);
+  const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
   const logoutPending = useRef(false);
@@ -77,6 +85,15 @@ export function AccountScreen() {
     deleteFlow.requestConfirm();
   }, [deleteFlow]);
 
+  // AV-AC4: the header avatar and the `프로필 사진` row open the same menu.
+  // The row's onPress stays a defined function (same LogBox guard as above);
+  // a running pick/upload/clear blocks opening it.
+  const photoBusy = avatarUpload.busy;
+  const handlePhotoPress = useCallback(() => {
+    if (photoBusy) return;
+    setPhotoMenuOpen(true);
+  }, [photoBusy]);
+
   if (!session.principal || !profile) return null;
 
   const storageStatus = account.state?.status ?? "opening";
@@ -98,8 +115,10 @@ export function AccountScreen() {
                 width: windowWidth,
               }}
             >
-              <Avatar
+              <ProfilePhotoAvatar
+                busy={photoBusy}
                 name={profile.nickname}
+                onPress={handlePhotoPress}
                 size={72}
                 testID="account-avatar"
                 uri={profile.avatarUrl}
@@ -111,6 +130,20 @@ export function AccountScreen() {
             </View>
           </RNHostView>
           <ListSubheader testID="profile-section-header">프로필</ListSubheader>
+          <ListItem
+            onPress={handlePhotoPress}
+            testID="profile-photo-row"
+            trailing={
+              <ProfilePhotoMenu
+                actions={photoActions}
+                expanded={photoMenuOpen}
+                onExpandedChange={setPhotoMenuOpen}
+                testID="profile-photo-row-menu"
+              />
+            }
+          >
+            <Text>{PROFILE_PHOTO_ROW_TITLE}</Text>
+          </ListItem>
           <ListItem
             onPress={() => router.push("/account/nickname")}
             testID="nickname-row"
@@ -177,6 +210,11 @@ export function AccountScreen() {
           onDismiss={deleteFlow.dismissFailure}
           testID="delete-failure-alert"
           title={DELETE_CONFIRM_TITLE}
+        />
+        <ProfilePhotoFailureAlert
+          failure={avatarUpload.failure}
+          onDismiss={avatarUpload.dismissFailure}
+          onRetry={() => void avatarUpload.retry()}
         />
       </Host>
     </>

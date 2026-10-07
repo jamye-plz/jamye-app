@@ -36,7 +36,10 @@ const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"] as const;
 const MEDIA_PICKER_PLUGIN = [
   "expo-image-picker",
   {
-    photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
+    // M17 B4: the same photo access now also serves the account screen's
+    // profile photo (프로필 사진 선택), so the purpose string names both uses.
+    photosPermission:
+      "선택한 사진과 동영상을 대화에 첨부하거나 프로필 사진으로 사용하기 위해 접근합니다.",
     cameraPermission: false,
     // E4: microphonePermission is intentionally omitted here (not `false`).
     // `false` makes this plugin strip RECORD_AUDIO / NSMicrophoneUsageDescription

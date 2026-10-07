@@ -26,6 +26,11 @@ describe("A1 account transport", () => {
   const originalFetch = globalThis.fetch;
   const fetchMock = jest.fn();
   const api = createAccountApi("https://api.example.com/");
+  // U4's presigned PUT must resolve to the configured media origin.
+  const avatarApi = createAccountApi(
+    "https://api.example.com/",
+    "https://media.example.com",
+  );
   const reply = (
     status: number,
     value: unknown = null,
@@ -200,7 +205,7 @@ describe("A1 account transport", () => {
     );
   });
 
-  test("sends a valid avatarUrl as avatar_url and maps the 200 profile (null clears it)", async () => {
+  test("sends a valid avatarUrl as avatar_url and maps the 200 profile", async () => {
     reply(200, { ...userWire, avatar_url: "https://cdn.example/a.png" });
     const profile = await api.updateProfile("token", {
       avatarUrl: "https://cdn.example/a.png",
@@ -211,10 +216,215 @@ describe("A1 account transport", () => {
     expect(JSON.parse(String(init.body))).toEqual({
       avatar_url: "https://cdn.example/a.png",
     });
+  });
 
+  // AV-AC1: U2 treats `avatar_url: null` as "leave unchanged" (a no-op); the
+  // empty string is the only value that clears the avatar.
+  test("AV-AC1: clearing the avatar sends the empty string, never null", async () => {
+    reply(200, userWire);
+    const profile = await api.updateProfile("token", { avatarUrl: "" });
+    expect(profile.avatarUrl).toBeNull();
+    const [, clearInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(clearInit.method).toBe("PATCH");
+    expect(JSON.parse(String(clearInit.body))).toEqual({ avatar_url: "" });
+    expect(String(clearInit.body)).not.toContain("null");
+  });
+
+  test("AV-AC1: a legacy null avatarUrl is normalised to the empty-string clear on the wire", async () => {
     reply(200, userWire);
     await api.updateProfile("token", { avatarUrl: null });
-    const [, clearInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(JSON.parse(String(clearInit.body))).toEqual({ avatar_url: null });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({ avatar_url: "" });
+  });
+
+  describe("AV-AC8 U4/U5 avatar upload", () => {
+    const uploadId = "44444444-4444-4444-8444-444444444444";
+    const intentWire = {
+      upload_id: uploadId,
+      presigned_put: {
+        url: "https://media.example.com/avatars/put?sig=abc",
+        expires_in: 900,
+      },
+    };
+
+    test("U4 startAvatarUpload() POSTs content_type image/jpeg with the byte size and maps the 201 intent", async () => {
+      reply(201, intentWire);
+      const intent = await avatarApi.startAvatarUpload("token", 45_000);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://api.example.com/api/v1/me/avatar/uploads");
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(String(init.body))).toEqual({
+        content_type: "image/jpeg",
+        byte_size: 45_000,
+      });
+      expect((init.headers as Record<string, string>).Authorization).toBe(
+        "Bearer token",
+      );
+      expect(intent).toEqual({
+        uploadId,
+        put: {
+          url: "https://media.example.com/avatars/put?sig=abc",
+          expiresIn: 900,
+        },
+      });
+    });
+
+    test.each([0, -1, 1.5, 1_048_577])(
+      "U4 startAvatarUpload() rejects byte size %p locally before any fetch call",
+      async (byteSize) => {
+        await expect(
+          avatarApi.startAvatarUpload("token", byteSize),
+        ).rejects.toMatchObject({ status: 422, code: "invalid_avatar_size" });
+        expect(fetchMock).not.toHaveBeenCalled();
+      },
+    );
+
+    test("U4 startAvatarUpload() rejects a 201 body that fails the AvatarUploadIntent schema", async () => {
+      reply(201, { upload_id: uploadId });
+      await expect(
+        avatarApi.startAvatarUpload("token", 1000),
+      ).rejects.toMatchObject({
+        status: 502,
+        code: "invalid_avatar_upload_response",
+      });
+    });
+
+    test.each([
+      [401, "authentication_required"],
+      [422, "request_validation_failed"],
+      [429, "rate_limit_exceeded"],
+      [503, "object_storage_degraded"],
+    ])(
+      "U4 startAvatarUpload() surfaces %i %s as an AccountApiError",
+      async (status, code) => {
+        reply(status, errorEnvelope(code), status === 429 ? "7" : null);
+        const failure = await avatarApi
+          .startAvatarUpload("token", 1000)
+          .catch((error: unknown) => error);
+        expect(failure).toBeInstanceOf(AccountApiError);
+        expect(failure).toMatchObject({ status, code });
+        if (status === 429)
+          expect(failure).toMatchObject({ retryAfterSeconds: 7 });
+      },
+    );
+
+    // VERIFY fix 1: the avatar PUT URL is checked against the media origin
+    // exactly like the chat media flow (media-api.ts), before any PUT.
+    test.each([
+      ["another host", "https://evil.example.net/avatars/put?sig=abc"],
+      ["a lookalike subdomain", "https://media.example.com.evil.net/put"],
+      ["cleartext http", "http://media.example.com/avatars/put?sig=abc"],
+      ["another port", "https://media.example.com:8443/avatars/put?sig=abc"],
+      ["userinfo", "https://user:secret@media.example.com/avatars/put?sig=abc"],
+      ["a fragment", "https://media.example.com/avatars/put?sig=abc#frag"],
+    ])(
+      "U4 startAvatarUpload() rejects a presigned PUT URL on %s as an invalid response",
+      async (_label, url) => {
+        reply(201, {
+          ...intentWire,
+          presigned_put: { ...intentWire.presigned_put, url },
+        });
+        const failure = await avatarApi
+          .startAvatarUpload("token", 1000)
+          .catch((error: unknown) => error);
+        expect(failure).toBeInstanceOf(AccountApiError);
+        expect(failure).toMatchObject({
+          status: 502,
+          code: "invalid_media_origin_url",
+        });
+      },
+    );
+
+    test("U4 startAvatarUpload() accepts a PUT URL on the media origin with signed query bytes unchanged", async () => {
+      const url =
+        "https://media.example.com/avatars/put?X-Amz-Signature=a%2Fb%3D&x=1";
+      reply(201, {
+        ...intentWire,
+        presigned_put: { ...intentWire.presigned_put, url },
+      });
+      const intent = await avatarApi.startAvatarUpload("token", 1000);
+      expect(intent.put.url).toBe(url);
+    });
+
+    test("U4 startAvatarUpload() fails closed before any fetch when no media origin was configured", async () => {
+      await expect(api.startAvatarUpload("token", 1000)).rejects.toMatchObject({
+        status: 502,
+        code: "invalid_media_origin_url",
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      "http://media.example.com",
+      "https://media.example.com/path",
+      "https://user@media.example.com",
+      "not a url",
+    ])("createAccountApi() rejects a malformed media origin %p", (origin) => {
+      expect(() =>
+        createAccountApi("https://api.example.com/", origin),
+      ).toThrow();
+    });
+
+    test("createAccountApi() accepts a media origin with a trailing slash", async () => {
+      const trailing = createAccountApi(
+        "https://api.example.com/",
+        "https://media.example.com/",
+      );
+      reply(201, intentWire);
+      await expect(
+        trailing.startAvatarUpload("token", 1000),
+      ).resolves.toMatchObject({ uploadId });
+    });
+
+    test("U5 finalizeAvatarUpload() POSTs an empty JSON object to the upload's finalize path and maps the User", async () => {
+      reply(200, {
+        ...userWire,
+        avatar_url: "https://api.example.com/api/v1/avatars/abc",
+      });
+      const profile = await api.finalizeAvatarUpload("token", uploadId);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(
+        `https://api.example.com/api/v1/me/avatar/uploads/${uploadId}/finalize`,
+      );
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(String(init.body))).toEqual({});
+      expect(profile.avatarUrl).toBe(
+        "https://api.example.com/api/v1/avatars/abc",
+      );
+    });
+
+    test("U5 finalizeAvatarUpload() rejects a non-uuid upload id locally before any fetch call", async () => {
+      await expect(
+        api.finalizeAvatarUpload("token", "../../me"),
+      ).rejects.toMatchObject({ status: 422, code: "invalid_identifier" });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    test("U5 finalizeAvatarUpload() rejects a 200 body that is not a User", async () => {
+      reply(200, { ok: true });
+      await expect(
+        api.finalizeAvatarUpload("token", uploadId),
+      ).rejects.toMatchObject({
+        status: 502,
+        code: "invalid_profile_response",
+      });
+    });
+
+    test.each([
+      [401, "authentication_required"],
+      [404, "avatar_upload_not_found"],
+      [409, "avatar_upload_not_pending"],
+      [422, "avatar_object_invalid"],
+      [422, "request_validation_failed"],
+      [503, "object_storage_degraded"],
+    ])(
+      "U5 finalizeAvatarUpload() surfaces %i %s as an AccountApiError",
+      async (status, code) => {
+        reply(status, errorEnvelope(code));
+        await expect(
+          api.finalizeAvatarUpload("token", uploadId),
+        ).rejects.toMatchObject({ status, code });
+      },
+    );
   });
 });

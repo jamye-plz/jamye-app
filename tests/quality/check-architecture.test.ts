@@ -1,11 +1,10 @@
 import {
   APPROVED_DEPENDENCY_PATCH_FILE_SHA256,
   APPROVED_GITIGNORE_SHA256,
-  APPROVED_M4_CONTRACT_FILE_SHA256,
-  APPROVED_M4_DATABASE_TABLES,
   APPROVED_NATIVE_TOOLCHAIN_FILE_SHA256,
   APPROVED_PATCHED_DEPENDENCIES,
   APPROVED_RECOVERY_FILE_SHA256,
+  M17_RETIRED_FIXTURE_PATHS,
   M4_AUTHORED_FILES,
   REQUIRED_GITIGNORE_ENTRIES,
   checkArchitecture,
@@ -70,13 +69,7 @@ const M3_TEST_PATHS = [
   "tests/quality/nix-avd.test.ts",
 ];
 
-const M4_TEST_PATHS = [
-  "tests/contracts/bootstrap-sources.test.ts",
-  "tests/contracts/contract-tooling.test.ts",
-  "tests/contracts/validate-wire.test.ts",
-  "tests/core/database/migrations.test.ts",
-  "tests/core/database/repository.test.ts",
-];
+const M4_TEST_PATHS = ["tests/core/database/migrations.test.ts"];
 
 const M5_RETIRED_PLACEHOLDER_PATHS = [
   "src/features/development-fixture/model/local-fixture.ts",
@@ -85,13 +78,8 @@ const M5_RETIRED_PLACEHOLDER_PATHS = [
 ];
 
 const M5_TEST_PATHS = [
-  "tests/core/database/repository.test.ts",
   "tests/core/app-providers.test.tsx",
-  "tests/core/database/database-provider.test.tsx",
-  "tests/features/chat/chat-send.test.ts",
   "tests/app/thin-routes.test.tsx",
-  "tests/features/chat/chat-message-window.test.ts",
-  "tests/features/chat/chat-conversation.test.tsx",
   "tests/features/chat/chat-composer.test.tsx",
   "tests/features/chat/chat-accessibility.test.tsx",
   "tests/quality/check-architecture.test.ts",
@@ -99,15 +87,10 @@ const M5_TEST_PATHS = [
 
 const M5_AUTHORED_FILES = [
   "src/core/database/types.ts",
-  "src/core/database/repositories/database-repository.ts",
-  "src/core/database/database-provider.tsx",
   "src/core/providers/app-providers.tsx",
-  "src/features/chat/model/chat-fixture.ts",
-  "src/features/chat/model/chat-send.ts",
   "src/app/index.tsx",
   "src/core/theme/tokens.ts",
   "src/features/chat/model/chat-message-window.ts",
-  "src/features/chat/use-chat-conversation.ts",
   "src/features/chat/ui/chat-screen.tsx",
   "src/features/chat/ui/chat-message-list.tsx",
   "src/features/chat/ui/chat-message-row.tsx",
@@ -458,6 +441,23 @@ const M17_TEST_PATHS = [
   // M17 REFINE (task-refine): mirrors
   // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
   "tests/shared/platform/use-reduce-motion-enabled.test.tsx",
+  // task-app-deletion-cleanup (B3/C7-C12): mirrors
+  // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+  "tests/core/database/account/account-purge-registry.test.ts",
+  "tests/core/database/account/account-purge-registry-file.test.ts",
+  "tests/core/database/account/account-database-files.test.ts",
+  "tests/core/database/account/account-local-data-purge.test.ts",
+  "tests/core/database/account/account-local-data-purge-runtime.test.ts",
+  "tests/features/account/model/use-account-lifecycle.test.ts",
+  // task-app-avatar (AV-AC1-AC8): mirrors
+  // tools/quality/check-architecture.cjs's M17_TEST_PATHS.
+  "tests/core/contracts/server/avatar.test.ts",
+  "tests/features/account/platform/avatar-photo.test.ts",
+  "tests/features/account/model/use-avatar-upload.test.ts",
+  "tests/features/account/ui/profile-photo-menu.shared.test.ts",
+  "tests/features/account/ui/profile-photo-avatar.test.tsx",
+  "tests/features/account/ui/profile-photo-menu.ios.test.tsx",
+  "tests/features/account/ui/profile-photo-menu.android.test.tsx",
 ];
 const M11_TEST_PATHS = [
   "tests/core/contracts/server-media-validators.test.ts",
@@ -601,15 +601,15 @@ const M3_AUTHORED_FILES = [
 ];
 
 const APPROVED_DEPENDENCIES = {
-  "@expo/ui": "~57.0.21",
+  "@expo/ui": "~57.0.22",
   ajv: "8.20.0",
-  expo: "~57.0.26",
+  expo: "~57.0.27",
   "expo-apple-authentication": "~57.0.2",
-  "expo-asset": "~57.0.18",
+  "expo-asset": "~57.0.19",
   "expo-audio": "~57.0.5",
-  "expo-auth-session": "~57.0.13",
+  "expo-auth-session": "~57.0.14",
   "expo-clipboard": "~57.0.2",
-  "expo-constants": "~57.0.20",
+  "expo-constants": "~57.0.21",
   "expo-crypto": "~57.0.3",
   "expo-dev-client": "~57.0.19",
   "expo-device": "~57.0.2",
@@ -620,13 +620,13 @@ const APPROVED_DEPENDENCIES = {
   "expo-image-picker": "~57.0.20",
   "expo-sharing": "~57.0.22",
   "expo-font": "~57.0.4",
-  "expo-image-manipulator": "~57.0.20",
-  "expo-linking": "~57.0.11",
-  "expo-notifications": "~57.0.21",
-  "expo-router": "~57.0.24",
+  "expo-image-manipulator": "~57.0.21",
+  "expo-linking": "~57.0.12",
+  "expo-notifications": "~57.0.22",
+  "expo-router": "~57.0.25",
   "expo-secure-store": "~57.0.4",
   "expo-splash-screen": "~57.0.9",
-  "expo-sqlite": "~57.0.3",
+  "expo-sqlite": "~57.0.4",
   "expo-symbols": "~57.0.3",
   "expo-system-ui": "~57.0.4",
   "expo-video": "~57.0.5",
@@ -667,7 +667,7 @@ const APPROVED_DEPENDENCY_OVERRIDES = {
 // A22 (2026-10-06): compression 1.8.1 -> 1.8.2 and source-map-js 1.2.1 ->
 // 1.2.2 (bun audit advisories); braces and node-forge have no patched release.
 const APPROVED_BUN_LOCK_SHA256 =
-  "2393f74510429f5151207c4de144d536b72fccc380be0e7dc8bcf7f225abde7b";
+  "79c5ecf072f40b4e059b6929f42d632ffc1208c2046c09b95611de4ec8a5001f";
 
 const APPROVED_PACKAGE_TOP_LEVEL_KEYS = [
   "name",
@@ -813,7 +813,6 @@ const M4_DATABASE_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
 );
 const ACTIVE_DATABASE_SOURCE_FILES = [
   ...M4_DATABASE_SOURCE_FILES,
-  "src/core/database/database-provider.tsx",
   ...M6_03_DATABASE_SOURCE_FILES,
   ...M8_DATABASE_SOURCE_FILES,
   "src/core/database/account/connected-chat-sync-repository.ts",
@@ -822,31 +821,29 @@ const ACTIVE_DATABASE_SOURCE_FILES = [
   "src/core/database/account/migrations/005-connected-chat-media.ts",
   "src/core/database/account/migrations/006-connected-chat-deletions.ts",
   "src/core/database/account/migrations/007-media-expired-error-code.ts",
+  // task-app-deletion-cleanup (B3/C7-C12): mirrors
+  // tools/quality/check-architecture.cjs's M17_DATABASE_SOURCE_FILES.
+  "src/core/database/account/account-database-name.ts",
+  "src/core/database/account/account-purge-registry.ts",
+  "src/core/database/account/account-purge-registry-file.ts",
+  "src/core/database/account/account-database-files.ts",
+  "src/core/database/account/account-local-data-purge.ts",
+  "src/core/database/account/account-local-data-purge-runtime.ts",
   "src/core/database/account/topics-types.ts",
   "src/core/database/account/topics-repository.ts",
 ];
-const M4_CONTRACT_SOURCE_FILES = M4_AUTHORED_FILES.filter((path: string) =>
-  path.startsWith("src/core/contracts/"),
-);
-const M4_BOOTSTRAP_CONTRACT_FILES = M4_AUTHORED_FILES.filter((path: string) =>
-  path.startsWith("contracts/bootstrap/"),
-);
-const M4_CONTRACT_TOOL_FILES = M4_AUTHORED_FILES.filter((path: string) =>
-  path.startsWith("tools/contracts/"),
-);
 const ACTIVE_CONTRACT_SOURCE_FILES = [
-  ...M4_CONTRACT_SOURCE_FILES,
   ...M6_CONTRACT_SOURCE_FILES,
   "src/core/contracts/server/topics.ts",
   "src/core/contracts/server/media.ts",
   "src/core/contracts/server/notifications.ts",
   "src/core/contracts/server/push-installations.ts",
   "src/core/contracts/server/users.ts",
+  // M17 task-app-avatar (AV-AC8): mirrors
+  // tools/quality/check-architecture.cjs's ACTIVE_CONTRACT_SOURCE_FILES.
+  "src/core/contracts/server/avatar.ts",
 ];
-const ACTIVE_CONTRACT_TOOL_FILES = [
-  ...M4_CONTRACT_TOOL_FILES,
-  ...M6_CONTRACT_TOOL_FILES,
-];
+const ACTIVE_CONTRACT_TOOL_FILES = [...M6_CONTRACT_TOOL_FILES];
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
@@ -883,7 +880,7 @@ function buildValidRepositorySnapshot() {
       "expo-image-picker",
       {
         photosPermission:
-          "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
+          "선택한 사진과 동영상을 대화에 첨부하거나 프로필 사진으로 사용하기 위해 접근합니다.",
         cameraPermission: false,
       },
     ],
@@ -995,18 +992,17 @@ function buildValidRepositorySnapshot() {
     bunLockSha256: APPROVED_BUN_LOCK_SHA256,
     dependencyPatchFileSha256: clone(APPROVED_DEPENDENCY_PATCH_FILE_SHA256),
     m4: {
-      contractCheck: { status: "ok" },
-      contractFileSha256: clone(APPROVED_M4_CONTRACT_FILE_SHA256) as Record<
-        string,
-        string
-      >,
-      databaseTables: clone(APPROVED_M4_DATABASE_TABLES) as string[],
       sourceInventory: {
-        bootstrap: clone(M4_BOOTSTRAP_CONTRACT_FILES),
         contracts: clone(ACTIVE_CONTRACT_SOURCE_FILES),
         database: clone(ACTIVE_DATABASE_SOURCE_FILES),
         tools: clone(ACTIVE_CONTRACT_TOOL_FILES),
       },
+    },
+    m17: {
+      authorizedDeletePaths: clone(M17_RETIRED_FIXTURE_PATHS) as string[],
+      retiredFixturePathsPresent: [] as string[],
+      requiredPreQualityPaths: clone(M5_AUTHORED_FILES),
+      meaningfulTestPaths: clone(ACTIVE_MEANINGFUL_TEST_PATHS),
     },
     m6: {
       contractCheck: { status: "ok" },
@@ -1549,17 +1545,6 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     );
   });
 
-  test("denies migration table drift beyond the exact approved five-table schema", () => {
-    const snapshot = buildValidRepositorySnapshot();
-    snapshot.m4.databaseTables.push("schema_versions");
-
-    const result: CheckResult = checkArchitecture(snapshot);
-
-    expect(result.violations.map((v) => v.category)).toContain(
-      "m4-five-table-schema",
-    );
-  });
-
   test("no-manual-rest-dto denies a hand-maintained REST DTO beside generated output", () => {
     const snapshot = buildValidRepositorySnapshot();
     snapshot.m4.sourceInventory.contracts.push(
@@ -1573,18 +1558,63 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     );
   });
 
-  test("denies generated contract hash drift or a non-ok deterministic checker result", () => {
+  test("m17-retired-fixture-transition denies a resurrected retired fixture or bootstrap path", () => {
     const snapshot = buildValidRepositorySnapshot();
-    snapshot.m4.contractFileSha256[
-      "src/core/contracts/generated/bootstrap-api.ts"
-    ] = "0".repeat(64);
-    snapshot.m4.contractCheck.status = "drift";
+    snapshot.m17.retiredFixturePathsPresent = [
+      "src/core/database/database-provider.tsx",
+    ];
 
-    const result: CheckResult = checkArchitecture(snapshot);
-    const categories = result.violations.map((v) => v.category);
+    expect(
+      checkArchitecture(snapshot).violations.map((v) => v.category),
+    ).toContain("m17-retired-fixture-transition");
+  });
 
-    expect(categories).toContain("contract-generated-ownership");
-    expect(categories).toContain("contract-generated-drift");
+  test("m17-retired-fixture-transition denies a retired path kept in an active inventory or missing its delete authorization", () => {
+    const required = buildValidRepositorySnapshot();
+    required.m17.requiredPreQualityPaths.push(
+      "src/features/chat/use-chat-conversation.ts",
+    );
+    expect(
+      checkArchitecture(required).violations.map((v) => v.category),
+    ).toContain("m17-retired-fixture-transition");
+
+    const meaningful = buildValidRepositorySnapshot();
+    meaningful.m17.meaningfulTestPaths.push(
+      "tests/contracts/bootstrap-sources.test.ts",
+    );
+    expect(
+      checkArchitecture(meaningful).violations.map((v) => v.category),
+    ).toContain("m17-retired-fixture-transition");
+
+    const unauthorized = buildValidRepositorySnapshot();
+    unauthorized.m17.authorizedDeletePaths.pop();
+    expect(
+      checkArchitecture(unauthorized).violations.map((v) => v.category),
+    ).toContain("m17-retired-fixture-transition");
+  });
+
+  test("the retired fixture and bootstrap paths are delete-authorized but leave the server contract and account database paths active", () => {
+    for (const path of [
+      "src/app/local-fixture.tsx",
+      "src/core/database/open-database.ts",
+      "src/core/database/migrations/001-initial-schema.ts",
+      "src/features/chat/model/chat-fixture.ts",
+      "src/core/contracts/validate-wire.ts",
+      "contracts/bootstrap/manifest.json",
+      "tools/contracts/check-bootstrap-contract.mjs",
+      "tests/core/database/repository.test.ts",
+    ]) {
+      expect(M17_RETIRED_FIXTURE_PATHS).toContain(path);
+      expect(isAuthorizedWorkingTreePath(path)).toBe(true);
+    }
+    for (const path of [
+      "src/core/contracts/server/validators.ts",
+      "src/core/database/account/account-scope.ts",
+      "tools/contracts/check-server-contract.mjs",
+      "tests/core/database/migrations.test.ts",
+    ]) {
+      expect(M17_RETIRED_FIXTURE_PATHS).not.toContain(path);
+    }
   });
 
   test("m6-source-ownership denies an incomplete or extra contracts/server inventory", () => {
@@ -1795,11 +1825,11 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
 
   test("allows only the exact hash-bound approved recovery paths in the working-tree overlay", () => {
     expect(APPROVED_PATCHED_DEPENDENCIES).toEqual({
-      "expo-router@57.0.24": "patches/expo-router@57.0.24.patch",
+      "expo-router@57.0.25": "patches/expo-router@57.0.25.patch",
       "query-string@7.1.3": "patches/query-string@7.1.3.patch",
     });
     expect(APPROVED_DEPENDENCY_PATCH_FILE_SHA256).toEqual({
-      "patches/expo-router@57.0.24.patch":
+      "patches/expo-router@57.0.25.patch":
         "db7a1721b05c69b0e57471dc2c8c7eea1f17428cf136ff268724b3319aae1287",
       "patches/query-string@7.1.3.patch":
         "3501a7e3d4d32cdf00e245e581c66bdf46ed9358b6295571952aec2d5ad0e162",
@@ -2252,18 +2282,17 @@ describe("checkArchitecture (M3/M4/M5 quality_contract pure policy validator)", 
     );
   });
 
-  test("preserves the M4 database and contract ownership checks alongside M5", () => {
+  test("preserves the database and contract-tool ownership checks alongside M5", () => {
     const snapshot = buildValidRepositorySnapshot();
     snapshot.m4.sourceInventory.database.pop();
-    snapshot.m4.contractFileSha256[
-      "src/core/contracts/generated/bootstrap-api.ts"
-    ] = "0".repeat(64);
+    snapshot.m4.sourceInventory.tools.push(
+      "tools/contracts/check-bootstrap-contract.mjs",
+    );
 
     const result: CheckResult = checkArchitecture(snapshot);
     const categories = result.violations.map((v) => v.category);
 
     expect(categories).toContain("m4-source-ownership");
-    expect(categories).toContain("contract-generated-ownership");
   });
 
   test("denies an adjacent database source beyond the sole M5 provider extension", () => {

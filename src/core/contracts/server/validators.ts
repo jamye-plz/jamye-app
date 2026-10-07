@@ -165,6 +165,24 @@ export const validateChatroomMediaPage =
   compileComponentSchema("ChatroomMediaPage");
 export const validateMediaAccessUrl = compileComponentSchema("MediaAccessUrl");
 
+// M17 (task-app-avatar, AV-AC8): U4/U5 avatar upload. The avatar-specific
+// presigned PUT is a distinct schema from MD1's (no conversation target, JPEG
+// only, 1 MiB cap, expires_in const 900); U5 takes an empty object and returns
+// the updated User. U6 is a public image read served through User.avatar_url.
+export type AvatarUploadCreateWire =
+  components["schemas"]["AvatarUploadCreate"];
+export type AvatarUploadIntentWire =
+  components["schemas"]["AvatarUploadIntent"];
+export type AvatarUploadFinalizeWire =
+  components["schemas"]["AvatarUploadFinalize"];
+export const validateAvatarUploadCreate =
+  compileComponentSchema("AvatarUploadCreate");
+export const validateAvatarUploadIntent =
+  compileComponentSchema("AvatarUploadIntent");
+export const validateAvatarUploadFinalize = compileComponentSchema(
+  "AvatarUploadFinalize",
+);
+
 // S1 (GET /api/v1/conversations/{conversation_id}/events) and R1
 // (POST /api/v1/realtime/tickets) wire shapes. 426/401/403/503 for both
 // operations reuse the existing ErrorEnvelope validated above.

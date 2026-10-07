@@ -178,17 +178,21 @@ jest.mock("@expo/ui/swift-ui", () => {
 });
 
 describe("connected auth screen (session-driven, no owned controller)", () => {
-  const previousMode = process.env.EXPO_PUBLIC_APP_MODE;
-  const previousOrigin = process.env.EXPO_PUBLIC_API_ORIGIN;
+  const previousEnv = {
+    EXPO_PUBLIC_API_ORIGIN: process.env.EXPO_PUBLIC_API_ORIGIN,
+    EXPO_PUBLIC_MEDIA_ORIGIN: process.env.EXPO_PUBLIC_MEDIA_ORIGIN,
+  };
   beforeEach(() => {
-    process.env.EXPO_PUBLIC_APP_MODE = "connected-auth";
     process.env.EXPO_PUBLIC_API_ORIGIN = "https://api.example";
+    process.env.EXPO_PUBLIC_MEDIA_ORIGIN = "https://media.example";
     jest.clearAllMocks();
     mockState = { status: "signed-out", profile: null, message: null };
   });
   afterAll(() => {
-    process.env.EXPO_PUBLIC_APP_MODE = previousMode;
-    process.env.EXPO_PUBLIC_API_ORIGIN = previousOrigin;
+    for (const [name, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
   });
 
   test("puts the app name at the centre of the whole screen, the intro below it without moving it (device: it sat left-aligned, centred only above the buttons)", async () => {
@@ -438,7 +442,7 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
     );
   });
 
-  test("throws when connected-auth is configured without an API origin", async () => {
+  test("throws when the API origin is not configured", async () => {
     delete process.env.EXPO_PUBLIC_API_ORIGIN;
     const consoleErrorSpy = jest
       .spyOn(console, "error")
@@ -449,7 +453,7 @@ describe("connected auth screen (session-driven, no owned controller)", () => {
           <AuthScreen />
         </AppThemeProvider>,
       ),
-    ).rejects.toThrow(/API_ORIGIN/);
+    ).rejects.toThrow("EXPO_PUBLIC_API_ORIGIN is required.");
     consoleErrorSpy.mockRestore();
   });
 

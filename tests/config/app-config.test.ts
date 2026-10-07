@@ -63,7 +63,8 @@ const OAUTH_NATIVE_PLUGINS = ["expo-web-browser", "expo-secure-store"];
 const MEDIA_PICKER_PLUGIN = [
   "expo-image-picker",
   {
-    photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
+    photosPermission:
+      "선택한 사진과 동영상을 대화에 첨부하거나 프로필 사진으로 사용하기 위해 접근합니다.",
     cameraPermission: false,
   },
 ];
@@ -115,7 +116,6 @@ const EAS_OWNER = "jamye-plz";
 const EAS_PROJECT_ID = "6a27e581-0093-4e75-bd88-01be99fcdab5";
 const ANDROID_GOOGLE_SERVICES_FILE = "./google-services.json";
 const INITIAL_APP_VARIANT = process.env.APP_VARIANT;
-const INITIAL_PUBLIC_APP_MODE = process.env.EXPO_PUBLIC_APP_MODE;
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -165,7 +165,6 @@ function resolveAppConfig(variant: string | undefined): UnknownRecord {
   } else {
     process.env.APP_VARIANT = variant;
   }
-  process.env.EXPO_PUBLIC_APP_MODE = "local-fixture";
   jest.resetModules();
 
   const loaded = loadRequiredModule<unknown>(
@@ -204,11 +203,6 @@ afterEach(() => {
   } else {
     process.env.APP_VARIANT = INITIAL_APP_VARIANT;
   }
-  if (INITIAL_PUBLIC_APP_MODE === undefined) {
-    delete process.env.EXPO_PUBLIC_APP_MODE;
-  } else {
-    process.env.EXPO_PUBLIC_APP_MODE = INITIAL_PUBLIC_APP_MODE;
-  }
   jest.resetModules();
 });
 
@@ -231,7 +225,7 @@ describe("M3-I1 Expo configuration contract", () => {
     });
   });
 
-  test("keeps .env.example limited to the approved public local-fixture contract", () => {
+  test("keeps .env.example limited to the approved public contract", () => {
     const { existsSync, readFileSync } = jest.requireActual("node:fs") as {
       existsSync: (path: string) => boolean;
       readFileSync: (path: string, encoding: "utf8") => string;
@@ -250,7 +244,8 @@ describe("M3-I1 Expo configuration contract", () => {
 
     expect(assignments).toEqual([
       "APP_VARIANT=development",
-      "EXPO_PUBLIC_APP_MODE=local-fixture",
+      "EXPO_PUBLIC_API_ORIGIN=https://jamye-api.ridewithmin.com",
+      "EXPO_PUBLIC_MEDIA_ORIGIN=https://jamye-media.ridewithmin.com",
     ]);
     expect(warning).toMatch(/EXPO_PUBLIC_\*/);
     expect(warning).toMatch(/embedded.*app bundle/i);

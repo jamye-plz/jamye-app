@@ -11,7 +11,7 @@ M8의 별도 구현·배포·사용자 수용은 [M8 evidence](evidence/M8.md), 
 경고는 [개발 검증 기록](development-workflow.md)에 구분해 기록한다. 후속 범위와 승인 순서는
 [로드맵](roadmap.md)의 M10 이후를 따른다.
 
-`EXPO_PUBLIC_APP_MODE=local-fixture`를 명시적으로 설정하면 기존 SQLite fixture 채팅만 표시하며 네트워크나 인증을 시작하지 않습니다. 연결 인증을 시험할 때만 `.env.local`에 `EXPO_PUBLIC_APP_MODE=connected-auth`와 `EXPO_PUBLIC_API_ORIGIN=https://jamye-api.ridewithmin.com`을 둡니다.
+앱은 항상 연결 인증(OAuth session) 경로로 시작합니다. `.env`에 `EXPO_PUBLIC_API_ORIGIN=https://jamye-api.ridewithmin.com`과 `EXPO_PUBLIC_MEDIA_ORIGIN=https://jamye-media.ridewithmin.com`을 둡니다. 둘 중 하나라도 없으면 앱은 시작할 때 오류를 냅니다.
 
 앱은 시스템 인증 브라우저와 PKCE를 사용합니다. Kakao 및 Google authorize/exchange 요청에는 각각의 고정 HTTPS provider callback (`https://jamye-api.ridewithmin.com/api/v1/auth/oauth/{provider}/callback`)을 보내고, 브라우저 반환 URI는 `jamye://oauth/kakao` 또는 `jamye://oauth/google`입니다. Authorization code와 state는 OAuth 프로토콜상 callback URL에 일시적으로 전달됩니다. 앱은 이를 검증에 사용하되 로그·SQLite·환경 파일에 저장하거나 화면에 표시하지 않습니다. Access/refresh token은 HTTPS 응답 본문으로만 받고, API origin과 함께 SecureStore에 저장하며 URL에는 넣지 않습니다.
 
@@ -85,7 +85,7 @@ format, architecture 및 43 suites/407 tests가 통과했습니다. 현재 문�
 Android Google 시도는 기존 브라우저 인증으로 자동 완료됐으므로 Google 브라우저 취소
 검증으로 세지 않습니다. 각 동작의 관찰을 모든 provider/계정 조합으로 확대하지 않습니다.
 이번 실행에는 앱 삭제·데이터 초기화·에뮬레이터 재부팅·재빌드가 없었습니다.
-`contracts/bootstrap/`과 fixture database는 보존하며, 정리는 서버 계약 기반 앱 개발 이후로 미룹니다.
+`contracts/bootstrap/`과 fixture database 코드는 M17 라운드 3에서 제거했습니다. 개발 기기에 남은 옛 `jamye.db` 파일은 지우지 않습니다.
 
 Android의 직접 Activity 실행 두 번에서 `BIND APPLICATION ANR`이 기록됐습니다.
 이후 런처 아이콘으로 실행한 복원과 로그아웃 후 재실행은 통과했지만, ANR 원인이 해결됐다는

@@ -24,7 +24,6 @@ jest.mock("@/core/providers/session-provider", () => ({
 jest.mock("@/core/config/public-env", () => ({
   ...jest.requireActual("@/core/config/public-env"),
   getPublicEnv: () => ({
-    appMode: "connected-auth",
     apiOrigin: "https://api.example",
     mediaOrigin: "https://media.example",
   }),

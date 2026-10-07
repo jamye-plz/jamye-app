@@ -1,6 +1,9 @@
 import type { TopicDeletedEvent } from "@/core/contracts/server";
 import { ChatApiError } from "@/features/chat/data/chat-api";
-import { createConnectedChatStore } from "@/features/chat/model/connected-chat-store";
+import {
+  createConnectedChatStore,
+  createSystemClock,
+} from "@/features/chat/model/connected-chat-store";
 import type {
   AuthorizedChatRequest,
   ConnectedChatStore,
@@ -32,6 +35,20 @@ import {
 
 const authorized: AuthorizedChatRequest = (execute, signal) =>
   execute("fake-token", signal ?? new AbortController().signal);
+
+describe("createSystemClock", () => {
+  test("reads the wall clock on every call", () => {
+    const now = jest.spyOn(Date, "now");
+    try {
+      now.mockReturnValueOnce(1_000).mockReturnValueOnce(2_500);
+      const clock = createSystemClock();
+      expect(clock.nowMs()).toBe(1_000);
+      expect(clock.nowMs()).toBe(2_500);
+    } finally {
+      now.mockRestore();
+    }
+  });
+});
 
 describe("M8 room/history regressions with M9 queued-send ownership", () => {
   function setup() {

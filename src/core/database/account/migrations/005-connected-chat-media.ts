@@ -1,4 +1,4 @@
-import type { Migration } from "../../migrations/001-initial-schema";
+import type { Migration } from "../../types";
 
 // Version 005 keeps transfer state out of SQLite. Only confirmed upload
 // references enter the durable send intent, while pending metadata exists

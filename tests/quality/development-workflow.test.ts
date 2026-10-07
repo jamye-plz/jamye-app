@@ -65,7 +65,7 @@ describe("development workflow contract", () => {
 
     for (const command of Object.values(manifest.scripts)) {
       expect(command).not.toMatch(/(?:^|\s)APP_VARIANT=/u);
-      expect(command).not.toMatch(/(?:^|\s)EXPO_PUBLIC_APP_MODE=/u);
+      expect(command).not.toMatch(/(?:^|\s)EXPO_PUBLIC_[A-Z_]+=/u);
     }
     expect(manifest.scripts.test).toBe("jest");
     expect(manifest.scripts["test:watch"]).toBe("jest --watch");
@@ -80,7 +80,12 @@ describe("development workflow contract", () => {
     expect(jestEnvLoader).toContain("process.loadEnvFile");
     expect(jestEnvLoader).toContain('path.resolve(__dirname, "../..", ".env")');
     expect(example).toContain("APP_VARIANT=development");
-    expect(example).toContain("EXPO_PUBLIC_APP_MODE=local-fixture");
+    expect(example).toContain(
+      "EXPO_PUBLIC_API_ORIGIN=https://jamye-api.ridewithmin.com",
+    );
+    expect(example).toContain(
+      "EXPO_PUBLIC_MEDIA_ORIGIN=https://jamye-media.ridewithmin.com",
+    );
   });
 
   test("keeps format writes path-scoped and separates checks from state-changing commands", () => {
@@ -195,8 +200,6 @@ describe("development workflow contract", () => {
         "CLAUDE.md",
         "android/",
         "assets/",
-        "contracts/bootstrap/openapi.json",
-        "contracts/bootstrap/realtime-event.schema.json",
         "contracts/server/manifest.json",
         "contracts/server/openapi.json",
         "contracts/server/fixtures/mobile-sync-handoff.json",

@@ -5,11 +5,10 @@
 전송 의도를 로컬에 보존했다. M9에서는 재시작 후 자동 전송 복구와 canonical event의
 실시간·delta 동기화까지 연결했다.
 
-현재 저장소에는 Expo SDK 57 Development Build/CNG 기반, M4의 local SQLite·bootstrap
-contract, M5의 SQLite 기반 로컬 채팅 읽기·쓰기와 M6의 server contract intake,
-shared session/account-safe connected-auth shell이 구현돼 있다. `local-fixture` mode는
-보존된 fixture SQLite chat을, `connected-auth` mode는 shared OAuth session, U1 profile,
-origin+UUID account namespace와 authenticated home을 표시한다. M7 connected-auth mode는
+현재 저장소에는 Expo SDK 57 Development Build/CNG 기반, M6의 server contract intake,
+shared session/account-safe connected shell이 구현돼 있다. 앱은 shared OAuth session, U1 profile,
+origin+UUID account namespace와 authenticated home을 표시한다. M4의 local bootstrap contract와
+M5의 local-fixture mode는 M17 라운드 3에서 제거했다. M7 connected mode는
 server-backed group navigation을 제공하고, M8은 실제 주제 목록·메시지 조회·전송·내 읽음 위치 저장,
 M9는 영속 outbox와 실시간·누락 복구를 연결했다. M10 주제·태그는 전체 자동 검증·독립 리뷰와
 양 플랫폼 사용자 수용 4/4 확인과 종료 승인을 받아 완료했다. 이후 M11 미디어 업로드·첨부, M12
@@ -24,7 +23,7 @@ M9는 영속 outbox와 실시간·누락 복구를 연결했다. M10 주제·태
 [M10 주제·태그 검증](docs/evidence/M10.md), [M11 미디어 구현·검증 현황](docs/evidence/M11.md),
 [M12 알림·푸시 증거](docs/evidence/M12.md), [M13 계정 수명주기 증거](docs/evidence/M13.md),
 [M14 UI/UX 증거](docs/evidence/M14.md), [M15 소프트 삭제 증거](docs/evidence/M15.md),
-[M16 Sign in with Apple 증거](docs/evidence/M16.md), [M17 증거(라운드 1·2)](docs/evidence/M17.md).
+[M16 Sign in with Apple 증거](docs/evidence/M16.md), [M17 증거(라운드 1·2·3)](docs/evidence/M17.md).
 
 ## 현재 범위
 
@@ -59,8 +58,8 @@ M8은 실제 서버의 조회·읽음·전송과 명시적인 수동 재시도�
 - M14: UI/UX 다듬기 — 완료 (2026-09-28 사용자 종료 승인). 라운드 1은 탭 구조와 그룹·주제 화면, 라운드 2는 로그인·계정·알림·대화방 네이티브 UI와 사진·동영상·음성 첨부
 - M15: 소프트 삭제 수용 — 완료 (2026-09-29 사용자 종료 승인). 메시지·주제 삭제와 삭제 표시, 계정 삭제 30일 유예·복구 안내, 서버 계약 v2(서버 task-14 1·2·3차 배포)
 - M16: Sign in with Apple — 완료 (2026-09-30 사용자 종료 승인). iOS 네이티브 Apple 로그인, Kakao/Google과 같은 세션 모델(TokenPair·refresh·로그아웃·계정 삭제), 계정 삭제 시 Apple 재인증·token revoke(서버 task-15 운영 배포, D17)
-- M17: 잔여 백로그 — 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인). 주제 공지 링크, 만료된 첨부 버리기, 음성·동영상 재생 조정, 알림 배지 실시간 갱신, 로그인 route 분리, 그룹 정보 재구성과 auth-controller 분리·lint 경고 0건. (A) 앱 출시 blocker는 2026-10-01 착수해 구현과 실기기·시뮬레이터·에뮬레이터 수용을 마쳤다(의존성 정렬과 audit 0건, Maestro E2E, Android 시작 ANR 분석, `APP_VARIANT=production` identity, iOS 27 scene life cycle 대응과 기기 결함 수정). 2026-10-06 현재 변경은 모두 작업 트리에 있고 VERIFY·REFINE·SHIP 리뷰와 커밋이 남아 있다
-- 다음: M17의 (B)-(D)와 M18(스토어 배포)은 `planned_unapproved`이며 각각 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
+- M17: 잔여 백로그 — 라운드 1 (E)·(F) 완료 (2026-10-01 사용자 종료 승인). 주제 공지 링크, 만료된 첨부 버리기, 음성·동영상 재생 조정, 알림 배지 실시간 갱신, 로그인 route 분리, 그룹 정보 재구성과 auth-controller 분리·lint 경고 0건. (A) 앱 출시 blocker는 2026-10-01 착수해 구현과 실기기·시뮬레이터·에뮬레이터 수용을 마쳤다(의존성 정렬과 audit 0건, Maestro E2E, Android 시작 ANR 분석, `APP_VARIANT=production` identity, iOS 27 scene life cycle 대응과 기기 결함 수정). 라운드 2 (A)는 PR #8(merge `671b649`, 2026-10-06)로 반영했다. 라운드 3 (B)는 local-fixture mode와 M4 bootstrap contract 제거, 프로필 사진 업로드(서버 task-19 배포: jamye-server #18, homelab #98·#99), 계정 삭제 30일 뒤 로컬 DB 정리를 구현하고 iOS 시뮬레이터·Android 에뮬레이터에서 기기 검증을 마쳤다. 리뷰와 커밋이 남아 있다. M17은 사용자 결정으로 열어 둔다
+- 다음: M17의 (C)(D)와 M18(스토어 배포)은 `planned_unapproved`이며 각각 별도 승인이 필요하다([로드맵 §12](docs/roadmap.md#12-다음-단계))
 
 M10의 확정 범위와 순서는 [로드맵의 M10 계획](docs/roadmap.md#m10-주제태그)에 있다.
 계약·데이터 연결 → 주제·태그 화면 → M9 동기화 연결 → 자동 검증·양 플랫폼 수용 순서이며,
@@ -86,8 +85,8 @@ credential·서버 binding 등 M18 작업이 남아 있어 production readiness�
 
 ## M6 server contract와 account-safe session
 
-M6는 M4 `contracts/bootstrap/`을 대체하지 않는다. Bootstrap 정리는 사용자 결정에 따라
-서버 계약 기반 앱 개발 이후로 미룬다. `contracts/server/`는 read-only
+M6는 M4 bootstrap contract를 대체하지 않고 별도 서버 계약 경로를 더했으며, M4
+bootstrap contract는 M17 라운드 3에서 제거했다. `contracts/server/`는 read-only
 `jamye-server/contracts`의 OpenAPI 3.1/version 1 snapshot이며, 전체 wire type과 M6 schema
 closure(H1/H2, A1-A5, U1)의 runtime validator/domain mapper를 별도 경계로 둔다.
 `contracts/server/contract.lock`과 `intake.json`은 source revision, manifest/openapi hash와
@@ -100,21 +99,21 @@ revision이나 production-certified contract의 증거가 아니다.
 한 번의 replay만 허용하며, logout·origin/account 전환·늦은 응답은 session epoch로 fence한다.
 로그아웃은 local-first이며 원격 logout 실패가 로컬 세션 삭제를 되살리지 않는다.
 
-인증 mode에서는 M5 `jamye.db` fixture database/seed를 열지 않는다. 계정 저장소는 정규화된
+계정 저장소는 정규화된
 HTTPS API origin과 검증된 User UUID의 결정적 digest로 별도 `jamye-account-v1-<digest>.db`
 namespace를 만들고, `scope_metadata`에서 같은 origin/user/schema identity를 매번 확인한다.
-기존 `jamye.db`와 fixture migration/rows/outbox는 삭제·재시드·이동하지 않는다. cold restore가
-유효한 U1 profile을 얻지 못하면 account data를 복원하거나 표시하지 않는다.
+앱은 더 이상 fixture database를 열지 않으며, 개발 기기에 남은 옛 `jamye.db`는 삭제하지 않는다.
+cold restore가 유효한 U1 profile을 얻지 못하면 account data를 복원하거나 표시하지 않는다.
 
-M6의 profile/logout과 account-storage 경계는 보존한다. connected-auth mode는 이제 M7의
-account-scoped in-memory group list/create/join/detail/roster/management 경로를 제공하며,
-local-fixture mode는 M5 chat으로 계속 진입한다. M6 native/runtime 수용은 아래 실행 기록과 사용자
+M6의 profile/logout과 account-storage 경계는 보존한다. 앱은 M7의
+account-scoped in-memory group list/create/join/detail/roster/management 경로를 제공한다.
+M6 native/runtime 수용은 아래 실행 기록과 사용자
 확인을 근거로 종료했으며, source 통합이나 자동 테스트만으로 판정한 것은 아니다. M7에는 server chat, WebSocket/delta,
 outbox dispatcher, media, push와 offline authenticated restore가 없다.
 
 2026-09-09 보안 수정 후 자동 통합 검사에서 `bun run check:code`가 43 suites/407 tests와 함께 통과했다.
 전체 coverage는 statements 89.83%, branches 83.29%, functions 91.52%, lines 91.64%이며,
-server/bootstrap contract drift 검사도 통과했다. 이 결과는 이번 변경의 build 또는 실계정
+당시 server/bootstrap contract drift 검사도 통과했다(bootstrap contract와 그 검사는 이후 M17 라운드 3에서 제거했다). 이 결과는 이번 변경의 build 또는 실계정
 로그인 검증을 포함하지 않는다.
 
 독립 요구사항 대조와 회귀 리뷰도 통과했다. 안전성 리뷰는 신규 코드의 Critical/High 문제를
@@ -172,44 +171,23 @@ M9는 `COMPLETED / USER_ACCEPTED`다. 계정별 SQLite에 저장한 전송 의�
 Cold offline 시작에서는 U1로 계정을 확인하기 전 데이터를 숨긴다. 자동 검사·에이전트 관찰·
 사용자 확인과 미검증 범위는 [M9 evidence](docs/evidence/M9.md)에 구분한다.
 
-## M4 local bootstrap contract
+## M4 bootstrap contract (제거됨)
 
-M4의 local bootstrap wire contract는 `status = bootstrap`,
-`contract_version = bootstrap.v2`이다. 이 상태에서는 실제 production host나 active
-transport를 정의하지 않는다. `contract.lock`은 canonical source/fixture checksum과 breaking
-shape를 기록하며, `server_tag = null`, `server_commit = null`은 아직 server에 bind되지 않은
-local provenance(`unbound`)라는 의도적인 표시다.
-
-이 bootstrap은 M4의 historical/local-fixture contract다. 실제 server contract는
-read-only `jamye-server/contracts`의 version 1 snapshot을 별도 `contracts/server/`로 수용했다.
-non-null tag만을 필수 조건으로 두지 않고 exact source revision, contract version과 content
-hash를 기록한다. 현재 manifest의 dirty/null provenance는 배포 binding을 증명하지 않는다.
-M6 generated type/validator는 구현됐으며 bootstrap source/fixture는 변경하지 않았다.
-
-Bootstrap 자체는 실제 서버에 연결하지 않는다. M8은 별도 승인된 C1-C4 server snapshot과
-account-scoped 저장소로 REST 채팅을 연결했고, bootstrap source/fixture는 보존했다.
-M9는 다음 조건을 모두 충족하는 별도 승인으로 server recovery를 연결했다.
-Bootstrap의 transport를 활성화한 것은 아니며, 향후 연결 변경에도 같은 조건을 적용한다.
-
-1. 별도 승인된 source가 non-bootstrap production contract version과 authenticated source
-   ownership(인증된 source ownership)을 제공한다.
-2. exact source revision, contract version/content hash와 approved auth/endpoint scope가
-   별도 결정으로 승인된다.
-3. types, fixtures, manifest, `contract.lock`을 regenerate(재생성)하고 compatibility review
-   (호환성 검토)를 통과한다.
-4. 해당 마일스톤의 integration decision이 contract의 실제 invocation을 별도로 승인한다.
-
-Bootstrap의 unknown event `request_delta`는 계속 local recovery result일 뿐이며 HTTP,
-WebSocket, auth 실행을 뜻하지 않는다. 실제 S1/R1 실행은 M9 server adapter의 책임이다.
+M4의 local bootstrap wire contract(`contracts/bootstrap/`, `bootstrap.v2`)와 그 생성·검사 도구는
+어떤 서버에도 연결된 적이 없고 M17 라운드 3에서 제거했다. 실제 server contract는
+read-only `jamye-server/contracts`의 version 1 snapshot을 담은 `contracts/server/`이며, exact
+source revision, contract version과 content hash를 `contract.lock`에 기록한다. 현재 manifest의
+dirty/null provenance는 배포 binding을 증명하지 않는다. 제거 전 bootstrap contract의 결정과
+증거는 ADR 0004와 `docs/evidence/`의 M3-M5 기록에 남아 있다.
 
 ## 고정 기준선
 
 | 항목                    | 값                  |
 | ----------------------- | ------------------- |
-| Expo                    | `~57.0.26`          |
+| Expo                    | `~57.0.27`          |
 | React Native            | `0.86.3`            |
 | React                   | `19.2.3`            |
-| Expo Router             | `~57.0.24`          |
+| Expo Router             | `~57.0.25`          |
 | Expo Development Client | `~57.0.19`          |
 | RN Metro config         | `0.86.3`            |
 | Keyboard Controller     | `1.21.9`            |
@@ -218,8 +196,8 @@ WebSocket, auth 실행을 뜻하지 않는다. 실제 S1/R1 실행은 M9 server 
 | route root              | `src/app/`          |
 | entry                   | `expo-router/entry` |
 
-Expo Router의 초기 링크가 마운트 전에 상태를 갱신하는 문제는 57.0.24에도 남아 있어
-`patches/expo-router@57.0.24.patch`를 유지한다. `patches/`에는 이 패치와
+Expo Router의 초기 링크가 마운트 전에 상태를 갱신하는 문제는 57.0.25에도 남아 있어
+`patches/expo-router@57.0.25.patch`를 유지한다. `patches/`에는 이 패치와
 `query-string@7.1.3.patch`만 있다(image-size는 의존성 트리에서 빠져 패치를 지웠다). 버전 업데이트 시 원본 코드와 패치 적용 여부를
 확인하며, 설치된 코드의 마운트 지연 처리는 회귀 테스트로 검사한다.
 
@@ -403,13 +381,14 @@ cp .env.example .env
 ```
 
 - `APP_VARIANT=development`는 development app config를 선택한다.
-- `EXPO_PUBLIC_APP_MODE=local-fixture`는 local fixture 화면만 허용한다.
+- `EXPO_PUBLIC_API_ORIGIN`과 `EXPO_PUBLIC_MEDIA_ORIGIN`은 필수 공개 origin이다. 하나라도 없거나
+  bare HTTPS origin이 아니면 앱은 시작할 때 명확한 오류를 던진다.
 - 모든 `EXPO_PUBLIC_*` 값은 앱 bundle에 포함될 수 있는 **공개 값**이다.
 - Token, credential, private endpoint, 사용자 데이터 같은 비밀은 `.env.example`, `.env`,
   `.env.local` 또는 `EXPO_PUBLIC_*`에 넣지 않는다.
 
-`local-fixture` mode는 production server, auth 또는 session 연결을 사용하지 않는다.
-`connected-auth` mode가 지원하는 OAuth/profile/logout 범위와 아직 남은 연결 범위는
+앱 mode 선택 변수는 없고, 앱은 항상 서버 연결(OAuth session) 경로로 시작한다.
+지원하는 OAuth/profile/logout 범위와 아직 남은 연결 범위는
 [OAuth 개발 연결](docs/oauth-development.md)과 [로드맵](docs/roadmap.md)을 따른다.
 
 ## Dependency와 재현성
@@ -452,7 +431,7 @@ bun run deps:install:frozen
 Lifecycle script가 필요하다는 실제 실패 근거와 사용자 승인 없이 `trustedDependencies`를
 추가하지 않는다.
 
-`@expo/ui`(`~57.0.21`), `expo-symbols`(`~57.0.3`), `expo-glass-effect`(`~57.0.4`)는 native UI
+`@expo/ui`(`~57.0.22`), `expo-symbols`(`~57.0.3`), `expo-glass-effect`(`~57.0.4`)는 native UI
 toolkit으로 추가한 direct dependency이며, 배경과 checker 정책 변경은
 [ADR 0005](docs/adr/0005-native-ui-toolkit-adoption.md)를 따른다. 이후 미디어·푸시·음성 같은
 native module도 milestone마다 별도 승인을 받아 추가했고, native module 추가는 clean prebuild와
@@ -495,6 +474,12 @@ Build를 모두 다시 build/install해야 한다. 이 절차는 qualifying chan
 반복한다. CNG가 생성한 `/ios`와 `/android`는 ignored local output이며 직접 수정하거나
 source-controlled 원본으로 취급하지 않는다.
 
+M17 라운드 3 (B)는 위 조건에 모두 해당한다(Expo SDK 57 patch 10개 정렬과 expo-router patch 키 변경,
+사진 권한 문구 변경, local-fixture 모드 제거). 이 변경을 받은 뒤에는 `bun install --frozen-lockfile`,
+`bun run expo:prebuild:clean`, iOS·Android Development Build 재빌드 순서로 진행한다. `.env`에는
+`APP_VARIANT`와 `EXPO_PUBLIC_API_ORIGIN`·`EXPO_PUBLIC_MEDIA_ORIGIN`이 모두 있어야 하며, 예전 앱
+모드 변수 줄은 더 이상 읽지 않으므로 지워도 된다.
+
 `run:ios --no-bundler`와 `run:android --no-bundler`가 앱을 자동 install/open하더라도 이는
 build/install 결과일 뿐 현재 JavaScript bundle의 runtime 동작 증거가 아니다. Native module인
 `react-native-keyboard-controller`를 추가한 M5에서는 clean prebuild, 양 플랫폼 rebuild/install,
@@ -516,13 +501,12 @@ src/core/http/                    account-safe authorized request boundary
 src/core/providers/               theme·database·keyboard·runtime provider composition
 src/core/theme/                   semantic light/dark token과 system theme provider
 src/features/chat/data/           C1-C4 server adapter
-src/features/chat/model/          fixture 및 connected chat state, send/read/lifecycle
+src/features/chat/model/          connected chat state, send/read/lifecycle
 src/features/chat/ui/             native list, row, composer, platform keyboard adapter
 src/features/chat/platform/       메시지 복사·iOS haptics adapter
-src/features/chat/                repository 구독 기반 conversation hook
 src/features/auth/                로그인 화면과 OAuth callback landing
 src/features/home/                계정 탭 화면(profile·logout)과 서버 연결 진단
-src/features/account/             U2 닉네임 변경·U3 계정 삭제 adapter·state·UI
+src/features/account/             U2 닉네임 변경·프로필 사진 업로드(512px JPEG)·U3 계정 삭제 adapter·state·UI, 삭제 30일 뒤 로컬 DB 정리
 src/features/groups/              account-scoped API·state·group/member/invite UI
 src/features/topics/              T1-T7 주제·태그 API·state·UI
 src/features/media/               MD1/MD2/MD4/MD5·C5 adapter, 업로드·첨부·뷰어·음성 녹음/재생
@@ -533,21 +517,18 @@ src/shared/ui/                    native screen/text primitive와 플랫폼별 l
 ```
 
 - Route는 auth·chat·group screen과 root provider를 조합하고 persistence 구현을 직접 import하지 않는다.
-- `AppProviders`는 startup environment를 검증하고 theme, database, native keyboard controller와
-  runtime dependency를 조합한다.
+- `AppProviders`는 startup environment(API·미디어 origin)를 검증하고 theme, native keyboard
+  controller와 runtime dependency를 조합한다.
 - Chat screen과 UI는 유일하게 허용된 repository port를 통해 SQLite 상태를 읽고 쓴다.
 - Local send는 pending message와 outbox command를 하나의 exclusive transaction으로 commit한
   뒤에만 화면에 공개한다.
 - Chat list는 prepend anchor와 committed local target reveal을 조정하고, keyboard 진행 중에는
   UI-thread scroll을 사용한다.
 - Theme는 React Native `useColorScheme()`만 따르며 저장 preference나 state library가 없다.
-- Local fixture는 production server, HTTP, WebSocket 또는 auth를 사용하지 않는다.
-- `src/app/index.tsx`는 `local-fixture`의 M5 chat과 `connected-auth`의 로그인 화면을 구분한다.
-  인증 후에는 그룹·알림·계정 탭의 그룹 목록으로, 로그인 전에 받은 초대 링크가 있으면 가입 확인
-  화면으로 이동한다.
-- `AppProviders`는 connected mode에서 shared session, account scope와 groups/topics/chat store,
+- `src/app/index.tsx`는 로그인 전에는 로그인 화면으로, 인증 후에는 그룹·알림·계정 탭의 그룹
+  목록으로, 로그인 전에 받은 초대 링크가 있으면 가입 확인 화면으로 이동하는 redirector다.
+- `AppProviders`는 shared session, account scope와 groups/topics/chat store,
   media·푸시 수명주기 provider를 조합한다.
-  fixture DB/seed는 local-fixture mode에서만 사용하며, 실제 계정 namespace와 분리한다.
 - ESLint가 `app.config.ts`와 route/UI 계층의 직접 transport를 금지한다. 현재 허용된 실제
   네트워크 호출은 auth·health·groups·chat·topics·sync·notifications(알림함·푸시 설치)의 지정
   adapter, media native adapter의 Expo fetch와 `src/core/http/` 경계를 통과한다. 이후 server

@@ -27,8 +27,10 @@ import { InlineMessage } from "@/shared/ui/inline-message";
 import { NativeButton } from "@/shared/ui/native-button";
 import type { MessageAttachmentMedia } from "@/features/media/ui/message-attachments-view";
 
-import type { ChatConversation } from "../use-chat-conversation";
-import type { ChatMessage } from "../model/chat-message-window";
+import type {
+  ChatConversation,
+  ChatMessage,
+} from "../model/chat-message-window";
 import { buildChatMessageRowMeta } from "../model/chat-message-grouping";
 import {
   decideNewMessageScroll,

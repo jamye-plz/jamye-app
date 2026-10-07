@@ -1,4 +1,4 @@
-import type { Migration } from "../../migrations/001-initial-schema";
+import type { Migration } from "../../types";
 
 // Version 007 (E2/C2/U2) widens connected_chat_outbox_commands.error_code's
 // CHECK to also accept 'media_expired' -- the distinct terminal failure for a

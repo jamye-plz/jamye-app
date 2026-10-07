@@ -116,13 +116,11 @@ const M3_TEST_PATHS = Object.freeze([
   "tests/quality/nix-avd.test.ts",
 ]);
 
-const M4_TEST_PATHS = Object.freeze([
-  "tests/contracts/bootstrap-sources.test.ts",
-  "tests/contracts/contract-tooling.test.ts",
-  "tests/contracts/validate-wire.test.ts",
-  "tests/core/database/migrations.test.ts",
-  "tests/core/database/repository.test.ts",
-]);
+// M17 round 3 (task-app-fixture-removal): the bootstrap contract and fixture
+// repository tests retired with their sources (M17_RETIRED_FIXTURE_PATHS);
+// the direct `runMigrations` unit test remains, rewritten against synthetic
+// registries.
+const M4_TEST_PATHS = Object.freeze(["tests/core/database/migrations.test.ts"]);
 
 const REQUIRED_TRANSPORT_GLOBS = Object.freeze([
   "app.config.ts",
@@ -227,45 +225,11 @@ const M3_AUTHORED_FILES = Object.freeze([
 
 const M4_DATABASE_SOURCE_FILES = Object.freeze([
   "src/core/database/migrate.ts",
-  "src/core/database/migrations/001-initial-schema.ts",
-  "src/core/database/migrations/index.ts",
-  "src/core/database/open-database.ts",
-  "src/core/database/repositories/database-repository.ts",
   "src/core/database/types.ts",
-]);
-
-const M4_CONTRACT_SOURCE_FILES = Object.freeze([
-  "src/core/contracts/canonical-json.ts",
-  "src/core/contracts/generated/bootstrap-api.ts",
-  "src/core/contracts/index.ts",
-  "src/core/contracts/map-message-event.ts",
-  "src/core/contracts/validate-wire.ts",
-]);
-
-const M4_BOOTSTRAP_CONTRACT_FILES = Object.freeze([
-  "contracts/bootstrap/contract.lock",
-  "contracts/bootstrap/fixtures/conversation-delta.response.json",
-  "contracts/bootstrap/fixtures/invalid/breaking-required-type-without-version-bump.json",
-  "contracts/bootstrap/fixtures/invalid/message-upsert.missing-required.json",
-  "contracts/bootstrap/fixtures/message-command.request.json",
-  "contracts/bootstrap/fixtures/message-command.response.json",
-  "contracts/bootstrap/fixtures/message-upsert.optional-field.json",
-  "contracts/bootstrap/fixtures/unknown-event.json",
-  "contracts/bootstrap/manifest.json",
-  "contracts/bootstrap/openapi.json",
-  "contracts/bootstrap/realtime-event.schema.json",
-]);
-
-const M4_CONTRACT_TOOL_FILES = Object.freeze([
-  "tools/contracts/check-bootstrap-contract.mjs",
-  "tools/contracts/generate-bootstrap-contract.mjs",
 ]);
 
 const M4_AUTHORED_FILES = Object.freeze([
   ...M4_DATABASE_SOURCE_FILES,
-  ...M4_CONTRACT_SOURCE_FILES,
-  ...M4_BOOTSTRAP_CONTRACT_FILES,
-  ...M4_CONTRACT_TOOL_FILES,
   ...M4_TEST_PATHS,
 ]);
 
@@ -326,19 +290,19 @@ const M6_01_AUTHORED_FILES = Object.freeze([
 ]);
 
 const ACTIVE_CONTRACT_SOURCE_FILES = Object.freeze([
-  ...M4_CONTRACT_SOURCE_FILES,
   ...M6_CONTRACT_SOURCE_FILES,
   "src/core/contracts/server/topics.ts",
   "src/core/contracts/server/media.ts",
   "src/core/contracts/server/notifications.ts",
   "src/core/contracts/server/push-installations.ts",
   "src/core/contracts/server/users.ts",
+  // M17 task-app-avatar (AV-AC8): U4/U5 avatar upload mapper, validators'
+  // policy constants and error classification, one file per feature like
+  // users.ts/push-installations.ts above.
+  "src/core/contracts/server/avatar.ts",
 ]);
 
-const ACTIVE_CONTRACT_TOOL_FILES = Object.freeze([
-  ...M4_CONTRACT_TOOL_FILES,
-  ...M6_CONTRACT_TOOL_FILES,
-]);
+const ACTIVE_CONTRACT_TOOL_FILES = Object.freeze([...M6_CONTRACT_TOOL_FILES]);
 
 const M6_02_AUTHORED_FILES = Object.freeze([
   "src/core/http/http-client.ts",
@@ -530,6 +494,19 @@ const M15_DATABASE_SOURCE_FILES = Object.freeze([
 // error-code migration.
 const M17_DATABASE_SOURCE_FILES = Object.freeze([
   "src/core/database/account/migrations/007-media-expired-error-code.ts",
+  // task-app-deletion-cleanup (B3/C7-C12, CLN-AC2/AC3/AC6/AC7): the 30-day
+  // local data purge -- documents-directory registry (versioned JSON, atomic
+  // write, serialized), its expo-file-system adapter, the expo-sqlite/
+  // expo-file-system database file deletion adapter, the purge service (record,
+  // cancel on same-principal open, startup sweep, one serialization section)
+  // and its production composition. expo-sqlite/expo-file-system stay under
+  // src/core/database per the ESLint boundary.
+  "src/core/database/account/account-database-name.ts",
+  "src/core/database/account/account-purge-registry.ts",
+  "src/core/database/account/account-purge-registry-file.ts",
+  "src/core/database/account/account-database-files.ts",
+  "src/core/database/account/account-local-data-purge.ts",
+  "src/core/database/account/account-local-data-purge-runtime.ts",
 ]);
 const M11_TEST_PATHS = Object.freeze([
   "tests/core/contracts/server-media-validators.test.ts",
@@ -622,14 +599,53 @@ const M5_RETIRED_PLACEHOLDER_PATHS = Object.freeze([
   "tests/features/development-fixture-screen.test.tsx",
 ]);
 
-const M5_TEST_PATHS = Object.freeze([
+// M17 round 3 (task-app-fixture-removal): the local-fixture runtime (fixture
+// SQLite repository/provider/migrations, fixture chat) and the M4 bootstrap
+// contract (sources, generated types, generator/checker, tests). Like the M5
+// placeholders they are delete-authorized, must stay absent, and are absent
+// from every active inventory; the server contract path and the account
+// database are untouched.
+const M17_RETIRED_FIXTURE_PATHS = Object.freeze([
+  "src/app/local-fixture.tsx",
+  "src/core/database/database-provider.tsx",
+  "src/core/database/open-database.ts",
+  "src/core/database/repositories/database-repository.ts",
+  "src/core/database/migrations/001-initial-schema.ts",
+  "src/core/database/migrations/index.ts",
+  "src/features/chat/model/chat-fixture.ts",
+  "src/features/chat/model/chat-send.ts",
+  "src/features/chat/use-chat-conversation.ts",
+  "src/core/contracts/index.ts",
+  "src/core/contracts/canonical-json.ts",
+  "src/core/contracts/map-message-event.ts",
+  "src/core/contracts/validate-wire.ts",
+  "src/core/contracts/generated/bootstrap-api.ts",
+  "contracts/bootstrap/contract.lock",
+  "contracts/bootstrap/fixtures/conversation-delta.response.json",
+  "contracts/bootstrap/fixtures/invalid/breaking-required-type-without-version-bump.json",
+  "contracts/bootstrap/fixtures/invalid/message-upsert.missing-required.json",
+  "contracts/bootstrap/fixtures/message-command.request.json",
+  "contracts/bootstrap/fixtures/message-command.response.json",
+  "contracts/bootstrap/fixtures/message-upsert.optional-field.json",
+  "contracts/bootstrap/fixtures/unknown-event.json",
+  "contracts/bootstrap/manifest.json",
+  "contracts/bootstrap/openapi.json",
+  "contracts/bootstrap/realtime-event.schema.json",
+  "tools/contracts/check-bootstrap-contract.mjs",
+  "tools/contracts/generate-bootstrap-contract.mjs",
+  "tests/contracts/bootstrap-sources.test.ts",
+  "tests/contracts/contract-tooling.test.ts",
+  "tests/contracts/validate-wire.test.ts",
   "tests/core/database/repository.test.ts",
-  "tests/core/app-providers.test.tsx",
   "tests/core/database/database-provider.test.tsx",
   "tests/features/chat/chat-send.test.ts",
-  "tests/app/thin-routes.test.tsx",
   "tests/features/chat/chat-message-window.test.ts",
   "tests/features/chat/chat-conversation.test.tsx",
+]);
+
+const M5_TEST_PATHS = Object.freeze([
+  "tests/core/app-providers.test.tsx",
+  "tests/app/thin-routes.test.tsx",
   "tests/features/chat/chat-composer.test.tsx",
   "tests/features/chat/chat-accessibility.test.tsx",
   "tests/quality/check-architecture.test.ts",
@@ -637,15 +653,10 @@ const M5_TEST_PATHS = Object.freeze([
 
 const M5_AUTHORED_FILES = Object.freeze([
   "src/core/database/types.ts",
-  "src/core/database/repositories/database-repository.ts",
-  "src/core/database/database-provider.tsx",
   "src/core/providers/app-providers.tsx",
-  "src/features/chat/model/chat-fixture.ts",
-  "src/features/chat/model/chat-send.ts",
   "src/app/index.tsx",
   "src/core/theme/tokens.ts",
   "src/features/chat/model/chat-message-window.ts",
-  "src/features/chat/use-chat-conversation.ts",
   "src/features/chat/ui/chat-screen.tsx",
   "src/features/chat/ui/chat-message-list.tsx",
   "src/features/chat/ui/chat-message-row.tsx",
@@ -661,7 +672,6 @@ const M5_AUTHORED_FILES = Object.freeze([
 
 const ACTIVE_DATABASE_SOURCE_FILES = Object.freeze([
   ...M4_DATABASE_SOURCE_FILES,
-  "src/core/database/database-provider.tsx",
   ...M6_03_DATABASE_SOURCE_FILES,
   ...M8_DATABASE_SOURCE_FILES,
   ...M9_DATABASE_SOURCE_FILES,
@@ -914,6 +924,26 @@ const M17_TEST_PATHS = Object.freeze([
   // M17 REFINE (task-refine): direct unit test of the shared reduce-motion
   // hook and its image fade-transition wrapper.
   "tests/shared/platform/use-reduce-motion-enabled.test.tsx",
+  // task-app-deletion-cleanup (B3/C7-C12, CLN-AC1..AC8): purge registry,
+  // registry file adapter, database file deletion adapter, purge service
+  // (30-day boundary, open-DB skip, cancel, race interleavings), production
+  // composition, and the lifecycle hook wiring.
+  "tests/core/database/account/account-purge-registry.test.ts",
+  "tests/core/database/account/account-purge-registry-file.test.ts",
+  "tests/core/database/account/account-database-files.test.ts",
+  "tests/core/database/account/account-local-data-purge.test.ts",
+  "tests/core/database/account/account-local-data-purge-runtime.test.ts",
+  "tests/features/account/model/use-account-lifecycle.test.ts",
+  // task-app-avatar (AV-AC1-AC8): avatar upload contract mappers/validators,
+  // the picker/crop/re-encode adapter, the upload hook, and the account
+  // screen's profile-photo menu/avatar components.
+  "tests/core/contracts/server/avatar.test.ts",
+  "tests/features/account/platform/avatar-photo.test.ts",
+  "tests/features/account/model/use-avatar-upload.test.ts",
+  "tests/features/account/ui/profile-photo-menu.shared.test.ts",
+  "tests/features/account/ui/profile-photo-avatar.test.tsx",
+  "tests/features/account/ui/profile-photo-menu.ios.test.tsx",
+  "tests/features/account/ui/profile-photo-menu.android.test.tsx",
 ]);
 const MEANINGFUL_TEST_PATHS = Object.freeze([
   ...new Set([
@@ -980,31 +1010,6 @@ const MEANINGFUL_TEST_PATHS = Object.freeze([
   ]),
 ]);
 
-const APPROVED_M4_DATABASE_TABLES = Object.freeze([
-  "applied_events",
-  "conversations",
-  "messages",
-  "outbox_commands",
-  "sync_cursors",
-]);
-
-const APPROVED_M4_CONTRACT_FILE_SHA256 = Object.freeze({
-  "contracts/bootstrap/openapi.json":
-    "f094ab786dfa9f753e0e154ddb5f83e7b3e9ce2907c62151c13cb9fbc10162bb",
-  "contracts/bootstrap/realtime-event.schema.json":
-    "c81d97b0453041e0e21aafc2f40fcb5cfcce1b9d4f8df609f004ceed69f50f12",
-  "contracts/bootstrap/manifest.json":
-    "ae4b2421afeb6b43a961f5ffc2485d40a4130f3d9d5e3edd852349748dbc78b3",
-  "contracts/bootstrap/contract.lock":
-    "cc9659b0ebe525809f6cee2e13ed69f2e85c1138a6bd8d16ebff75ae1dd81906",
-  "src/core/contracts/generated/bootstrap-api.ts":
-    "3e201d893114b00ccbaf03db6a52abc70f688e72c03a2d90ff8dff9d8f1a9d78",
-  "tools/contracts/generate-bootstrap-contract.mjs":
-    "a26fd30829a12000b2cf91e770983338385f19a58ed185f0a6519ef806841a1b",
-  "tools/contracts/check-bootstrap-contract.mjs":
-    "17e6642ac570dab65f7f7aabf1d40f4eeb01a0f13392d8a7bcb1b78fa205dea9",
-});
-
 const AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS = Object.freeze([
   "docs/adr/0001-expo-sdk-57-default-template.md",
   "docs/adr/0002-bun-only-package-management.md",
@@ -1016,9 +1021,9 @@ const AUTHORIZED_FORMAT_MIGRATION_DOCUMENTS = Object.freeze([
 ]);
 
 const APPROVED_DEPENDENCIES = Object.freeze({
-  "@expo/ui": "~57.0.21",
+  "@expo/ui": "~57.0.22",
   ajv: "8.20.0",
-  expo: "~57.0.26",
+  expo: "~57.0.27",
   // M16/E13: coordinator-installed via `bunx expo install
   // expo-apple-authentication` (bun add expo-apple-authentication@~57.0.2).
   "expo-apple-authentication": "~57.0.2",
@@ -1026,11 +1031,11 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   // expo-audio native peer dependency to be installed directly (C1a). Same
   // 57.0.18 was already installed and autolinked via `expo`, so the tree and
   // bundle are unchanged.
-  "expo-asset": "~57.0.18",
+  "expo-asset": "~57.0.19",
   "expo-audio": "~57.0.5",
-  "expo-auth-session": "~57.0.13",
+  "expo-auth-session": "~57.0.14",
   "expo-clipboard": "~57.0.2",
-  "expo-constants": "~57.0.20",
+  "expo-constants": "~57.0.21",
   "expo-crypto": "~57.0.3",
   "expo-dev-client": "~57.0.19",
   "expo-device": "~57.0.2",
@@ -1039,15 +1044,15 @@ const APPROVED_DEPENDENCIES = Object.freeze({
   "expo-glass-effect": "~57.0.4",
   "expo-haptics": "~57.0.3",
   "expo-image": "~57.0.5",
-  "expo-image-manipulator": "~57.0.20",
+  "expo-image-manipulator": "~57.0.21",
   "expo-image-picker": "~57.0.20",
-  "expo-linking": "~57.0.11",
-  "expo-notifications": "~57.0.21",
-  "expo-router": "~57.0.24",
+  "expo-linking": "~57.0.12",
+  "expo-notifications": "~57.0.22",
+  "expo-router": "~57.0.25",
   "expo-secure-store": "~57.0.4",
   "expo-sharing": "~57.0.22",
   "expo-splash-screen": "~57.0.9",
-  "expo-sqlite": "~57.0.3",
+  "expo-sqlite": "~57.0.4",
   "expo-symbols": "~57.0.3",
   "expo-system-ui": "~57.0.4",
   "expo-video": "~57.0.5",
@@ -1096,11 +1101,11 @@ const APPROVED_DEPENDENCY_OVERRIDES = Object.freeze({
   uuid: "11.1.1",
 });
 const APPROVED_PATCHED_DEPENDENCIES = Object.freeze({
-  "expo-router@57.0.24": "patches/expo-router@57.0.24.patch",
+  "expo-router@57.0.25": "patches/expo-router@57.0.25.patch",
   "query-string@7.1.3": "patches/query-string@7.1.3.patch",
 });
 const APPROVED_DEPENDENCY_PATCH_FILE_SHA256 = Object.freeze({
-  "patches/expo-router@57.0.24.patch":
+  "patches/expo-router@57.0.25.patch":
     "db7a1721b05c69b0e57471dc2c8c7eea1f17428cf136ff268724b3319aae1287",
   "patches/query-string@7.1.3.patch":
     "3501a7e3d4d32cdf00e245e581c66bdf46ed9358b6295571952aec2d5ad0e162",
@@ -1120,8 +1125,10 @@ const APPROVED_PACKAGE_TOP_LEVEL_KEYS = Object.freeze([
 
 // A22 (2026-10-06): compression 1.8.1 -> 1.8.2 and source-map-js 1.2.1 ->
 // 1.2.2 (bun audit advisories); braces and node-forge have no patched release.
+// B7 (M17 round 3, 2026-10-06): ten Expo SDK 57 patch releases aligned with
+// `expo install --fix`; the expo-router patch moved to 57.0.25 unchanged.
 const APPROVED_BUN_LOCK_SHA256 =
-  "2393f74510429f5151207c4de144d536b72fccc380be0e7dc8bcf7f225abde7b";
+  "79c5ecf072f40b4e059b6929f42d632ffc1208c2046c09b95611de4ec8a5001f";
 
 const APPROVED_DEVELOPMENT_IDENTITY = Object.freeze({
   name: "Jamye Development",
@@ -1150,7 +1157,8 @@ const APPROVED_FIREBASE_ANDROID_CONFIG = "google-services.json";
 const APPROVED_MEDIA_PICKER_PLUGIN = Object.freeze([
   "expo-image-picker",
   Object.freeze({
-    photosPermission: "선택한 사진과 동영상을 대화에 첨부하기 위해 접근합니다.",
+    photosPermission:
+      "선택한 사진과 동영상을 대화에 첨부하거나 프로필 사진으로 사용하기 위해 접근합니다.",
     cameraPermission: false,
   }),
 ]);
@@ -1508,8 +1516,6 @@ const APPROVED_PRETTIER_IGNORE_ENTRIES = Object.freeze([
   ".mcp.json",
   "assets/",
   "tsconfig.json",
-  "contracts/bootstrap/openapi.json",
-  "contracts/bootstrap/realtime-event.schema.json",
   "contracts/server/manifest.json",
   "contracts/server/openapi.json",
   ...M9_SERVER_CONTRACT_FILES,
@@ -1999,13 +2005,14 @@ const M16_AUTHORED_FILES = Object.freeze([
 // M17 round 1 (task-app-auth, plan api_contracts.E7a_auth_routing /
 // F6_auth_controller_modules): the login screen's own route (split out of
 // `app/index.tsx`, AUTH-AC1) and the local-fixture mode's own route
-// (AUTH-AC2). `src/core/auth/auth-controller.ts` split (F6/AUTH-AC5) is
+// (AUTH-AC2; removed in round 3, see M17_RETIRED_FIXTURE_PATHS). `src/core/auth/auth-controller.ts` split (F6/AUTH-AC5) is
 // tracked as remaining work in this round's result report -- its planned new
 // module files are not created yet, so they are not listed here. Later M17
 // tasks append their own new paths here (append-only).
 const M17_AUTHORED_FILES = Object.freeze([
+  // M17 round 3 (B7): expo-router patch re-keyed to 57.0.25.
+  "patches/expo-router@57.0.25.patch",
   "src/app/(auth)/sign-in.tsx",
-  "src/app/local-fixture.tsx",
   // task-app-groups (E7c/C9/GROUPS-AC4/AC10): the new shared platform
   // haptics module -- `haptics.ios.ts` is the real `expo-haptics` wrapper,
   // `haptics.android.ts` is its no-op sibling, `haptics.ts` is the tsc
@@ -2080,6 +2087,37 @@ const M17_AUTHORED_FILES = Object.freeze([
   // on iOS 27 without the UIScene life cycle -- the local config plugin that
   // backports the SDK 58 template's scene setup (removed with SDK 58).
   "tools/expo/with-ios-scene-lifecycle.cjs",
+  // task-app-deletion-cleanup (B3/C7-C12): the 30-day local data purge sources
+  // (tests are covered by M17_TEST_PATHS below).
+  "src/core/database/account/account-database-name.ts",
+  "src/core/database/account/account-purge-registry.ts",
+  "src/core/database/account/account-purge-registry-file.ts",
+  "src/core/database/account/account-database-files.ts",
+  "src/core/database/account/account-local-data-purge.ts",
+  "src/core/database/account/account-local-data-purge-runtime.ts",
+  // task-app-avatar (B2/B4/C3-C6, AV-AC1-AC8): avatar upload contract
+  // mappers/validators, the platform picker/crop/re-encode adapter, the
+  // upload model hook with its failure copy, and the profile-photo menu and
+  // avatar components (tests are covered by M17_TEST_PATHS below).
+  "src/core/contracts/server/avatar.ts",
+  "src/features/account/model/avatar-upload-failure.ts",
+  "src/features/account/model/use-avatar-upload.ts",
+  "src/features/account/platform/avatar-photo.ts",
+  "src/features/account/ui/profile-photo-avatar.tsx",
+  "src/features/account/ui/profile-photo-menu.tsx",
+  "src/features/account/ui/profile-photo-menu.ios.tsx",
+  "src/features/account/ui/profile-photo-menu.android.tsx",
+  "src/features/account/ui/profile-photo-menu.types.ts",
+  "src/features/account/ui/profile-photo-menu.shared.ts",
+  // task-refine (REFINE Step 9): the profile-photo failure alert and action
+  // hook shared by both account screens, and the native image-manipulator
+  // accessor/renderer shared by the avatar pipeline and the image normalizer
+  // (tests are covered by M17_TEST_PATHS below).
+  "src/features/account/ui/profile-photo-failure-alert.tsx",
+  "src/features/account/ui/use-profile-photo-actions.ts",
+  "src/features/media/platform/native-image-manipulator.ts",
+  // task-docs (B, C12): the ADR that supersedes ADR 0008 decisions 5 and 6.
+  "docs/adr/0015-avatar-hosting-and-local-data-purge.md",
   ...M17_TEST_PATHS,
 ]);
 
@@ -2288,6 +2326,7 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
   "assets/images/tabIcons/home@3x.png",
   "assets/images/tutorial-web.png",
   ...M5_RETIRED_PLACEHOLDER_PATHS,
+  ...M17_RETIRED_FIXTURE_PATHS,
   // task-app-groups: G5 replaces the invite-issue sheet with a direct
   // share-sheet flow (7-day unlimited invite -> system share).
   "src/features/groups/ui/group-owner-panel.tsx",
@@ -2334,6 +2373,9 @@ const AUTHORIZED_DELETE_PATHS = Object.freeze([
   // was deleted with no replacement.
   "patches/expo-router@57.0.20.patch",
   "patches/image-size@1.2.1.patch",
+  // M17 round 3 (B7): expo-router 57.0.25 still needs the same
+  // unhandled-link fix; the unchanged patch moved to the new version key.
+  "patches/expo-router@57.0.24.patch",
 ]);
 
 const REQUIRED_PRE_QUALITY_PATHS = Object.freeze([
@@ -2801,13 +2843,12 @@ function checkM4Foundation(snapshot, violations) {
 
   if (
     !sameStringSet(sourceInventory.database, ACTIVE_DATABASE_SOURCE_FILES) ||
-    !sameStringSet(sourceInventory.bootstrap, M4_BOOTSTRAP_CONTRACT_FILES) ||
     !sameStringSet(sourceInventory.tools, ACTIVE_CONTRACT_TOOL_FILES)
   ) {
     pushViolation(
       violations,
       "m4-source-ownership",
-      "Active database and contract-tool inventories must equal the approved M4/M5/M6 baseline plus the bounded M8 connected-chat extension; fixture ownership remains unchanged.",
+      "Active database and contract-tool inventories must equal the approved migration-runner/types baseline plus the account-scoped database sources and the M6 server contract tools; the fixture database and bootstrap tools are retired.",
     );
   }
 
@@ -2815,32 +2856,34 @@ function checkM4Foundation(snapshot, violations) {
     pushViolation(
       violations,
       "no-manual-rest-dto",
-      "src/core/contracts must contain exactly the approved mapper/validator sources plus the sole generated bootstrap-api.ts and the M6 server contract validator/mapper/generated sources; hand-maintained duplicate REST DTO files are forbidden.",
+      "src/core/contracts must contain exactly the approved M6 server contract validator/mapper/generated sources; hand-maintained duplicate REST DTO files and the retired bootstrap contract sources are forbidden.",
     );
   }
+}
 
-  if (!sameStringSet(m4.databaseTables, APPROVED_M4_DATABASE_TABLES)) {
+function checkM17FixtureRemoval(snapshot, violations) {
+  const m17 = isPlainObject(snapshot && snapshot.m17) ? snapshot.m17 : {};
+  const presentPaths = Array.isArray(m17.retiredFixturePathsPresent)
+    ? m17.retiredFixturePathsPresent
+    : [];
+  const requiredPaths = Array.isArray(m17.requiredPreQualityPaths)
+    ? m17.requiredPreQualityPaths
+    : [];
+  const meaningfulPaths = Array.isArray(m17.meaningfulTestPaths)
+    ? m17.meaningfulTestPaths
+    : [];
+
+  if (
+    !sameStringSet(m17.authorizedDeletePaths, M17_RETIRED_FIXTURE_PATHS) ||
+    presentPaths.length > 0 ||
+    M17_RETIRED_FIXTURE_PATHS.some(
+      (file) => requiredPaths.includes(file) || meaningfulPaths.includes(file),
+    )
+  ) {
     pushViolation(
       violations,
-      "m4-five-table-schema",
-      "The numbered SQLite migrations must declare exactly conversations, messages, outbox_commands, applied_events, and sync_cursors.",
-    );
-  }
-
-  if (!deepEqual(m4.contractFileSha256, APPROVED_M4_CONTRACT_FILE_SHA256)) {
-    pushViolation(
-      violations,
-      "contract-generated-ownership",
-      "Bootstrap sources, generator/checker, manifest, lock, and generated TypeScript must equal their approved SHA-256 ownership map.",
-    );
-  }
-
-  const contractCheck = isPlainObject(m4.contractCheck) ? m4.contractCheck : {};
-  if (contractCheck.status !== "ok") {
-    pushViolation(
-      violations,
-      "contract-generated-drift",
-      `The non-mutating bootstrap contract checker must report status=ok${typeof contractCheck.reason === "string" ? ` (${contractCheck.reason})` : ""}.`,
+      "m17-retired-fixture-transition",
+      "Exactly the retired local-fixture runtime and M4 bootstrap contract paths must be delete-authorized, absent from the working tree, and absent from the active pre-quality and meaningful-test inventories.",
     );
   }
 }
@@ -3503,6 +3546,7 @@ function checkArchitecture(snapshot) {
   checkM4Foundation(snapshot, violations);
   checkM6Foundation(snapshot, violations);
   checkM5Foundation(snapshot, violations);
+  checkM17FixtureRemoval(snapshot, violations);
   checkLintTransportBinding(snapshot, violations);
   checkHapticsImportScope(snapshot, violations);
   checkExpoBasePreservation(snapshot, violations);
@@ -3595,28 +3639,7 @@ function discoverM5TestInventory(root, { fs, path }) {
   ].sort();
 }
 
-function discoverM4DatabaseTables(root, { fs, path }) {
-  const migrationFiles = listFilesUnder(
-    root,
-    { fs, path },
-    "src/core/database/migrations",
-  ).filter((relativePath) => relativePath.endsWith(".ts"));
-  const tableNames = [];
-
-  for (const relativePath of migrationFiles) {
-    const contents = fs.readFileSync(path.join(root, relativePath), "utf8");
-    const declarations = contents.matchAll(
-      /\bCREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+([a-z][a-z0-9_]*)\b/gi,
-    );
-    for (const declaration of declarations) {
-      tableNames.push(declaration[1].toLowerCase());
-    }
-  }
-
-  return tableNames.sort();
-}
-
-function parseBootstrapContractCheckOutput(output) {
+function parseContractCheckOutput(output) {
   const lines = String(output || "")
     .trim()
     .split("\n")
@@ -3628,33 +3651,6 @@ function parseBootstrapContractCheckOutput(output) {
     return isPlainObject(parsed) ? parsed : null;
   } catch {
     return null;
-  }
-}
-
-function runBootstrapContractCheck(root, { execFileSync, path }) {
-  const scriptPath = path.join(
-    root,
-    "tools/contracts/check-bootstrap-contract.mjs",
-  );
-  try {
-    const output = execFileSync(process.execPath, [scriptPath], {
-      cwd: root,
-      encoding: "utf8",
-      shell: false,
-    });
-    return (
-      parseBootstrapContractCheckOutput(output) || {
-        reason: "checker-produced-no-json-result",
-        status: "error",
-      }
-    );
-  } catch (error) {
-    return (
-      parseBootstrapContractCheckOutput(error && error.stdout) || {
-        reason: error && error.message ? error.message : String(error),
-        status: "error",
-      }
-    );
   }
 }
 
@@ -3670,14 +3666,14 @@ function runServerContractCheck(root, { execFileSync, path }) {
       shell: false,
     });
     return (
-      parseBootstrapContractCheckOutput(output) || {
+      parseContractCheckOutput(output) || {
         reason: "checker-produced-no-json-result",
         status: "error",
       }
     );
   } catch (error) {
     return (
-      parseBootstrapContractCheckOutput(error && error.stdout) || {
+      parseContractCheckOutput(error && error.stdout) || {
         reason: error && error.message ? error.message : String(error),
         status: "error",
       }
@@ -3773,23 +3769,14 @@ function buildLiveSnapshot(
       computeFileSha256({ fs, crypto }, path.join(root, relativePath)),
     ]),
   );
-  const contractFileSha256 = Object.fromEntries(
-    Object.keys(APPROVED_M4_CONTRACT_FILE_SHA256).map((relativePath) => [
-      relativePath,
-      computeFileSha256({ fs, crypto }, path.join(root, relativePath)),
-    ]),
-  );
   const m4SourceInventory = {
-    bootstrap: listFilesUnder(root, { fs, path }, "contracts/bootstrap"),
     contracts: listFilesUnder(root, { fs, path }, "src/core/contracts"),
     database: listFilesUnder(root, { fs, path }, "src/core/database"),
     tools: listFilesUnder(root, { fs, path }, "tools/contracts"),
   };
-  const databaseTables = discoverM4DatabaseTables(root, { fs, path });
-  const contractCheck = runBootstrapContractCheck(root, {
-    execFileSync,
-    path,
-  });
+  const retiredFixturePathsPresent = M17_RETIRED_FIXTURE_PATHS.filter(
+    (relativePath) => fs.existsSync(path.join(root, relativePath)),
+  );
 
   const inheritedClassification = {
     nodeModules: classifyInheritedOutput(
@@ -3875,10 +3862,13 @@ function buildLiveSnapshot(
     bunLockSha256,
     dependencyPatchFileSha256,
     m4: {
-      contractCheck,
-      contractFileSha256,
-      databaseTables,
       sourceInventory: m4SourceInventory,
+    },
+    m17: {
+      authorizedDeletePaths: M17_RETIRED_FIXTURE_PATHS,
+      retiredFixturePathsPresent,
+      requiredPreQualityPaths: REQUIRED_PRE_QUALITY_PATHS,
+      meaningfulTestPaths: MEANINGFUL_TEST_PATHS,
     },
     m6: {
       contractCheck: runServerContractCheck(root, { execFileSync, path }),
@@ -4551,7 +4541,6 @@ function resolveLiveExpoConfig({ execFileSync }, root) {
       PATH: process.env.PATH,
       HOME: process.env.HOME,
       APP_VARIANT: "development",
-      EXPO_PUBLIC_APP_MODE: "local-fixture",
     };
     const output = execFileSync(
       "./node_modules/.bin/expo",
@@ -4913,8 +4902,6 @@ module.exports = {
   APPROVED_RECOVERY_FILE_SHA256,
   APPROVED_PATCHED_DEPENDENCIES,
   APPROVED_DEPENDENCY_PATCH_FILE_SHA256,
-  APPROVED_M4_CONTRACT_FILE_SHA256,
-  APPROVED_M4_DATABASE_TABLES,
   APPROVED_GITIGNORE_SHA256,
   REQUIRED_GITIGNORE_ENTRIES,
   EXACT_PACKAGE_SCRIPTS,
@@ -4922,6 +4909,7 @@ module.exports = {
   GLOBAL_COVERAGE_THRESHOLD,
   MEANINGFUL_TEST_PATHS,
   M4_AUTHORED_FILES,
+  M17_RETIRED_FIXTURE_PATHS,
   M6_SERVER_CONTRACT_FILES,
   M6_CONTRACT_SOURCE_FILES,
   M6_CONTRACT_TOOL_FILES,

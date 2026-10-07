@@ -12,15 +12,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack } from "expo-router";
 import { Host } from "@expo/ui";
 
-import { useAppRuntime } from "@/core/providers/app-providers";
 import { useAppTheme } from "@/core/theme/theme-provider";
 import { appChatLayout, appSpacing } from "@/core/theme/tokens";
-import {
-  FIXTURE_CONVERSATION_ID,
-  LOCAL_FIXTURE_NOTICE,
-} from "@/features/chat/model/chat-fixture";
-import { createChatSendController } from "@/features/chat/model/chat-send";
-import type { ChatSendController } from "@/features/chat/model/chat-send";
+import type { ChatConversation } from "@/features/chat/model/chat-message-window";
 import { destructiveConfirmCopy } from "@/features/chat/model/destructive-confirm-copy";
 import type { PendingDestructive } from "@/features/chat/model/destructive-confirm-copy";
 import { useMediaSharing } from "@/features/media/model/media-sharing";
@@ -28,16 +22,14 @@ import { ConfirmAlert } from "@/shared/ui/confirm-alert";
 import { HeaderActions } from "@/shared/ui/header-actions";
 import type { HeaderAction } from "@/shared/ui/header-actions";
 import { HeaderTitleButton } from "@/shared/ui/header-title-button";
-import { InlineMessage } from "@/shared/ui/inline-message";
-import type { ChatConversation } from "../use-chat-conversation";
 
 import type { MediaAttachmentController } from "@/features/media/ui/media-attachment-types";
 
-import { useChatConversation } from "../use-chat-conversation";
 import { ChatComposer } from "./chat-composer";
 import { ChatKeyboardFrame as AndroidChatKeyboardFrame } from "./chat-keyboard-frame.android";
 import { ChatKeyboardFrame as IosChatKeyboardFrame } from "./chat-keyboard-frame.ios";
 import { ChatMessageList } from "./chat-message-list";
+import type { ChatSendController } from "./use-chat-composer";
 import { SystemFeedbackHost } from "@/shared/ui/system-feedback";
 
 const ChatKeyboardFrame =
@@ -60,7 +52,7 @@ const FLOATING_COMPOSER_INSET_PLATFORM = process.env.EXPO_OS === "ios";
  * from accessibility. The native `Stack.Screen` header (rendered through
  * `HeaderTitleButton`) stays the visible title; this duplicate announces the
  * same heading content for initial VoiceOver focus on route entry
- * (DESIGN.md "Screen and Main Heading", C16 VoiceOver order heading -> notice -> messages ->
+ * (DESIGN.md "Screen and Main Heading", C16 VoiceOver order heading -> messages ->
  * composer -> send).
  *
  * iOS only (`supportsMainHeadingFocus`, A13): real-device TalkBack 16.0/API
@@ -119,49 +111,11 @@ function defaultFocusMainHeading(target: MainHeadingTarget): void {
   }
 }
 
-export function ChatScreen({
-  focusMainHeading = defaultFocusMainHeading,
-}: Readonly<{
-  focusMainHeading?: (target: MainHeadingTarget) => void;
-}>) {
-  const { repository, clock, messageIdentity } = useAppRuntime();
-  const conversation = useChatConversation({
-    conversationId: FIXTURE_CONVERSATION_ID,
-    repository,
-  });
-  const controller = createChatSendController({
-    clock,
-    conversationId: FIXTURE_CONVERSATION_ID,
-    messageIdentity,
-    repository,
-    senderId: "local-user",
-  });
-  return (
-    <ChatConversationScreen
-      title="로컬 대화"
-      notice={LOCAL_FIXTURE_NOTICE}
-      conversation={conversation}
-      controller={controller}
-      onRetryFailedMessage={(input) => {
-        void controller.retryFailedMessage(input);
-      }}
-      // M5 local fixture messages never carry a serverMessageId, so
-      // ChatMessageRow's menu never surfaces 삭제 here -- these two are
-      // unreachable no-ops, required only because ChatConversationScreen is
-      // the shared shell the connected screen also renders through.
-      onDeleteMessage={() => {}}
-      onDiscardFailedMessage={() => {}}
-      focusMainHeading={focusMainHeading}
-    />
-  );
-}
-
 export function ChatConversationScreen({
   title,
   subtitle,
   titleAccessibilityHint,
   onTitlePress,
-  notice,
   conversation,
   controller,
   onRetryFailedMessage,
@@ -183,9 +137,8 @@ export function ChatConversationScreen({
    * title, per `HeaderTitleButton`. */
   onTitlePress?: () => void;
   titleAccessibilityHint?: string;
-  notice?: string;
   conversation: ChatConversation;
-  controller: Pick<ChatSendController, "send">;
+  controller: ChatSendController;
   onRetryFailedMessage: (
     input: Readonly<{ clientMsgId: string; conversationId: string }>,
   ) => void;
@@ -317,9 +270,6 @@ export function ChatConversationScreen({
                   />
                 ) : null}
                 {toolbar}
-                {notice ? (
-                  <InlineMessage kind="notice" message={notice} />
-                ) : null}
                 <ChatMessageList
                   bottomInsetExtra={
                     FLOATING_COMPOSER_INSET_PLATFORM ? composerHeight : 0

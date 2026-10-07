@@ -283,9 +283,6 @@ jest.mock("@/features/topics/ui/topic-edit-form", () => {
   });
   return { TopicEditForm };
 });
-jest.mock("@/core/config/public-env", () => ({
-  getPublicEnv: () => ({ appMode: "connected-auth" }),
-}));
 jest.mock("@/core/providers/session-provider", () => ({
   useSession: () => ({
     principal: { userId: "44444444-4444-4444-8444-444444444444" },

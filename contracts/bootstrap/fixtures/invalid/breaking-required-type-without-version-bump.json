@@ -1,7 +1,0 @@
-{
-  "contract_version": "bootstrap.v2",
-  "mutation": {
-    "pointer": "/$defs/messageUpsertPayload/properties/body/type",
-    "replacement": "integer"
-  }
-}

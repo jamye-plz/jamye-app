@@ -1,6 +1,6 @@
 /**
  * App-wide wiring for the Expo push installation lifecycle. Mounted inside
- * `AppProviders`' connected-auth branch (a sibling provider next to
+ * `AppProviders` (a sibling provider next to
  * `MediaProvider`/`GroupsProvider`, not a `session-provider.tsx` edit): it
  * observes `useSession().principal` and drives A2's pure
  * `push-lifecycle.ts` state machine with A1's concrete

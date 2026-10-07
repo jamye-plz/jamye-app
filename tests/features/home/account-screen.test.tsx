@@ -63,6 +63,54 @@ jest.mock("@/features/account/model/use-account-lifecycle", () => ({
     deleteAccount: mockDeleteAccount,
   })),
 }));
+// AV-AC4: the avatar upload hook and the profile-photo menu are stood in so
+// this file pins the screen's wiring; the real menus have their own tests in
+// tests/features/account/ui/profile-photo-menu.*.test.tsx.
+const mockAvatarUpload = {
+  phase: "idle" as string,
+  busy: false,
+  progress: null as number | null,
+  failure: null as { message: string; retryable: boolean } | null,
+  hasAvatar: false,
+  selectPhoto: jest.fn(),
+  resetToDefault: jest.fn(),
+  retry: jest.fn(),
+  dismissFailure: jest.fn(),
+};
+jest.mock("@/features/account/model/use-avatar-upload", () => ({
+  useAvatarUpload: () => mockAvatarUpload,
+}));
+jest.mock("@/features/account/ui/profile-photo-menu", () => {
+  const { Pressable, View } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+  return {
+    ProfilePhotoMenu: (props: {
+      actions: readonly {
+        key: string;
+        label: string;
+        disabled: boolean;
+        onPress: () => void;
+      }[];
+      label?: React.ReactNode;
+      testID?: string;
+      expanded?: boolean;
+      onExpandedChange?: (expanded: boolean) => void;
+    }) => (
+      <View testID={props.testID} {...({ expanded: props.expanded } as object)}>
+        {props.label}
+        {props.actions.map((action) => (
+          <Pressable
+            accessibilityLabel={action.label}
+            accessibilityState={{ disabled: action.disabled }}
+            key={action.key}
+            onPress={action.disabled ? undefined : action.onPress}
+            testID={`${props.testID}-action-${action.key}`}
+          />
+        ))}
+      </View>
+    ),
+  };
+});
 jest.mock("@/features/notifications/ui/notification-settings-section", () => {
   const { Text: RNText } =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -353,5 +401,119 @@ describe("account screen (ios)", () => {
     } finally {
       profile.provider = "kakao";
     }
+  });
+});
+
+describe("account screen profile photo (ios, AV-AC4)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    Object.assign(mockAvatarUpload, {
+      phase: "idle",
+      busy: false,
+      progress: null,
+      failure: null,
+      hasAvatar: true,
+    });
+    mockPrincipal = {
+      origin: "https://api.example",
+      userId: profile.id,
+      epoch: 1,
+    };
+    mockAccountState = { status: "ready", database: {} };
+  });
+
+  test("puts a 프로필 사진 row in the 프로필 section ahead of the nickname row", async () => {
+    const screen = await renderScreen();
+    expect(screen.getByText("프로필 사진")).toBeTruthy();
+    expect(screen.getByTestId("profile-photo-row-menu")).toBeTruthy();
+    expect(screen.getByTestId("profile-photo-header-menu")).toBeTruthy();
+  });
+
+  test.each(["profile-photo-header-menu", "profile-photo-row-menu"])(
+    "%s offers 사진 선택 and 기본 이미지로 wired to the upload hook",
+    async (menu) => {
+      const screen = await renderScreen();
+      await fireEvent.press(screen.getByTestId(`${menu}-action-select`));
+      expect(mockAvatarUpload.selectPhoto).toHaveBeenCalledTimes(1);
+      await fireEvent.press(screen.getByTestId(`${menu}-action-reset`));
+      expect(mockAvatarUpload.resetToDefault).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test("disables 기본 이미지로 in both menus when the account has no avatar", async () => {
+    mockAvatarUpload.hasAvatar = false;
+    const screen = await renderScreen();
+    for (const menu of [
+      "profile-photo-header-menu",
+      "profile-photo-row-menu",
+    ]) {
+      expect(
+        screen.getByTestId(`${menu}-action-reset`).props.accessibilityState,
+      ).toEqual({ disabled: true });
+      expect(
+        screen.getByTestId(`${menu}-action-select`).props.accessibilityState,
+      ).toEqual({ disabled: false });
+    }
+  });
+
+  test("shows a progress indicator on the avatar and disables the controls while uploading", async () => {
+    Object.assign(mockAvatarUpload, {
+      phase: "uploading",
+      busy: true,
+      progress: 0.4,
+    });
+    const screen = await renderScreen();
+    expect(screen.getByTestId("profile-photo-progress")).toBeTruthy();
+    for (const menu of [
+      "profile-photo-header-menu",
+      "profile-photo-row-menu",
+    ]) {
+      for (const key of ["select", "reset"]) {
+        expect(
+          screen.getByTestId(`${menu}-action-${key}`).props.accessibilityState,
+        ).toEqual({ disabled: true });
+      }
+    }
+  });
+
+  test("shows no progress indicator when idle", async () => {
+    const screen = await renderScreen();
+    expect(screen.queryByTestId("profile-photo-progress")).toBeNull();
+  });
+
+  test("a retryable failure shows its Korean reason with 다시 시도, which retries; 닫기 dismisses", async () => {
+    mockAvatarUpload.phase = "failed";
+    mockAvatarUpload.failure = {
+      message: "네트워크 연결을 확인한 뒤 다시 시도해 주세요.",
+      retryable: true,
+    };
+    const screen = await renderScreen();
+    expect(screen.getByTestId("profile-photo-failure-alert")).toBeTruthy();
+    expect(
+      screen.getByText("네트워크 연결을 확인한 뒤 다시 시도해 주세요."),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "다시 시도" }));
+    expect(mockAvatarUpload.retry).toHaveBeenCalledTimes(1);
+    await fireEvent.press(
+      screen.getByTestId("profile-photo-failure-alert-cancel"),
+    );
+    expect(mockAvatarUpload.dismissFailure).toHaveBeenCalledTimes(1);
+  });
+
+  test("a non-retryable failure is acknowledge-only (확인), with no 다시 시도", async () => {
+    mockAvatarUpload.phase = "failed";
+    mockAvatarUpload.failure = {
+      message: "이 사진은 사용할 수 없습니다. 다른 사진을 선택해 주세요.",
+      retryable: false,
+    };
+    const screen = await renderScreen();
+    expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "확인" }));
+    expect(mockAvatarUpload.dismissFailure).toHaveBeenCalledTimes(1);
+  });
+
+  test("renders no failure alert when there is no failure", async () => {
+    const screen = await renderScreen();
+    expect(screen.queryByTestId("profile-photo-failure-alert")).toBeNull();
   });
 });

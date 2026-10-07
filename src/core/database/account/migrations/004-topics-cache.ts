@@ -1,4 +1,4 @@
-import type { Migration } from "../../migrations/001-initial-schema";
+import type { Migration } from "../../types";
 
 // Rebuildable topic/query snapshots only. Existing messages, outbox commands
 // and ordered event checkpoints are untouched; no backfill or destructive DDL.

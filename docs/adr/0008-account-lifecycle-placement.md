@@ -52,6 +52,13 @@ M13은 서버의 Profile update(U2 `PATCH /api/v1/me`)와 account deletion(U3 `D
 
 ### 3. Push installation 비활성화 → 계정 삭제 순서: 기존 로그아웃 순서를 그대로 거울
 
+> **갱신(2026-10-06, M17 (B))**: 아래 서술은 M13 시점의 결정이다. 기기 검증 이후 앱은 DELETE 호출 전에
+> push installation을 비활성화하지 않는다. 서버가 계정 삭제 유예 트랜잭션 안에서 해당 계정의 push
+> installation을 이미 비활성화하므로(jamye-server `src/adapters/postgres/account_deletion/grace.rs`),
+> 거절·차단·실패한 삭제(409 `group_ownership_transfer_required`, 422 Apple proof 오류, 500/503, 네트워크
+> 실패)에서도 이 기기의 push 구독은 그대로 남고 복구할 것이 없다. 현재 동작은
+> `src/features/account/model/account-lifecycle.ts`의 `deleteAccount` 주석을 따른다.
+
 - **채택**: `deleteAccount()`는 `pushDisable.disable()`(best-effort, 실패는 삼킴)을 먼저 호출한 뒤
   `authorizedRequest(deleteAccount)`를 호출한다. 기존 로그아웃 버튼(`account-screen.tsx`)의
   `pushLifecycle.disable()` → `session.logout()` 순서를 그대로 거울로 삼아, 그 사이에 U3 DELETE
@@ -83,6 +90,9 @@ M13은 서버의 Profile update(U2 `PATCH /api/v1/me`)와 account deletion(U3 `D
 
 ### 5. 아바타 업로드: 이번 범위에서 보류
 
+> **Superseded by [ADR 0015](0015-avatar-hosting-and-local-data-purge.md)** (2026-10-06, M17 (B)).
+> 아래는 M13 시점의 결정을 그대로 남긴 기록이다. 아바타 업로드는 서버 전용 아바타 API로 구현됐다.
+
 - **채택**: `avatar_url`은 `UserPatch` 계약과 `account-api.ts`에 이미 배선돼 있어 향후 사용
   가능하지만, 업로드 UX(이미지 선택·전송)는 M13에 포함하지 않는다.
 - **기각한 대안**: M11의 미디어 object-transfer 파이프라인
@@ -93,6 +103,10 @@ M13은 서버의 Profile update(U2 `PATCH /api/v1/me`)와 account deletion(U3 `D
   표시한 항목이며, 이번 마일스톤의 완료 증거가 다루지 않는 상호작용 표면을 끌어들인다.
 
 ### 6. 파괴적 로컬 정리: 전면 보류
+
+> **Superseded by [ADR 0015](0015-avatar-hosting-and-local-data-purge.md)** (2026-10-06, M17 (B)).
+> 아래는 M13 시점의 결정을 그대로 남긴 기록이다. 사용자 승인 아래 삭제 30일 뒤 로컬 DB 정리가
+> 구현됐다.
 
 - **채택**: U3 성공 뒤에도 삭제 전 principal의 SQLite 데이터베이스 파일과 캐시된 미디어는 디스크에
   그대로, 참조되지 않은 채로 남는다(`resolveAccountDatabaseFilename`이 origin+userId를 해시하므로
