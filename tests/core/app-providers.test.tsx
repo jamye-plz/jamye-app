@@ -35,6 +35,24 @@ jest.mock("react-native-keyboard-controller", () => {
   };
 });
 
+// CLN (task-app-deletion-cleanup): the default composition touches the
+// documents directory and expo-sqlite files; every test here injects its own
+// scope, so the production purge runtime is replaced by an inert double and
+// the real database open is replaced by a mock the gate tests can observe.
+const mockInertPurge = () => ({
+  recordAccountDeletion: jest.fn(async () => undefined),
+  setActivePrincipal: jest.fn(async () => undefined),
+  gateAccountOpen: jest.fn(async (open: () => Promise<unknown>) => open()),
+  sweep: jest.fn(async () => ({ due: 0, removed: 0, skipped: 0, failed: 0 })),
+});
+jest.mock("@/core/database/account/account-local-data-purge-runtime", () => ({
+  createDefaultAccountLocalDataPurge: () => mockInertPurge(),
+}));
+const mockOpenAccountDatabase = jest.fn();
+jest.mock("@/core/database/account/open-account-database", () => ({
+  openAccountDatabase: (...args: unknown[]) => mockOpenAccountDatabase(...args),
+}));
+
 describe("M9 production sync composition", () => {
   function setupSync() {
     const runtimeModule = jest.requireActual<
@@ -257,10 +275,12 @@ type AppProvidersProps = Readonly<{
   children: ReactNode;
   createSessionController?: (origin: string) => AuthController;
   createAccountScope?: () => AccountScopeController;
+  createAccountLocalDataPurge?: () => ReturnType<typeof mockInertPurge>;
 }>;
 type ProvidersModule = {
   AppProviders?: unknown;
   useAccountScope?: unknown;
+  useAccountLocalDataPurge?: unknown;
 };
 type ThemeModule = { useAppTheme?: unknown };
 type UseAppTheme = () => AppTheme;
@@ -818,5 +838,200 @@ describe("M6-04 connected provider composition", () => {
       screen.unmount();
     });
     expect(scope.setPrincipal).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("CLN account local data purge wiring in AppProviders", () => {
+  const profile = {
+    id: "3f0a3f1e-2f2a-4a3e-9c3b-1f8f9d3a2b4c",
+    provider: "kakao",
+    nickname: "name",
+    avatarUrl: null,
+    createdAt: "2020-01-01T00:00:00Z",
+  };
+  const signedIn = {
+    status: "signed-in" as const,
+    profile,
+    message: null,
+  };
+  const signedOut = {
+    status: "signed-out" as const,
+    profile: null,
+    message: null,
+  };
+
+  async function mountWith(
+    controller: ReturnType<typeof fakeSessionController>,
+    purge: ReturnType<typeof mockInertPurge>,
+    scope?: ReturnType<typeof fakeAccountScope>,
+    children: ReactNode = <Text>connected</Text>,
+  ) {
+    const { AppProviders } = loadProviderContract();
+    const screen = await render(
+      <AppProviders
+        createAccountLocalDataPurge={() => purge}
+        createAccountScope={scope ? () => scope : undefined}
+        createSessionController={() => controller}
+      >
+        {children}
+      </AppProviders>,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    return screen;
+  }
+
+  beforeEach(() => mockOpenAccountDatabase.mockReset());
+
+  test("CLN-AC8 the sweep waits while the session is still restoring and then runs once on a signed-out device", async () => {
+    const controller = fakeSessionController();
+    const purge = mockInertPurge();
+    await mountWith(controller, purge, fakeAccountScope());
+    expect(purge.sweep).not.toHaveBeenCalled();
+
+    await act(async () => {
+      controller.publish(signedOut);
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      controller.publish({ ...signedOut, status: "signing-in" });
+      controller.publish(signedOut);
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+  });
+
+  test("CLN-AC8 the sweep starts only after the account scope open has settled, and only once", async () => {
+    const controller = fakeSessionController(signedIn);
+    const purge = mockInertPurge();
+    const scope = fakeAccountScope();
+    await mountWith(controller, purge, scope);
+    expect(purge.sweep).not.toHaveBeenCalled();
+
+    await act(async () => {
+      scope.publish({ status: "opening" });
+    });
+    expect(purge.sweep).not.toHaveBeenCalled();
+
+    await act(async () => {
+      scope.publish({ status: "ready", database: {} });
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      scope.publish({ status: "opening" });
+      scope.publish({ status: "ready", database: {} });
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+  });
+
+  test("CLN-AC8 a failed scope open also counts as settled", async () => {
+    const controller = fakeSessionController(signedIn);
+    const purge = mockInertPurge();
+    const scope = fakeAccountScope();
+    await mountWith(controller, purge, scope);
+    await act(async () => {
+      scope.publish({ status: "error", error: new Error("open failed") });
+    });
+    expect(purge.sweep).toHaveBeenCalledTimes(1);
+  });
+
+  test("CLN-AC8 a sweep that rejects never surfaces to the UI", async () => {
+    const controller = fakeSessionController(signedOut);
+    const purge = mockInertPurge();
+    purge.sweep.mockRejectedValue(new Error("sweep exploded"));
+    const screen = await mountWith(controller, purge, fakeAccountScope());
+    expect(screen.getByText("connected")).toBeTruthy();
+  });
+
+  test("CLN-AC4 the open principal is announced to the purge before the scope opens, and cleared on sign-out and unmount", async () => {
+    const controller = fakeSessionController();
+    const purge = mockInertPurge();
+    const scope = fakeAccountScope();
+    const screen = await mountWith(controller, purge, scope);
+    expect(purge.setActivePrincipal).toHaveBeenLastCalledWith(null);
+
+    await act(async () => {
+      controller.publish(signedIn);
+    });
+    expect(purge.setActivePrincipal).toHaveBeenLastCalledWith({
+      origin: "https://api.example",
+      userId: profile.id,
+    });
+    const announcedOrders = purge.setActivePrincipal.mock.invocationCallOrder;
+    const openedOrders = scope.setPrincipal.mock.invocationCallOrder;
+    expect(announcedOrders[announcedOrders.length - 1]).toBeLessThan(
+      openedOrders[openedOrders.length - 1],
+    );
+
+    await act(async () => {
+      controller.publish(signedOut);
+    });
+    expect(purge.setActivePrincipal).toHaveBeenLastCalledWith(null);
+
+    await act(async () => {
+      controller.publish(signedIn);
+    });
+    purge.setActivePrincipal.mockClear();
+    await act(async () => {
+      screen.unmount();
+    });
+    expect(purge.setActivePrincipal).toHaveBeenCalledWith(null);
+  });
+
+  test("CLN-AC4 an epoch-only principal change does not re-announce (and so never re-cancels) the same account", async () => {
+    const controller = fakeSessionController(signedIn);
+    const purge = mockInertPurge();
+    await mountWith(controller, purge, fakeAccountScope());
+    const calls = purge.setActivePrincipal.mock.calls.length;
+    await act(async () => {
+      controller.bumpGeneration();
+      controller.publish({ ...signedIn, profile: { ...profile } });
+    });
+    expect(purge.setActivePrincipal.mock.calls.length).toBe(calls);
+  });
+
+  test("CLN-AC8 the default scope opens its database through the purge gate", async () => {
+    const controller = fakeSessionController(signedIn);
+    const purge = mockInertPurge();
+    // Keep the open pending: only the gate and the open call are observed.
+    mockOpenAccountDatabase.mockReturnValue(new Promise(() => undefined));
+    await mountWith(controller, purge);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(purge.gateAccountOpen).toHaveBeenCalledTimes(1);
+    expect(mockOpenAccountDatabase).toHaveBeenCalledWith({
+      origin: "https://api.example",
+      userId: profile.id,
+      epoch: controller.getGeneration(),
+    });
+  });
+
+  test("useAccountLocalDataPurge exposes the provided purge and throws outside AppProviders", async () => {
+    const controller = fakeSessionController(signedOut);
+    const purge = mockInertPurge();
+    const providers = loadRequiredModule<ProvidersModule>(
+      "../../src/core/providers/app-providers",
+      "src/core/providers/app-providers.tsx",
+    );
+    const useAccountLocalDataPurge =
+      providers.useAccountLocalDataPurge as () => unknown;
+    let seen: unknown;
+    function Probe(): React.JSX.Element {
+      seen = useAccountLocalDataPurge();
+      return <Text>probe</Text>;
+    }
+    await mountWith(controller, purge, fakeAccountScope(), <Probe />);
+    expect(seen).toBe(purge);
+
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(render(<Probe />)).rejects.toThrow(/AppProviders/);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

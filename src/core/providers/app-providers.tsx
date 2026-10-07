@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { PropsWithChildren } from "react";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { randomUUID } from "expo-crypto";
@@ -9,6 +16,9 @@ import type {
   AccountScopeController,
   AccountScopeRenderedState,
 } from "@/core/database/account/account-scope";
+import type { AccountLocalDataPurge } from "@/core/database/account/account-local-data-purge";
+import { createDefaultAccountLocalDataPurge } from "@/core/database/account/account-local-data-purge-runtime";
+import { openAccountDatabase as defaultOpenAccountDatabase } from "@/core/database/account/open-account-database";
 import { AppThemeProvider } from "@/core/theme/theme-provider";
 import {
   createGroupsApi,
@@ -57,6 +67,8 @@ import type { SessionProviderProps } from "./session-provider";
 export type AppProvidersProps = PropsWithChildren<{
   createSessionController?: SessionProviderProps["createController"];
   createAccountScope?: () => AccountScopeController;
+  /** B3: device-local purge of a deleted account's database (test seam). */
+  createAccountLocalDataPurge?: () => AccountLocalDataPurge;
   createGroupsStore?: (origin: string) => GroupsStore;
 }>;
 
@@ -68,6 +80,9 @@ export type AccountScopeContextValue = Readonly<{
 const AccountScopeContext = createContext<AccountScopeContextValue | undefined>(
   undefined,
 );
+const AccountLocalDataPurgeContext = createContext<
+  AccountLocalDataPurge | undefined
+>(undefined);
 function createDefaultGroupsStore(): GroupsStore {
   return createGroupsStore({ createApi: createGroupsApi });
 }
@@ -232,21 +247,27 @@ export function AppProviders({
   children,
   createSessionController,
   createAccountScope,
+  createAccountLocalDataPurge = createDefaultAccountLocalDataPurge,
   createGroupsStore: groupsStoreFactory,
 }: AppProvidersProps) {
   const env = getPublicEnv();
+  const [accountLocalDataPurge] = useState<AccountLocalDataPurge>(
+    createAccountLocalDataPurge,
+  );
 
   return (
     <KeyboardProvider>
       <AppThemeProvider>
-        <ConnectedRuntimeProviders
-          accountScopeFactory={createAccountScope}
-          createSessionController={createSessionController}
-          groupsStoreFactory={groupsStoreFactory}
-          origin={env.apiOrigin}
-        >
-          {children}
-        </ConnectedRuntimeProviders>
+        <AccountLocalDataPurgeContext.Provider value={accountLocalDataPurge}>
+          <ConnectedRuntimeProviders
+            accountScopeFactory={createAccountScope}
+            createSessionController={createSessionController}
+            groupsStoreFactory={groupsStoreFactory}
+            origin={env.apiOrigin}
+          >
+            {children}
+          </ConnectedRuntimeProviders>
+        </AccountLocalDataPurgeContext.Provider>
       </AppThemeProvider>
     </KeyboardProvider>
   );
@@ -337,12 +358,23 @@ function ChatStoreBridge({ children }: PropsWithChildren) {
 
 function AccountScopeBridge({
   children,
-  accountScopeFactory = createDefaultAccountScope,
+  accountScopeFactory,
 }: PropsWithChildren<
   Readonly<{ accountScopeFactory?: () => AccountScopeController }>
 >) {
-  const { principal } = useSession();
-  const [scope] = useState<AccountScopeController>(accountScopeFactory);
+  const { principal, state: sessionState } = useSession();
+  const purge = useAccountLocalDataPurge();
+  const [scope] = useState<AccountScopeController>(() =>
+    accountScopeFactory
+      ? accountScopeFactory()
+      : // Opens run inside the purge's serialization section so a sweep delete
+        // and a database open can never overlap on the same files.
+        createDefaultAccountScope((openPrincipal) =>
+          purge.gateAccountOpen(() =>
+            defaultOpenAccountDatabase(openPrincipal),
+          ),
+        ),
+  );
   // Bind every notification to the principal that actually opened this scope.
   // A changed session is hidden synchronously, before effects close the old DB.
   const [snapshot, setSnapshot] = useState<{
@@ -352,6 +384,21 @@ function AccountScopeBridge({
     principal: null,
     state: scope.getState(),
   }));
+
+  // B3/C9: announce the open principal to the purge before the scope opens.
+  // Keyed by origin + user id (not the per-refresh epoch) so a token refresh
+  // never re-runs the cancel against an account that is mid-deletion. It
+  // marks the database as open for the sweep and cancels a pending purge of
+  // the same user_id (a recovery).
+  const principalOrigin = principal?.origin ?? null;
+  const principalUserId = principal?.userId ?? null;
+  useEffect(() => {
+    void purge.setActivePrincipal(
+      principalOrigin && principalUserId
+        ? { origin: principalOrigin, userId: principalUserId }
+        : null,
+    );
+  }, [purge, principalOrigin, principalUserId]);
 
   useEffect(() => {
     const unsubscribe = scope.subscribe(() =>
@@ -365,6 +412,12 @@ function AccountScopeBridge({
   }, [scope, principal]);
 
   useEffect(() => () => scope.setPrincipal(null), [scope]);
+  useEffect(
+    () => () => {
+      void purge.setActivePrincipal(null);
+    },
+    [purge],
+  );
 
   const value = useMemo<AccountScopeContextValue>(
     () => ({
@@ -378,11 +431,39 @@ function AccountScopeBridge({
     [scope, principal, snapshot],
   );
 
+  // B3/C8: one asynchronous startup sweep, only after the session restore and
+  // the account scope open have settled. It is not part of the synchronous
+  // media temp sweep or the ANR timing path, and it never surfaces an error.
+  const sweepStarted = useRef(false);
+  const sessionSettled =
+    sessionState.status === "signed-in" ||
+    sessionState.status === "signed-out" ||
+    sessionState.status === "error";
+  const scopeSettled =
+    !principal ||
+    value.state?.status === "ready" ||
+    value.state?.status === "error";
+  useEffect(() => {
+    if (sweepStarted.current || !sessionSettled || !scopeSettled) return;
+    sweepStarted.current = true;
+    void purge.sweep().catch(() => undefined);
+  }, [purge, sessionSettled, scopeSettled]);
+
   return (
     <AccountScopeContext.Provider value={value}>
       {children}
     </AccountScopeContext.Provider>
   );
+}
+
+export function useAccountLocalDataPurge(): AccountLocalDataPurge {
+  const value = useContext(AccountLocalDataPurgeContext);
+  if (!value) {
+    throw new Error(
+      "useAccountLocalDataPurge must be used inside AppProviders.",
+    );
+  }
+  return value;
 }
 
 export function useAccountScope(): AccountScopeContextValue {
