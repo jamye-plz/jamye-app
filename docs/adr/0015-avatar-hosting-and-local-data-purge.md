@@ -82,8 +82,9 @@ M17 라운드 3 (B)에서 사용자가 두 항목을 모두 진행하라고 요�
 
 ### 검증
 
-- 앱 `bun run check:code` exit 0: Jest 255/255 suites, 2569/2569 tests, coverage statements 88.51% /
-  branches 83.16% / functions 87.9% / lines 91.18%(threshold 80%), check-architecture 위반 0.
+- 앱 `bun run check:code` exit 0(격리 리뷰 수정 뒤 최종): Jest 255/255 suites, 2611/2611 tests, coverage
+  statements 88.53% / branches 83.17% / functions 87.99% / lines 91.2%(threshold 80%), check-architecture
+  위반 0.
 - 서버 task-19(PR #18, merge `f86012e`)는 `just format-check`, `just clippy`, `just contract-check`,
   `just secret-check`, 전체 `just test`를 통과했고 운영에 두 단계로 배포됐다. migration 0019 적용(기능
   꺼짐), 꺼짐 smoke(U4·U6 404), 공개 URL 설정과 rate limit 상향(homelab), 활성 smoke(무인증 U4·U5 401,
