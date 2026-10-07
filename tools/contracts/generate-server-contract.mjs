@@ -34,6 +34,10 @@ const GENERATOR_IDENTITY = "openapi-typescript@7.13.0";
 // both operationIds already exist as literal ids in the deployed
 // contracts/server/openapi.json (`paths["/api/v1/auth/apple/exchange"].post
 // .operationId === "A6"`, `paths["/api/v1/me"].delete.operationId === "U3"`).
+// M17 (task-app-avatar, AV-AC8) adds U4 (POST /api/v1/me/avatar/uploads),
+// U5 (POST /api/v1/me/avatar/uploads/{upload_id}/finalize) and U6 (public
+// GET /api/v1/avatars/{avatar_id}, served to the Avatar component through
+// User.avatar_url) from the deployed jamye-server contract (merge f86012e).
 const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "A1",
   "A2",
@@ -45,6 +49,9 @@ const SCHEMA_CLOSURE_OPERATION_IDS = Object.freeze([
   "H2",
   "U1",
   "U3",
+  "U4",
+  "U5",
+  "U6",
   "G1",
   "G2",
   "G3",

@@ -9,11 +9,12 @@ describe("U2 UserPatch wire contract", () => {
     expect(validateUserPatch({ nickname: "지민" })).toBe(true);
   });
 
-  test("validateUserPatch accepts an avatar_url-only patch, including null (clear)", () => {
+  test('validateUserPatch accepts an avatar_url-only patch; the wire schema allows null (a server no-op) and "" (clear)', () => {
     expect(
       validateUserPatch({ avatar_url: "https://cdn.example.com/a.png" }),
     ).toBe(true);
     expect(validateUserPatch({ avatar_url: null })).toBe(true);
+    expect(validateUserPatch({ avatar_url: "" })).toBe(true);
   });
 
   test("validateUserPatch accepts both fields set together", () => {
@@ -44,8 +45,8 @@ describe("U2 UserPatch wire contract", () => {
    * only, no scheme pattern. The https-only rule (and its 422
    * request_validation_failed rejection) is enforced by server application
    * code, not the wire schema, so validateUserPatch intentionally still
-   * accepts a non-https value here; the app does not send avatar_url via U2
-   * today, but this documents the confirmed (non-)change for whenever it does.
+   * accepts a non-https value here; the app sends avatar_url via U2 only to clear it
+   * (""); a null is a server-side no-op and is never sent.
    */
   test("S3 validateUserPatch still accepts a non-https avatar_url (https-only is server-runtime validation, not a wire schema change)", () => {
     expect(
@@ -69,10 +70,17 @@ describe("U2 UserPatch wire contract", () => {
     expect(validateUserPatch(wire)).toBe(true);
   });
 
-  test("userPatchToWire includes avatar_url:null when clearing, omitting nickname", () => {
-    const wire = userPatchToWire({ avatarUrl: null });
-    expect(wire).toEqual({ avatar_url: null });
+  // AV-AC1: U2 treats `avatar_url: null` as a no-op; "" is the clear value.
+  test('userPatchToWire sends avatar_url:"" when clearing, omitting nickname', () => {
+    const wire = userPatchToWire({ avatarUrl: "" });
+    expect(wire).toEqual({ avatar_url: "" });
     expect(validateUserPatch(wire)).toBe(true);
+  });
+
+  test('userPatchToWire never puts avatar_url:null on the wire (a legacy null clear becomes "")', () => {
+    const wire = userPatchToWire({ avatarUrl: null });
+    expect(wire).toEqual({ avatar_url: "" });
+    expect((wire as { avatar_url?: unknown }).avatar_url).not.toBeNull();
   });
 
   test("userPatchToWire includes avatar_url as a string when set", () => {
@@ -84,8 +92,8 @@ describe("U2 UserPatch wire contract", () => {
   });
 
   test("userPatchToWire includes both keys when both are set", () => {
-    const wire = userPatchToWire({ avatarUrl: null, nickname: "새 닉네임" });
-    expect(wire).toEqual({ avatar_url: null, nickname: "새 닉네임" });
+    const wire = userPatchToWire({ avatarUrl: "", nickname: "새 닉네임" });
+    expect(wire).toEqual({ avatar_url: "", nickname: "새 닉네임" });
     expect(validateUserPatch(wire)).toBe(true);
   });
 
